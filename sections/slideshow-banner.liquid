@@ -1,0 +1,557 @@
+{% comment %}
+  Quadratum • Slideshow Banner
+  Purpose: Multi-slide rotating banner for promos/collections; friendly for beginners.
+  SEO: First slide renders H1, all subsequent slides render H2.
+  A11y: Labelled region, keyboard nav, dots/arrows toggles, pause on hover/focus, reduced-motion aware.
+  Perf: CSS scroll-snap + minimal vanilla JS. Lazy init when in view. No external libs.
+  UX: Per-slide mobile image, optional hide text/buttons on mobile, optional progress bar, optional Ken Burns.
+{% endcomment %}
+
+{% liquid
+  assign s = section.settings
+  assign container_pad = ''
+  if s.container_mode == 'contained'
+    assign container_pad = 'px-4 md:px-6'
+  endif
+  assign visibility_classes = ''
+  if s.hide_on_mobile
+    assign visibility_classes = visibility_classes | append: ' hidden md:block'
+  endif
+  if s.hide_on_desktop
+    assign visibility_classes = visibility_classes | append: ' md:hidden'
+  endif
+  assign min_h = s.min_height | default: 'min-h-[75vh]'
+  assign is_outline = false
+  if s.button_mode == 'outline'
+    assign is_outline = true
+  endif
+%}
+
+<section id="{{ s.anchor_id | default: 'section-' | append: section.id }}"
+         class="q-carousel-hero relative overflow-hidden {{ min_h }}{{ visibility_classes }}"
+         role="region"
+         aria-label="{{ s.region_label | default: 'Slideshow banner' }}"
+         data-q-carousel
+         data-autoplay="{{ s.autoplay }}"
+         data-interval="{{ s.autoplay_interval | default: 5 }}"
+         data-transition="{{ s.transition | default: 'slide' }}"
+         data-show-progress="{{ s.show_progress }}"
+         data-progress-height="{{ s.progress_height | default: 3 }}"
+         data-reduced-motion-aware="true">
+
+  {% if s.show_progress and section.blocks.size > 1 and s.autoplay %}
+    <div class="absolute left-0 right-0 top-0 z-20" aria-hidden="true">
+      <div data-q-progress class="w-0"
+           style="height: {{ s.progress_height | default: 3 }}px; background-color: {{ s.progress_color | default: '#ffffff' }};">
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="relative h-full">
+    <div class="snap-x snap-mandatory overflow-x-auto h-full w-full flex scroll-smooth no-scrollbar"
+         tabindex="0"
+         aria-roledescription="carousel"
+         aria-live="{% if s.autoplay %}off{% else %}polite{% endif %}"
+         data-q-carousel-track>
+
+      {% assign total = section.blocks.size %}
+      {% for block in section.blocks %}
+        {% assign b = block.settings %}
+
+        {% liquid
+          assign pos_m = b.content_position_mobile | default: 'center_center'
+          assign pm = pos_m | split: '_'
+          assign align_m = pm[0] | prepend: 'items-'
+          assign justify_m = pm[1] | prepend: 'justify-'
+
+          assign pos_d = b.content_position | default: 'center_center'
+          assign pd = pos_d | split: '_'
+          assign align_d = pd[0] | prepend: 'items-'
+          assign justify_d = pd[1] | prepend: 'justify-'
+
+          assign text_align = b.text_alignment | default: 'center'
+
+          assign cta_align = b.cta_group_align | default: 'center'
+          assign cta_justify = 'justify-center'
+          if cta_align == 'left'
+            assign cta_justify = 'justify-start'
+          elsif cta_align == 'right'
+            assign cta_justify = 'justify-end'
+          endif
+
+          assign slide_idx = forloop.index
+          assign slide_label = 'Slide ' | append: slide_idx | append: ' of ' | append: total
+          assign ken_burns = b.ken_burns | default: false
+        %}
+
+        <div class="relative snap-start shrink-0 w-full h-full"
+             aria-roledescription="slide"
+             aria-label="{{ slide_label }}"
+             data-q-slide
+             {% if s.transition == 'fade' %}style="opacity:{% if forloop.first %}1{% else %}0{% endif %}; transition: opacity 500ms ease;"{% endif %}>
+
+          <!-- Background media -->
+          <div class="absolute inset-0 z-0 overflow-hidden {% if ken_burns %}q-ken-burns{% endif %}">
+            {% if b.background_video != blank %}
+              <video class="absolute inset-0 w-full h-full object-cover"
+                     autoplay loop muted playsinline preload="none"
+                     {% if b.background_image != blank %}poster="{{ b.background_image | image_url: width: 1600 }}"{% endif %}>
+                <source src="{{ b.background_video }}" type="video/mp4">
+              </video>
+            {% elsif b.mobile_image != blank %}
+              <picture>
+                <source media="(max-width: 767px)" srcset="{{ b.mobile_image | image_url: width: 1280 }}">
+                <img
+                  src="{{ b.background_image | image_url: width: 2880 }}"
+                  srcset="{{ b.background_image | image_url: width: 960 }} 960w,
+                          {{ b.background_image | image_url: width: 1440 }} 1440w,
+                          {{ b.background_image | image_url: width: 1920 }} 1920w,
+                          {{ b.background_image | image_url: width: 2560 }} 2560w,
+                          {{ b.background_image | image_url: width: 2880 }} 2880w"
+                  sizes="100vw"
+                  loading="eager"
+                  fetchpriority="high"
+                  class="absolute inset-0 w-full h-full object-cover"
+                  alt="{{ b.image_alt }}">
+              </picture>
+            {% elsif b.background_image != blank %}
+              {{ b.background_image
+                | image_url: width: 2880
+                | image_tag:
+                  widths: '960,1440,1920,2560,2880',
+                  sizes: '100vw',
+                  loading: 'eager',
+                  fetchpriority: 'high',
+                  class: 'absolute inset-0 w-full h-full object-cover',
+                  alt: b.image_alt }}
+            {% endif %}
+          </div>
+
+          <!-- Overlay -->
+          <div class="absolute inset-0 z-0"
+               aria-hidden="true"
+               style="background-color: {{ b.overlay_color | default: s.overlay_color }};
+                      opacity: {{ b.overlay_opacity | default: s.overlay_opacity | divided_by: 100.0 }};">
+          </div>
+
+          <!-- Content -->
+          <div class="relative z-10 w-full h-full flex {{ align_m }} {{ justify_m }} md:{{ align_d }} md:{{ justify_d }}">
+            <div class="w-full {{ s.content_max_w | default: 'max-w-4xl' }} {{ container_pad }} text-{{ text_align }}
+                        mt-[{{ s.margin_top }}px]
+                        mb-[{{ s.margin_bottom }}px]
+                        pt-[{{ s.padding_top }}px]
+                        pb-[{{ s.padding_bottom }}px]">
+
+              {% if b.kicker != blank %}
+                <p class="uppercase tracking-wide mb-2 font-semibold text-{{ b.kicker_size | default: 'sm' }}"
+                   style="color: {{ b.kicker_color | default: '#ffffff' }};">
+                  {{ b.kicker }}
+                </p>
+              {% endif %}
+
+              {% unless b.hide_text_mobile %}
+                {% if b.heading != blank %}
+                  {% if forloop.first %}
+                    <h1 class="font-bold mb-4 text-{{ b.heading_size | default: '5xl' }}"
+                        style="color: {{ b.heading_color | default: '#ffffff' }};">{{ b.heading }}</h1>
+                  {% else %}
+                    <h2 class="font-bold mb-4 text-{{ b.heading_size | default: '5xl' }}"
+                        style="color: {{ b.heading_color | default: '#ffffff' }};">{{ b.heading }}</h2>
+                  {% endif %}
+                {% endif %}
+
+                {% if b.subheading != blank %}
+                  <p class="mb-6 text-{{ b.subheading_size | default: 'lg' }} {% if b.hide_text_mobile %}hidden md:block{% endif %}"
+                     style="color: {{ b.subheading_color | default: '#ffffff' }};">
+                    {{ b.subheading }}
+                  </p>
+                {% endif %}
+              {% endunless %}
+
+              {% assign has_cta1 = false %}
+              {% if b.cta_text != blank and b.cta_link != blank %}
+                {% assign has_cta1 = true %}
+              {% endif %}
+              {% assign has_cta2 = false %}
+              {% if b.cta2_text != blank and b.cta2_link != blank %}
+                {% assign has_cta2 = true %}
+              {% endif %}
+
+              {% if has_cta1 or has_cta2 %}
+                <div class="mt-2 flex flex-wrap gap-3 {{ cta_justify }} {% if b.hide_buttons_mobile %}hidden md:flex{% endif %}">
+                  {% if has_cta1 %}
+                    <a href="{{ b.cta_link }}"
+                       aria-label="{{ b.cta_aria_label | default: b.cta_text | escape }}"
+                       class="inline-block transition duration-300 ease-in-out font-medium shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-black/40 {% if is_outline %}border bg-transparent{% endif %}"
+                       style="
+                          color: {{ s.button_text_color }};
+                          {% if is_outline %}
+                            border-color: {{ s.button_border_color }};
+                            border-width: {{ s.button_border_width }}px;
+                            background-color: transparent;
+                          {% else %}
+                            background-color: {{ s.button_bg_color }};
+                          {% endif %}
+                          border-radius: {{ s.button_radius }}px;
+                          padding-left: {{ s.button_padding_horizontal }}px;
+                          padding-right: {{ s.button_padding_horizontal }}px;
+                          padding-top: {{ s.button_padding_vertical }}px;
+                          padding-bottom: {{ s.button_padding_vertical }}px;
+                       ">
+                      {{ b.cta_text }}
+                    </a>
+                  {% endif %}
+                  {% if has_cta2 %}
+                    <a href="{{ b.cta2_link }}"
+                       aria-label="{{ b.cta2_aria_label | default: b.cta2_text | escape }}"
+                       class="inline-block transition duration-300 ease-in-out font-medium shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-black/40 {% if is_outline %}border bg-transparent{% endif %}"
+                       style="
+                          color: {{ s.button_text_color }};
+                          {% if is_outline %}
+                            border-color: {{ s.button_border_color }};
+                            border-width: {{ s.button_border_width }}px;
+                            background-color: transparent;
+                          {% else %}
+                            background-color: {{ s.button_bg_color }};
+                          {% endif %}
+                          border-radius: {{ s.button_radius }}px;
+                          padding-left: {{ s.button_padding_horizontal }}px;
+                          padding-right: {{ s.button_padding_horizontal }}px;
+                          padding-top: {{ s.button_padding_vertical }}px;
+                          padding-bottom: {{ s.button_padding_vertical }}px;
+                       ">
+                      {{ b.cta2_text }}
+                    </a>
+                  {% endif %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    {% if section.blocks.size > 1 %}
+      {% if s.show_arrows %}
+        <div class="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between {{ container_pad }}">
+          <button type="button" class="pointer-events-auto inline-flex items-center justify-center w-10 h-10 rounded-full bg-black/40 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white" aria-label="Previous slide" data-q-carousel-prev>&larr;</button>
+          <button type="button" class="pointer-events-auto inline-flex items-center justify-center w-10 h-10 rounded-full bg-black/40 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white" aria-label="Next slide" data-q-carousel-next>&rarr;</button>
+        </div>
+      {% endif %}
+
+      {% if s.show_dots %}
+        <div class="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-2">
+          {% for block in section.blocks %}
+            <button type="button" class="w-2.5 h-2.5 rounded-full bg-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    aria-label="Go to slide {{ forloop.index }}" data-q-carousel-dot data-index="{{ forloop.index0 }}"></button>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% if s.autoplay %}
+        <button type="button" class="absolute bottom-4 right-4 text-xs px-2 py-1 rounded bg-black/40 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                aria-label="Pause autoplay" data-q-carousel-toggle>Pause</button>
+      {% endif %}
+    {% endif %}
+  </div>
+</section>
+
+<style>
+  @keyframes qKen {
+    0% { transform: scale(1) translateZ(0); }
+    100% { transform: scale(1.06) translateZ(0); }
+  }
+  .q-ken-burns > picture > img,
+  .q-ken-burns > img,
+  .q-ken-burns > video {
+    animation: qKen 20s linear infinite alternate;
+    will-change: transform;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .q-ken-burns > * { animation: none !important; }
+  }
+</style>
+
+<script>
+  (() => {
+    const root = document.currentScript.closest('[data-q-carousel]');
+    if (!root) return;
+    const track = root.querySelector('[data-q-carousel-track]');
+    const slides = Array.from(root.querySelectorAll('[data-q-slide]'));
+    if (!track || slides.length <= 1) return;
+
+    const dots = Array.from(root.querySelectorAll('[data-q-carousel-dot]'));
+    const btnPrev = root.querySelector('[data-q-carousel-prev]');
+    const btnNext = root.querySelector('[data-q-carousel-next]');
+    const btnToggle = root.querySelector('[data-q-carousel-toggle]');
+    const progress = root.querySelector('[data-q-progress]');
+
+    const transition = root.dataset.transition || 'slide';
+    const autoplay = root.dataset.autoplay === 'true';
+    const intervalSec = parseInt(root.dataset.interval || '5', 10);
+    const showProgress = root.dataset.showProgress === 'true';
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let idx = 0, timer = null, paused = false;
+
+    const updateDots = () => dots.forEach((d, n) => d.style.opacity = (n === idx) ? '1' : '0.45');
+
+    const goTo = (i, user = false) => {
+      idx = (i + slides.length) % slides.length;
+      const slide = slides[idx];
+
+      if (transition === 'fade' && !prefersReduced) {
+        slides.forEach((el, n) => {
+          el.style.opacity = (n === idx) ? '1' : '0';
+          el.style.pointerEvents = (n === idx) ? 'auto' : 'none';
+        });
+      } else {
+        track.scrollTo({ left: slide.offsetLeft, behavior: user || prefersReduced ? 'auto' : 'smooth' });
+      }
+      updateDots();
+      resetProgress();
+    };
+
+    const next = () => goTo(idx + 1);
+    const prev = () => goTo(idx - 1);
+
+    const resetProgress = () => {
+      if (!progress || !autoplay || prefersReduced || !showProgress) return;
+      progress.style.transition = 'none';
+      progress.style.width = '0%';
+      requestAnimationFrame(() => {
+        progress.style.transition = `width ${intervalSec}s linear`;
+        progress.style.width = '100%';
+      });
+    };
+
+    const start = () => {
+      if (!autoplay || prefersReduced) return;
+      stop();
+      timer = setInterval(() => { if (!paused) next(); }, intervalSec * 1000);
+      resetProgress();
+    };
+    const stop = () => { if (timer) clearInterval(timer), timer = null; if (progress) progress.style.transition = 'none'; };
+
+    root.addEventListener('mouseenter', () => { paused = true; });
+    root.addEventListener('mouseleave', () => { paused = false; });
+    root.addEventListener('focusin', () => { paused = true; });
+    root.addEventListener('focusout', () => { paused = false; });
+
+    btnPrev && btnPrev.addEventListener('click', () => goTo(idx - 1, true));
+    btnNext && btnNext.addEventListener('click', () => goTo(idx + 1, true));
+    dots.forEach(dot => dot.addEventListener('click', () => goTo(parseInt(dot.dataset.index, 10), true)));
+
+    track.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+    });
+
+    if (btnToggle) {
+      btnToggle.addEventListener('click', () => {
+        if (!autoplay) return;
+        paused = !paused;
+        btnToggle.textContent = paused ? 'Play' : 'Pause';
+        btnToggle.setAttribute('aria-label', paused ? 'Start autoplay' : 'Pause autoplay');
+      });
+    }
+
+    const init = () => {
+      if (transition === 'fade' && !prefersReduced) {
+        track.style.overflow = 'hidden';
+        slides.forEach(el => { el.style.position = 'absolute'; el.style.inset = '0'; });
+      }
+      goTo(0, true);
+      start();
+    };
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some(e => e.isIntersecting)) { init(); io.disconnect(); }
+    }, { threshold: 0.1 });
+    io.observe(root);
+  })();
+</script>
+
+<!-- Tailwind safelist: forces JIT to keep classes used via settings -->
+<div class="hidden">
+  <!-- text alignment variants -->
+  <div class="text-left"></div>
+  <div class="text-center"></div>
+  <div class="text-right"></div>
+
+  <!-- vertical/horizontal placement (mobile) -->
+  <div class="items-start"></div>
+  <div class="items-center"></div>
+  <div class="items-end"></div>
+  <div class="justify-start"></div>
+  <div class="justify-center"></div>
+  <div class="justify-end"></div>
+
+  <!-- desktop placement variants -->
+  <div class="md:items-start"></div>
+  <div class="md:items-center"></div>
+  <div class="md:items-end"></div>
+  <div class="md:justify-start"></div>
+  <div class="md:justify-center"></div>
+  <div class="md:justify-end"></div>
+
+  <!-- height options used by the setting -->
+  <div class="min-h-[60vh]"></div>
+  <div class="min-h-[75vh]"></div>
+  <div class="min-h-screen"></div>
+
+  <!-- max width options used by the setting -->
+  <div class="max-w-2xl"></div>
+  <div class="max-w-3xl"></div>
+  <div class="max-w-4xl"></div>
+
+  <!-- type scale used by settings -->
+  <div class="text-sm"></div>
+  <div class="text-base"></div>
+  <div class="text-lg"></div>
+  <div class="text-xl"></div>
+  <div class="text-2xl"></div>
+  <div class="text-3xl"></div>
+  <div class="text-4xl"></div>
+  <div class="text-5xl"></div>
+  <div class="text-6xl"></div>
+</div>
+
+{% schema %}
+{
+  "name": "Slideshow Banner",
+  "tag": "section",
+  "class": "q-carousel-hero",
+  "settings": [
+    { "type": "header", "content": "About this banner" },
+    { "type": "paragraph", "content": "Rotating slideshow for promos or collections. Add slides with an image or video, a headline, and buttons. SEO-friendly: first slide is H1, others are H2. Accessible and fast. (Tip: keep text short.)" },
+
+    { "type": "header", "content": "Behavior" },
+    { "type": "checkbox", "id": "autoplay", "label": "Auto-rotate slides", "default": true },
+    { "type": "range", "id": "autoplay_interval", "label": "Time between slides (seconds)", "min": 3, "max": 12, "step": 1, "default": 5 },
+    { "type": "select", "id": "transition", "label": "Transition", "default": "slide", "options": [
+      { "value": "slide", "label": "Slide" },
+      { "value": "fade", "label": "Fade (smooth crossfade)" }
+    ]},
+    { "type": "checkbox", "id": "show_arrows", "label": "Show left/right arrows", "default": true },
+    { "type": "checkbox", "id": "show_dots", "label": "Show dots under the slides", "default": true },
+    { "type": "checkbox", "id": "show_progress", "label": "Show progress bar (autoplay)", "default": false },
+    { "type": "range", "id": "progress_height", "label": "Progress bar height (px)", "min": 2, "max": 8, "step": 1, "default": 3 },
+    { "type": "color", "id": "progress_color", "label": "Progress bar color", "default": "#ffffff" },
+
+    { "type": "header", "content": "Layout & spacing" },
+    { "type": "select", "id": "min_height", "label": "Banner height", "default": "min-h-[75vh]", "options": [
+      { "value": "min-h-[60vh]", "label": "Short" },
+      { "value": "min-h-[75vh]", "label": "Medium" },
+      { "value": "min-h-screen", "label": "Full screen" }
+    ]},
+    { "type": "select", "id": "container_mode", "label": "Text container", "default": "contained", "options": [
+      { "value": "contained", "label": "Contained (side padding)" },
+      { "value": "full", "label": "Full-bleed (edge to edge)" }
+    ]},
+    { "type": "select", "id": "content_max_w", "label": "Text width", "default": "max-w-4xl", "options": [
+      { "value": "max-w-2xl", "label": "Narrow" },
+      { "value": "max-w-3xl", "label": "Comfort" },
+      { "value": "max-w-4xl", "label": "Wide" }
+    ]},
+    { "type": "range", "id": "padding_top", "label": "Padding top", "min": 0, "max": 200, "step": 10, "default": 60 },
+    { "type": "range", "id": "padding_bottom", "label": "Padding bottom", "min": 0, "max": 200, "step": 10, "default": 60 },
+    { "type": "range", "id": "margin_top", "label": "Margin top", "min": 0, "max": 100, "step": 10, "default": 0 },
+    { "type": "range", "id": "margin_bottom", "label": "Margin bottom", "min": 0, "max": 100, "step": 10, "default": 0 },
+
+    { "type": "header", "content": "Button style (applies to all slides)" },
+    { "type": "select", "id": "button_mode", "label": "Button style", "options": [
+      { "value": "solid", "label": "Solid" }, { "value": "outline", "label": "Outline" }], "default": "solid"
+    },
+    { "type": "color", "id": "button_bg_color", "label": "Button background (solid)", "default": "#ffffff" },
+    { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#000000" },
+    { "type": "color", "id": "button_border_color", "label": "Button border color (outline)", "default": "#ffffff" },
+    { "type": "range", "id": "button_border_width", "label": "Button border width (outline)", "min": 0, "max": 10, "step": 1, "default": 1 },
+    { "type": "range", "id": "button_radius", "label": "Button corner radius", "min": 0, "max": 50, "step": 2, "default": 6 },
+    { "type": "range", "id": "button_padding_vertical", "label": "Button padding (top/bottom)", "min": 6, "max": 40, "step": 2, "default": 12 },
+    { "type": "range", "id": "button_padding_horizontal", "label": "Button padding (left/right)", "min": 12, "max": 44, "step": 2, "default": 24 },
+
+    { "type": "header", "content": "Visibility & anchors" },
+    { "type": "text", "id": "anchor_id", "label": "Optional anchor ID" },
+    { "type": "text", "id": "region_label", "label": "Accessible region label", "default": "Slideshow banner" },
+    { "type": "checkbox", "id": "hide_on_mobile", "label": "Hide on mobile", "default": false },
+    { "type": "checkbox", "id": "hide_on_desktop", "label": "Hide on desktop", "default": false }
+  ],
+  "blocks": [
+    {
+      "type": "slide",
+      "name": "Slide",
+      "settings": [
+        { "type": "header", "content": "Background media" },
+        { "type": "image_picker", "id": "background_image", "label": "Background image" },
+        { "type": "image_picker", "id": "mobile_image", "label": "Mobile image (optional)", "info": "Shown on screens under 768px" },
+        { "type": "text", "id": "background_video", "label": "Background video URL (MP4)" },
+        { "type": "text", "id": "image_alt", "label": "Image alt text", "info": "Describe the image for accessibility; leave blank if purely decorative." },
+
+        { "type": "header", "content": "Overlay" },
+        { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
+        { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 40, "unit": "%" },
+
+        { "type": "header", "content": "Text" },
+        { "type": "text", "id": "kicker", "label": "Small label (kicker)", "default": "Featured" },
+        { "type": "color", "id": "kicker_color", "label": "Kicker color", "default": "#ffffff" },
+        { "type": "select", "id": "kicker_size", "label": "Kicker size", "options": [
+          { "value": "sm", "label": "Small" }, { "value": "base", "label": "Normal" }, { "value": "lg", "label": "Large" }], "default": "sm"
+        },
+
+        { "type": "text", "id": "heading", "label": "Big headline", "default": "Your main headline" },
+        { "type": "color", "id": "heading_color", "label": "Headline color", "default": "#ffffff" },
+        { "type": "select", "id": "heading_size", "label": "Headline size", "options": [
+          { "value": "3xl", "label": "3XL" }, { "value": "4xl", "label": "4XL" }, { "value": "5xl", "label": "5XL" }, { "value": "6xl", "label": "6XL" }], "default": "5xl"
+        },
+
+        { "type": "textarea", "id": "subheading", "label": "Short description", "default": "A quick benefit-driven sentence to help visitors act." },
+        { "type": "color", "id": "subheading_color", "label": "Description color", "default": "#ffffff" },
+        { "type": "select", "id": "subheading_size", "label": "Description size", "options": [
+          { "value": "base", "label": "Base" }, { "value": "lg", "label": "Large" }, { "value": "xl", "label": "XL" }], "default": "lg"
+        },
+        { "type": "checkbox", "id": "hide_text_mobile", "label": "Hide headline/description on mobile", "default": false },
+
+        { "type": "header", "content": "Buttons" },
+        { "type": "select", "id": "cta_group_align", "label": "Button alignment", "default": "center", "options": [
+          { "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" }
+        ]},
+        { "type": "text", "id": "cta_text", "label": "Primary button text", "default": "Shop now" },
+        { "type": "url", "id": "cta_link", "label": "Primary button link", "default": "/collections/all" },
+        { "type": "text", "id": "cta_aria_label", "label": "Primary button ARIA label", "default": "Shop now" },
+        { "type": "text", "id": "cta2_text", "label": "Secondary button text", "default": "Learn more" },
+        { "type": "url", "id": "cta2_link", "label": "Secondary button link", "default": "/collections/all" },
+        { "type": "text", "id": "cta2_aria_label", "label": "Secondary button ARIA label", "default": "Learn more" },
+        { "type": "checkbox", "id": "hide_buttons_mobile", "label": "Hide buttons on mobile", "default": false },
+
+        { "type": "header", "content": "Placement" },
+        { "type": "select", "id": "text_alignment", "label": "Text alignment", "options": [
+          { "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" }], "default": "center"
+        },
+        { "type": "select", "id": "content_position_mobile", "label": "Placement on mobile", "default": "center_center", "options": [
+          { "value": "start_start", "label": "Top left" }, { "value": "start_center", "label": "Top center" }, { "value": "start_end", "label": "Top right" },
+          { "value": "center_start", "label": "Middle left" }, { "value": "center_center", "label": "Middle center" }, { "value": "center_end", "label": "Middle right" },
+          { "value": "end_start", "label": "Bottom left" }, { "value": "end_center", "label": "Bottom center" }, { "value": "end_end", "label": "Bottom right" }
+        ]},
+        { "type": "select", "id": "content_position", "label": "Placement on desktop", "default": "center_center", "options": [
+          { "value": "start_start", "label": "Top left" }, { "value": "start_center", "label": "Top center" }, { "value": "start_end", "label": "Top right" },
+          { "value": "center_start", "label": "Middle left" }, { "value": "center_center", "label": "Middle center" }, { "value": "center_end", "label": "Middle right" },
+          { "value": "end_start", "label": "Bottom left" }, { "value": "end_center", "label": "Bottom center" }, { "value": "end_end", "label": "Bottom right" }
+        ]},
+        { "type": "header", "content": "Motion" },
+        { "type": "checkbox", "id": "ken_burns", "label": "Subtle pan/zoom on image (Ken Burns)", "default": false }
+      ]
+    }
+  ],
+  "max_blocks": 8,
+  "presets": [
+    {
+      "name": "Slideshow Banner",
+      "category": "Banner",
+      "blocks": [
+        { "type": "slide", "settings": { "heading": "New Season Essentials", "subheading": "Fresh looks engineered for comfort.", "cta_text": "Shop Women", "cta2_text": "Shop Men" } },
+        { "type": "slide", "settings": { "heading": "Members Get More", "subheading": "Exclusive drops and early access.", "cta_text": "Join Free" } }
+      ]
+    }
+  ]
+}
+{% endschema %}
