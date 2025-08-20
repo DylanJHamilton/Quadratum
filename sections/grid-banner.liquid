@@ -31,14 +31,87 @@
 {% if s.hide_on_mobile %}{% assign visibility_classes = visibility_classes | append: ' hidden md:block' %}{% endif %}
 {% if s.hide_on_desktop %}{% assign visibility_classes = visibility_classes | append: ' md:hidden' %}{% endif %}
 
+{%- comment -%} Spacing fallback: map pad_y to px (for purge-proof padding) {%- endcomment -%}
+{% assign pad_mobile = 48 %}
+{% assign pad_desktop = 64 %}
+{% case s.pad_y %}
+  {% when 'py-8 md:py-12' %}{% assign pad_mobile = 32 %}{% assign pad_desktop = 48 %}
+  {% when 'py-12 md:py-16' %}{% assign pad_mobile = 48 %}{% assign pad_desktop = 64 %}
+  {% when 'py-16 md:py-24' %}{% assign pad_mobile = 64 %}{% assign pad_desktop = 96 %}
+{% endcase %}
+
+{%- comment -%} Cache section id for scoped CSS {%- endcomment -%}
+{% assign sid = s.anchor_id | default: 'section-' | append: section.id %}
+
 <section
-  id="{{ s.anchor_id | default: 'section-' | append: section.id }}"
+  id="{{ sid }}"
   class="relative {{ s.pad_y | default: 'py-12 md:py-16' }}{{ visibility_classes }}"
   role="region"
   aria-label="{{ s.region_label | default: 'Promotional grid' }}"
 >
+  <style>
+    /* === Scoped spacing (section) === */
+    #{{ sid }}{padding-top:{{ pad_mobile }}px;padding-bottom:{{ pad_mobile }}px;}
+    @media (min-width:768px){#{{ sid }}{padding-top:{{ pad_desktop }}px;padding-bottom:{{ pad_desktop }}px;}}
+
+    /* Container side padding fallbacks if Tailwind purges px utilities */
+    #{{ sid }} .px-4{padding-left:16px;padding-right:16px;}
+    @media (min-width:768px){#{{ sid }} .md\:px-6{padding-left:24px;padding-right:24px;}}
+
+    /* Tile inner padding fallbacks (purge-proof) */
+    #{{ sid }} .p-6{padding:1.5rem;}#{{ sid }} .p-8{padding:2rem;}#{{ sid }} .p-10{padding:2.5rem;}#{{ sid }} .p-12{padding:3rem;}
+    @media (min-width:768px){
+      #{{ sid }} .md\:p-8{padding:2rem;}
+      #{{ sid }} .md\:p-10{padding:2.5rem;}
+      #{{ sid }} .md\:p-12{padding:3rem;}
+    }
+
+    /* Max-width fallbacks */
+    #{{ sid }} .max-w-2xl{max-width:42rem;}
+    #{{ sid }} .max-w-3xl{max-width:48rem;}
+    #{{ sid }} .max-w-4xl{max-width:56rem;}
+
+    /* Token polyfills (so tiles don’t look unstyled HTML if tokens are missing) */
+    #{{ sid }} .bg-card{background-color:#ffffff;}
+    #{{ sid }} .bg-background{background-color:#ffffff;}
+    #{{ sid }} .text-muted-foreground{color:#6b7280;}
+    #{{ sid }} .text-primary-foreground{color:#ffffff;}
+    #{{ sid }} .text-primary-foreground\/90{color:rgba(255,255,255,.9);}
+    #{{ sid }} .ring-border{--tw-ring-color:rgba(229,231,235,1);} /* gray-200 */
+    #{{ sid }} .border-input{border-color:#e5e7eb;}
+    #{{ sid }} .bg-primary{background-color:#111111;}
+    #{{ sid }} .hover\:bg-accent:hover{background-color:#f3f4f6;}
+    #{{ sid }} .hover\:text-accent-foreground:hover{color:#111111;}
+
+    /* Subtle lift for tiles */
+    #{{ sid }} article.bg-card{box-shadow:0 1px 2px rgba(0,0,0,.06);}
+    #{{ sid }} article.bg-card:hover{box-shadow:0 8px 24px rgba(0,0,0,.12);transition:box-shadow .2s ease;}
+
+    /* Typography (uses theme fonts; scoped) */
+    #{{ sid }}{
+      --q-font-head: {{ settings.type_header_font.family | json }}, {{ settings.type_header_font.fallback_families | json }};
+      --q-font-body: {{ settings.type_body_font.family  | json }}, {{ settings.type_body_font.fallback_families  | json }};
+      -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; font-synthesis-weight:none;
+    }
+    #{{ sid }} h1,#{{ sid }} h2,#{{ sid }} h3{font-family:var(--q-font-head);font-weight:700;line-height:1.15;letter-spacing:-.01em;}
+    #{{ sid }} p,#{{ sid }} li,#{{ sid }} a,#{{ sid }} span{font-family:var(--q-font-body);font-weight:400;line-height:1.6;}
+    #{{ sid }} .text-sm{font-size:.875rem;line-height:1.5;}
+    #{{ sid }} .text-base{font-size:1rem;line-height:1.6;}
+    #{{ sid }} .text-lg{font-size:1.125rem;line-height:1.6;}
+    #{{ sid }} .text-2xl{font-size:1.5rem;line-height:1.2;}
+    #{{ sid }} .text-3xl{font-size:1.875rem;line-height:1.15;}
+    #{{ sid }} a strong,#{{ sid }} button strong{font-weight:600;}
+
+    /* Equal-height tiles + comfortable minimum height */
+    #{{ sid }} .q-grid-tile{min-height:320px;display:flex;flex-direction:column;}
+    @media (min-width:768px){#{{ sid }} .q-grid-tile{min-height:420px;}}
+
+    /* Make media fully cover and stay behind */
+    #{{ sid }} .q-media{position:absolute;inset:0;z-index:0;}
+  </style>
+
   {% if s.kicker != blank or s.heading != blank or s.subheading != blank %}
-    <div class="mx-auto max-w-screen-xl {{ container_pad }} mb-8 md:mb-10">
+    <div class="mx-auto max-w-screen-xl {{ container_pad }} mb-10 md:mb-12">
       {% if s.kicker != blank %}
         <p class="text-sm font-semibold tracking-wide uppercase text-muted-foreground rtl:text-right">{{ s.kicker }}</p>
       {% endif %}
@@ -82,7 +155,7 @@
           {% assign fetchpriority_attr = 'auto' %}
         {% endif %}
 
-        {%- comment -%} CTA URLs: prefer explicit URL, then product/collection/article {%- endcomment -%}
+        {%- comment -%} CTA URLs (fallback chain) {%- endcomment -%}
         {% assign cta_href = b.cta_link %}
         {% if cta_href == blank and b.cta_product %}{% assign cta_href = b.cta_product.url %}{% endif %}
         {% if cta_href == blank and b.cta_collection %}{% assign cta_href = b.cta_collection.url %}{% endif %}
@@ -94,12 +167,12 @@
         {% if cta2_href == blank and b.cta2_article %}{% assign cta2_href = b.cta2_article.url %}{% endif %}
 
         <article
-          class="relative overflow-hidden rounded-2xl bg-card ring-1 ring-border group focus-within:ring-2 focus-within:ring-primary"
+          class="q-grid-tile relative overflow-hidden rounded-2xl bg-card ring-1 ring-border group focus-within:ring-2 focus-within:ring-primary"
           aria-label="{{ b.heading | default: b.kicker | default: 'Promotional tile' | escape }}"
           {{ block.shopify_attributes }}
         >
           <!-- Media -->
-          <div class="absolute inset-0 z-0 overflow-hidden">
+          <div class="q-media overflow-hidden">
             {% if b.background_video != blank %}
               <video
                 class="absolute inset-0 w-full h-full object-cover"
@@ -144,74 +217,51 @@
           </div>
 
           <!-- Content -->
-          <div class="relative z-10 w-full h-full">
-            <div class="flex items-center justify-center">
-              <div class="w-full {{ s.content_max_w | default: 'max-w-3xl' }} {{ s.pad_content | default: 'p-8 md:p-10' }} {{ text_align_class }} mx-auto">
-                {% if b.kicker != blank %}
-                  <p class="mb-2 text-sm font-semibold tracking-wide uppercase text-primary-foreground/90">{{ b.kicker }}</p>
-                {% endif %}
+          <div class="relative z-10 w-full h-full flex items-center justify-center">
+            <div class="w-full {{ s.content_max_w | default: 'max-w-3xl' }} {{ s.pad_content | default: 'p-8 md:p-10' }} {{ text_align_class }} mx-auto flex flex-col h-full">
+              {% if b.kicker != blank %}
+                <p class="mb-2 text-sm font-semibold tracking-wide uppercase text-primary-foreground/90">{{ b.kicker }}</p>
+              {% endif %}
 
-                {% if b.heading != blank %}
-                  <h3 class="font-semibold leading-tight text-2xl md:text-3xl text-primary-foreground">{{ b.heading }}</h3>
-                {% endif %}
+              {% if b.heading != blank %}
+                <h3 class="font-semibold leading-tight text-2xl md:text-3xl text-primary-foreground">{{ b.heading }}</h3>
+              {% endif %}
 
-                {% if b.subheading != blank %}
-                  <p class="mt-2 text-base md:text-lg text-primary-foreground/90 {% if b.hide_text_mobile %}hidden md:block{% endif %}">
-                    {{ b.subheading }}
-                  </p>
-                {% endif %}
+              {% if b.subheading != blank %}
+                <p class="mt-2 text-base md:text-lg text-primary-foreground/90 {% if b.hide_text_mobile %}hidden md:block{% endif %}">
+                  {{ b.subheading }}
+                </p>
+              {% endif %}
 
-                {% assign has_cta1 = false %}
-                {% if b.cta_text != blank and cta_href != blank %}{% assign has_cta1 = true %}{% endif %}
-                {% assign has_cta2 = false %}
-                {% if b.cta2_text != blank and cta2_href != blank %}{% assign has_cta2 = true %}{% endif %}
+              {% assign has_cta1 = false %}
+              {% if b.cta_text != blank and cta_href != blank %}{% assign has_cta1 = true %}{% endif %}
+              {% assign has_cta2 = false %}
+              {% if b.cta2_text != blank and cta2_href != blank %}{% assign has_cta2 = true %}{% endif %}
 
-                {% if has_cta1 or has_cta2 %}
-                  <div class="mt-4 flex flex-wrap gap-3 {{ cta_justify }} {% if b.hide_buttons_mobile %}hidden md:flex{% endif %}">
-                    {% if has_cta1 %}
-                      <a
-                        href="{{ cta_href }}"
-                        data-cta="primary"
-                        data-slide-index="{{ forloop.index0 }}"
-                        aria-label="{{ b.cta_aria_label | default: b.cta_text | escape }}"
-                        class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition
-                               {% if s.button_mode == 'outline' %}border bg-transparent{% else %}bg-primary text-primary-foreground hover:opacity-90{% endif %}"
-                        style="
-                          {% if s.button_mode == 'outline' %}
-                            color: {{ s.button_text_color }};
-                            border-color: {{ s.button_border_color }};
-                            border-width: {{ s.button_border_width }}px;
-                          {% else %}
-                            color: {{ s.button_text_color }};
-                            background-color: {{ s.button_bg_color }};
-                          {% endif %}
-                          border-radius: {{ s.button_radius }}px;
-                        "
-                      >{{ b.cta_text }}</a>
-                    {% endif %}
-                    {% if has_cta2 %}
-                      <a
-                        href="{{ cta2_href }}"
-                        data-cta="secondary"
-                        data-slide-index="{{ forloop.index0 }}"
-                        aria-label="{{ b.cta2_aria_label | default: b.cta2_text | escape }}"
-                        class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition
-                               {% if s.button_mode == 'outline' %}border bg-transparent{% else %}border border-input bg-background hover:bg-accent hover:text-accent-foreground{% endif %}"
-                        style="
-                          {% if s.button_mode == 'outline' %}
-                            color: {{ s.button_text_color }};
-                            border-color: {{ s.button_border_color }};
-                            border-width: {{ s.button_border_width }}px;
-                          {% else %}
-                            color: {{ s.button_text_color }};
-                          {% endif %}
-                          border-radius: {{ s.button_radius }}px;
-                        "
-                      >{{ b.cta2_text }}</a>
-                    {% endif %}
-                  </div>
-                {% endif %}
-              </div>
+              {% if has_cta1 or has_cta2 %}
+                <div class="mt-auto pt-2 flex flex-wrap gap-3 md:gap-4 {{ cta_justify }} {% if b.hide_buttons_mobile %}hidden md:flex{% endif %}">
+                  {% if has_cta1 %}
+                    <a
+                      href="{{ cta_href }}"
+                      data-cta="primary"
+                      data-slide-index="{{ forloop.index0 }}"
+                      aria-label="{{ b.cta_aria_label | default: b.cta_text | escape }}"
+                      class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition {% if s.button_mode == 'outline' %}border bg-transparent{% else %}bg-primary text-primary-foreground hover:opacity-90{% endif %}"
+                      style="{% if s.button_mode == 'outline' %}color: {{ s.button_text_color }}; border-color: {{ s.button_border_color }}; border-width: {{ s.button_border_width }}px;{% else %}color: {{ s.button_text_color }}; background-color: {{ s.button_bg_color }};{% endif %} border-radius: {{ s.button_radius }}px;"
+                    >{{ b.cta_text }}</a>
+                  {% endif %}
+                  {% if has_cta2 %}
+                    <a
+                      href="{{ cta2_href }}"
+                      data-cta="secondary"
+                      data-slide-index="{{ forloop.index0 }}"
+                      aria-label="{{ b.cta2_aria_label | default: b.cta2_text | escape }}"
+                      class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition {% if s.button_mode == 'outline' %}border bg-transparent{% else %}border border-input bg-background hover:bg-accent hover:text-accent-foreground{% endif %}"
+                      style="{% if s.button_mode == 'outline' %}color: {{ s.button_text_color }}; border-color: {{ s.button_border_color }}; border-width: {{ s.button_border_width }}px;{% else %}color: {{ s.button_text_color }};{% endif %} border-radius: {{ s.button_radius }}px;"
+                    >{{ b.cta2_text }}</a>
+                  {% endif %}
+                </div>
+              {% endif %}
             </div>
           </div>
         </article>
@@ -222,7 +272,7 @@
   {% if s.send_events %}
     <script>
       (function() {
-        var root = document.getElementById('{{ s.anchor_id | default: 'section-' | append: section.id }}');
+        var root = document.getElementById('{{ sid }}');
         if (!root) return;
         root.addEventListener('click', function(e) {
           var a = e.target.closest('a[data-cta]');
