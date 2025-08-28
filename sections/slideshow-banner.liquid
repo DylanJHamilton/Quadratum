@@ -1,18 +1,31 @@
 {% comment %}
-  Quadratum • Slideshow Banner
-  Purpose: Multi-slide rotating banner for promos/collections; friendly for beginners.
-  SEO: First slide renders H1, all subsequent slides render H2.
-  A11y: Labelled region, keyboard nav, dots/arrows toggles, pause on hover/focus, reduced-motion aware.
-  Perf: CSS scroll-snap + minimal vanilla JS. Lazy init when in view. No external libs.
-  UX: Per-slide mobile image, optional hide text/buttons on mobile, optional progress bar, optional Ken Burns.
+  Quadratum • Slideshow Banner (v5.2 — fixed)
+  Key fixes:
+  - Real min-height via --min-h (no Tailwind dependency)
+  - Fade stacking + pointer-events default
+  - Safer video URL guard
+  - Progress double-rAF restart
+  - Minor ARIA tidy (dots)
 {% endcomment %}
+
+{{ 'section-slideshow.js'  | asset_url | script_tag }}
+{{ 'section-slideshow.css' | asset_url | stylesheet_tag }}
 
 {% liquid
   assign s = section.settings
-  assign container_pad = ''
-  if s.container_mode == 'contained'
-    assign container_pad = 'px-4 md:px-6'
+
+  assign is_outline = false
+  if s.button_mode == 'outline'
+    assign is_outline = true
   endif
+
+  assign container_pad_x = s.container_mode | default: 'contained'
+  if container_pad_x == 'contained'
+    assign container_pad_x = 'px-4 md:px-6'
+  else
+    assign container_pad_x = ''
+  endif
+
   assign visibility_classes = ''
   if s.hide_on_mobile
     assign visibility_classes = visibility_classes | append: ' hidden md:block'
@@ -20,404 +33,455 @@
   if s.hide_on_desktop
     assign visibility_classes = visibility_classes | append: ' md:hidden'
   endif
-  assign min_h = s.min_height | default: 'min-h-[75vh]'
-  assign is_outline = false
-  if s.button_mode == 'outline'
-    assign is_outline = true
+
+  assign s = section.settings
+  assign min_h_val = '75vh'
+  if s.min_height == 'min-h-screen'
+    assign min_h_val = '100vh'
+  elsif s.min_height == 'min-h-[60vh]'
+    assign min_h_val = '60vh'
+  elsif s.min_height == 'min-h-[75vh]'
+    assign min_h_val = '75vh'
   endif
 %}
 
-
-
-<section id="{{ s.anchor_id | default: 'section-' | append: section.id }}"
-         class="q-carousel-hero relative overflow-hidden {{ min_h }}{{ visibility_classes }}"
-         role="region"
-         aria-label="{{ s.region_label | default: 'Slideshow banner' }}"
-         data-q-carousel
-         data-autoplay="{{ s.autoplay }}"
-         data-interval="{{ s.autoplay_interval | default: 5 }}"
-         data-transition="{{ s.transition | default: 'slide' }}"
-         data-show-progress="{{ s.show_progress }}"
-         data-progress-height="{{ s.progress_height | default: 3 }}"
-         data-reduced-motion-aware="true">
-
+<section
+  id="{{ s.anchor_id | default: 'section-' | append: section.id }}"
+  class="q-hero q-hero--{{ s.layout_mode | default: 'hero' }}{{ visibility_classes }}"
+  role="region"
+  aria-label="{{ s.region_label | default: 'Slideshow banner' | escape }}"
+  data-q-carousel
+  data-layout="{{ s.layout_mode | default: 'hero' }}"
+  data-autoplay="{{ s.autoplay }}"
+  data-interval="{{ s.autoplay_interval | default: 5 }}"
+  data-transition="{{ s.transition | default: 'slide' }}"
+  data-show-progress="{{ s.show_progress }}"
+  data-progress-height="{{ s.progress_height | default: 3 }}"
+  data-reduced-motion-aware="true"
+  style="
+    --min-h: {{ min_h_value }};
+    --arr-size: {{ s.arrows_size | default: 40 }}px;
+    --arr-radius: {{ s.arrows_radius | default: 9999 }}px;
+    --arr-bg: {{ s.arrows_bg | default: 'rgba(0,0,0,.4)' }};
+    --arr-fg: {{ s.arrows_fg | default: '#fff' }};
+    --arr-shadow: {% if s.arrows_shadow %}0 8px 20px rgba(0,0,0,.25){% else %}none{% endif %};
+    --dots-size: {{ s.dots_size | default: 10 }}px;
+    --dots-radius: {{ s.dots_radius | default: 9999 }}px;
+    --dots-gap: {{ s.dots_gap | default: 8 }}px;
+    --dots-color: {{ s.dots_color | default: 'rgba(255,255,255,.55)' }};
+    --dots-active: {{ s.dots_active_color | default: '#ffffff' }};
+    --btn-fw: {{ s.button_font_weight | default: 600 }};
+    --btn-tt: {% if s.button_uppercase %}uppercase{% else %}none{% endif %};
+    --min-h: {{ min_h_val }};
+  "
+>
   {% if s.show_progress and section.blocks.size > 1 and s.autoplay %}
-    <div class="absolute left-0 right-0 top-0 z-20" aria-hidden="true">
-      <div data-q-progress class="w-0"
-           style="height: {{ s.progress_height | default: 3 }}px; background-color: {{ s.progress_color | default: '#ffffff' }};">
-      </div>
+    <div class="q-progress-wrap q-progress--{{ s.progress_position | default: 'top' }}" aria-hidden="true">
+      <div data-q-progress class="q-progress-bar"
+           style="height: {{ s.progress_height | default: 3 }}px; background-color: {{ s.progress_color | default: '#ffffff' }}; border-radius: {{ s.progress_radius | default: 0 }}px;"></div>
     </div>
   {% endif %}
 
-  <div class="relative h-full">
-    <div class="snap-x snap-mandatory overflow-x-auto h-full w-full flex scroll-smooth no-scrollbar"
-         tabindex="0"
-         aria-roledescription="carousel"
-         aria-live="{% if s.autoplay %}off{% else %}polite{% endif %}"
-         data-q-carousel-track>
-
+  <div class="q-track-outer">
+    <div class="q-track" tabindex="0" aria-roledescription="carousel" aria-live="{% if s.autoplay %}off{% else %}polite{% endif %}" data-q-carousel-track>
       {% assign total = section.blocks.size %}
       {% for block in section.blocks %}
         {% assign b = block.settings %}
 
         {% liquid
-          assign pos_m = b.content_position_mobile | default: 'center_center'
+          # Placement / alignment / motion (with section defaults)
+          assign text_align = b.text_alignment | default: s.default_text_alignment | default: 'center'
+
+          assign pos_m = b.content_position_mobile | default: s.default_content_position_mobile | default: 'center_center'
           assign pm = pos_m | split: '_'
-          assign align_m = pm[0] | prepend: 'items-'
-          assign justify_m = pm[1] | prepend: 'justify-'
+          assign v_m = pm[0] | default: 'center'
+          assign h_m = pm[1] | default: 'center'
 
-          assign pos_d = b.content_position | default: 'center_center'
+          assign pos_d = b.content_position | default: s.default_content_position | default: 'center_center'
           assign pd = pos_d | split: '_'
-          assign align_d = pd[0] | prepend: 'items-'
-          assign justify_d = pd[1] | prepend: 'justify-'
+          assign v_d = pd[0] | default: 'center'
+          assign h_d = pd[1] | default: 'center'
 
-          assign text_align = b.text_alignment | default: 'center'
+          assign motion_preset = b.motion_preset | default: s.default_motion_preset | default: 'fade-up'
 
           assign cta_align = b.cta_group_align | default: 'center'
-          assign cta_justify = 'justify-center'
+          assign cta_justify = 'center'
           if cta_align == 'left'
-            assign cta_justify = 'justify-start'
-          elsif cta_align == 'right'
-            assign cta_justify = 'justify-end'
+            assign cta_justify = 'flex-start'
+          endif
+          if cta_align == 'right'
+            assign cta_justify = 'flex-end'
           endif
 
-          assign slide_idx = forloop.index
-          assign slide_label = 'Slide ' | append: slide_idx | append: ' of ' | append: total
-          assign ken_burns = b.ken_burns | default: false
+          # Normalize align values (Safari/Flexbox)
+          assign v_m_css = v_m
+          assign h_m_css = h_m
+          assign v_d_css = v_d
+          assign h_d_css = h_d
+          if v_m == 'start'
+            assign v_m_css = 'flex-start'
+          elsif v_m == 'end'
+            assign v_m_css = 'flex-end'
+          endif
+          if h_m == 'start'
+            assign h_m_css = 'flex-start'
+          elsif h_m == 'end'
+            assign h_m_css = 'flex-end'
+          endif
+          if v_d == 'start'
+            assign v_d_css = 'flex-start'
+          elsif v_d == 'end'
+            assign v_d_css = 'flex-end'
+          endif
+          if h_d == 'start'
+            assign h_d_css = 'flex-start'
+          elsif h_d == 'end'
+            assign h_d_css = 'flex-end'
+          endif
+
+          # Colors / overlay
+          assign overlay_color = b.overlay_color | default: s.overlay_color | default: '#000000'
+          assign overlay_op = b.overlay_opacity | default: s.overlay_opacity | default: 40
+          assign overlay_op_float = overlay_op | divided_by: 100.0
+          assign focal = b.bg_position | default: s.bg_position | default: 'center'
+
+          # Media inputs
+          assign img_main = b.background_image
+          assign img_mobile = b.mobile_image
+          assign img_alt = b.image_alt | default: b.heading | default: ''
+
+          # Only treat as video if URL-like
+          assign has_video = false
+          if b.background_video != blank and b.background_video contains 'http'
+            assign has_video = true
+          endif
+
+          # URL/handle awareness (allow strings in ImagePickers defensively)
+          assign main_is_http = false
+          assign mob_is_http  = false
+          if img_main contains 'http' or img_main contains 'cdn.shopify.com'
+            assign main_is_http = true
+          endif
+          if img_mobile contains 'http' or img_mobile contains 'cdn.shopify.com'
+            assign mob_is_http = true
+          endif
+
+          assign main_is_handle = false
+          assign mob_is_handle  = false
+          if img_main contains 'shopify://'
+            assign main_is_handle = true
+          endif
+          if img_mobile contains 'shopify://' 
+            assign mob_is_handle = true
+          endif
+
+          # Compute safe sources
+          assign main_src_1500 = ''
+          if main_is_http
+            assign main_src_1500 = img_main
+          elsif main_is_handle
+            assign main_src_1500 = img_main | file_url
+          elsif img_main != blank
+            assign main_src_1500 = img_main | image_url: width: 1500
+          endif
+
+          assign mobile_src_1500 = ''
+          if mob_is_http
+            assign mobile_src_1500 = img_mobile
+          elsif mob_is_handle
+            assign mobile_src_1500 = img_mobile | file_url
+          elsif img_mobile != blank
+            assign mobile_src_1500 = img_mobile | image_url: width: 1500
+          endif
+
+          assign has_any_media = false
+          if has_video or main_src_1500 != '' or mobile_src_1500 != ''
+            assign has_any_media = true
+          endif
         %}
 
-        <div class="relative snap-start shrink-0 w-full h-full"
+        <div class="q-slide"
              aria-roledescription="slide"
-             aria-label="{{ slide_label }}"
+             aria-label="Slide {{ forloop.index }} of {{ total }}"
              data-q-slide
-             {% if s.transition == 'fade' %}style="opacity:{% if forloop.first %}1{% else %}0{% endif %}; transition: opacity 500ms ease;"{% endif %}>
-
-          <!-- Background media -->
-          <div class="absolute inset-0 z-0 overflow-hidden {% if ken_burns %}q-ken-burns{% endif %}">
-            {% if b.background_video != blank %}
-              <video class="absolute inset-0 w-full h-full object-cover"
-                     autoplay loop muted playsinline preload="none"
-                     {% if b.background_image != blank %}poster="{{ b.background_image | image_url: width: 1600 }}"{% endif %}>
-                <source src="{{ b.background_video }}" type="video/mp4">
-              </video>
-            {% elsif b.mobile_image != blank %}
-              <picture>
-                <source media="(max-width: 767px)" srcset="{{ b.mobile_image | image_url: width: 1280 }}">
-                <img
-                  src="{{ b.background_image | image_url: width: 2880 }}"
-                  srcset="{{ b.background_image | image_url: width: 960 }} 960w,
-                          {{ b.background_image | image_url: width: 1440 }} 1440w,
-                          {{ b.background_image | image_url: width: 1920 }} 1920w,
-                          {{ b.background_image | image_url: width: 2560 }} 2560w,
-                          {{ b.background_image | image_url: width: 2880 }} 2880w"
-                  sizes="100vw"
-                  loading="eager"
-                  fetchpriority="high"
-                  class="absolute inset-0 w-full h-full object-cover"
-                  alt="{{ b.image_alt }}">
-              </picture>
-            {% elsif b.background_image != blank %}
-              {{ b.background_image
-                | image_url: width: 2880
-                | image_tag:
-                  widths: '960,1440,1920,2560,2880',
-                  sizes: '100vw',
-                  loading: 'eager',
-                  fetchpriority: 'high',
-                  class: 'absolute inset-0 w-full h-full object-cover',
-                  alt: b.image_alt }}
-            {% endif %}
-          </div>
-
-          <!-- Overlay -->
-          <div class="absolute inset-0 z-0"
-               aria-hidden="true"
-               style="background-color: {{ b.overlay_color | default: s.overlay_color }};
-                      opacity: {{ b.overlay_opacity | default: s.overlay_opacity | divided_by: 100.0 }};">
-          </div>
-
-          <!-- Content -->
-          <div class="relative z-10 w-full h-full flex {{ align_m }} {{ justify_m }} md:{{ align_d }} md:{{ justify_d }}">
-          <div class="w-full {{ s.content_max_w | default: 'max-w-4xl' }} {{ container_pad }} text-{{ text_align }}"
-              style="
-                margin-top: {{ s.margin_top | default: 0 }}px;
-                margin-bottom: {{ s.margin_bottom | default: 0 }}px;
-                padding-top: {{ s.padding_top | default: 60 }}px;
-                padding-bottom: {{ s.padding_bottom | default: 60 }}px;
-              ">
-
-              {% if b.kicker != blank %}
-                <p class="uppercase tracking-wide mb-2 font-semibold text-{{ b.kicker_size | default: 'sm' }}"
-                   style="color: {{ b.kicker_color | default: '#ffffff' }};">
-                  {{ b.kicker }}
-                </p>
-              {% endif %}
-
-              {% unless b.hide_text_mobile %}
-                {% if b.heading != blank %}
-                  {% if forloop.first %}
-                    <h1 class="font-bold mb-4 text-{{ b.heading_size | default: '5xl' }}"
-                        style="color: {{ b.heading_color | default: '#ffffff' }};">{{ b.heading }}</h1>
-                  {% else %}
-                    <h2 class="font-bold mb-4 text-{{ b.heading_size | default: '5xl' }}"
-                        style="color: {{ b.heading_color | default: '#ffffff' }};">{{ b.heading }}</h2>
-                  {% endif %}
+             {% if s.transition == 'fade' %}style="opacity:{% if forloop.first %}1{% else %}0{% endif %};"{% endif %}
+        >
+          {% if s.layout_mode == 'split' %}
+            <!-- SPLIT layout -->
+            <div class="q-split">
+              <div class="q-split__media{% if b.ken_burns and has_video == false %} q-ken-burns{% endif %}">
+                {% if has_video %}
+                  <video class="q-video" autoplay muted loop playsinline {% if forloop.first %}preload="auto"{% else %}preload="metadata"{% endif %} poster="{{ main_src_1500 }}">
+                    <source src="{{ b.background_video | escape }}" type="video/mp4">
+                  </video>
+                {% elsif main_src_1500 != '' or mobile_src_1500 != '' %}
+                  {% assign wset = '600,900,1200,1500,1800,2100,2500' | split: ',' %}
+                  <picture>
+                    {% if mobile_src_1500 != '' %}
+                      {% if mob_is_http or mob_is_handle %}
+                        <source media="(max-width: 767px)" srcset="{{ mobile_src_1500 }}" sizes="(min-width: 990px) 50vw, 100vw">
+                      {% else %}
+                        <source media="(max-width: 767px)" srcset="{% for w in wset %}{{ img_mobile | image_url: width: w }} {{ w }}w{% unless forloop.last %}, {% endunless %}{% endfor %}" sizes="(min-width: 990px) 50vw, 100vw">
+                      {% endif %}
+                    {% endif %}
+                    <img class="q-img"
+                         alt="{{ img_alt | escape }}"
+                         {% if forloop.first %}loading="eager" fetchpriority="high"{% else %}loading="lazy" fetchpriority="auto"{% endif %}
+                         decoding="async"
+                         src="{{ main_src_1500 | default: mobile_src_1500 }}"
+                         {% if main_src_1500 != '' and main_is_http == false and main_is_handle == false %}
+                           srcset="{% for w in wset %}{{ img_main | image_url: width: w }} {{ w }}w{% unless forloop.last %}, {% endunless %}{% endfor %}"
+                           sizes="(min-width: 990px) 50vw, 100vw"
+                         {% endif %}
+                         style="object-position: {{ focal }};">
+                  </picture>
+                {% else %}
+                  {{ 'lifestyle-1' | placeholder_svg_tag: 'q-placeholder' }}
                 {% endif %}
-
-                {% if b.subheading != blank %}
-                  <p class="mb-6 text-{{ b.subheading_size | default: 'lg' }} {% if b.hide_text_mobile %}hidden md:block{% endif %}"
-                     style="color: {{ b.subheading_color | default: '#ffffff' }};">
-                    {{ b.subheading }}
-                  </p>
+                {% if has_any_media %}
+                  <div class="q-overlay" style="background-color: {{ overlay_color }}; opacity: {{ overlay_op_float }};"></div>
                 {% endif %}
-              {% endunless %}
+              </div>
 
-              {% assign has_cta1 = false %}
-              {% if b.cta_text != blank and b.cta_link != blank %}
-                {% assign has_cta1 = true %}
-              {% endif %}
-              {% assign has_cta2 = false %}
-              {% if b.cta2_text != blank and b.cta2_link != blank %}
-                {% assign has_cta2 = true %}
-              {% endif %}
+              <div class="q-split__content"
+                   style="
+                     --panel-bg: {{ s.split_panel_bg | default: 'transparent' }};
+                     --panel-o: {{ s.split_panel_bg_opacity | default: 0 | divided_by: 100.0 }};
+                     --panel-blur: {% if s.split_panel_blur %}blur(6px){% else %}none{% endif %};
+                     --panel-r: {{ s.split_panel_radius | default: 0 }}px;
+                     --panel-bw: {{ s.split_panel_border_w | default: 0 }}px;
+                     --panel-bc: {{ s.split_panel_border_color | default: 'transparent' }};
+                     --panel-shadow: {% if s.split_panel_shadow %}0 12px 30px rgba(0,0,0,.15){% else %}none{% endif %};
+                   ">
+                <div class="q-content {{ container_pad_x }}"
+                     style="
+                       --v-m: {{ v_m_css }}; --h-m: {{ h_m_css }};
+                       --v-d: {{ v_d_css }}; --h-d: {{ h_d_css }};
+                       --cta-justify: {{ cta_justify }};
+                       margin-top: {{ s.margin_top | default: 0 }}px;
+                       margin-bottom: {{ s.margin_bottom | default: 0 }}px;
+                       padding-top: {{ s.padding_top | default: 60 }}px;
+                       padding-bottom: {{ s.padding_bottom | default: 60 }}px;
+                       max-width: {{ s.content_max_w | default: 'max(62ch, 48rem)' }};
+                     ">
+                  <div class="q-stack q-text-{{ text_align }} {% if motion_preset != 'none' %}q-anim q-anim--{{ motion_preset }}{% endif %}" style="gap: {{ s.stack_gap | default: 10 }}px;">
+                    {% if b.kicker != blank %}
+                      <p class="q-kicker q-type-{{ b.kicker_size | default: 'sm' }}"
+                         style="color: {{ b.kicker_color | default: s.kicker_color_global | default: '#ffffff' }};">{{ b.kicker }}</p>
+                    {% endif %}
 
-              {% if has_cta1 or has_cta2 %}
-                <div class="mt-2 flex flex-wrap gap-3 {{ cta_justify }} {% if b.hide_buttons_mobile %}hidden md:flex{% endif %}">
-                  {% if has_cta1 %}
-                    <a href="{{ b.cta_link }}"
-                       aria-label="{{ b.cta_aria_label | default: b.cta_text | escape }}"
-                       class="inline-block transition duration-300 ease-in-out font-medium shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-black/40 {% if is_outline %}border bg-transparent{% endif %}"
-                       style="
-                          color: {{ s.button_text_color }};
-                          {% if is_outline %}
-                            border-color: {{ s.button_border_color }};
-                            border-width: {{ s.button_border_width }}px;
-                            background-color: transparent;
-                          {% else %}
-                            background-color: {{ s.button_bg_color }};
-                          {% endif %}
-                          border-radius: {{ s.button_radius }}px;
-                          padding-left: {{ s.button_padding_horizontal }}px;
-                          padding-right: {{ s.button_padding_horizontal }}px;
-                          padding-top: {{ s.button_padding_vertical }}px;
-                          padding-bottom: {{ s.button_padding_vertical }}px;
-                       ">
-                      {{ b.cta_text }}
-                    </a>
-                  {% endif %}
-                  {% if has_cta2 %}
-                    <a href="{{ b.cta2_link }}"
-                       aria-label="{{ b.cta2_aria_label | default: b.cta2_text | escape }}"
-                       class="inline-block transition duration-300 ease-in-out font-medium shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-black/40 {% if is_outline %}border bg-transparent{% endif %}"
-                       style="
-                          color: {{ s.button_text_color }};
-                          {% if is_outline %}
-                            border-color: {{ s.button_border_color }};
-                            border-width: {{ s.button_border_width }}px;
-                            background-color: transparent;
-                          {% else %}
-                            background-color: {{ s.button_bg_color }};
-                          {% endif %}
-                          border-radius: {{ s.button_radius }}px;
-                          padding-left: {{ s.button_padding_horizontal }}px;
-                          padding-right: {{ s.button_padding_horizontal }}px;
-                          padding-top: {{ s.button_padding_vertical }}px;
-                          padding-bottom: {{ s.button_padding_vertical }}px;
-                       ">
-                      {{ b.cta2_text }}
-                    </a>
-                  {% endif %}
+                    {% if b.heading != blank %}
+                      {% if forloop.first %}
+                        <h1 class="q-heading q-type-{{ b.heading_size | default: s.heading_size_global | default: '5xl' }}{% if s.text_shadow %} q-text-shadow{% endif %}"
+                            style="color: {{ b.heading_color | default: s.heading_color_global | default: '#ffffff' }};">{{ b.heading }}</h1>
+                      {% else %}
+                        <h2 class="q-heading q-type-{{ b.heading_size | default: s.heading_size_global | default: '5xl' }}{% if s.text_shadow %} q-text-shadow{% endif %}"
+                            style="color: {{ b.heading_color | default: s.heading_color_global | default: '#ffffff' }};">{{ b.heading }}</h2>
+                      {% endif %}
+                    {% endif %}
+
+                    {% if b.subheading != blank and b.hide_text_mobile != true %}
+                      <p class="q-sub q-type-{{ b.subheading_size | default: s.subheading_size_global | default: 'lg' }}{% if s.text_shadow and s.text_shadow_sub %} q-text-shadow{% endif %}"
+                         style="color: {{ b.subheading_color | default: s.subheading_color_global | default: '#ffffff' }};">{{ b.subheading }}</p>
+                    {% endif %}
+
+                    {% liquid
+                      assign has_cta1 = false
+                      if b.cta_text != blank and b.cta_link != blank
+                        assign has_cta1 = true
+                      endif
+                      assign has_cta2 = false
+                      if b.cta2_text != blank and b.cta2_link != blank
+                        assign has_cta2 = true
+                      endif
+                    %}
+                    {% if has_cta1 or has_cta2 %}
+                      {% capture cta_classes %}q-ctas{% if b.hide_buttons_mobile %} q-ctas--hide-mobile{% endif %}{% endcapture %}
+                      <div class="{{ cta_classes | strip }}" style="justify-content: var(--cta-justify);">
+                        {% if has_cta1 %}
+                          <a href="{{ b.cta_link }}"
+                             aria-label="{{ b.cta_aria_label | default: b.cta_text | escape }}"
+                             class="q-btn {% if is_outline %}q-btn--outline{% else %}q-btn--solid{% endif %} q-btn--{{ s.button_treatment | default: 'soft' }}"
+                             style="
+                               --btn-bg: {{ s.button_bg_color | default: '#ffffff' }};
+                               --btn-fg: {{ s.button_text_color | default: '#000000' }};
+                               --btn-bc: {{ s.button_border_color | default: '#ffffff' }};
+                               --btn-bw: {{ s.button_border_width | default: 1 }}px;
+                               --btn-r:  {{ s.button_radius | default: 6 }}px;
+                               --btn-py: {{ s.button_padding_vertical | default: 12 }}px;
+                               --btn-px: {{ s.button_padding_horizontal | default: 24 }}px;">{{ b.cta_text }}</a>
+                        {% endif %}
+                        {% if has_cta2 %}
+                          <a href="{{ b.cta2_link }}"
+                             aria-label="{{ b.cta2_aria_label | default: b.cta2_text | escape }}"
+                             class="q-btn {% if is_outline %}q-btn--outline{% else %}q-btn--solid{% endif %} q-btn--{{ s.button_treatment | default: 'soft' }}"
+                             style="
+                               --btn-bg: {{ s.button_bg_color | default: '#ffffff' }};
+                               --btn-fg: {{ s.button_text_color | default: '#000000' }};
+                               --btn-bc: {{ s.button_border_color | default: '#ffffff' }};
+                               --btn-bw: {{ s.button_border_width | default: 1 }}px;
+                               --btn-r:  {{ s.button_radius | default: 6 }}px;
+                               --btn-py: {{ s.button_padding_vertical | default: 12 }}px;
+                               --btn-px: {{ s.button_padding_horizontal | default: 24 }}px;">{{ b.cta2_text }}</a>
+                        {% endif %}
+                      </div>
+                    {% endif %}
+                  </div>
                 </div>
+              </div>
+            </div>
+          {% else %}
+            <!-- HERO layout -->
+            <div class="q-bg{% if b.ken_burns and has_video == false %} q-ken-burns{% endif %}">
+              {% if has_video %}
+                <video class="q-video" autoplay muted loop playsinline {% if forloop.first %}preload="auto"{% else %}preload="metadata"{% endif %} poster="{{ main_src_1500 }}">
+                  <source src="{{ b.background_video | escape }}" type="video/mp4">
+                </video>
+              {% elsif main_src_1500 != '' or mobile_src_1500 != '' %}
+                {% assign wset = '600,900,1200,1500,1800,2100,2500' | split: ',' %}
+                <picture>
+                  {% if mobile_src_1500 != '' %}
+                    {% if mob_is_http or mob_is_handle %}
+                      <source media="(max-width: 767px)" srcset="{{ mobile_src_1500 }}" sizes="100vw">
+                    {% else %}
+                      <source media="(max-width: 767px)" srcset="{% for w in wset %}{{ img_mobile | image_url: width: w }} {{ w }}w{% unless forloop.last %}, {% endunless %}{% endfor %}" sizes="100vw">
+                    {% endif %}
+                  {% endif %}
+                  <img class="q-img"
+                       alt="{{ img_alt | escape }}"
+                       {% if forloop.first %}loading="eager" fetchpriority="high"{% else %}loading="lazy" fetchpriority="auto"{% endif %}
+                       decoding="async"
+                       src="{{ main_src_1500 | default: mobile_src_1500 }}"
+                       {% if main_src_1500 != '' and main_is_http == false and main_is_handle == false %}
+                         srcset="{% for w in wset %}{{ img_main | image_url: width: w }} {{ w }}w{% unless forloop.last %}, {% endunless %}{% endfor %}"
+                         sizes="100vw"
+                       {% endif %}
+                       style="object-position: {{ focal }};">
+                </picture>
+              {% else %}
+                {{ 'lifestyle-1' | placeholder_svg_tag: 'q-placeholder' }}
+              {% endif %}
+              {% if has_any_media %}
+                <div class="q-overlay" style="background-color: {{ overlay_color }}; opacity: {{ overlay_op_float }};"></div>
               {% endif %}
             </div>
-          </div>
+
+            <div class="q-layer">
+              <div class="q-content {{ container_pad_x }}"
+                   style="
+                     --v-m: {{ v_m_css }}; --h-m: {{ h_m_css }};
+                     --v-d: {{ v_d_css }}; --h-d: {{ h_d_css }};
+                     --cta-justify: {{ cta_justify }};
+                     margin-top: {{ s.margin_top | default: 0 }}px;
+                     margin-bottom: {{ s.margin_bottom | default: 0 }}px;
+                     padding-top: {{ s.padding_top | default: 60 }}px;
+                     padding-bottom: {{ s.padding_bottom | default: 60 }}px;
+                     max-width: {{ s.content_max_w | default: 'max(62ch, 48rem)' }};
+                   ">
+                <div class="q-stack q-text-{{ text_align }} {% if motion_preset != 'none' %}q-anim q-anim--{{ motion_preset }}{% endif %}" style="gap: {{ s.stack_gap | default: 10 }}px;">
+                  {% if b.kicker != blank %}
+                    <p class="q-kicker q-type-{{ b.kicker_size | default: 'sm' }}"
+                       style="color: {{ b.kicker_color | default: s.kicker_color_global | default: '#ffffff' }};">{{ b.kicker }}</p>
+                  {% endif %}
+
+                  {% if b.heading != blank %}
+                    {% if forloop.first %}
+                      <h1 class="q-heading q-type-{{ b.heading_size | default: s.heading_size_global | default: '5xl' }}{% if s.text_shadow %} q-text-shadow{% endif %}"
+                          style="color: {{ b.heading_color | default: s.heading_color_global | default: '#ffffff' }};">{{ b.heading }}</h1>
+                    {% else %}
+                      <h2 class="q-heading q-type-{{ b.heading_size | default: s.heading_size_global | default: '5xl' }}{% if s.text_shadow %} q-text-shadow{% endif %}"
+                          style="color: {{ b.heading_color | default: s.heading_color_global | default: '#ffffff' }};">{{ b.heading }}</h2>
+                    {% endif %}
+                  {% endif %}
+
+                  {% if b.subheading != blank and b.hide_text_mobile != true %}
+                    <p class="q-sub q-type-{{ b.subheading_size | default: s.subheading_size_global | default: 'lg' }}{% if s.text_shadow and s.text_shadow_sub %} q-text-shadow{% endif %}"
+                       style="color: {{ b.subheading_color | default: s.subheading_color_global | default: '#ffffff' }};">{{ b.subheading }}</p>
+                  {% endif %}
+
+                  {% liquid
+                    assign has_cta1 = false
+                    if b.cta_text != blank and b.cta_link != blank
+                      assign has_cta1 = true
+                    endif
+                    assign has_cta2 = false
+                    if b.cta2_text != blank and b.cta2_link != blank
+                      assign has_cta2 = true
+                    endif
+                  %}
+                  {% if has_cta1 or has_cta2 %}
+                    {% capture cta_classes %}q-ctas{% if b.hide_buttons_mobile %} q-ctas--hide-mobile{% endif %}{% endcapture %}
+                    <div class="{{ cta_classes | strip }}" style="justify-content: var(--cta-justify);">
+                      {% if has_cta1 %}
+                        <a href="{{ b.cta_link }}"
+                           aria-label="{{ b.cta_aria_label | default: b.cta_text | escape }}"
+                           class="q-btn {% if is_outline %}q-btn--outline{% else %}q-btn--solid{% endif %} q-btn--{{ s.button_treatment | default: 'soft' }}"
+                           style="
+                             --btn-bg: {{ s.button_bg_color | default: '#ffffff' }};
+                             --btn-fg: {{ s.button_text_color | default: '#000000' }};
+                             --btn-bc: {{ s.button_border_color | default: '#ffffff' }};
+                             --btn-bw: {{ s.button_border_width | default: 1 }}px;
+                             --btn-r:  {{ s.button_radius | default: 6 }}px;
+                             --btn-py: {{ s.button_padding_vertical | default: 12 }}px;
+                             --btn-px: {{ s.button_padding_horizontal | default: 24 }}px;">{{ b.cta_text }}</a>
+                      {% endif %}
+                      {% if has_cta2 %}
+                        <a href="{{ b.cta2_link }}"
+                           aria-label="{{ b.cta2_aria_label | default: b.cta2_text | escape }}"
+                           class="q-btn {% if is_outline %}q-btn--outline{% else %}q-btn--solid{% endif %} q-btn--{{ s.button_treatment | default: 'soft' }}"
+                           style="
+                             --btn-bg: {{ s.button_bg_color | default: '#ffffff' }};
+                             --btn-fg: {{ s.button_text_color | default: '#000000' }};
+                             --btn-bc: {{ s.button_border_color | default: '#ffffff' }};
+                             --btn-bw: {{ s.button_border_width | default: 1 }}px;
+                             --btn-r:  {{ s.button_radius | default: 6 }}px;
+                             --btn-py: {{ s.button_padding_vertical | default: 12 }}px;
+                             --btn-px: {{ s.button_padding_horizontal | default: 24 }}px;">{{ b.cta2_text }}</a>
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          {% endif %}
         </div>
       {% endfor %}
     </div>
 
     {% if section.blocks.size > 1 %}
       {% if s.show_arrows %}
-        <div class="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between {{ container_pad }}">
-          <button type="button" class="pointer-events-auto inline-flex items-center justify-center w-10 h-10 rounded-full bg-black/40 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white" aria-label="Previous slide" data-q-carousel-prev>&larr;</button>
-          <button type="button" class="pointer-events-auto inline-flex items-center justify-center w-10 h-10 rounded-full bg-black/40 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white" aria-label="Next slide" data-q-carousel-next>&rarr;</button>
+        <div class="q-arrows q-arrows--{{ s.arrows_theme | default: 'dark' }} q-arrows-pos--{{ s.arrows_position | default: 'centered' }} {{ container_pad_x }}">
+          <button type="button" class="q-arrow" aria-label="Previous slide" data-q-carousel-prev><span aria-hidden="true">‹</span></button>
+          <button type="button" class="q-arrow" aria-label="Next slide" data-q-carousel-next><span aria-hidden="true">›</span></button>
         </div>
       {% endif %}
 
       {% if s.show_dots %}
-        <div class="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-2">
+        <div class="q-dots q-dots-pos--{{ s.dots_position | default: 'inside' }}">
           {% for block in section.blocks %}
-            <button type="button" class="w-2.5 h-2.5 rounded-full bg-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                    aria-label="Go to slide {{ forloop.index }}" data-q-carousel-dot data-index="{{ forloop.index0 }}"></button>
+            <button type="button" class="q-dot" aria-label="Go to slide {{ forloop.index }}" data-q-carousel-dot data-index="{{ forloop.index0 }}"></button>
           {% endfor %}
         </div>
       {% endif %}
 
       {% if s.autoplay %}
-        <button type="button" class="absolute bottom-4 right-4 text-xs px-2 py-1 rounded bg-black/40 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                aria-label="Pause autoplay" data-q-carousel-toggle>Pause</button>
+        <button type="button" class="q-toggle" aria-label="Pause autoplay" data-q-carousel-toggle><span aria-hidden="true">❚❚</span></button>
       {% endif %}
     {% endif %}
   </div>
+
+  <style>
+    @media (max-width: 767px) { .q-ctas--hide-mobile { display: none; } }
+  </style>
 </section>
 
-<style>
-  @keyframes qKen {
-    0% { transform: scale(1) translateZ(0); }
-    100% { transform: scale(1.06) translateZ(0); }
-  }
-  .q-ken-burns > picture > img,
-  .q-ken-burns > img,
-  .q-ken-burns > video {
-    animation: qKen 20s linear infinite alternate;
-    will-change: transform;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .q-ken-burns > * { animation: none !important; }
-  }
-</style>
+<!-- Tailwind purge safelist no longer required; min-height handled via --min-h -->
 
-<script>
-  (() => {
-    const root = document.currentScript.closest('[data-q-carousel]');
-    if (!root) return;
-    const track = root.querySelector('[data-q-carousel-track]');
-    const slides = Array.from(root.querySelectorAll('[data-q-slide]'));
-    if (!track || slides.length <= 1) return;
-
-    const dots = Array.from(root.querySelectorAll('[data-q-carousel-dot]'));
-    const btnPrev = root.querySelector('[data-q-carousel-prev]');
-    const btnNext = root.querySelector('[data-q-carousel-next]');
-    const btnToggle = root.querySelector('[data-q-carousel-toggle]');
-    const progress = root.querySelector('[data-q-progress]');
-
-    const transition = root.dataset.transition || 'slide';
-    const autoplay = root.dataset.autoplay === 'true';
-    const intervalSec = parseInt(root.dataset.interval || '5', 10);
-    const showProgress = root.dataset.showProgress === 'true';
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    let idx = 0, timer = null, paused = false;
-
-    const updateDots = () => dots.forEach((d, n) => d.style.opacity = (n === idx) ? '1' : '0.45');
-
-    const goTo = (i, user = false) => {
-      idx = (i + slides.length) % slides.length;
-      const slide = slides[idx];
-
-      if (transition === 'fade' && !prefersReduced) {
-        slides.forEach((el, n) => {
-          el.style.opacity = (n === idx) ? '1' : '0';
-          el.style.pointerEvents = (n === idx) ? 'auto' : 'none';
-        });
-      } else {
-        track.scrollTo({ left: slide.offsetLeft, behavior: user || prefersReduced ? 'auto' : 'smooth' });
-      }
-      updateDots();
-      resetProgress();
-    };
-
-    const next = () => goTo(idx + 1);
-    const prev = () => goTo(idx - 1);
-
-    const resetProgress = () => {
-      if (!progress || !autoplay || prefersReduced || !showProgress) return;
-      progress.style.transition = 'none';
-      progress.style.width = '0%';
-      requestAnimationFrame(() => {
-        progress.style.transition = `width ${intervalSec}s linear`;
-        progress.style.width = '100%';
-      });
-    };
-
-    const start = () => {
-      if (!autoplay || prefersReduced) return;
-      stop();
-      timer = setInterval(() => { if (!paused) next(); }, intervalSec * 1000);
-      resetProgress();
-    };
-    const stop = () => { if (timer) clearInterval(timer), timer = null; if (progress) progress.style.transition = 'none'; };
-
-    root.addEventListener('mouseenter', () => { paused = true; });
-    root.addEventListener('mouseleave', () => { paused = false; });
-    root.addEventListener('focusin', () => { paused = true; });
-    root.addEventListener('focusout', () => { paused = false; });
-
-    btnPrev && btnPrev.addEventListener('click', () => goTo(idx - 1, true));
-    btnNext && btnNext.addEventListener('click', () => goTo(idx + 1, true));
-    dots.forEach(dot => dot.addEventListener('click', () => goTo(parseInt(dot.dataset.index, 10), true)));
-
-    track.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
-      if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
-    });
-
-    if (btnToggle) {
-      btnToggle.addEventListener('click', () => {
-        if (!autoplay) return;
-        paused = !paused;
-        btnToggle.textContent = paused ? 'Play' : 'Pause';
-        btnToggle.setAttribute('aria-label', paused ? 'Start autoplay' : 'Pause autoplay');
-      });
-    }
-
-    const init = () => {
-      if (transition === 'fade' && !prefersReduced) {
-        track.style.overflow = 'hidden';
-        slides.forEach(el => { el.style.position = 'absolute'; el.style.inset = '0'; });
-      }
-      goTo(0, true);
-      start();
-    };
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some(e => e.isIntersecting)) { init(); io.disconnect(); }
-    }, { threshold: 0.1 });
-    io.observe(root);
-  })();
-</script>
-
-<!-- Tailwind safelist: forces JIT to keep classes used via settings -->
+<!-- Tailwind purge safelist (only if your build purges arbitrary classes) -->
 <div class="hidden">
-  <!-- text alignment variants -->
-  <div class="text-left"></div>
-  <div class="text-center"></div>
-  <div class="text-right"></div>
-
-  <!-- vertical/horizontal placement (mobile) -->
-  <div class="items-start"></div>
-  <div class="items-center"></div>
-  <div class="items-end"></div>
-  <div class="justify-start"></div>
-  <div class="justify-center"></div>
-  <div class="justify-end"></div>
-
-  <!-- desktop placement variants -->
-  <div class="md:items-start"></div>
-  <div class="md:items-center"></div>
-  <div class="md:items-end"></div>
-  <div class="md:justify-start"></div>
-  <div class="md:justify-center"></div>
-  <div class="md:justify-end"></div>
-
-  <!-- height options used by the setting -->
-  <div class="min-h-[60vh]"></div>
-  <div class="min-h-[75vh]"></div>
-  <div class="min-h-screen"></div>
-
-  <!-- max width options used by the setting -->
-  <div class="max-w-2xl"></div>
-  <div class="max-w-3xl"></div>
-  <div class="max-w-4xl"></div>
-
-  <!-- type scale used by settings -->
-  <div class="text-sm"></div>
-  <div class="text-base"></div>
-  <div class="text-lg"></div>
-  <div class="text-xl"></div>
-  <div class="text-2xl"></div>
-  <div class="text-3xl"></div>
-  <div class="text-4xl"></div>
-  <div class="text-5xl"></div>
-  <div class="text-6xl"></div>
+  <div class="min-h-[60vh]"></div><div class="min-h-[75vh]"></div><div class="min-h-screen"></div>
+  <div class="max-w-2xl"></div><div class="max-w-3xl"></div><div class="max-w-4xl"></div>
+  <div class="text-left"></div><div class="text-center"></div><div class="text-right"></div>
 </div>
 
 {% schema %}
@@ -426,21 +490,94 @@
   "tag": "section",
   "class": "q-carousel-hero",
   "settings": [
-    { "type": "header", "content": "About this banner" },
-    { "type": "paragraph", "content": "Rotating slideshow for promos or collections. Add slides with an image or video, a headline, and buttons. SEO-friendly: first slide is H1, others are H2. Accessible and fast. (Tip: keep text short.)" },
+    { "type": "header", "content": "Layout" },
+    { "type": "select", "id": "layout_mode", "label": "Layout", "default": "hero", "options": [
+      { "value": "hero", "label": "Full-bleed hero" },
+      { "value": "split", "label": "Split (image + content)" }
+    ]},
+
+    { "type": "header", "content": "Global placement defaults" },
+    { "type": "select", "id": "default_content_position", "label": "Default placement (desktop)", "default": "center_center",
+      "options": [
+        { "value": "start_start", "label": "Top left" }, { "value": "start_center", "label": "Top center" }, { "value": "start_end", "label": "Top right" },
+        { "value": "center_start", "label": "Middle left" }, { "value": "center_center", "label": "Middle center" }, { "value": "center_end", "label": "Middle right" },
+        { "value": "end_start", "label": "Bottom left" }, { "value": "end_center", "label": "Bottom center" }, { "value": "end_end", "label": "Bottom right" }
+      ]
+    },
+    { "type": "select", "id": "default_content_position_mobile", "label": "Default placement (mobile)", "default": "center_center",
+      "options": [
+        { "value": "start_start", "label": "Top left" }, { "value": "start_center", "label": "Top center" }, { "value": "start_end", "label": "Top right" },
+        { "value": "center_start", "label": "Middle left" }, { "value": "center_center", "label": "Middle center" }, { "value": "center_end", "label": "Middle right" },
+        { "value": "end_start", "label": "Bottom left" }, { "value": "end_center", "label": "Bottom center" }, { "value": "end_end", "label": "Bottom right" }
+      ]
+    },
+    { "type": "select", "id": "default_text_alignment", "label": "Default text alignment", "default": "center",
+      "options": [{ "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" }]
+    },
+    { "type": "select", "id": "default_motion_preset", "label": "Default text animation", "default": "fade-up", "options": [
+      { "value": "none", "label": "None" },
+      { "value": "fade-up", "label": "Fade up" },
+      { "value": "slide-up", "label": "Slide up" }
+    ]},
+
+    { "type": "header", "content": "Defaults (applied when slide fields empty)" },
+    { "type": "color", "id": "overlay_color", "label": "Default overlay color", "default": "#000000" },
+    { "type": "range", "id": "overlay_opacity", "label": "Default overlay opacity", "min": 0, "max": 100, "step": 5, "default": 40 },
+    { "type": "select", "id": "bg_position", "label": "Default image focal point", "default": "center", "options": [
+      { "value": "center", "label": "Center" },
+      { "value": "top", "label": "Top" },
+      { "value": "bottom", "label": "Bottom" },
+      { "value": "left", "label": "Left" },
+      { "value": "right", "label": "Right" },
+      { "value": "top left", "label": "Top left" },
+      { "value": "top right", "label": "Top right" },
+      { "value": "bottom left", "label": "Bottom left" },
+      { "value": "bottom right", "label": "Bottom right" }
+    ]},
 
     { "type": "header", "content": "Behavior" },
     { "type": "checkbox", "id": "autoplay", "label": "Auto-rotate slides", "default": true },
     { "type": "range", "id": "autoplay_interval", "label": "Time between slides (seconds)", "min": 3, "max": 12, "step": 1, "default": 5 },
     { "type": "select", "id": "transition", "label": "Transition", "default": "slide", "options": [
       { "value": "slide", "label": "Slide" },
-      { "value": "fade", "label": "Fade (smooth crossfade)" }
+      { "value": "fade", "label": "Fade (crossfade)" }
     ]},
+
+    { "type": "header", "content": "Arrows / Dots / Progress" },
     { "type": "checkbox", "id": "show_arrows", "label": "Show left/right arrows", "default": true },
+    { "type": "select", "id": "arrows_theme", "label": "Arrow theme", "default": "dark", "options": [
+      { "value": "dark", "label": "Dark (on light images)" },
+      { "value": "light", "label": "Light (on dark images)" }
+    ]},
+    { "type": "select", "id": "arrows_position", "label": "Arrow position", "default": "centered", "options": [
+      { "value": "centered", "label": "Centered vertically" },
+      { "value": "edges", "label": "Near top edge" }
+    ]},
+    { "type": "range", "id": "arrows_size", "label": "Arrow size (px)", "min": 28, "max": 64, "step": 2, "default": 40 },
+    { "type": "range", "id": "arrows_radius", "label": "Arrow radius (px)", "min": 0, "max": 40, "step": 2, "default": 40 },
+    { "type": "color", "id": "arrows_bg", "label": "Arrow background", "default": "#000000" },
+    { "type": "color", "id": "arrows_fg", "label": "Arrow icon color", "default": "#FFFFFF" },
+    { "type": "checkbox", "id": "arrows_shadow", "label": "Arrow drop shadow", "default": false },
+
     { "type": "checkbox", "id": "show_dots", "label": "Show dots under the slides", "default": true },
+    { "type": "select", "id": "dots_position", "label": "Dots position", "default": "inside", "options": [
+      { "value": "inside", "label": "Inside banner" },
+      { "value": "outside", "label": "Outside (below)" }
+    ]},
+    { "type": "range", "id": "dots_size", "label": "Dot size (px)", "min": 6, "max": 16, "step": 1, "default": 10 },
+    { "type": "range", "id": "dots_radius", "label": "Dot radius (px)", "min": 0, "max": 12, "step": 1, "default": 12 },
+    { "type": "range", "id": "dots_gap", "label": "Dot gap (px)", "min": 4, "max": 20, "step": 1, "default": 8 },
+    { "type": "color", "id": "dots_color", "label": "Dot color", "default": "#999999" },
+    { "type": "color", "id": "dots_active_color", "label": "Active dot color", "default": "#FFFFFF" },
+
     { "type": "checkbox", "id": "show_progress", "label": "Show progress bar (autoplay)", "default": false },
+    { "type": "select", "id": "progress_position", "label": "Progress bar position", "default": "top", "options": [
+      { "value": "top", "label": "Top" },
+      { "value": "bottom", "label": "Bottom" }
+    ]},
     { "type": "range", "id": "progress_height", "label": "Progress bar height (px)", "min": 2, "max": 8, "step": 1, "default": 3 },
-    { "type": "color", "id": "progress_color", "label": "Progress bar color", "default": "#ffffff" },
+    { "type": "range", "id": "progress_radius", "label": "Progress bar radius (px)", "min": 0, "max": 8, "step": 1, "default": 0 },
+    { "type": "color", "id": "progress_color", "label": "Progress bar color", "default": "#FFFFFF" },
 
     { "type": "header", "content": "Layout & spacing" },
     { "type": "select", "id": "min_height", "label": "Banner height", "default": "min-h-[75vh]", "options": [
@@ -452,27 +589,55 @@
       { "value": "contained", "label": "Contained (side padding)" },
       { "value": "full", "label": "Full-bleed (edge to edge)" }
     ]},
-    { "type": "select", "id": "content_max_w", "label": "Text width", "default": "max-w-4xl", "options": [
-      { "value": "max-w-2xl", "label": "Narrow" },
-      { "value": "max-w-3xl", "label": "Comfort" },
-      { "value": "max-w-4xl", "label": "Wide" }
+    { "type": "select", "id": "content_max_w", "label": "Text width (max)", "default": "max(62ch, 48rem)", "options": [
+      { "value": "48rem", "label": "48rem (approx. 768px)" },
+      { "value": "56rem", "label": "56rem (approx. 896px)" },
+      { "value": "max(62ch, 48rem)", "label": "Comfort (recommended)" }
     ]},
-    { "type": "range", "id": "padding_top", "label": "Padding top", "min": 0, "max": 200, "step": 10, "default": 60 },
-    { "type": "range", "id": "padding_bottom", "label": "Padding bottom", "min": 0, "max": 200, "step": 10, "default": 60 },
-    { "type": "range", "id": "margin_top", "label": "Margin top", "min": 0, "max": 100, "step": 10, "default": 0 },
-    { "type": "range", "id": "margin_bottom", "label": "Margin bottom", "min": 0, "max": 100, "step": 10, "default": 0 },
+    { "type": "range", "id": "padding_top", "label": "Padding top", "min": 0, "max": 240, "step": 10, "default": 60 },
+    { "type": "range", "id": "padding_bottom", "label": "Padding bottom", "min": 0, "max": 240, "step": 10, "default": 60 },
+    { "type": "range", "id": "margin_top", "label": "Margin top", "min": 0, "max": 120, "step": 10, "default": 0 },
+    { "type": "range", "id": "margin_bottom", "label": "Margin bottom", "min": 0, "max": 120, "step": 10, "default": 0 },
+    { "type": "range", "id": "stack_gap", "label": "Spacing between text and buttons (px)", "min": 0, "max": 40, "step": 2, "default": 10 },
 
-    { "type": "header", "content": "Button style (applies to all slides)" },
-    { "type": "select", "id": "button_mode", "label": "Button style", "options": [
+    { "type": "header", "content": "Global text style (optional defaults)" },
+    { "type": "color", "id": "kicker_color_global", "label": "Kicker color (default)", "default": "#FFFFFF" },
+    { "type": "color", "id": "heading_color_global", "label": "Heading color (default)", "default": "#FFFFFF" },
+    { "type": "color", "id": "subheading_color_global", "label": "Subheading color (default)", "default": "#FFFFFF" },
+    { "type": "select", "id": "heading_size_global", "label": "Heading size (default)", "default": "5xl", "options": [
+      { "value": "3xl", "label": "3XL" }, { "value": "4xl", "label": "4XL" }, { "value": "5xl", "label": "5XL" }, { "value": "6xl", "label": "6XL" }
+    ]},
+    { "type": "select", "id": "subheading_size_global", "label": "Subheading size (default)", "default": "lg", "options": [
+      { "value": "base", "label": "Base" }, { "value": "lg", "label": "Large" }, { "value": "xl", "label": "XL" }
+    ]},
+    { "type": "checkbox", "id": "text_shadow", "label": "Add soft text shadow to headings", "default": false },
+    { "type": "checkbox", "id": "text_shadow_sub", "label": "Add text shadow to subheading", "default": false },
+
+    { "type": "header", "content": "Buttons (apply to all slides)" },
+    { "type": "select", "id": "button_mode", "label": "Button base style", "options": [
       { "value": "solid", "label": "Solid" }, { "value": "outline", "label": "Outline" }], "default": "solid"
     },
-    { "type": "color", "id": "button_bg_color", "label": "Button background (solid)", "default": "#ffffff" },
+    { "type": "select", "id": "button_treatment", "label": "Hover treatment", "default": "soft", "options": [
+      { "value": "soft", "label": "Soft shadow" }, { "value": "hard", "label": "Hard shadow" }, { "value": "none", "label": "None" }
+    ]},
+    { "type": "color", "id": "button_bg_color", "label": "Button background (solid)", "default": "#FFFFFF" },
     { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#000000" },
-    { "type": "color", "id": "button_border_color", "label": "Button border color (outline)", "default": "#ffffff" },
+    { "type": "color", "id": "button_border_color", "label": "Button border color (outline)", "default": "#FFFFFF" },
     { "type": "range", "id": "button_border_width", "label": "Button border width (outline)", "min": 0, "max": 10, "step": 1, "default": 1 },
     { "type": "range", "id": "button_radius", "label": "Button corner radius", "min": 0, "max": 50, "step": 2, "default": 6 },
     { "type": "range", "id": "button_padding_vertical", "label": "Button padding (top/bottom)", "min": 6, "max": 40, "step": 2, "default": 12 },
-    { "type": "range", "id": "button_padding_horizontal", "label": "Button padding (left/right)", "min": 12, "max": 44, "step": 2, "default": 24 },
+    { "type": "range", "id": "button_padding_horizontal", "label": "Button padding (left/right)", "min": 12, "max": 48, "step": 2, "default": 24 },
+    { "type": "checkbox", "id": "button_uppercase", "label": "Uppercase buttons", "default": false },
+    { "type": "range", "id": "button_font_weight", "label": "Button font weight", "min": 400, "max": 800, "step": 50, "default": 600 },
+
+    { "type": "header", "content": "Split panel cosmetics" },
+    { "type": "color", "id": "split_panel_bg", "label": "Panel background color", "default": "#FFFFFF" },
+    { "type": "range", "id": "split_panel_bg_opacity", "label": "Panel background opacity (%)", "min": 0, "max": 100, "step": 5, "default": 0 },
+    { "type": "checkbox", "id": "split_panel_blur", "label": "Backdrop blur", "default": false },
+    { "type": "range", "id": "split_panel_radius", "label": "Panel radius (px)", "min": 0, "max": 40, "step": 2, "default": 0 },
+    { "type": "range", "id": "split_panel_border_w", "label": "Panel border width (px)", "min": 0, "max": 6, "step": 1, "default": 0 },
+    { "type": "color", "id": "split_panel_border_color", "label": "Panel border color", "default": "#000000" },
+    { "type": "checkbox", "id": "split_panel_shadow", "label": "Panel shadow", "default": false },
 
     { "type": "header", "content": "Visibility & anchors" },
     { "type": "text", "id": "anchor_id", "label": "Optional anchor ID" },
@@ -488,72 +653,95 @@
         { "type": "header", "content": "Background media" },
         { "type": "image_picker", "id": "background_image", "label": "Background image" },
         { "type": "image_picker", "id": "mobile_image", "label": "Mobile image (optional)", "info": "Shown on screens under 768px" },
-        { "type": "text", "id": "background_video", "label": "Background video URL (MP4)" },
-        { "type": "text", "id": "image_alt", "label": "Image alt text", "info": "Describe the image for accessibility; leave blank if purely decorative." },
+        { "type": "text", "id": "background_video", "label": "Background video URL (MP4)", "info": "Optional; if used, provide a poster via Background image" },
+        { "type": "text", "id": "image_alt", "label": "Image alt text", "info": "Describe the image; leave blank if decorative." },
+        { "type": "select", "id": "bg_position", "label": "Image focal point (override)", "options": [
+          { "value": "center", "label": "Center" },
+          { "value": "top", "label": "Top" },
+          { "value": "bottom", "label": "Bottom" },
+          { "value": "left", "label": "Left" },
+          { "value": "right", "label": "Right" },
+          { "value": "top left", "label": "Top left" },
+          { "value": "top right", "label": "Top right" },
+          { "value": "bottom left", "label": "Bottom left" },
+          { "value": "bottom right", "label": "Bottom right" }
+        ]},
 
-        { "type": "header", "content": "Overlay" },
-        { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
-        { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 40, "unit": "%" },
+        { "type": "header", "content": "Overlay (override default)" },
+        { "type": "color", "id": "overlay_color", "label": "Overlay color" },
+        { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 40 },
 
         { "type": "header", "content": "Text" },
-        { "type": "text", "id": "kicker", "label": "Small label (kicker)", "default": "Featured" },
-        { "type": "color", "id": "kicker_color", "label": "Kicker color", "default": "#ffffff" },
+        { "type": "text", "id": "kicker", "label": "Small label (kicker)" },
+        { "type": "color", "id": "kicker_color", "label": "Kicker color" },
         { "type": "select", "id": "kicker_size", "label": "Kicker size", "options": [
           { "value": "sm", "label": "Small" }, { "value": "base", "label": "Normal" }, { "value": "lg", "label": "Large" }], "default": "sm"
         },
 
-        { "type": "text", "id": "heading", "label": "Big headline", "default": "Your main headline" },
-        { "type": "color", "id": "heading_color", "label": "Headline color", "default": "#ffffff" },
+        { "type": "text", "id": "heading", "label": "Headline" },
+        { "type": "color", "id": "heading_color", "label": "Headline color" },
         { "type": "select", "id": "heading_size", "label": "Headline size", "options": [
           { "value": "3xl", "label": "3XL" }, { "value": "4xl", "label": "4XL" }, { "value": "5xl", "label": "5XL" }, { "value": "6xl", "label": "6XL" }], "default": "5xl"
         },
 
-        { "type": "textarea", "id": "subheading", "label": "Short description", "default": "A quick benefit-driven sentence to help visitors act." },
-        { "type": "color", "id": "subheading_color", "label": "Description color", "default": "#ffffff" },
+        { "type": "textarea", "id": "subheading", "label": "Short description" },
+        { "type": "color", "id": "subheading_color", "label": "Description color" },
         { "type": "select", "id": "subheading_size", "label": "Description size", "options": [
           { "value": "base", "label": "Base" }, { "value": "lg", "label": "Large" }, { "value": "xl", "label": "XL" }], "default": "lg"
         },
-        { "type": "checkbox", "id": "hide_text_mobile", "label": "Hide headline/description on mobile", "default": false },
+        { "type": "checkbox", "id": "hide_text_mobile", "label": "Hide text on mobile", "default": false },
 
         { "type": "header", "content": "Buttons" },
         { "type": "select", "id": "cta_group_align", "label": "Button alignment", "default": "center", "options": [
           { "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" }
         ]},
-        { "type": "text", "id": "cta_text", "label": "Primary button text", "default": "Shop now" },
-        { "type": "url", "id": "cta_link", "label": "Primary button link", "default": "/collections/all" },
-        { "type": "text", "id": "cta_aria_label", "label": "Primary button ARIA label", "default": "Shop now" },
-        { "type": "text", "id": "cta2_text", "label": "Secondary button text", "default": "Learn more" },
-        { "type": "url", "id": "cta2_link", "label": "Secondary button link", "default": "/collections/all" },
-        { "type": "text", "id": "cta2_aria_label", "label": "Secondary button ARIA label", "default": "Learn more" },
+        { "type": "text", "id": "cta_text", "label": "Primary button text" },
+        { "type": "url", "id": "cta_link", "label": "Primary button link" },
+        { "type": "text", "id": "cta_aria_label", "label": "Primary ARIA label" },
+        { "type": "text", "id": "cta2_text", "label": "Secondary button text" },
+        { "type": "url", "id": "cta2_link", "label": "Secondary button link" },
+        { "type": "text", "id": "cta2_aria_label", "label": "Secondary ARIA label" },
         { "type": "checkbox", "id": "hide_buttons_mobile", "label": "Hide buttons on mobile", "default": false },
 
-        { "type": "header", "content": "Placement" },
-        { "type": "select", "id": "text_alignment", "label": "Text alignment", "options": [
-          { "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" }], "default": "center"
-        },
-        { "type": "select", "id": "content_position_mobile", "label": "Placement on mobile", "default": "center_center", "options": [
+        { "type": "header", "content": "Placement & Motion (overrides defaults)" },
+        { "type": "select", "id": "text_alignment", "label": "Text alignment", "default": "", "options": [
+          { "value": "", "label": "Use section default" },
+          { "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" }
+        ]},
+        { "type": "select", "id": "content_position_mobile", "label": "Placement on mobile", "default": "", "options": [
+          { "value": "", "label": "Use section default" },
           { "value": "start_start", "label": "Top left" }, { "value": "start_center", "label": "Top center" }, { "value": "start_end", "label": "Top right" },
           { "value": "center_start", "label": "Middle left" }, { "value": "center_center", "label": "Middle center" }, { "value": "center_end", "label": "Middle right" },
           { "value": "end_start", "label": "Bottom left" }, { "value": "end_center", "label": "Bottom center" }, { "value": "end_end", "label": "Bottom right" }
         ]},
-        { "type": "select", "id": "content_position", "label": "Placement on desktop", "default": "center_center", "options": [
+        { "type": "select", "id": "content_position", "label": "Placement on desktop", "default": "", "options": [
+          { "value": "", "label": "Use section default" },
           { "value": "start_start", "label": "Top left" }, { "value": "start_center", "label": "Top center" }, { "value": "start_end", "label": "Top right" },
           { "value": "center_start", "label": "Middle left" }, { "value": "center_center", "label": "Middle center" }, { "value": "center_end", "label": "Middle right" },
           { "value": "end_start", "label": "Bottom left" }, { "value": "end_center", "label": "Bottom center" }, { "value": "end_end", "label": "Bottom right" }
         ]},
-        { "type": "header", "content": "Motion" },
+        { "type": "select", "id": "motion_preset", "label": "Text animation", "default": "", "options": [
+          { "value": "", "label": "Use section default" },
+          { "value": "none", "label": "None" },
+          { "value": "fade-up", "label": "Fade up" },
+          { "value": "slide-up", "label": "Slide up" }
+        ]},
         { "type": "checkbox", "id": "ken_burns", "label": "Subtle pan/zoom on image (Ken Burns)", "default": false }
       ]
     }
   ],
   "max_blocks": 8,
   "presets": [
-    {
-      "name": "Slideshow Banner",
-      "category": "Banner",
+    { "name": "Slideshow Banner", "category": "Banner",
       "blocks": [
         { "type": "slide", "settings": { "heading": "New Season Essentials", "subheading": "Fresh looks engineered for comfort.", "cta_text": "Shop Women", "cta2_text": "Shop Men" } },
         { "type": "slide", "settings": { "heading": "Members Get More", "subheading": "Exclusive drops and early access.", "cta_text": "Join Free" } }
+      ]
+    },
+    { "name": "Slideshow Banner (Split)", "category": "Banner", "settings": { "layout_mode": "split" },
+      "blocks": [
+        { "type": "slide", "settings": { "heading": "Crafted Essentials", "subheading": "Image left, content right.", "cta_text": "Shop Now" } },
+        { "type": "slide", "settings": { "heading": "Editorial Layout", "subheading": "Split mode for richer stories.", "cta_text": "Discover" } }
       ]
     }
   ]
