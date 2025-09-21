@@ -1,10 +1,14 @@
 {% comment %}
   Quadratum • Hero Banner (Classic) — Tokenized + Responsive + Full 3×3 Align (mobile & desktop)
+  + Background Slideshow w/ per-slide Ken Burns & Gradient (non-invasive)
 {% endcomment %}
 {{ 'section-hero-classic.css' | asset_url | stylesheet_tag }}
 
 {%- assign s = section.settings -%}
 
+{% comment %}
+===== existing assignments (unchanged) =====
+{% endcomment %}
 {%- assign pos_m = s.content_position_mobile | default: 'center_center' -%}
 {%- assign pos_d = s.content_position       | default: 'center_center' -%}
 {%- assign txt_align = s.text_alignment     | default: 'center' -%}
@@ -64,6 +68,38 @@
   {%- assign pad_l_d = 24 -%}{%- assign pad_r_d = 24 -%}
 {%- endif -%}
 
+{% comment %}
+===== NEW: local CSS for slideshow-only bits (kept tiny) =====
+{% endcomment %}
+ <style>
+  .q-hero-classic .q-bg { position: absolute; inset: 0; overflow: hidden; }
+  .q-hero-classic .q-slides { position:absolute; inset:0; }
+  .q-hero-classic .q-frame { position:absolute; inset:0; opacity:0; pointer-events:none; transition: opacity 500ms ease; }
+  .q-hero-classic .q-frame.is-active { opacity:1; pointer-events:auto; }
+  .q-hero-classic .q-media { width:100%; height:100%; object-fit:cover; display:block; }
+  .q-hero-classic .q-overlay-i { position:absolute; inset:0; pointer-events:none; }
+
+  /* Dots */
+  .q-hero-classic .q-hero-dots { position:absolute; left:0; right:0; bottom:14px; display:flex; gap:8px; justify-content:center; z-index:2; }
+  .q-hero-classic .q-hero-dot { width:10px; height:10px; border-radius:9999px; background: rgba(255,255,255,.55); border:0; cursor:pointer; }
+  .q-hero-classic .q-hero-dot[aria-current="true"] { background:#fff; }
+
+  /* Ken Burns + simple pans */
+  @keyframes qKenIn  { 0%{transform:scale(1)}   100%{transform:scale(1.06)} }
+  @keyframes qKenOut { 0%{transform:scale(1.06)} 100%{transform:scale(1)} }
+  @keyframes qPanL   { 0%{transform:translateX(0)} 100%{transform:translateX(-2.5%)} }
+  @keyframes qPanR   { 0%{transform:translateX(0)} 100%{transform:translateX( 2.5%)} }
+  .q-ken-in  { animation: qKenIn  20s linear infinite alternate; will-change: transform; }
+  .q-ken-out { animation: qKenOut 20s linear infinite alternate; will-change: transform; }
+  .q-pan-left{ animation: qPanL   20s linear infinite alternate; will-change: transform; }
+  .q-pan-right{animation: qPanR   20s linear infinite alternate; will-change: transform; }
+
+  @media (prefers-reduced-motion: reduce){
+    .q-ken-in,.q-ken-out,.q-pan-left,.q-pan-right{ animation:none !important; }
+    .q-hero-classic .q-frame { transition: none; }
+  }
+</style>
+
 <section
   id="{{ s.anchor_id | default: 'section-' | append: section.id }}"
   class="q-hero-classic banner-section{{ visibility_classes }}"
@@ -96,35 +132,140 @@
   "
 >
   <div class="q-bleed">
-    <div class="q-bg" aria-hidden="true">
-      {% if s.background_video != blank %}
-        <video class="q-media" autoplay loop muted playsinline preload="none"
-          {% if s.background_image != blank %}poster="{{ s.background_image | image_url: width: 1600 }}"{% endif %}>
-          <source src="{{ s.background_video }}" type="video/mp4">
-        </video>
-      {% elsif s.background_image != blank %}
-        {{ s.background_image
-          | image_url: width: 2880
-          | image_tag:
-            widths: '960,1440,1920,2560,2880',
-            sizes: '100vw',
-            loading: 'eager',
-            fetchpriority: 'high',
-            class: 'q-media',
-            decoding: 'async',
-            alt: '' }}
-      {% else %}
-        <div class="q-media" style="background:#000;"></div>
-      {% endif %}
+    <div class="q-bg"
+         {% if s.use_slideshow and section.blocks.size > 0 %}
+           data-q-hero
+           data-autoplay="{{ s.autoplay }}"
+           data-interval="{{ s.autoplay_interval | default: 5 }}"
+         {% endif %}
+         aria-hidden="true">
 
-      <div class="q-overlay" style="background-color: {{ s.overlay_color }}; opacity: {{ s.overlay_opacity | divided_by: 100.0 }};"></div>
+      {%- if s.use_slideshow and section.blocks.size > 0 -%}
+        <div class="q-slides">
+          {%- for block in section.blocks -%}
+            {%- assign b = block.settings -%}
+
+            {%- assign effect = b.media_effect | default: 'none' -%}
+            {%- assign effect_class = '' -%}
+            {%- case effect -%}
+              {%- when 'ken_in'  -%}{%- assign effect_class = 'q-ken-in' -%}
+              {%- when 'ken_out' -%}{%- assign effect_class = 'q-ken-out' -%}
+              {%- when 'pan_left' -%}{%- assign effect_class = 'q-pan-left' -%}
+              {%- when 'pan_right' -%}{%- assign effect_class = 'q-pan-right' -%}
+            {%- endcase -%}
+
+            {%- assign focal = b.focal_point | default: 'center' -%}
+
+            <div class="q-frame{% if forloop.first %} is-active{% endif %}" data-q-hero-slide {{ block.shopify_attributes }}>
+              {%- if b.video_url != blank -%}
+                <video class="q-media" autoplay loop muted playsinline preload="{% if forloop.first %}auto{% else %}metadata{% endif %}"
+                       {% if b.image != blank %}poster="{{ b.image | image_url: width: 1600 }}"{% endif %}>
+                  <source src="{{ b.video_url | escape }}" type="video/mp4">
+                </video>
+              {%- else -%}
+                {%- assign widths = '960,1440,1920,2560,2880' | split: ',' -%}
+                <picture>
+                  {%- if b.mobile_image != blank -%}
+                    <source media="(max-width: 767px)"
+                            srcset="{% for w in widths %}{{ b.mobile_image | image_url: width: w }} {{ w }}w{% unless forloop.last %}, {% endunless %}{% endfor %}"
+                            sizes="100vw">
+                  {%- endif -%}
+                  <img class="q-media {{ effect_class }}"
+                       alt="{{ b.alt | default: '' | escape }}"
+                       style="object-position: {{ focal }};"
+                       {% if forloop.first %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}
+                       decoding="async"
+                       src="{{ b.image | image_url: width: 1920 }}"
+                       srcset="{% for w in widths %}{{ b.image | image_url: width: w }} {{ w }}w{% unless forloop.last %}, {% endunless %}{% endfor %}"
+                       sizes="100vw">
+                </picture>
+              {%- endif -%}
+
+              {%- assign ov_mode = b.overlay_mode | default: 'inherit' -%}
+              {%- if ov_mode == 'gradient' -%}
+                {%- assign g1 = b.grad_start | default: s.grad_start | default: '#000000' -%}
+                {%- assign g1o = b.grad_start_opacity | default: s.grad_start_opacity | default: 0 | divided_by: 100.0 -%}
+                {%- assign g2 = b.grad_end   | default: s.grad_end   | default: '#000000' -%}
+                {%- assign g2o = b.grad_end_opacity | default: s.grad_end_opacity | default: 0 | divided_by: 100.0 -%}
+                {%- assign ang = b.grad_angle | default: s.grad_angle | default: 180 -%}
+                {%- assign g1c = g1 | color_modify: 'alpha', g1o -%}
+                {%- assign g2c = g2 | color_modify: 'alpha', g2o -%}
+                <div class="q-overlay-i" style="background: linear-gradient({{ ang }}deg, {{ g1c }}, {{ g2c }});"></div>
+              {%- elsif ov_mode == 'solid' -%}
+                {%- assign oc = b.overlay_color | default: s.overlay_color | default: '#000000' -%}
+                {%- assign oo = b.overlay_opacity | default: s.overlay_opacity | default: 0 | divided_by: 100.0 -%}
+                <div class="q-overlay-i" style="background-color: {{ oc }}; opacity: {{ oo }};"></div>
+              {%- else -%}
+                {%- assign oc = s.overlay_color | default: '#000000' -%}
+                {%- assign oo = s.overlay_opacity | default: 0 | divided_by: 100.0 -%}
+                {%- if s.overlay_type == 'gradient' -%}
+                  {%- assign g1 = s.grad_start | default: '#000000' -%}
+                  {%- assign g2 = s.grad_end   | default: '#000000' -%}
+                  {%- assign g1o = s.grad_start_opacity | default: 0 | divided_by: 100.0 -%}
+                  {%- assign g2o = s.grad_end_opacity   | default: 0 | divided_by: 100.0 -%}
+                  {%- assign ang = s.grad_angle | default: 180 -%}
+                  {%- assign g1c = g1 | color_modify: 'alpha', g1o -%}
+                  {%- assign g2c = g2 | color_modify: 'alpha', g2o -%}
+                  <div class="q-overlay-i" style="background: linear-gradient({{ ang }}deg, {{ g1c }}, {{ g2c }});"></div>
+                {%- else -%}
+                  <div class="q-overlay-i" style="background-color: {{ oc }}; opacity: {{ oo }};"></div>
+                {%- endif -%}
+              {%- endif -%}
+            </div>
+          {%- endfor -%}
+        </div>
+
+        {%- if s.show_dots and section.blocks.size > 1 -%}
+          <div class="q-hero-dots" data-q-hero-dots>
+            {%- for block in section.blocks -%}
+              <button class="q-hero-dot" type="button" data-q-hero-dot data-index="{{ forloop.index0 }}"
+                      {% if forloop.first %}aria-current="true"{% endif %}
+                      aria-label="Go to slide {{ forloop.index }}"></button>
+            {%- endfor -%}
+          </div>
+        {%- endif -%}
+
+      {%- else -%}
+        {#-- Fallback: original single media path (unchanged, plus optional gradient) --#}
+        {% if s.background_video != blank %}
+          <video class="q-media" autoplay loop muted playsinline preload="none"
+            {% if s.background_image != blank %}poster="{{ s.background_image | image_url: width: 1600 }}"{% endif %}>
+            <source src="{{ s.background_video }}" type="video/mp4">
+          </video>
+        {% elsif s.background_image != blank %}
+          {{ s.background_image
+            | image_url: width: 2880
+            | image_tag:
+              widths: '960,1440,1920,2560,2880',
+              sizes: '100vw',
+              loading: 'eager',
+              fetchpriority: 'high',
+              class: 'q-media',
+              decoding: 'async',
+              alt: '' }}
+        {% else %}
+          <div class="q-media" style="background:#000;"></div>
+        {% endif %}
+
+        {% if s.overlay_type == 'gradient' %}
+          {%- assign g1 = s.grad_start | default: '#000000' -%}
+          {%- assign g2 = s.grad_end   | default: '#000000' -%}
+          {%- assign g1o = s.grad_start_opacity | default: 0 | divided_by: 100.0 -%}
+          {%- assign g2o = s.grad_end_opacity   | default: 0 | divided_by: 100.0 -%}
+          {%- assign ang = s.grad_angle | default: 180 -%}
+          {%- assign g1c = g1 | color_modify: 'alpha', g1o -%}
+          {%- assign g2c = g2 | color_modify: 'alpha', g2o -%}
+          <div class="q-overlay" style="background: linear-gradient({{ ang }}deg, {{ g1c }}, {{ g2c }});"></div>
+        {% else %}
+          <div class="q-overlay" style="background-color: {{ s.overlay_color }}; opacity: {{ s.overlay_opacity | divided_by: 100.0 }};"></div>
+        {% endif %}
+      {%- endif -%}
     </div>
 
     <div class="q-layer">
       <div class="q-flexor">
         <div class="q-wrap {{ s.content_max_w }}"
              style="--q-pad-l-m: {{ pad_l_m }}px; --q-pad-r-m: {{ pad_r_m }}px; --q-pad-l-d: {{ pad_l_d }}px; --q-pad-r-d: {{ pad_r_d }}px;">
-          
           {% if s.accent_heading != blank %}
             <p class="q-accent">{{ s.accent_heading }}</p>
           {% endif %}
@@ -144,19 +285,15 @@
             <div class="q-ctas">
               {% if s.cta_text != blank %}
                 <a href="{{ s.cta_link | default: '#' }}"
-                    rel="noopener" aria-label="{{ s.cta_aria_label | default: s.cta_text | escape }}"
+                   rel="noopener" aria-label="{{ s.cta_aria_label | default: s.cta_text | escape }}"
                    class="q-btn {{ btn_mode_class }}"
-                   data-cta="primary">
-                   {{ s.cta_text }}
-                </a>
+                   data-cta="primary">{{ s.cta_text }}</a>
               {% endif %}
               {% if s.cta2_text != blank %}
                 <a href="{{ s.cta2_link | default: '#' }}"
-                    rel="noopener" aria-label="{{ s.cta2_aria_label | default: s.cta2_text | escape }}"
+                   rel="noopener" aria-label="{{ s.cta2_aria_label | default: s.cta2_text | escape }}"
                    class="q-btn {{ btn_mode_class }}"
-                   data-cta="secondary">
-                   {{ s.cta2_text }}
-                </a>
+                   data-cta="secondary">{{ s.cta2_text }}</a>
               {% endif %}
             </div>
           {% endif %}
@@ -166,6 +303,82 @@
   </div>
 </section>
 
+{% if s.use_slideshow and section.blocks.size > 0 %}
+<script>
+/* Minimal background rotator — local-only, no globals */
+(function(){
+  function init(root){
+    if(!root || root.__qHero) return;
+    const wrap = root.querySelector('[data-q-hero]');
+    if(!wrap){ return; }
+    const slides = Array.from(wrap.querySelectorAll('[data-q-hero-slide]'));
+    if(slides.length === 0){ return; }
+    root.__qHero = true;
+
+    const dotsWrap = wrap.parentElement.querySelector('[data-q-hero-dots]');
+    const dots = dotsWrap ? Array.from(dotsWrap.querySelectorAll('[data-q-hero-dot]')) : [];
+
+    const autoplay = String(wrap.dataset.autoplay) === 'true';
+    const interval = Math.max(3, parseInt(wrap.dataset.interval || '5', 10));
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let idx = 0, timer = null, paused = false;
+
+    function setActive(){
+      slides.forEach((el, i)=>{
+        const on = i === idx;
+        el.classList.toggle('is-active', on);
+      });
+      dots.forEach((d,i)=>{
+        if(i===idx){ d.setAttribute('aria-current','true'); } else { d.removeAttribute('aria-current'); }
+      });
+      const img = slides[idx] && slides[idx].querySelector('img.q-media');
+      if(img && img.decode){ img.decode().catch(()=>{}); }
+    }
+
+    function goTo(i){
+      idx = (i + slides.length) % slides.length;
+      setActive();
+    }
+    function next(){ goTo(idx+1); }
+
+    function start(){
+      if(!autoplay || prefersReduced || slides.length<2) return;
+      stop();
+      timer = setInterval(()=>{ if(!paused) next(); }, interval*1000);
+    }
+    function stop(){ if(timer){ clearInterval(timer); timer=null; } }
+
+    dots.forEach(dot=>{
+      dot.addEventListener('click', ()=> {
+        const k = parseInt(dot.dataset.index || '0', 10);
+        if(!isNaN(k)) goTo(k);
+      });
+    });
+    wrap.addEventListener('mouseenter', ()=> paused=true);
+    wrap.addEventListener('mouseleave', ()=> paused=false);
+    wrap.addEventListener('focusin',  ()=> paused=true);
+    wrap.addEventListener('focusout', ()=> paused=false);
+
+    setActive();
+    start();
+  }
+
+  function boot(){
+    document.querySelectorAll('.q-hero-classic').forEach(init);
+  }
+  if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); } else { boot(); }
+
+  document.addEventListener('shopify:section:load', (e)=>{
+    const r = e.target && e.target.querySelector('.q-hero-classic'); if(r) init(r);
+  });
+  document.addEventListener('shopify:section:select', (e)=>{
+    const r = e.target && e.target.querySelector('.q-hero-classic'); if(r) init(r);
+  });
+})();
+</script>
+{% endif %}
+
 {% schema %}
 {
   "name": "Hero Banner • Classic",
@@ -174,11 +387,28 @@
   "settings": [
     { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Hero banner" },
 
-    { "type": "header", "content": "Background media" },
+    { "type": "header", "content": "Background media (single)" },
     { "type": "image_picker", "id": "background_image", "label": "Background image" },
     { "type": "text", "id": "background_video", "label": "Background video URL (MP4)" },
-    { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
+
+    { "type": "header", "content": "Overlay (global default)" },
+    { "type": "select", "id": "overlay_type", "label": "Overlay type", "default": "solid", "options": [
+      { "value": "solid", "label": "Solid color" },
+      { "value": "gradient", "label": "Gradient" }
+    ]},
+    { "type": "color", "id": "overlay_color", "label": "Overlay color (solid)", "default": "#000000" },
     { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 40, "unit": "%" },
+    { "type": "color", "id": "grad_start", "label": "Gradient start", "default": "#000000" },
+    { "type": "range", "id": "grad_start_opacity", "label": "Start opacity", "min": 0, "max": 100, "step": 5, "default": 40, "unit": "%" },
+    { "type": "color", "id": "grad_end", "label": "Gradient end", "default": "#000000" },
+    { "type": "range", "id": "grad_end_opacity", "label": "End opacity", "min": 0, "max": 100, "step": 5, "default": 0, "unit": "%" },
+    { "type": "range", "id": "grad_angle", "label": "Gradient angle", "min": 0, "max": 360, "step": 5, "default": 180, "unit": "deg" },
+
+    { "type": "header", "content": "Background Slideshow" },
+    { "type": "checkbox", "id": "use_slideshow", "label": "Use background slideshow", "default": false },
+    { "type": "checkbox", "id": "autoplay", "label": "Auto-rotate slides", "default": true },
+    { "type": "range", "id": "autoplay_interval", "label": "Time between slides (sec)", "min": 3, "max": 12, "step": 1, "default": 5 },
+    { "type": "checkbox", "id": "show_dots", "label": "Show dots over banner", "default": true },
 
     { "type": "header", "content": "Layout & sizing" },
     { "type": "select", "id": "min_height", "label": "Minimum height", "default": "min-h-[75vh]", "options": [
@@ -272,11 +502,9 @@
     { "type": "text", "id": "cta_text", "label": "Primary button text", "default": "Shop Now" },
     { "type": "url", "id": "cta_link", "label": "Primary button link" },
     { "type": "text", "id": "cta_aria_label", "label": "Primary button ARIA label", "default": "Shop Now" },
-
     { "type": "text", "id": "cta2_text", "label": "Secondary button text", "default": "Learn More" },
     { "type": "url", "id": "cta2_link", "label": "Secondary button link" },
     { "type": "text", "id": "cta2_aria_label", "label": "Secondary button ARIA label", "default": "Learn More" },
-
     { "type": "select", "id": "button_mode", "label": "Button style", "options": [
       { "value": "solid", "label": "Solid" },
       { "value": "outline", "label": "Outline" }
@@ -294,6 +522,47 @@
     { "type": "checkbox", "id": "hide_on_mobile", "label": "Hide on mobile", "default": false },
     { "type": "checkbox", "id": "hide_on_desktop", "label": "Hide on desktop", "default": false }
   ],
+  "blocks": [
+    {
+      "type": "bg_slide",
+      "name": "Background slide",
+      "settings": [
+        { "type": "image_picker", "id": "image", "label": "Image" },
+        { "type": "image_picker", "id": "mobile_image", "label": "Mobile image (optional)" },
+        { "type": "text", "id": "video_url", "label": "Video URL (MP4)", "info": "Optional; uses image as poster if provided." },
+        { "type": "select", "id": "focal_point", "label": "Image focal point", "default": "center", "options": [
+          { "value": "center", "label": "Center" }, { "value": "top", "label": "Top" }, { "value": "bottom", "label": "Bottom" },
+          { "value": "left", "label": "Left" }, { "value": "right", "label": "Right" },
+          { "value": "top left", "label": "Top left" }, { "value": "top right", "label": "Top right" },
+          { "value": "bottom left", "label": "Bottom left" }, { "value": "bottom right", "label": "Bottom right" }
+        ]},
+
+        { "type": "header", "content": "Per-slide overlay (optional)" },
+        { "type": "select", "id": "overlay_mode", "label": "Overlay for this slide", "default": "inherit", "options": [
+          { "value": "inherit", "label": "Inherit section default" },
+          { "value": "solid", "label": "Solid color" },
+          { "value": "gradient", "label": "Gradient" }
+        ]},
+        { "type": "color", "id": "overlay_color", "label": "Solid color" },
+        { "type": "range", "id": "overlay_opacity", "label": "Solid opacity", "min": 0, "max": 100, "step": 5, "default": 40, "unit": "%" },
+        { "type": "color", "id": "grad_start", "label": "Gradient start" },
+        { "type": "range", "id": "grad_start_opacity", "label": "Start opacity", "min": 0, "max": 100, "step": 5, "default": 40, "unit": "%" },
+        { "type": "color", "id": "grad_end", "label": "Gradient end" },
+        { "type": "range", "id": "grad_end_opacity", "label": "End opacity", "min": 0, "max": 100, "step": 5, "default": 0, "unit": "%" },
+        { "type": "range", "id": "grad_angle", "label": "Angle", "min": 0, "max": 360, "step": 5, "default": 180, "unit": "deg" },
+
+        { "type": "header", "content": "Motion (image only)" },
+        { "type": "select", "id": "media_effect", "label": "Ken Burns / Pan", "default": "none", "options": [
+          { "value": "none", "label": "None" },
+          { "value": "ken_in", "label": "Ken Burns — zoom in" },
+          { "value": "ken_out", "label": "Ken Burns — zoom out" },
+          { "value": "pan_left", "label": "Pan left" },
+          { "value": "pan_right", "label": "Pan right" }
+        ]}
+      ]
+    }
+  ],
+  "max_blocks": 8,
   "presets": [{ "name": "Hero Banner • Classic", "category": "Hero" }]
 }
 {% endschema %}
