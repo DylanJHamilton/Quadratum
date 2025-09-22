@@ -1,273 +1,589 @@
 {% comment %}
-  Quadratum • Grid Banner
-  Purpose: Flexible promo grid (2–4 columns) with image/video tiles, overlay, text, and CTAs.
-  Notes:
-  - Fixes quote issues in image_tag by building sizes into a variable (no nested Liquid in strings).
-  - Non-empty defaults for schema fields (kicker, heading).
-  - No inline "#" comments inside Liquid to avoid parser quirks.
-  - First tile eager; others lazy. Analytics hooks behind a toggle.
+  Quadratum • Hero + Grid Banner (Rebuilt)
+  - Modes: hero_only / grid_only / hero_plus_grid
+  - Real hero: single tile, large height, strong type, button styles from settings
+  - Optional grid: 2/6/12 columns via CSS variables (purge-proof)
+  - No comparisons in {{ }}, no chained assigns; all logic in {% liquid %}/{% if %}
 {% endcomment %}
 
 {% assign s = section.settings %}
-
-{%- comment -%} Grid columns mapping {%- endcomment -%}
-{% assign cols = s.cols_desktop | default: '3' %}
-{% case cols %}
-  {% when '2' %}{% assign grid_cols = 'grid-cols-1 sm:grid-cols-2' %}
-  {% when '3' %}{% assign grid_cols = 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' %}
-  {% when '4' %}{% assign grid_cols = 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' %}
-  {% else %}{% assign grid_cols = 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' %}
-{% endcase %}
-
-{%- comment -%} Gap & container {%- endcomment -%}
-{% assign gap_class = s.gap | default: 'gap-4 md:gap-6' %}
-{% assign container_pad = '' %}
-{% if s.container_mode == 'contained' %}
-  {% assign container_pad = 'px-4 md:px-6' %}
-{% endif %}
 
 {%- comment -%} Visibility toggles {%- endcomment -%}
 {% assign visibility_classes = '' %}
 {% if s.hide_on_mobile %}{% assign visibility_classes = visibility_classes | append: ' hidden md:block' %}{% endif %}
 {% if s.hide_on_desktop %}{% assign visibility_classes = visibility_classes | append: ' md:hidden' %}{% endif %}
 
-{%- comment -%} Spacing fallback: map pad_y to px (for purge-proof padding) {%- endcomment -%}
-{% assign pad_mobile = 48 %}
-{% assign pad_desktop = 64 %}
+{%- comment -%} Scoped section id {%- endcomment -%}
+{%- assign sid = s.anchor_id | default: 'section-' | append: section.id -%}
+
+{%- comment -%} Container classes (fallbacks kept purge-proof via inline CSS) {%- endcomment -%}
+{% assign container_pad = '' %}
+{% if s.container_mode == 'contained' %}{% assign container_pad = 'px-4 md:px-6' %}{% endif %}
+{% assign container_class = '' %}
+{% if s.container_mode == 'full' %}
+  {% assign container_class = container_pad %}
+{% else %}
+  {% assign container_class = 'mx-auto max-w-screen-xl ' | append: container_pad %}
+{% endif %}
+
+{%- comment -%} Spacing map (purge-proof pixel fallbacks) {%- endcomment -%}
+{% assign pad_mobile = 64 %}
+{% assign pad_desktop = 96 %}
 {% case s.pad_y %}
   {% when 'py-8 md:py-12' %}{% assign pad_mobile = 32 %}{% assign pad_desktop = 48 %}
   {% when 'py-12 md:py-16' %}{% assign pad_mobile = 48 %}{% assign pad_desktop = 64 %}
   {% when 'py-16 md:py-24' %}{% assign pad_mobile = 64 %}{% assign pad_desktop = 96 %}
 {% endcase %}
 
-{%- comment -%} Cache section id for scoped CSS {%- endcomment -%}
-{% assign sid = s.anchor_id | default: 'section-' | append: section.id %}
+{%- comment -%} Grid gap mapping {%- endcomment -%}
+{% assign gap_m = 16 %}{% assign gap_t = 24 %}{% assign gap_d = 32 %}
+{% case s.gap %}
+  {% when 'gap-3 md:gap-4' %}{% assign gap_m = 12 %}{% assign gap_t = 16 %}{% assign gap_d = 16 %}
+  {% when 'gap-4 md:gap-6' %}{% assign gap_m = 16 %}{% assign gap_t = 24 %}{% assign gap_d = 24 %}
+  {% when 'gap-6 md:gap-8' %}{% assign gap_m = 24 %}{% assign gap_t = 32 %}{% assign gap_d = 32 %}
+{% endcase %}
+
+{%- comment -%} Grid cols + row-heights {%- endcomment -%}
+{% assign cols_m = s.cols_mobile | default: '2' %}
+{% assign cols_t = s.cols_tablet | default: '6' %}
+{% assign cols_d = s.cols_desktop | default: '12' %}
+{% assign row_m  = s.row_h_mobile  | default: 160 %}
+{% assign row_t  = s.row_h_tablet  | default: 200 %}
+{% assign row_d  = s.row_h_desktop | default: 240 %}
 
 <section
   id="{{ sid }}"
-  class="relative {{ s.pad_y | default: 'py-12 md:py-16' }}{{ visibility_classes }}"
+  class="relative {{ s.pad_y | default: 'py-16 md:py-24' }}{{ visibility_classes }}"
   role="region"
-  aria-label="{{ s.region_label | default: 'Promotional grid' }}"
+  aria-label="{{ s.region_label | default: 'Promotional hero and grid' }}"
 >
-  <style>
-    /* === Scoped spacing (section) === */
-    #{{ sid }}{padding-top:{{ pad_mobile }}px;padding-bottom:{{ pad_mobile }}px;}
-    @media (min-width:768px){#{{ sid }}{padding-top:{{ pad_desktop }}px;padding-bottom:{{ pad_desktop }}px;}}
+  
+<style>
+  /* ===== Hero + Grid Banner — unified CSS ===== */
 
-    /* Container side padding fallbacks if Tailwind purges px utilities */
-    #{{ sid }} .px-4{padding-left:16px;padding-right:16px;}
-    @media (min-width:768px){#{{ sid }} .md\:px-6{padding-left:24px;padding-right:24px;}}
+/* Section spacing (purge-proof) */
+#{{ sid }}{padding-top:{{ pad_mobile }}px;padding-bottom:{{ pad_mobile }}px;}
+@media (min-width:768px){#{{ sid }}{padding-top:{{ pad_desktop }}px;padding-bottom:{{ pad_desktop }}px;}}
 
-    /* Tile inner padding fallbacks (purge-proof) */
-    #{{ sid }} .p-6{padding:1.5rem;}#{{ sid }} .p-8{padding:2rem;}#{{ sid }} .p-10{padding:2.5rem;}#{{ sid }} .p-12{padding:3rem;}
-    @media (min-width:768px){
-      #{{ sid }} .md\:p-8{padding:2rem;}
-      #{{ sid }} .md\:p-10{padding:2.5rem;}
-      #{{ sid }} .md\:p-12{padding:3rem;}
-    }
+/* Side padding fallbacks */
+#{{ sid }} .px-4{padding-left:16px;padding-right:16px;}
+@media (min-width:768px){#{{ sid }} .md\:px-6{padding-left:24px;padding-right:24px;}}
 
-    /* Max-width fallbacks */
-    #{{ sid }} .max-w-2xl{max-width:42rem;}
-    #{{ sid }} .max-w-3xl{max-width:48rem;}
-    #{{ sid }} .max-w-4xl{max-width:56rem;}
+/* Typography tokens */
+#{{ sid }}{
+  --q-font-head: {{ settings.type_header_font.family | json }}, {{ settings.type_header_font.fallback_families | json }};
+  --q-font-body: {{ settings.type_body_font.family  | json }}, {{ settings.type_body_font.fallback_families  | json }};
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility; font-synthesis-weight:none;
+}
+#{{ sid }} h1,#{{ sid }} h2,#{{ sid }} h3{font-family:var(--q-font-head);font-weight:800;line-height:1.1;letter-spacing:-.02em;}
+#{{ sid }} p,#{{ sid }} a,#{{ sid }} span{font-family:var(--q-font-body);line-height:1.6;}
 
-    /* Token polyfills (so tiles don’t look unstyled HTML if tokens are missing) */
-    #{{ sid }} .bg-card{background-color:#ffffff;}
-    #{{ sid }} .bg-background{background-color:#ffffff;}
-    #{{ sid }} .text-muted-foreground{color:#6b7280;}
-    #{{ sid }} .text-primary-foreground{color:#ffffff;}
-    #{{ sid }} .text-primary-foreground\/90{color:rgba(255,255,255,.9);}
-    #{{ sid }} .ring-border{--tw-ring-color:rgba(229,231,235,1);} /* gray-200 */
-    #{{ sid }} .border-input{border-color:#e5e7eb;}
-    #{{ sid }} .bg-primary{background-color:#111111;}
-    #{{ sid }} .hover\:bg-accent:hover{background-color:#f3f4f6;}
-    #{{ sid }} .hover\:text-accent-foreground:hover{color:#111111;}
+/* Hero */
+#{{ sid }} .q-hero{position:relative;overflow:hidden;border-radius:16px;}
+#{{ sid }} .q-hero-media{position:absolute;inset:0;z-index:0;overflow:hidden;}
+#{{ sid }} .q-hero-media img,#{{ sid }} .q-hero-media video{width:100%;height:100%;object-fit:cover;display:block;transform:scale(1.01);transition:transform .6s ease;}
+#{{ sid }} .q-hero:hover .q-hero-media img,#{{ sid }} .q-hero:hover .q-hero-media video{transform:scale(1.05);}
+#{{ sid }} .q-hero-card{position:relative;z-index:1;height:100%;display:flex;}
+#{{ sid }} .q-hero-inner{width:100%;max-width:64rem;}
+#{{ sid }} .q-hero h2{font-size:clamp(2.5rem,6vw,5rem);letter-spacing:-.02em;}
+#{{ sid }} .q-hero .sub{font-size:clamp(1.125rem,1.5vw,1.375rem);opacity:.95;}
 
-    /* Subtle lift for tiles */
-    #{{ sid }} article.bg-card{box-shadow:0 1px 2px rgba(0,0,0,.06);}
-    #{{ sid }} article.bg-card:hover{box-shadow:0 8px 24px rgba(0,0,0,.12);transition:box-shadow .2s ease;}
+/* Buttons — normalized so merchant colors always win */
+#{{ sid }} a.q-btn{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+  padding:.9rem 1.4rem;font-weight:700;line-height:1.2;border-radius:{{ s.button_radius }}px !important;
+  text-decoration:none;cursor:pointer;border:0 !important;box-shadow:none !important;
+  -webkit-appearance:none;appearance:none;
+}
+#{{ sid }} a.q-btn:hover{opacity:.92;}
+#{{ sid }} a.q-btn.q-btn--solid{background:{{ s.button_bg_color }} !important;color:{{ s.button_text_color }} !important;}
+#{{ sid }} a.q-btn.q-btn--outline{
+  color:{{ s.button_text_color }} !important;
+  border:{{ s.button_border_width }}px solid {{ s.button_border_color }} !important;
+  background:rgba(0,0,0,.18);backdrop-filter:saturate(130%) blur(1px);
+}
 
-    /* Typography (uses theme fonts; scoped) */
-    #{{ sid }}{
-      --q-font-head: {{ settings.type_header_font.family | json }}, {{ settings.type_header_font.fallback_families | json }};
-      --q-font-body: {{ settings.type_body_font.family  | json }}, {{ settings.type_body_font.fallback_families  | json }};
-      -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; font-synthesis-weight:none;
-    }
-    #{{ sid }} h1,#{{ sid }} h2,#{{ sid }} h3{font-family:var(--q-font-head);font-weight:700;line-height:1.15;letter-spacing:-.01em;}
-    #{{ sid }} p,#{{ sid }} li,#{{ sid }} a,#{{ sid }} span{font-family:var(--q-font-body);font-weight:400;line-height:1.6;}
-    #{{ sid }} .text-sm{font-size:.875rem;line-height:1.5;}
-    #{{ sid }} .text-base{font-size:1rem;line-height:1.6;}
-    #{{ sid }} .text-lg{font-size:1.125rem;line-height:1.6;}
-    #{{ sid }} .text-2xl{font-size:1.5rem;line-height:1.2;}
-    #{{ sid }} .text-3xl{font-size:1.875rem;line-height:1.15;}
-    #{{ sid }} a strong,#{{ sid }} button strong{font-weight:600;}
+/* Grid */
+#{{ sid }} .q-grid{
+  display:grid !important;border-radius:12px;width:100%;
+  grid-auto-flow:dense; /* pack like a magazine */
+  grid-template-columns:repeat(var(--cols-m,2), minmax(0,1fr)) !important;
+  grid-auto-rows:var(--row-m,160px) !important;
+  gap:var(--gap-m,16px) !important;
+}
+#{{ sid }} .q-item{position:relative;display:flex;min-height:0;overflow:hidden;border-radius:12px;}
+#{{ sid }} .q-media{position:absolute;inset:0;z-index:0;overflow:hidden;}
+#{{ sid }} .q-media img,#{{ sid }} .q-media video{width:100%;height:100%;object-fit:cover;display:block;transform:scale(1.01);transition:transform .5s ease;}
+#{{ sid }} .q-item:hover .q-media img,#{{ sid }} .q-item:hover .q-media video{transform:scale(1.05);}
+#{{ sid }} .q-card{position:relative;z-index:1;width:100%;height:100%;display:flex;min-width:0;}
+#{{ sid }} .q-inner{width:100%;max-width:56rem;}
 
-    /* Equal-height tiles + comfortable minimum height */
-    #{{ sid }} .q-grid-tile{min-height:320px;display:flex;flex-direction:column;}
-    @media (min-width:768px){#{{ sid }} .q-grid-tile{min-height:420px;}}
+/* Apply variable spans with authority */
+#{{ sid }} .q-grid > .q-item{
+  grid-column:span var(--cspan-m,1) !important;
+  grid-row:span var(--rspan-m,1) !important;
+}
 
-    /* Make media fully cover and stay behind */
-    #{{ sid }} .q-media{position:absolute;inset:0;z-index:0;}
+@media (min-width:640px){
+  #{{ sid }} .q-grid{
+    grid-template-columns:repeat(var(--cols-t,6), minmax(0,1fr)) !important;
+    grid-auto-rows:var(--row-t,200px) !important;
+    gap:var(--gap-t,24px) !important;
+  }
+  #{{ sid }} .q-grid > .q-item{
+    grid-column:span var(--cspan-t,2) !important;
+    grid-row:span var(--rspan-t,1) !important;
+  }
+}
+
+@media (min-width:1024px){
+  #{{ sid }} .q-grid{
+    grid-template-columns:repeat(var(--cols-d,12), minmax(0,1fr)) !important;
+    grid-auto-rows:var(--row-d,240px) !important;
+    gap:var(--gap-d,32px) !important;
+  }
+  #{{ sid }} .q-grid > .q-item{
+    grid-column:span var(--cspan-d,3) !important;
+    grid-row:span var(--rspan-d,1) !important;
+  }
+}
+
+/* --- ALIGN EVERYTHING AS A UNIT (Hero) --- */
+/* Read the inline text-align from the H2 and apply it to the whole stack */
+#{{ sid }} .q-hero-inner:has(h2[style*="text-align: center"]) { text-align: center; }
+#{{ sid }} .q-hero-inner:has(h2[style*="text-align: right"])  { text-align: right;  }
+
+/* Let text-align position the CTA group: make the group inline so it participates */
+#{{ sid }} .q-hero .flex.flex-wrap.gap-3 {
+  display: inline-flex;
+  justify-content: initial; /* don't fight text-align with flex-justify */
+}
+
+/* Kicker should follow the same alignment cleanly */
+#{{ sid }} .q-hero p[class*="tracking-wide"] { display: inline-block; }
+
+/* --- SAME TREATMENT FOR GRID TILES --- */
+#{{ sid }} .q-inner:has(h3[style*="text-align: center"]) { text-align: center; }
+#{{ sid }} .q-inner:has(h3[style*="text-align: right"])  { text-align: right;  }
+
+#{{ sid }} .q-inner .mt-4.md\:mt-6.flex.flex-wrap.gap-3 {
+  display: inline-flex;
+  justify-content: initial;
+}
+#{{ sid }} .q-inner p[class*="tracking-wide"] { display: inline-block; }
+
+/* --- OPTIONAL: READABLE BACKGROUND FOR HERO TEXT (toggle on/off) --- */
+/* Pills behind heading + sub so “This Season’s Drop” is always readable */
+#{{ sid }} .q-hero h2,
+#{{ sid }} .q-hero .sub {
+  display: inline;
+  box-decoration-break: clone;
+  background: rgba(0,0,0,.38); /* adjust to taste */
+  color: #fff;
+  padding: .15em .4em;
+  border-radius: .35em;
+}
+#{{ sid }} .q-hero-inner > *:first-child,
+#{{ sid }} .q-inner > *:first-child {
+  display:inline-block;
+  background: rgba(0,0,0,.35);   /* dark semi-transparent */
+  backdrop-filter: saturate(120%) blur(2px);
+  border-radius: 12px;
+  padding: .75rem 1rem;
+}
+
+
   </style>
 
+  {%- comment -%} HEADERS (optional) {%- endcomment -%}
   {% if s.kicker != blank or s.heading != blank or s.subheading != blank %}
-    <div class="mx-auto max-w-screen-xl {{ container_pad }} mb-10 md:mb-12">
-      {% if s.kicker != blank %}
-        <p class="text-sm font-semibold tracking-wide uppercase text-muted-foreground rtl:text-right">{{ s.kicker }}</p>
-      {% endif %}
-      {% if s.heading != blank %}
-        <h2 class="mt-2 text-2xl md:text-4xl font-semibold leading-tight">{{ s.heading | escape }}</h2>
-      {% endif %}
-      {% if s.subheading != blank %}
-        <p class="mt-3 text-base md:text-lg text-muted-foreground">{{ s.subheading }}</p>
-      {% endif %}
+    <div class="{{ container_class }} mb-8 md:mb-10">
+      {% if s.kicker != blank %}<p class="text-sm font-semibold tracking-wide uppercase text-neutral-500">{{ s.kicker }}</p>{% endif %}
+      {% if s.heading != blank %}<h2 class="mt-2 text-3xl md:text-5xl">{{ s.heading | escape }}</h2>{% endif %}
+      {% if s.subheading != blank %}<p class="mt-3 text-base md:text-lg text-neutral-600">{{ s.subheading }}</p>{% endif %}
     </div>
   {% endif %}
 
-  <div class="mx-auto max-w-screen-xl {{ container_pad }}">
-    <div class="grid {{ grid_cols }} {{ gap_class }}">
-      {% assign total = section.blocks.size %}
-      {% for block in section.blocks %}
-        {% assign b = block.settings %}
+  {%- comment -%} ============ HERO ============ {%- endcomment -%}
+  {% if s.layout_mode == 'hero_only' or s.layout_mode == 'hero_plus_grid' %}
+    {% liquid
+      assign hero_has_media = false
+      if s.hero_video != blank or s.hero_image != blank or s.hero_mobile_image != blank
+        assign hero_has_media = true
+      endif
 
-        {%- comment -%} Per-tile alignment and sizing {%- endcomment -%}
-        {% assign text_alignment = b.text_alignment | default: 'center' %}
-        {% assign text_align_class = 'text-' | append: text_alignment %}
+      assign hero_ov_color = s.hero_overlay_color | default: '#000000'
+      assign hero_ov_opacity = s.hero_overlay_opacity | default: 45 | plus: 0
 
-        {% assign cta_align = b.cta_group_align | default: 'center' %}
-        {% assign cta_justify = 'justify-center' %}
-        {% if cta_align == 'left' %}{% assign cta_justify = 'justify-start' %}{% endif %}
-        {% if cta_align == 'right' %}{% assign cta_justify = 'justify-end' %}{% endif %}
+      assign hero_tone = s.hero_text_tone | default: 'auto'
+      assign hero_txt = '#ffffff'
+      if hero_tone == 'dark'
+        assign hero_txt = '#111111'
+      elsif hero_tone == 'auto'
+        if hero_ov_opacity < 45
+          assign hero_txt = '#111111'
+        endif
+      endif
 
-        {% assign obj_pos = b.object_position | default: 'center center' %}
-        {% assign obj_pos_style = 'object-position: ' | append: obj_pos | append: ';' %}
+      assign h_ai = 'center'
+      assign h_jc = 'center'
+      assign h_ta = 'center'
+      case s.hero_content_position
+        when 'top-left'
+          assign h_ai = 'flex-start'
+          assign h_jc = 'flex-start'
+          assign h_ta = 'left'
+        when 'top-right'
+          assign h_ai = 'flex-start'
+          assign h_jc = 'flex-end'
+          assign h_ta = 'right'
+        when 'bottom-left'
+          assign h_ai = 'flex-end'
+          assign h_jc = 'flex-start'
+          assign h_ta = 'left'
+        when 'bottom-right'
+          assign h_ai = 'flex-end'
+          assign h_jc = 'flex-end'
+          assign h_ta = 'right'
+        when 'left'
+          assign h_ai = 'center'
+          assign h_jc = 'flex-start'
+          assign h_ta = 'left'
+        when 'right'
+          assign h_ai = 'center'
+          assign h_jc = 'flex-end'
+          assign h_ta = 'right'
+      endcase
 
-        {%- comment -%} Sizes string & widths for responsive images {%- endcomment -%}
-        {% assign sizes_str = '(min-width: 1024px) calc(100vw / ' | append: cols | append: '), (min-width: 640px) 50vw, 100vw' %}
-        {% assign widths_str = '320,480,640,750,828,960,1080,1280,1440,1680' %}
+      assign sizes_str = '(min-width: 1024px) 100vw, 100vw'
+      assign widths_str = '640,828,1080,1280,1440,1680,1920,2048'
 
-        {%- comment -%} Eager only on first tile {%- endcomment -%}
-        {% if forloop.first %}
-          {% assign loading_attr = 'eager' %}
-          {% assign fetchpriority_attr = 'high' %}
-        {% else %}
-          {% assign loading_attr = 'lazy' %}
-          {% assign fetchpriority_attr = 'auto' %}
+      assign loading_attr = 'eager'
+      assign fetchpriority_attr = 'high'
+    %}
+
+    <div class="{{ container_class }} mb-10">
+      <article class="q-hero" style="height: {{ s.hero_height_m }}vh;">
+        <style>
+          @media (min-width:768px){#{{ sid }} .q-hero{height: {{ s.hero_height_d }}vh;}}
+          #{{ sid }} .q-hero .q-hero-inner{padding: {{ s.hero_pad_y }}px {{ s.hero_pad_x }}px;}
+          @media (min-width:768px){#{{ sid }} .q-hero .q-hero-inner{padding: {{ s.hero_pad_y_d }}px {{ s.hero_pad_x_d }}px;}}
+        </style>
+
+        <div class="q-hero-media">
+          {% if s.hero_video != blank %}
+            <video class="absolute inset-0 w-full h-full object-cover" style="object-position: {{ s.hero_object_position | default: 'center center' }};"
+                   autoplay loop muted playsinline preload="none"
+                   {% if s.hero_image != blank %}poster="{{ s.hero_image | image_url: width: 1280 }}"{% endif %}>
+              <source src="{{ s.hero_video }}" type="video/mp4">
+            </video>
+          {% elsif s.hero_image != blank %}
+            {% if s.hero_mobile_image != blank %}
+              <picture>
+                <source media="(max-width: 639px)" srcset="{{ s.hero_mobile_image | image_url: width: 960 }}">
+                {{ s.hero_image | image_url: width: 2048 | image_tag:
+                    widths: widths_str,
+                    sizes: sizes_str,
+                    loading: loading_attr,
+                    fetchpriority: fetchpriority_attr,
+                    class: 'absolute inset-0 w-full h-full object-cover',
+                    alt: s.hero_image_alt }}
+              </picture>
+            {% else %}
+              {{ s.hero_image | image_url: width: 2048 | image_tag:
+                  widths: widths_str,
+                  sizes: sizes_str,
+                  loading: loading_attr,
+                  fetchpriority: fetchpriority_attr,
+                  class: 'absolute inset-0 w-full h-full object-cover',
+                  alt: s.hero_image_alt }}
+            {% endif %}
+          {% endif %}
+        </div>
+
+        {% if hero_has_media and hero_ov_opacity > 0 %}
+          <div class="absolute inset-0" aria-hidden="true" style="background-color: {{ hero_ov_color }}; opacity: {{ hero_ov_opacity | divided_by: 100.0 }};"></div>
+          {% if s.hero_use_gradient %}
+            <div class="absolute inset-x-0 bottom-0 h-1/3" aria-hidden="true" style="background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.45) 100%);"></div>
+          {% endif %}
         {% endif %}
 
-        {%- comment -%} CTA URLs (fallback chain) {%- endcomment -%}
-        {% assign cta_href = b.cta_link %}
-        {% if cta_href == blank and b.cta_product %}{% assign cta_href = b.cta_product.url %}{% endif %}
-        {% if cta_href == blank and b.cta_collection %}{% assign cta_href = b.cta_collection.url %}{% endif %}
-        {% if cta_href == blank and b.cta_article %}{% assign cta_href = b.cta_article.url %}{% endif %}
+        <div class="q-hero-card" style="align-items: {{ h_ai }}; justify-content: {{ h_jc }};">
+          <div class="q-hero-inner">
+            {% if s.hero_kicker != blank %}
+              <p class="mb-2 text-sm font-semibold tracking-wide uppercase" style="color: {{ hero_txt }};">{{ s.hero_kicker }}</p>
+            {% endif %}
+            {% if s.hero_heading != blank %}
+              <h2 class="mb-3" style="color: {{ hero_txt }}; text-align: {{ h_ta }};">{{ s.hero_heading }}</h2>
+            {% endif %}
+            {% if s.hero_subheading != blank %}
+              <p class="sub mb-5" style="color: {{ hero_txt }}; text-align: {{ h_ta }};">{{ s.hero_subheading }}</p>
+            {% endif %}
 
-        {% assign cta2_href = b.cta2_link %}
-        {% if cta2_href == blank and b.cta2_product %}{% assign cta2_href = b.cta2_product.url %}{% endif %}
-        {% if cta2_href == blank and b.cta2_collection %}{% assign cta2_href = b.cta2_collection.url %}{% endif %}
-        {% if cta2_href == blank and b.cta2_article %}{% assign cta2_href = b.cta2_article.url %}{% endif %}
+            {% liquid
+              assign cta_href = s.hero_cta_link
+              if cta_href == blank and s.hero_cta_product
+                assign cta_href = s.hero_cta_product.url
+              endif
+              if cta_href == blank and s.hero_cta_collection
+                assign cta_href = s.hero_cta_collection.url
+              endif
+              if cta_href == blank and s.hero_cta_article
+                assign cta_href = s.hero_cta_article.url
+              endif
 
-        <article
-          class="q-grid-tile relative overflow-hidden rounded-2xl bg-card ring-1 ring-border group focus-within:ring-2 focus-within:ring-primary"
-          aria-label="{{ b.heading | default: b.kicker | default: 'Promotional tile' | escape }}"
-          {{ block.shopify_attributes }}
-        >
-          <!-- Media -->
-          <div class="q-media overflow-hidden">
-            {% if b.background_video != blank %}
-              <video
-                class="absolute inset-0 w-full h-full object-cover"
-                style="{{ obj_pos_style }}"
-                autoplay loop muted playsinline preload="none"
-                {% if b.background_image != blank %}poster="{{ b.background_image | image_url: width: 1280 }}"{% endif %}
-              >
-                <source src="{{ b.background_video }}" type="video/mp4">
-              </video>
-            {% elsif b.background_image != blank %}
-              {% if b.mobile_image != blank %}
-                <picture>
-                  <source media="(max-width: 639px)" srcset="{{ b.mobile_image | image_url: width: 960 }}">
-                  {{ b.background_image
-                    | image_url: width: 1680
-                    | image_tag:
+              assign cta2_href = s.hero_cta2_link
+              if cta2_href == blank and s.hero_cta2_product
+                assign cta2_href = s.hero_cta2_product.url
+              endif
+              if cta2_href == blank and s.hero_cta2_collection
+                assign cta2_href = s.hero_cta2_collection.url
+              endif
+              if cta2_href == blank and s.hero_cta2_article
+                assign cta2_href = s.hero_cta2_article.url
+              endif
+
+              assign has_cta1 = false
+              if s.hero_cta_text != blank and cta_href != blank
+                assign has_cta1 = true
+              endif
+              assign has_cta2 = false
+              if s.hero_cta2_text != blank and cta2_href != blank
+                assign has_cta2 = true
+              endif
+            %}
+
+            {% if has_cta1 or has_cta2 %}
+              <div class="flex flex-wrap gap-3 {% if h_ta == 'center' %}justify-center{% elsif h_ta == 'right' %}justify-end{% else %}justify-start{% endif %}">
+                {% if has_cta1 %}
+                  <a href="{{ cta_href }}" class="q-btn q-btn--solid"
+                     aria-label="{{ s.hero_cta_aria | default: s.hero_cta_text | escape }}"
+                     style="background-color: {{ s.button_bg_color }}; color: {{ s.button_text_color }}; border-radius: {{ s.button_radius }}px;">
+                    {{ s.hero_cta_text }}
+                  </a>
+                {% endif %}
+                {% if has_cta2 %}
+                  <a href="{{ cta2_href }}" class="q-btn q-btn--outline"
+                     aria-label="{{ s.hero_cta2_aria | default: s.hero_cta2_text | escape }}"
+                     style="color: {{ s.button_text_color }}; border: {{ s.button_border_width }}px solid {{ s.button_border_color }}; border-radius: {{ s.button_radius }}px;">
+                    {{ s.hero_cta2_text }}
+                  </a>
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </article>
+    </div>
+  {% endif %}
+
+  {%- comment -%} ============ GRID ============ {%- endcomment -%}
+  {% if s.layout_mode == 'grid_only' or s.layout_mode == 'hero_plus_grid' %}
+    <div class="{{ container_class }}">
+      <div class="q-grid"
+           style="--cols-m: {{ cols_m }}; --cols-t: {{ cols_t }}; --cols-d: {{ cols_d }}; --row-m: {{ row_m }}px; --row-t: {{ row_t }}px; --row-d: {{ row_d }}px; --gap-m: {{ gap_m }}px; --gap-t: {{ gap_t }}px; --gap-d: {{ gap_d }}px;">
+        {% for block in section.blocks %}
+          {% assign b = block.settings %}
+
+          {% liquid
+            assign cs_m = b.span_cols_m | default: 1
+            assign rs_m = b.span_rows_m | default: 1
+            assign cs_t = b.span_cols_t | default: 3
+            assign rs_t = b.span_rows_t | default: 1
+            assign cs_d = b.span_cols_d | default: 3
+            assign rs_d = b.span_rows_d | default: 1
+
+            if forloop.first
+              if b.span_cols_d == blank
+                assign cs_d = 6
+              endif
+              if b.span_rows_d == blank
+                assign rs_d = 2
+              endif
+              if b.span_cols_t == blank
+                assign cs_t = 4
+              endif
+              if b.span_rows_t == blank
+                assign rs_t = 2
+              endif
+              if b.span_cols_m == blank
+                assign cs_m = 2
+              endif
+              if b.span_rows_m == blank
+                assign rs_m = 2
+              endif
+            endif
+
+            assign has_media = false
+            if b.background_video != blank or b.background_image != blank or b.mobile_image != blank
+              assign has_media = true
+            endif
+
+            assign ov_color = b.overlay_color
+            if ov_color == blank
+              assign ov_color = s.overlay_color
+            endif
+            assign ov_opacity = s.overlay_opacity | default: 45 | plus: 0
+            assign b_ov = b.overlay_opacity | plus: 0
+            if b_ov > 0
+              assign ov_opacity = b_ov
+            endif
+
+            assign tone = b.text_tone | default: s.text_tone | default: 'auto'
+            assign txt = '#ffffff'
+            if tone == 'dark'
+              assign txt = '#111111'
+            elsif tone == 'auto'
+              if ov_opacity < 45
+                assign txt = '#111111'
+              endif
+            endif
+
+            assign pos = b.content_position | default: 'center'
+            assign ai = 'center'
+            assign jc = 'center'
+            assign ta = 'center'
+            if pos == 'top-left'
+              assign ai = 'flex-start'
+              assign jc = 'flex-start'
+              assign ta = 'left'
+            elsif pos == 'top-right'
+              assign ai = 'flex-start'
+              assign jc = 'flex-end'
+              assign ta = 'right'
+            elsif pos == 'bottom-left'
+              assign ai = 'flex-end'
+              assign jc = 'flex-start'
+              assign ta = 'left'
+            elsif pos == 'bottom-right'
+              assign ai = 'flex-end'
+              assign jc = 'flex-end'
+              assign ta = 'right'
+            elsif pos == 'left'
+              assign ai = 'center'
+              assign jc = 'flex-start'
+              assign ta = 'left'
+            elsif pos == 'right'
+              assign ai = 'center'
+              assign jc = 'flex-end'
+              assign ta = 'right'
+            endif
+
+            assign cta_href = b.cta_link
+            if cta_href == blank and b.cta_product
+              assign cta_href = b.cta_product.url
+            endif
+            if cta_href == blank and b.cta_collection
+              assign cta_href = b.cta_collection.url
+            endif
+            if cta_href == blank and b.cta_article
+              assign cta_href = b.cta_article.url
+            endif
+
+            assign cta2_href = b.cta2_link
+            if cta2_href == blank and b.cta2_product
+              assign cta2_href = b.cta2_product.url
+            endif
+            if cta2_href == blank and b.cta2_collection
+              assign cta2_href = b.cta2_collection.url
+            endif
+            if cta2_href == blank and b.cta2_article
+              assign cta2_href = b.cta2_article.url
+            endif
+
+            assign has_cta1 = false
+            if b.cta_text != blank and cta_href != blank
+              assign has_cta1 = true
+            endif
+            assign has_cta2 = false
+            if b.cta2_text != blank and cta2_href != blank
+              assign has_cta2 = true
+            endif
+          %}
+
+          {% assign sizes_str = '(min-width: 1024px) calc(100vw / ' | append: cols_d | append: ' * ' | append: cs_d | append: ' - ' | append: gap_d | append: 'px), (min-width: 640px) calc(100vw / ' | append: cols_t | append: ' * ' | append: cs_t | append: ' - ' | append: gap_t | append: 'px), 100vw' %}
+          {% assign widths_str = '480,640,750,828,960,1080,1280,1440,1680,1920,2048' %}
+          {% if forloop.first and s.layout_mode == 'grid_only' %}
+            {% assign loading_attr = 'eager' %}{% assign fetchpriority_attr = 'high' %}
+          {% else %}
+            {% assign loading_attr = 'lazy' %}{% assign fetchpriority_attr = 'auto' %}
+          {% endif %}
+
+          <article class="q-item"
+                   style="--cspan-m: {{ cs_m }}; --rspan-m: {{ rs_m }}; --cspan-t: {{ cs_t }}; --rspan-t: {{ rs_t }}; --cspan-d: {{ cs_d }}; --rspan-d: {{ rs_d }};"
+                   aria-label="{{ b.heading | default: b.kicker | default: 'Promotional tile' | escape }}"
+                   {{ block.shopify_attributes }}>
+            <div class="q-media">
+              {% if b.background_video != blank %}
+                <video class="absolute inset-0 w-full h-full object-cover" style="object-position: {{ b.object_position | default: 'center center' }};"
+                       autoplay loop muted playsinline preload="none"
+                       {% if b.background_image != blank %}poster="{{ b.background_image | image_url: width: 1280 }}"{% endif %}>
+                  <source src="{{ b.background_video }}" type="video/mp4">
+                </video>
+              {% elsif b.background_image != blank %}
+                {% if b.mobile_image != blank %}
+                  <picture>
+                    <source media="(max-width: 639px)" srcset="{{ b.mobile_image | image_url: width: 960 }}">
+                    {{ b.background_image | image_url: width: 2048 | image_tag:
+                        widths: widths_str,
+                        sizes: sizes_str,
+                        loading: loading_attr,
+                        fetchpriority: fetchpriority_attr,
+                        class: 'absolute inset-0 w-full h-full object-cover',
+                        alt: b.image_alt }}
+                  </picture>
+                {% else %}
+                  {{ b.background_image | image_url: width: 2048 | image_tag:
                       widths: widths_str,
                       sizes: sizes_str,
                       loading: loading_attr,
                       fetchpriority: fetchpriority_attr,
                       class: 'absolute inset-0 w-full h-full object-cover',
                       alt: b.image_alt }}
-                </picture>
-              {% else %}
-                {{ b.background_image
-                  | image_url: width: 1680
-                  | image_tag:
-                    widths: widths_str,
-                    sizes: sizes_str,
-                    loading: loading_attr,
-                    fetchpriority: fetchpriority_attr,
-                    class: 'absolute inset-0 w-full h-full object-cover',
-                    alt: b.image_alt }}
-              {% endif %}
-            {% endif %}
-          </div>
-
-          <!-- Overlay -->
-          <div class="absolute inset-0 z-0" aria-hidden="true"
-               style="background-color: {{ b.overlay_color | default: s.overlay_color }};
-                      opacity: {{ b.overlay_opacity | default: s.overlay_opacity | divided_by: 100.0 }};">
-          </div>
-
-          <!-- Content -->
-          <div class="relative z-10 w-full h-full flex items-center justify-center">
-            <div class="w-full {{ s.content_max_w | default: 'max-w-3xl' }} {{ s.pad_content | default: 'p-8 md:p-10' }} {{ text_align_class }} mx-auto flex flex-col h-full">
-              {% if b.kicker != blank %}
-                <p class="mb-2 text-sm font-semibold tracking-wide uppercase text-primary-foreground/90">{{ b.kicker }}</p>
-              {% endif %}
-
-              {% if b.heading != blank %}
-                <h3 class="font-semibold leading-tight text-2xl md:text-3xl text-primary-foreground">{{ b.heading }}</h3>
-              {% endif %}
-
-              {% if b.subheading != blank %}
-                <p class="mt-2 text-base md:text-lg text-primary-foreground/90 {% if b.hide_text_mobile %}hidden md:block{% endif %}">
-                  {{ b.subheading }}
-                </p>
-              {% endif %}
-
-              {% assign has_cta1 = false %}
-              {% if b.cta_text != blank and cta_href != blank %}{% assign has_cta1 = true %}{% endif %}
-              {% assign has_cta2 = false %}
-              {% if b.cta2_text != blank and cta2_href != blank %}{% assign has_cta2 = true %}{% endif %}
-
-              {% if has_cta1 or has_cta2 %}
-                <div class="mt-auto pt-2 flex flex-wrap gap-3 md:gap-4 {{ cta_justify }} {% if b.hide_buttons_mobile %}hidden md:flex{% endif %}">
-                  {% if has_cta1 %}
-                    <a
-                      href="{{ cta_href }}"
-                      data-cta="primary"
-                      data-slide-index="{{ forloop.index0 }}"
-                      aria-label="{{ b.cta_aria_label | default: b.cta_text | escape }}"
-                      class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition {% if s.button_mode == 'outline' %}border bg-transparent{% else %}bg-primary text-primary-foreground hover:opacity-90{% endif %}"
-                      style="{% if s.button_mode == 'outline' %}color: {{ s.button_text_color }}; border-color: {{ s.button_border_color }}; border-width: {{ s.button_border_width }}px;{% else %}color: {{ s.button_text_color }}; background-color: {{ s.button_bg_color }};{% endif %} border-radius: {{ s.button_radius }}px;"
-                    >{{ b.cta_text }}</a>
-                  {% endif %}
-                  {% if has_cta2 %}
-                    <a
-                      href="{{ cta2_href }}"
-                      data-cta="secondary"
-                      data-slide-index="{{ forloop.index0 }}"
-                      aria-label="{{ b.cta2_aria_label | default: b.cta2_text | escape }}"
-                      class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition {% if s.button_mode == 'outline' %}border bg-transparent{% else %}border border-input bg-background hover:bg-accent hover:text-accent-foreground{% endif %}"
-                      style="{% if s.button_mode == 'outline' %}color: {{ s.button_text_color }}; border-color: {{ s.button_border_color }}; border-width: {{ s.button_border_width }}px;{% else %}color: {{ s.button_text_color }};{% endif %} border-radius: {{ s.button_radius }}px;"
-                    >{{ b.cta2_text }}</a>
-                  {% endif %}
-                </div>
+                {% endif %}
               {% endif %}
             </div>
-          </div>
-        </article>
-      {% endfor %}
+
+            {% if has_media and ov_opacity > 0 %}
+              <div class="absolute inset-0" aria-hidden="true" style="background-color: {{ ov_color }}; opacity: {{ ov_opacity | divided_by: 100.0 }};"></div>
+              {% if s.use_gradient %}
+                <div class="absolute inset-x-0 bottom-0 h-1/3" aria-hidden="true" style="background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.45) 100%);"></div>
+              {% endif %}
+            {% endif %}
+
+            <div class="q-card" style="align-items: {{ ai }}; justify-content: {{ jc }};">
+              <div class="q-inner {{ s.pad_content | default: 'p-8 md:p-10' }}">
+                {% if b.kicker != blank %}<p class="mb-2 text-sm font-semibold tracking-wide uppercase" style="color: {{ txt }};">{{ b.kicker }}</p>{% endif %}
+                {% if b.heading != blank %}<h3 class="text-2xl md:text-4xl" style="color: {{ txt }}; text-align: {{ ta }};">{{ b.heading }}</h3>{% endif %}
+                {% if b.subheading != blank %}
+                  <p class="mt-2 text-base md:text-lg {% if b.hide_text_mobile %}hidden md:block{% endif %}" style="color: {{ txt }}; text-align: {{ ta }};">{{ b.subheading }}</p>
+                {% endif %}
+
+                {% if has_cta1 or has_cta2 %}
+                  <div class="mt-4 md:mt-6 flex flex-wrap gap-3 {% if ta == 'center' %}justify-center{% elsif ta == 'right' %}justify-end{% else %}justify-start{% endif %}">
+                    {% if has_cta1 %}
+                      <a href="{{ cta_href }}" class="q-btn q-btn--solid"
+                         aria-label="{{ b.cta_aria_label | default: b.cta_text | escape }}"
+                         style="background-color: {{ s.button_bg_color }}; color: {{ s.button_text_color }}; border-radius: {{ s.button_radius }}px;">
+                        {{ b.cta_text }}
+                      </a>
+                    {% endif %}
+                    {% if has_cta2 %}
+                      <a href="{{ cta2_href }}" class="q-btn q-btn--outline"
+                         aria-label="{{ b.cta2_aria_label | default: b.cta2_text | escape }}"
+                         style="color: {{ s.button_text_color }}; border: {{ s.button_border_width }}px solid {{ s.button_border_color }}; border-radius: {{ s.button_radius }}px;">
+                         {{ b.cta2_text }}
+                      </a>
+                    {% endif %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
     </div>
-  </div>
+  {% endif %}
 
   {% if s.send_events %}
     <script>
@@ -275,17 +591,12 @@
         var root = document.getElementById('{{ sid }}');
         if (!root) return;
         root.addEventListener('click', function(e) {
-          var a = e.target.closest('a[data-cta]');
+          var a = e.target.closest('a.q-btn');
           if (!a) return;
-          var payload = {
-            component: 'grid_banner',
-            cta_type: a.getAttribute('data-cta'),
-            index: Number(a.getAttribute('data-slide-index')),
-            href: a.getAttribute('href')
-          };
+          var payload = { component: 'hero_grid', href: a.getAttribute('href') };
           window.dispatchEvent(new CustomEvent('quadratum:cta', { detail: payload }));
           if (window.dataLayer && Array.isArray(window.dataLayer)) {
-            window.dataLayer.push({ event: 'quadratum_cta', component: payload.component, cta_type: payload.cta_type, index: payload.index, href: payload.href });
+            window.dataLayer.push({ event: 'quadratum_cta', component: payload.component, href: payload.href });
           }
         });
       })();
@@ -297,64 +608,116 @@
 
 {% schema %}
 {
-  "name": "Grid Banner",
+  "name": "Hero + Grid Banner",
   "tag": "section",
-  "class": "q-grid-banner",
+  "class": "q-hero-grid",
   "settings": [
-    { "type": "header", "content": "Heading" },
-    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Featured" },
-    { "type": "text", "id": "heading", "label": "Heading", "default": "Explore our latest drops" },
-    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Curated picks, limited runs, and everyday essentials." },
+    { "type": "header", "content": "Section Heading (optional)" },
+    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Editorial" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Grid Banner — Hero" },
+    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Magazine-style hero with optional grid." },
 
     { "type": "header", "content": "Layout" },
-    { "type": "select", "id": "cols_desktop", "label": "Columns (desktop)", "default": "3", "options": [
-      { "value": "2", "label": "2" },
-      { "value": "3", "label": "3" },
-      { "value": "4", "label": "4" }
-    ]},
-    { "type": "select", "id": "gap", "label": "Tile gap", "default": "gap-4 md:gap-6", "options": [
-      { "value": "gap-3 md:gap-4", "label": "Tight" },
-      { "value": "gap-4 md:gap-6", "label": "Comfort" },
-      { "value": "gap-6 md:gap-8", "label": "Roomy" }
+    { "type": "select", "id": "layout_mode", "label": "Layout mode", "default": "hero_plus_grid", "options": [
+      { "value": "hero_plus_grid", "label": "Hero + Grid" },
+      { "value": "hero_only", "label": "Hero only" },
+      { "value": "grid_only", "label": "Grid only" }
     ]},
     { "type": "select", "id": "container_mode", "label": "Container", "default": "contained", "options": [
       { "value": "contained", "label": "Contained (side padding)" },
       { "value": "full", "label": "Full-bleed (edge to edge)" }
     ]},
-    { "type": "select", "id": "content_max_w", "label": "Content width", "default": "max-w-3xl", "options": [
-      { "value": "max-w-2xl", "label": "Narrow" },
-      { "value": "max-w-3xl", "label": "Comfort" },
-      { "value": "max-w-4xl", "label": "Wide" }
-    ]},
-    { "type": "select", "id": "pad_y", "label": "Vertical padding", "default": "py-12 md:py-16", "options": [
+    { "type": "select", "id": "pad_y", "label": "Vertical padding", "default": "py-16 md:py-24", "options": [
       { "value": "py-8 md:py-12", "label": "Small" },
       { "value": "py-12 md:py-16", "label": "Medium" },
       { "value": "py-16 md:py-24", "label": "Large" }
     ]},
+
+    { "type": "header", "content": "Hero" },
+    { "type": "text", "id": "hero_kicker", "label": "Hero kicker", "default": "Story" },
+    { "type": "text", "id": "hero_heading", "label": "Hero heading", "default": "This Season’s Drop" },
+    { "type": "textarea", "id": "hero_subheading", "label": "Hero subheading", "default": "Short copy with clear value." },
+
+    { "type": "image_picker", "id": "hero_image", "label": "Hero image" },
+    { "type": "image_picker", "id": "hero_mobile_image", "label": "Hero mobile image (optional)" },
+    { "type": "text", "id": "hero_image_alt", "label": "Image alt" },
+    { "type": "text", "id": "hero_video", "label": "Hero video URL (MP4)" },
+    { "type": "text", "id": "hero_object_position", "label": "Object position (e.g., 'center 30%')" },
+
+    { "type": "color", "id": "hero_overlay_color", "label": "Hero overlay color", "default": "#000000" },
+    { "type": "range", "id": "hero_overlay_opacity", "label": "Hero overlay opacity", "min": 0, "max": 100, "step": 5, "default": 45, "unit": "%" },
+    { "type": "checkbox", "id": "hero_use_gradient", "label": "Add bottom gradient to hero", "default": true },
+    { "type": "select", "id": "hero_text_tone", "label": "Hero text tone", "default": "auto", "options": [
+      { "value": "auto", "label": "Auto" }, { "value": "light", "label": "Light" }, { "value": "dark", "label": "Dark" }
+    ]},
+    { "type": "select", "id": "hero_content_position", "label": "Hero content position", "default": "center", "options": [
+      { "value": "top-left", "label": "Top left" }, { "value": "top-right", "label": "Top right" },
+      { "value": "bottom-left", "label": "Bottom left" }, { "value": "bottom-right", "label": "Bottom right" },
+      { "value": "left", "label": "Center left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Center right" }
+    ]},
+
+    { "type": "range", "id": "hero_height_m", "label": "Hero height (mobile, vh)", "min": 40, "max": 90, "step": 5, "default": 60 },
+    { "type": "range", "id": "hero_height_d", "label": "Hero height (desktop, vh)", "min": 40, "max": 90, "step": 5, "default": 85 },
+    { "type": "range", "id": "hero_pad_x", "label": "Hero inner pad X (mobile, px)", "min": 12, "max": 64, "step": 4, "default": 24 },
+    { "type": "range", "id": "hero_pad_y", "label": "Hero inner pad Y (mobile, px)", "min": 12, "max": 64, "step": 4, "default": 24 },
+    { "type": "range", "id": "hero_pad_x_d", "label": "Hero inner pad X (desktop, px)", "min": 12, "max": 160, "step": 4, "default": 48 },
+    { "type": "range", "id": "hero_pad_y_d", "label": "Hero inner pad Y (desktop, px)", "min": 12, "max": 160, "step": 4, "default": 48 },
+
+    { "type": "header", "content": "Hero CTAs" },
+    { "type": "text", "id": "hero_cta_text", "label": "Primary text", "default": "Shop Now" },
+    { "type": "url", "id": "hero_cta_link", "label": "Primary URL" },
+    { "type": "product", "id": "hero_cta_product", "label": "…or product" },
+    { "type": "collection", "id": "hero_cta_collection", "label": "…or collection" },
+    { "type": "article", "id": "hero_cta_article", "label": "…or article" },
+    { "type": "text", "id": "hero_cta_aria", "label": "Primary ARIA label", "default": "Shop Now" },
+
+    { "type": "text", "id": "hero_cta2_text", "label": "Secondary text", "default": "Explore" },
+    { "type": "url", "id": "hero_cta2_link", "label": "Secondary URL" },
+    { "type": "product", "id": "hero_cta2_product", "label": "…or product" },
+    { "type": "collection", "id": "hero_cta2_collection", "label": "…or collection" },
+    { "type": "article", "id": "hero_cta2_article", "label": "…or article" },
+    { "type": "text", "id": "hero_cta2_aria", "label": "Secondary ARIA label", "default": "Learn More" },
+
+    { "type": "header", "content": "Grid (if shown)" },
+    { "type": "select", "id": "cols_mobile", "label": "Columns (mobile ≤640px)", "default": "2", "options": [
+      { "value": "1", "label": "1" }, { "value": "2", "label": "2" }
+    ]},
+    { "type": "select", "id": "cols_tablet", "label": "Columns (tablet ≥640px)", "default": "6", "options": [
+      { "value": "4", "label": "4" }, { "value": "6", "label": "6" }
+    ]},
+    { "type": "select", "id": "cols_desktop", "label": "Columns (desktop ≥1024px)", "default": "12", "options": [
+      { "value": "8", "label": "8" }, { "value": "12", "label": "12" }
+    ]},
+    { "type": "range", "id": "row_h_mobile", "label": "Row height (mobile)", "min": 120, "max": 260, "step": 4, "default": 160, "unit": "px" },
+    { "type": "range", "id": "row_h_tablet", "label": "Row height (tablet)", "min": 140, "max": 320, "step": 4, "default": 200, "unit": "px" },
+    { "type": "range", "id": "row_h_desktop", "label": "Row height (desktop)", "min": 160, "max": 380, "step": 4, "default": 240, "unit": "px" },
+    { "type": "select", "id": "gap", "label": "Tile gap", "default": "gap-6 md:gap-8", "options": [
+      { "value": "gap-3 md:gap-4", "label": "Tight" },
+      { "value": "gap-4 md:gap-6", "label": "Comfort" },
+      { "value": "gap-6 md:gap-8", "label": "Roomy" }
+    ]},
     { "type": "select", "id": "pad_content", "label": "Tile inner padding", "default": "p-8 md:p-10", "options": [
-      { "value": "p-6 md:p-8", "label": "Small" },
-      { "value": "p-8 md:p-10", "label": "Medium" },
-      { "value": "p-10 md:p-12", "label": "Large" }
+      { "value": "p-6 md:p-8", "label": "Small" }, { "value": "p-8 md:p-10", "label": "Medium" }, { "value": "p-10 md:p-12", "label": "Large" }
     ]},
 
-    { "type": "header", "content": "Overlay (defaults)" },
+    { "type": "header", "content": "Overlay & Tone (Grid defaults)" },
     { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
-    { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 30, "unit": "%" },
-
-    { "type": "header", "content": "Buttons (global defaults)" },
-    { "type": "select", "id": "button_mode", "label": "Button style", "default": "solid", "options": [
-      { "value": "solid", "label": "Solid" },
-      { "value": "outline", "label": "Outline" }
+    { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 45, "unit": "%" },
+    { "type": "checkbox", "id": "use_gradient", "label": "Add bottom gradient", "default": true },
+    { "type": "select", "id": "text_tone", "label": "Text tone (default)", "default": "auto", "options": [
+      { "value": "auto", "label": "Auto" }, { "value": "light", "label": "Light" }, { "value": "dark", "label": "Dark" }
     ]},
-    { "type": "color", "id": "button_bg_color", "label": "Button background (solid)", "default": "#111111" },
-    { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#ffffff" },
-    { "type": "color", "id": "button_border_color", "label": "Button border color (outline)", "default": "#ffffff" },
+
+    { "type": "header", "content": "Buttons (global)" },
+    { "type": "color", "id": "button_bg_color", "label": "Solid background", "default": "#111111" },
+    { "type": "color", "id": "button_text_color", "label": "Text color", "default": "#ffffff" },
+    { "type": "color", "id": "button_border_color", "label": "Outline border color", "default": "#ffffff" },
     { "type": "range", "id": "button_border_width", "label": "Outline border width", "min": 0, "max": 6, "step": 1, "default": 1 },
     { "type": "range", "id": "button_radius", "label": "Corner radius", "min": 0, "max": 36, "step": 2, "default": 12 },
 
-    { "type": "header", "content": "Visibility & analytics" },
+    { "type": "header", "content": "Visibility & Analytics" },
     { "type": "text", "id": "anchor_id", "label": "Optional anchor ID" },
-    { "type": "text", "id": "region_label", "label": "Accessible region label", "default": "Promotional grid" },
+    { "type": "text", "id": "region_label", "label": "Accessible region label", "default": "Promotional hero and grid" },
     { "type": "checkbox", "id": "hide_on_mobile", "label": "Hide on mobile", "default": false },
     { "type": "checkbox", "id": "hide_on_desktop", "label": "Hide on desktop", "default": false },
     { "type": "checkbox", "id": "send_events", "label": "Send analytics events on CTA clicks", "default": false }
@@ -362,103 +725,89 @@
   "blocks": [
     {
       "type": "tile",
-      "name": "Tile",
+      "name": "Grid Tile",
       "settings": [
-        { "type": "header", "content": "Background media" },
+        { "type": "header", "content": "Background" },
         { "type": "image_picker", "id": "background_image", "label": "Background image" },
         { "type": "image_picker", "id": "mobile_image", "label": "Mobile image (optional)" },
         { "type": "text", "id": "background_video", "label": "Background video URL (MP4)" },
-        { "type": "text", "id": "image_alt", "label": "Image alt text", "info": "Describe the image for accessibility (or leave blank if decorative)." },
+        { "type": "text", "id": "image_alt", "label": "Alt text" },
 
-        { "type": "select", "id": "object_position", "label": "Image focal point", "default": "center center", "options": [
-          { "value": "center center", "label": "Center" },
-          { "value": "top left", "label": "Top left" },
-          { "value": "top center", "label": "Top center" },
-          { "value": "top right", "label": "Top right" },
-          { "value": "center left", "label": "Middle left" },
-          { "value": "center right", "label": "Middle right" },
-          { "value": "bottom left", "label": "Bottom left" },
-          { "value": "bottom center", "label": "Bottom center" },
-          { "value": "bottom right", "label": "Bottom right" }
+        { "type": "header", "content": "Overlay & Tone" },
+        { "type": "color", "id": "overlay_color", "label": "Overlay color" },
+        { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity (set >0 to override section)", "min": 0, "max": 100, "step": 5, "default": 0, "unit": "%" },
+        { "type": "select", "id": "text_tone", "label": "Text tone", "default": "auto", "options": [
+          { "value": "auto", "label": "Auto" }, { "value": "light", "label": "Light" }, { "value": "dark", "label": "Dark" }
         ]},
 
-        { "type": "header", "content": "Overlay (per tile)" },
-        { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
-        { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 0, "unit": "%" },
-
-        { "type": "header", "content": "Text & icon" },
-        { "type": "select", "id": "icon_name", "label": "Kicker icon", "default": "none", "options": [
-          { "value": "none", "label": "None" },
-          { "value": "star", "label": "Star" },
-          { "value": "tag", "label": "Tag" },
-          { "value": "spark", "label": "Spark" }
-        ]},
+        { "type": "header", "content": "Content" },
         { "type": "text", "id": "kicker", "label": "Kicker", "default": "Featured" },
         { "type": "text", "id": "heading", "label": "Heading", "default": "Tile headline" },
-        { "type": "textarea", "id": "subheading", "label": "Short description", "default": "A quick benefit-driven sentence to help visitors act." },
-        { "type": "checkbox", "id": "hide_text_mobile", "label": "Hide text on mobile", "default": false },
+        { "type": "textarea", "id": "subheading", "label": "Short description", "default": "Tell a tiny story that invites a click." },
+        { "type": "checkbox", "id": "hide_text_mobile", "label": "Hide paragraph on mobile", "default": false },
+        { "type": "select", "id": "content_position", "label": "Content position", "default": "center", "options": [
+          { "value": "top-left", "label": "Top left" }, { "value": "top-right", "label": "Top right" },
+          { "value": "bottom-left", "label": "Bottom left" }, { "value": "bottom-right", "label": "Bottom right" },
+          { "value": "left", "label": "Center left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Center right" }
+        ]},
 
         { "type": "header", "content": "Buttons" },
-        { "type": "select", "id": "cta_group_align", "label": "Button alignment", "default": "center", "options": [
-          { "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" }
-        ]},
-        { "type": "text", "id": "cta_text", "label": "Primary button text", "default": "Shop now" },
-        { "type": "url", "id": "cta_link", "label": "Primary button URL" },
-        { "type": "product", "id": "cta_product", "label": "…or link to product" },
-        { "type": "collection", "id": "cta_collection", "label": "…or link to collection" },
-        { "type": "article", "id": "cta_article", "label": "…or link to article" },
-        { "type": "text", "id": "cta_aria_label", "label": "Primary button ARIA label", "default": "Shop now" },
+        { "type": "text", "id": "cta_text", "label": "Primary text", "default": "Shop now" },
+        { "type": "url", "id": "cta_link", "label": "Primary URL" },
+        { "type": "product", "id": "cta_product", "label": "…or product" },
+        { "type": "collection", "id": "cta_collection", "label": "…or collection" },
+        { "type": "article", "id": "cta_article", "label": "…or article" },
+        { "type": "text", "id": "cta_aria_label", "label": "Primary ARIA label", "default": "Shop now" },
 
-        { "type": "text", "id": "cta2_text", "label": "Secondary button text", "default": "Learn more" },
-        { "type": "url", "id": "cta2_link", "label": "Secondary button URL" },
-        { "type": "product", "id": "cta2_product", "label": "…or link to product" },
-        { "type": "collection", "id": "cta2_collection", "label": "…or link to collection" },
-        { "type": "article", "id": "cta2_article", "label": "…or link to article" },
-        { "type": "text", "id": "cta2_aria_label", "label": "Secondary button ARIA label", "default": "Learn more" },
+        { "type": "text", "id": "cta2_text", "label": "Secondary text", "default": "Learn more" },
+        { "type": "url", "id": "cta2_link", "label": "Secondary URL" },
+        { "type": "product", "id": "cta2_product", "label": "…or product" },
+        { "type": "collection", "id": "cta2_collection", "label": "…or collection" },
+        { "type": "article", "id": "cta2_article", "label": "…or article" },
+        { "type": "text", "id": "cta2_aria_label", "label": "Secondary ARIA label", "default": "Learn more" },
 
-        { "type": "header", "content": "Alignment" },
-        { "type": "select", "id": "text_alignment", "label": "Text alignment", "default": "center", "options": [
-          { "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" }
-        ]}
+        { "type": "header", "content": "Grid spans" },
+        { "type": "range", "id": "span_cols_m", "label": "Columns (mobile)", "min": 1, "max": 3, "step": 1, "default": 1 },
+        { "type": "range", "id": "span_rows_m", "label": "Rows (mobile)", "min": 1, "max": 3, "step": 1, "default": 1 },
+        { "type": "range", "id": "span_cols_t", "label": "Columns (tablet)", "min": 1, "max": 6, "step": 1, "default": 3 },
+        { "type": "range", "id": "span_rows_t", "label": "Rows (tablet)", "min": 1, "max": 3, "step": 1, "default": 1 },
+        { "type": "range", "id": "span_cols_d", "label": "Columns (desktop)", "min": 1, "max": 12, "step": 1, "default": 3 },
+        { "type": "range", "id": "span_rows_d", "label": "Rows (desktop)", "min": 1, "max": 3, "step": 1, "default": 1 }
       ]
     }
   ],
-  "max_blocks": 6,
+  "max_blocks": 8,
   "presets": [
     {
-      "name": "Grid Banner • Sale",
+      "name": "Hero + Grid (Magazine)",
       "category": "Banner",
+      "settings": {
+        "layout_mode": "hero_plus_grid",
+        "hero_kicker": "Story",
+        "hero_heading": "The September Edit",
+        "hero_subheading": "Soft layers, rich textures, editorial styling.",
+        "hero_overlay_color": "#000000",
+        "hero_overlay_opacity": 45,
+        "hero_text_tone": "auto",
+        "hero_content_position": "center",
+        "hero_height_m": 60,
+        "hero_height_d": 85,
+        "hero_pad_x": 24,
+        "hero_pad_y": 24,
+        "hero_pad_x_d": 48,
+        "hero_pad_y_d": 48,
+        "cols_mobile": "2",
+        "cols_tablet": "6",
+        "cols_desktop": "12",
+        "row_h_mobile": 160,
+        "row_h_tablet": 200,
+        "row_h_desktop": 240
+      },
       "blocks": [
-        { "type": "tile", "settings": { "kicker": "Sale", "heading": "Extra 20% off", "subheading": "Today only. Limited stock.", "cta_text": "Shop deals" } },
-        { "type": "tile", "settings": { "kicker": "Bundles", "heading": "Buy 2, save more", "cta_text": "Build bundle" } },
-        { "type": "tile", "settings": { "kicker": "Last chance", "heading": "Final markdowns", "cta_text": "Shop clearance" } }
-      ]
-    },
-    {
-      "name": "Grid Banner • Drop",
-      "category": "Banner",
-      "blocks": [
-        { "type": "tile", "settings": { "icon_name": "spark", "kicker": "New", "heading": "Fresh arrivals", "cta_text": "Shop new" } },
-        { "type": "tile", "settings": { "kicker": "Limited", "heading": "Member exclusives", "cta_text": "Join free" } },
-        { "type": "tile", "settings": { "kicker": "Editors’ pick", "heading": "Season essentials", "cta_text": "See picks" } }
-      ]
-    },
-    {
-      "name": "Grid Banner • Editorial",
-      "category": "Banner",
-      "blocks": [
-        { "type": "tile", "settings": { "kicker": "Story", "heading": "Behind the craft", "cta_text": "Read" } },
-        { "type": "tile", "settings": { "kicker": "Guide", "heading": "Find your fit", "cta_text": "Explore" } },
-        { "type": "tile", "settings": { "kicker": "Feature", "heading": "Sustainable picks", "cta_text": "Learn more" } }
-      ]
-    },
-    {
-      "name": "Grid Banner • Video",
-      "category": "Banner",
-      "blocks": [
-        { "type": "tile", "settings": { "icon_name": "star", "kicker": "Spotlight", "heading": "In motion", "cta_text": "Watch" } },
-        { "type": "tile", "settings": { "kicker": "How-to", "heading": "Quick tutorials", "cta_text": "View" } },
-        { "type": "tile", "settings": { "kicker": "Community", "heading": "Member stories", "cta_text": "Discover" } }
+        { "type": "tile", "settings": { "kicker": "Women", "heading": "New Arrivals", "cta_text": "Shop Women", "span_cols_d": 6, "span_rows_d": 2 } },
+        { "type": "tile", "settings": { "kicker": "Home", "heading": "Warm Minimal", "cta_text": "Shop Home", "span_cols_d": 3, "span_rows_d": 1 } },
+        { "type": "tile", "settings": { "kicker": "Tech", "heading": "RGB & Beyond", "cta_text": "Build Now", "span_cols_d": 3, "span_rows_d": 1 } },
+        { "type": "tile", "settings": { "kicker": "Jewelry", "heading": "Gold That Goes", "cta_text": "Shop Fine", "span_cols_d": 3, "span_rows_d": 1 } }
       ]
     }
   ]
