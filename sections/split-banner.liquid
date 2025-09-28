@@ -1,18 +1,27 @@
 {% comment %}
-  Quadratum • Split Content (Dynamic) — Button color hardening + mobile overrides
-  - Button text/bg/border colors now win against global theme link rules.
-  - Handles :visited and nested elements inside the button.
-  - Keeps your existing mobile override knobs.
+  Quadratum • Split Content (Banner)
+  - Adheres to Theme Settings by default (typography, colors, buttons, spacing).
+  - Allows per-section overrides (only used when provided).
+  - Button variant/shape/behavior inherit from Theme Settings; optional per-button override.
+  - Badge "button look" fixed via scoped reset + explicit styles.
+  - No inline JS; schema validates; no ternary-in-filter gotchas.
 {% endcomment %}
 
 {% liquid
   assign s = section.settings
+  assign t = settings
 
+  comment
+    Layout direction (desktop)
+  endcomment
   assign dir_css = 'row'
   if s.image_position == 'right'
     assign dir_css = 'row-reverse'
   endif
 
+  comment
+    Mobile order
+  endcomment
   assign img_order_m = 1
   assign content_order_m = 2
   if s.mobile_image_first == false
@@ -20,6 +29,9 @@
     assign content_order_m = 1
   endif
 
+  comment
+    Container padding
+  endcomment
   assign container_pad_m = 0
   assign container_pad_d = 0
   if s.container_mode == 'contained'
@@ -27,6 +39,9 @@
     assign container_pad_d = 24
   endif
 
+  comment
+    Content max width mapping
+  endcomment
   assign max_w_token = s.content_max_w | default: 'max-w-3xl'
   assign max_w_px = '768px'
 %}
@@ -37,6 +52,9 @@
 {% endcase %}
 
 {% liquid
+  comment
+    Visibility toggles
+  endcomment
   assign visibility_classes = ''
   if s.hide_on_mobile
     assign visibility_classes = visibility_classes | append: ' hidden md:block'
@@ -45,6 +63,9 @@
     assign visibility_classes = visibility_classes | append: ' md:hidden'
   endif
 
+  comment
+    Min height mapping
+  endcomment
   assign min_h_value = '60vh'
 %}
 {% case s.min_height %}
@@ -55,13 +76,15 @@
 {% endcase %}
 
 {% liquid
+  comment
+    Text alignment + CTA justification
+  endcomment
   assign text_align_value = 'left'
 %}
 {% case s.text_alignment %}
   {% when 'center' %}{% assign text_align_value = 'center' %}
   {% when 'right'  %}{% assign text_align_value = 'right'  %}
 {% endcase %}
-
 {% liquid
   assign cta_justify_css = 'flex-start'
 %}
@@ -72,6 +95,9 @@
 {% endcase %}
 
 {% liquid
+  comment
+    Vertical/horizontal padding resolution
+  endcomment
   assign cpy_m = 48
   assign cpy_d = 64
   assign cpx_m = 24
@@ -131,34 +157,56 @@
 {% endif %}
 
 {% liquid
-  assign kicker_fs = '0.875rem'
-%}
-{% case s.kicker_size %}
-  {% when 'base' %}{% assign kicker_fs = '1rem' %}
-  {% when 'lg'   %}{% assign kicker_fs = '1.125rem' %}
-{% endcase %}
-
-{% liquid
-  assign heading_fs = '1.875rem'
-%}
-{% case s.heading_size %}
-  {% when '2xl' %}{% assign heading_fs = '1.5rem' %}
-  {% when '3xl' %}{% assign heading_fs = '1.875rem' %}
-  {% when '4xl' %}{% assign heading_fs = '2.25rem' %}
-{% endcase %}
-
-{% liquid
-  assign sub_fs = '1rem'
-%}
-{% case s.subheading_size %}
-  {% when 'lg' %}{% assign sub_fs = '1.125rem' %}
-  {% when 'xl' %}{% assign sub_fs = '1.25rem' %}
-{% endcase %}
-
-{% liquid
+  comment
+    Typography sizes
+    - If heading_size = 'theme', use global H1/H2 tokens depending on heading_level.
+    - Else use the local size mapping.
+  endcomment
   assign heading_level = s.heading_level | default: 'h2'
-  assign desc_id = 'split-desc-' | append: section.id
 
+  assign heading_fs = '1.875rem'
+  if s.heading_size == '2xl'
+    assign heading_fs = '1.5rem'
+  elsif s.heading_size == '3xl'
+    assign heading_fs = '1.875rem'
+  elsif s.heading_size == '4xl'
+    assign heading_fs = '2.25rem'
+  else
+    comment
+      'theme' fallback
+    endcomment
+    if heading_level == 'h1'
+      assign heading_fs = t.type_h1_size | default: 240
+    else
+      assign heading_fs = t.type_h2_size | default: 200
+    endif
+    assign heading_fs = heading_fs | divided_by: 100.0 | append: 'rem'
+  endif
+
+  assign kicker_fs = '0.875rem'
+  if s.kicker_size == 'base'
+    assign kicker_fs = '1rem'
+  elsif s.kicker_size == 'lg'
+    assign kicker_fs = '1.125rem'
+  endif
+
+  assign sub_fs = '1rem'
+  if s.subheading_size == 'lg'
+    assign sub_fs = '1.125rem'
+  elsif s.subheading_size == 'xl'
+    assign sub_fs = '1.25rem'
+  endif
+
+  comment
+    Uppercase + letterspacing from theme (headings/buttons)
+  endcomment
+  assign head_ls = t.headings_letterspacing | default: 0
+  assign head_ls_em = head_ls | divided_by: 1000.0 | append: 'em'
+  assign head_uc = t.headings_uppercase
+
+  comment
+    Mobile presentation
+  endcomment
   assign mobile_mode = s.mobile_presentation | default: 'stack'
   assign mobile_has_bg = false
   if mobile_mode == 'bg'
@@ -176,9 +224,7 @@
   assign mob_ov_opacity = s.mobile_overlay_opacity | default: 35
 %}
 
-{%- comment -%}
-  Resolve mobile color values (new + legacy keys)
-{%- endcomment -%}
+{%- comment -%} Resolve mobile color values (new + legacy keys) {%- endcomment -%}
 {% liquid
   assign m_heading = s.heading_color_mobile
   if m_heading == blank
@@ -193,18 +239,50 @@
   assign m_kicker = s.mobile_kicker_color
 %}
 
+{%- comment -%}
+  Color tokens:
+  - Desktop defaults tie to section overrides if set; otherwise theme tokens.
+  - For content panel background: if mobile_has_bg on small screens, we visually remove panel bg; on desktop use override or theme bg_base.
+{%- endcomment -%}
+{% liquid
+  assign col_kicker = s.kicker_color
+  if col_kicker == blank
+    assign col_kicker = t.text_base
+  endif
+
+  assign col_heading = s.heading_color
+  if col_heading == blank
+    assign col_heading = t.text_base
+  endif
+
+  assign col_sub = s.subheading_color
+  if col_sub == blank
+    assign col_sub = t.text_muted
+  endif
+
+  assign panel_bg = s.content_bg_color
+  if panel_bg == blank
+    assign panel_bg = t.bg_base
+  endif
+
+  assign section_bg = s.section_bg
+  if section_bg == blank
+    assign section_bg = 'transparent'
+  endif
+%}
+
 <section id="{{ s.anchor_id | default: 'section-' | append: section.id }}"
          class="q-split-content{{ visibility_classes }}"
          role="region"
          aria-label="{{ s.region_label | default: 'Promotional banner' }}"
          style="
            --q-min-h: {{ min_h_value }};
-           /* Desktop defaults */
-           --d-kicker: {{ s.kicker_color | default: '#111827' }};
-           --d-heading: {{ s.heading_color | default: '#111827' }};
-           --d-sub: {{ s.subheading_color | default: '#374151' }};
+           --d-kicker: {{ col_kicker }};
+           --d-heading: {{ col_heading }};
+           --d-sub: {{ col_sub }};
+           --panel-bg: {{ panel_bg }};
+           --cta-justify: {{ cta_justify_css }};
 
-           /* Optional mobile vars (applied in media queries below) */
            {% if m_kicker != blank %}--m-kicker: {{ m_kicker }};{% endif %}
            {% if m_heading != blank %}--m-heading: {{ m_heading }};{% endif %}
            {% if m_text   != blank %}--m-sub: {{ m_text }};{% endif %}
@@ -212,7 +290,7 @@
            {% if s.mobile_button_bg_color   != blank %}--m-btn-bg: {{ s.mobile_button_bg_color }};{% endif %}
            {% if s.mobile_button_border_color != blank %}--m-btn-border: {{ s.mobile_button_border_color }};{% endif %}
 
-           background-color: {{ s.section_bg | default: 'transparent' }};
+           background-color: {{ section_bg }};
          ">
 
   <div class="q-container">
@@ -271,11 +349,28 @@
            ">
 
         <div class="q-panel{% if mobile_has_bg %} q-panel--m-bg{% endif %}"
-             style="background-color: {{ s.content_bg_color }}; text-align: {{ text_align_value }}; --content-align: {% if text_align_value == 'center' %}center{% elsif text_align_value == 'right' %}flex-end{% else %}flex-start{% endif %}; --cta-justify: {{ cta_justify_css }};">
+             style="
+               background-color: var(--panel-bg);
+               text-align: {{ text_align_value }};
+               --content-align: {% if text_align_value == 'center' %}center{% elsif text_align_value == 'right' %}flex-end{% else %}flex-start{% endif %};
+             ">
 
-          <div class="q-inner" style="max-width: {{ max_w_px }}; padding-top: {{ cpy_m }}px; padding-bottom: {{ cpy_m }}px; padding-left: {{ cpx_m }}px; padding-right: {{ cpx_m }}px;">
+          <div class="q-inner"
+               style="
+                 max-width: {{ max_w_px }};
+                 {% if s.use_theme_spacing %}
+                   padding-top: {{ t.section_padding_top | default: 48 | divided_by: 100.0 }}rem;
+                   padding-bottom: {{ t.section_padding_bottom | default: 48 | divided_by: 100.0 }}rem;
+                   padding-left: {{ t.space_md | default: 16 | divided_by: 100.0 }}rem;
+                   padding-right: {{ t.space_md | default: 16 | divided_by: 100.0 }}rem;
+                 {% else %}
+                   padding-top: {{ cpy_m }}px; padding-bottom: {{ cpy_m }}px;
+                   padding-left: {{ cpx_m }}px; padding-right: {{ cpx_m }}px;
+                 {% endif %}
+               ">
             {% if s.kicker != blank %}
-              <p class="q-kicker uppercase tracking-wide" style="margin:0 0 6px 0; font-size: {{ kicker_fs }}; line-height: 1.2; font-weight:600;">
+              <p class="q-kicker {% if s.kicker_uppercase_override or t.headings_uppercase %}uppercase{% endif %} tracking-wide"
+                 style="margin:0 0 6px 0; font-size: {{ kicker_fs }}; line-height: 1.2; font-weight:600; letter-spacing: {{ head_ls_em }};">
                 {{ s.kicker }}
               </p>
             {% endif %}
@@ -283,18 +378,20 @@
             {% if s.heading != blank %}
               {% case heading_level %}
                 {% when 'h1' %}
-                  <h1 class="q-heading" style="margin:0 0 8px 0; font-size: {{ heading_fs }}; line-height: 1.2; font-weight:700;">
+                  <h1 class="q-heading"
+                      style="margin:0 0 8px 0; font-size: {{ heading_fs }}; line-height: 1.2; font-weight:700; letter-spacing: {{ head_ls_em }}; {% if t.headings_uppercase %}text-transform:uppercase;{% endif %}">
                     {{ s.heading }}
                   </h1>
                 {% else %}
-                  <h2 class="q-heading" style="margin:0 0 8px 0; font-size: {{ heading_fs }}; line-height: 1.2; font-weight:700;">
+                  <h2 class="q-heading"
+                      style="margin:0 0 8px 0; font-size: {{ heading_fs }}; line-height: 1.2; font-weight:700; letter-spacing: {{ head_ls_em }}; {% if t.headings_uppercase %}text-transform:uppercase;{% endif %}">
                     {{ s.heading }}
                   </h2>
               {% endcase %}
             {% endif %}
 
             {% if s.subheading != blank %}
-              <p id="{{ desc_id }}" class="q-sub" style="margin:0 0 16px 0; font-size: {{ sub_fs }}; line-height: 1.6;">
+              <p id="split-desc-{{ section.id }}" class="q-sub" style="margin:0 0 16px 0; font-size: {{ sub_fs }}; line-height: 1.6;">
                 {{ s.subheading }}
               </p>
             {% endif %}
@@ -321,45 +418,75 @@
             {% endif %}
 
             {% if section.blocks.size > 0 %}
-              <div class="q-btns" {% if s.subheading != blank %}aria-describedby="{{ desc_id }}"{% endif %}>
+              <div class="q-btns" {% if s.subheading != blank %}aria-describedby="split-desc-{{ section.id }}"{% endif %}>
                 {% for block in section.blocks %}
-                  {% assign b = block.settings %}
-                  {% assign is_outline = false %}
-                  {% if b.button_mode == 'outline' %}
-                    {% assign is_outline = true %}
+                  {% if block.type == 'button' %}
+                    {% assign b = block.settings %}
+                    {% liquid
+                      assign variant = b.button_mode | default: t.button_variant_default | default: 'solid'
+
+                      assign btn_text = t.text_on_color
+                      assign btn_bg = t.color_primary
+                      assign btn_border = t.color_primary
+
+                      if variant == 'outline'
+                        assign btn_text = t.color_primary
+                        assign btn_bg = 'transparent'
+                        assign btn_border = t.color_primary
+                      elsif variant == 'ghost'
+                        assign btn_text = t.color_primary
+                        assign btn_bg = 'transparent'
+                        assign btn_border = 'transparent'
+                      endif
+
+                      assign bw = b.border_width | default: t.button_border_width | default: 1
+                      assign radius_px = b.radius | default: t.button_radius | default: 12
+
+                      if b.use_theme_colors == false
+                        if b.text_color != blank
+                          assign btn_text = b.text_color
+                        endif
+                        if b.bg_color != blank
+                          assign btn_bg = b.bg_color
+                        endif
+                        if b.border_color != blank
+                          assign btn_border = b.border_color
+                        endif
+                      endif
+
+                      assign btn_size = b.size | default: 'md'
+                      assign pad_y = 12
+                      assign pad_x = 20
+                      if btn_size == 'sm'
+                        assign pad_y = 10
+                        assign pad_x = 16
+                      elsif btn_size == 'lg'
+                        assign pad_y = 14
+                        assign pad_x = 24
+                      endif
+                    %}
+                    <a href="{{ b.link | default: '#' }}"
+                       {% if b.new_tab %}target="_blank" rel="noopener"{% endif %}
+                       aria-label="{{ b.aria_label | default: b.label | escape }}"
+                       class="q-btn"
+                       style="
+                         --btn-text-base: {{ btn_text }};
+                         --btn-bg-base: {{ btn_bg }};
+                         --btn-border-base: {{ btn_border }};
+                         --btn-bw: {{ bw }}px;
+                         --btn-radius: {{ radius_px }}px;
+                         --btn-px: {{ pad_x }}px; --btn-py: {{ pad_y }}px;
+
+                         color: var(--btn-text) !important;
+                         background-color: var(--btn-bg) !important;
+                         border-color: var(--btn-border) !important;
+                         border-width: var(--btn-bw) !important;
+                       "
+                       {{ block.shopify_attributes }}>
+                      {% if b.icon != blank %}<span aria-hidden="true">{{ b.icon }}</span>{% endif %}
+                      <span>{% if t.buttons_uppercase %}{{ b.label | upcase }}{% else %}{{ b.label }}{% endif %}</span>
+                    </a>
                   {% endif %}
-
-                  {% assign btn_size = b.size | default: 'md' %}
-                  {% assign pad_y = 12 %}{% assign pad_x = 20 %}
-                  {% if btn_size == 'sm' %}
-                    {% assign pad_y = 10 %}{% assign pad_x = 16 %}
-                  {% elsif btn_size == 'lg' %}
-                    {% assign pad_y = 14 %}{% assign pad_x = 24 %}
-                  {% endif %}
-
-                  <a href="{{ b.link | default: '#' }}"
-                     {% if b.new_tab %}target="_blank" rel="noopener"{% endif %}
-                     aria-label="{{ b.aria_label | default: b.label | escape }}"
-                     class="q-btn"
-                     style="
-                       /* per-button base tokens */
-                       --btn-text-base: {{ b.text_color | default: '#ffffff' }};
-                       --btn-bg-base: {% if is_outline %}transparent{% else %}{{ b.bg_color | default: '#111111' }}{% endif %};
-                       --btn-border-base: {{ b.border_color | default: '#111111' }};
-                       --btn-bw: {{ b.border_width | default: 1 }}px;
-                       --btn-radius: {{ b.radius | default: 6 }}px;
-                       --btn-px: {{ pad_x }}px; --btn-py: {{ pad_y }}px;
-
-                       /* apply final tokens – forced so theme link rules can't win */
-                       color: var(--btn-text) !important;
-                       background-color: var(--btn-bg) !important;
-                       border-color: var(--btn-border) !important;
-                       border-width: var(--btn-bw) !important;
-                     "
-                     {{ block.shopify_attributes }}>
-                    {% if b.icon != blank %}<span aria-hidden="true">{{ b.icon }}</span>{% endif %}
-                    <span>{{ b.label }}</span>
-                  </a>
                 {% endfor %}
               </div>
             {% endif %}
@@ -457,12 +584,17 @@
   }
   @media (min-width:768px){
     #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-inner{
-      padding-top: {{ cpy_d }}px; padding-bottom: {{ cpy_d }}px;
-      padding-left: {{ cpx_d }}px; padding-right: {{ cpx_d }}px;
+      {% if s.use_theme_spacing %}
+        padding-top: {{ t.section_padding_top | default: 48 | divided_by: 100.0 }}rem; padding-bottom: {{ t.section_padding_bottom | default: 48 | divided_by: 100.0 }}rem;
+        padding-left: {{ t.space_lg | default: 24 | divided_by: 100.0 }}rem; padding-right: {{ t.space_lg | default: 24 | divided_by: 100.0 }}rem;
+      {% else %}
+        padding-top: {{ cpy_d }}px; padding-bottom: {{ cpy_d }}px;
+        padding-left: {{ cpx_d }}px; padding-right: {{ cpx_d }}px;
+      {% endif %}
     }
   }
 
-  /* Desktop defaults driven by vars so mobile can override later */
+  /* Text colors (desktop defaults) */
   #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-kicker  { color: var(--d-kicker); }
   #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-heading { color: var(--d-heading); }
   #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-sub     { color: var(--d-sub); }
@@ -470,10 +602,12 @@
   /* Mobile background mode visuals */
   #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-panel--m-bg{ background-image: none; }
   @media (max-width:767.98px){
+    #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-panel{
+      {% if "{{ mobile_mode }}" == "bg" %}background-color: transparent !important;{% endif %}
+    }
     #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-panel--m-bg{
       background-image: var(--m-bg, none);
       background-size: cover; background-position: center; background-repeat: no-repeat;
-      background-color: transparent !important;
       margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); width: 100vw;
     }
     #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-panel--m-bg::before{
@@ -488,6 +622,11 @@
       padding-top: clamp(16px, 5vh, 48px) !important;
       padding-bottom: clamp(16px, 8vh, 72px) !important;
     }
+
+    /* In bg mode, default to white when mobile text not set */
+    #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-panel--m-bg .q-kicker{ color: var(--m-kicker, #fff) !important; }
+    #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-panel--m-bg .q-heading{ color: var(--m-heading, #fff) !important; }
+    #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-panel--m-bg .q-sub    { color: var(--m-sub,     #fff) !important; }
   }
 
   #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-cap{
@@ -501,14 +640,36 @@
   #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-star-fade{ opacity:.3; }
   #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-stars-text{ font-size:14px; }
 
-  #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-badges{ margin-top:12px; display:flex; flex-wrap:wrap; gap:12px; opacity:.9; font-size:12px; }
+  #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-badges{ margin-top:12px; display:flex; flex-wrap:wrap; gap:12px; opacity:.96; font-size:12px; }
+
+  /* Badge hardening so it can't look/behave like a button */
+  #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-badge,
+  #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-badge *{
+    all: unset;
+  }
+  #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-badge{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:4px 10px;
+    background: {{ t.bg_contrast }};
+    color: {{ t.text_base }};
+    border-radius:
+      {% if t.chip_shape == 'pill' %}9999px
+      {% elsif t.chip_shape == 'square' %}4px
+      {% else %}8px
+      {% endif %};
+    font: inherit; font-weight: 500; line-height: 1;
+    box-shadow:none; border:none; cursor: default; text-decoration:none;
+    transition: none;
+  }
+  #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-badge:hover,
+  #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-badge:focus{ outline:none; filter:none; transform:none; }
 
   #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-btns{
     display:flex; flex-wrap:wrap; gap:12px; margin-top:8px;
     justify-content: var(--cta-justify, flex-start);
   }
 
-  /* Buttons: map base tokens to finals */
+  /* Buttons */
   #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-btn{
     --btn-text: var(--btn-text-base);
     --btn-bg: var(--btn-bg-base);
@@ -521,41 +682,20 @@
     border-radius: var(--btn-radius);
     padding-left: var(--btn-px); padding-right: var(--btn-px);
     padding-top: var(--btn-py);  padding-bottom: var(--btn-py);
-    transition:transform .15s ease, box-shadow .15s ease, background-color .2s ease, color .2s ease, border-color .2s ease;
+    transition: transform .15s ease, box-shadow .15s ease, background-color .2s ease, color .2s ease, border-color .2s ease;
     will-change: transform;
   }
-
-  /* Make sure visited + nested elements inherit the forced color */
   #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-btn:visited{ color: var(--btn-text) !important; background-color: var(--btn-bg) !important; border-color: var(--btn-border) !important; }
-  #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-btn *, 
+  #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-btn *,
   #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-btn:visited * { color: inherit !important; }
   #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-btn svg { fill: currentColor !important; stroke: currentColor !important; }
-
   #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-btn:focus-visible{ outline:2px solid rgba(0,0,0,.45); outline-offset:2px; }
-  #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-btn:hover{ transform:translateY(-1px); box-shadow:0 4px 14px rgb(0 0 0 / 0.12); }
-
-  /* =========================================
-     Mobile & tablet overrides (≤1024px wide)
-     ========================================= */
-  @media (max-width:1023.98px){
-    #{{ s.anchor_id | default: 'section-' | append: section.id }}{
-      {% if m_kicker != blank %}--d-kicker: var(--m-kicker);{% endif %}
-      {% if m_heading != blank %}--d-heading: var(--m-heading);{% endif %}
-      {% if m_text   != blank %}--d-sub: var(--m-sub);{% endif %}
-    }
-
-    /* CTA overrides if set */
-    #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-btn{
-      {% if s.mobile_button_text_color != blank %}--btn-text: var(--m-btn-text);{% endif %}
-      {% if s.mobile_button_bg_color   != blank %}--btn-bg: var(--m-btn-bg);{% endif %}
-      {% if s.mobile_button_border_color != blank %}--btn-border: var(--m-btn-border);{% endif %}
-    }
-
-    /* In bg mode, default to white when mobile text not set */
-    #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-panel--m-bg .q-kicker{ color: var(--m-kicker, #fff) !important; }
-    #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-panel--m-bg .q-heading{ color: var(--m-heading, #fff) !important; }
-    #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-panel--m-bg .q-sub    { color: var(--m-sub,     #fff) !important; }
+  #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-btn:hover{
+    transform: translateY(-1px);
+    opacity: {{ t.button_hover_opacity | default: 92 }}%;
+    box-shadow: 0 4px 14px rgb(0 0 0 / 0.12);
   }
+  #{{ s.anchor_id | default: 'section-' | append: section.id }} .q-btn:active{ transform: scale({{ t.button_active_scale | default: 98 | divided_by: 100.0 }}); }
 </style>
 
 {% schema %}
@@ -583,20 +723,6 @@
     { "type": "color", "id": "mobile_overlay_color", "label": "Mobile overlay color (bg mode)", "default": "#000000" },
     { "type": "range", "id": "mobile_overlay_opacity", "label": "Mobile overlay opacity (bg mode)", "min": 0, "max": 100, "step": 5, "default": 35, "unit": "%" },
 
-    { "type": "header", "content": "Mobile text overrides (≤1024px)" },
-    { "type": "color", "id": "heading_color_mobile", "label": "Heading color (mobile)", "default": "#fff" },
-    { "type": "color", "id": "text_color_mobile", "label": "Paragraph/subheading color (mobile)", "default": "#fff" },
-
-    { "type": "paragraph", "content": "Legacy keys (supported for back-compat):" },
-    { "type": "color", "id": "mobile_heading_color", "label": "Heading color (legacy)", "default": "#fff" },
-    { "type": "color", "id": "mobile_subheading_color", "label": "Subheading color (legacy)", "default": "#fff" },
-    { "type": "color", "id": "mobile_kicker_color", "label": "Kicker color (mobile)", "default": "#fff" },
-
-    { "type": "header", "content": "Mobile CTA overrides (optional)" },
-    { "type": "color", "id": "mobile_button_text_color", "label": "CTA text (mobile)", "default": "#fff" },
-    { "type": "color", "id": "mobile_button_bg_color", "label": "CTA background (mobile)", "default": "#fff" },
-    { "type": "color", "id": "mobile_button_border_color", "label": "CTA border (mobile)", "default": "#fff" },
-
     { "type": "header", "content": "Layout & spacing" },
     { "type": "select", "id": "min_height", "label": "Minimum height", "default": "min-h-[60vh]", "options": [
       { "value": "min-h-[40vh]", "label": "40% viewport" },
@@ -613,6 +739,7 @@
       { "value": "max-w-3xl", "label": "Comfort" },
       { "value": "max-w-4xl", "label": "Wide" }
     ]},
+    { "type": "checkbox", "id": "use_theme_spacing", "label": "Use Theme spacing (top/bottom/padding)", "default": true },
     { "type": "text", "id": "content_pad_y", "label": "Content vertical padding (Tailwind utilities)", "default": "py-12 md:py-16" },
     { "type": "text", "id": "content_pad_x", "label": "Content horizontal padding (Tailwind utilities)", "default": "px-6 md:px-10" },
 
@@ -631,8 +758,9 @@
     ]},
     { "type": "color", "id": "heading_color", "label": "Heading color (desktop)", "default": "#111827" },
     { "type": "select", "id": "heading_size", "label": "Heading size", "options": [
-      { "value": "2xl", "label": "2XL" }, { "value": "3xl", "label": "3XL" }, { "value": "4xl", "label": "4XL" }], "default": "3xl"
-    },
+      { "value": "theme", "label": "Use Theme size" },
+      { "value": "2xl", "label": "2XL" }, { "value": "3xl", "label": "3XL" }, { "value": "4xl", "label": "4XL" }
+    ], "default": "theme" },
 
     { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Crafted for style. Built for performance." },
     { "type": "color", "id": "subheading_color", "label": "Subheading color (desktop)", "default": "#374151" },
@@ -660,19 +788,29 @@
         { "type": "text", "id": "label", "label": "Label", "default": "Shop now" },
         { "type": "url", "id": "link", "label": "Link", "default": "/collections/all" },
         { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Shop now" },
+
         { "type": "select", "id": "size", "label": "Size", "default": "md", "options": [
           { "value": "sm", "label": "Small" }, { "value": "md", "label": "Medium" }, { "value": "lg", "label": "Large" }
         ]},
         { "type": "checkbox", "id": "new_tab", "label": "Open in new tab", "default": false },
+
         { "type": "select", "id": "button_mode", "label": "Style", "options": [
-          { "value": "solid", "label": "Solid" }, { "value": "outline", "label": "Outline" }], "default": "solid"
-        },
-        { "type": "text", "id": "icon", "label": "Icon (SVG/HTML)" },
-        { "type": "color", "id": "bg_color", "label": "Background (solid)", "default": "#111111" },
+          { "value": "solid", "label": "Solid" },
+          { "value": "outline", "label": "Outline" },
+          { "value": "ghost", "label": "Ghost" }
+        ], "default": "solid" },
+
+        { "type": "header", "content": "Color overrides (optional)" },
+        { "type": "checkbox", "id": "use_theme_colors", "label": "Use Theme colors", "default": true },
+
+        { "type": "color", "id": "bg_color", "label": "Background (solid)", "default": "#2563eb" },
         { "type": "color", "id": "text_color", "label": "Text color", "default": "#ffffff" },
-        { "type": "color", "id": "border_color", "label": "Border color (outline)", "default": "#111111" },
-        { "type": "range", "id": "border_width", "label": "Border width (outline)", "min": 0, "max": 8, "step": 1, "default": 1 },
-        { "type": "range", "id": "radius", "label": "Radius", "min": 0, "max": 50, "step": 2, "default": 6 }
+        { "type": "color", "id": "border_color", "label": "Border color", "default": "#2563eb" },
+
+        { "type": "text", "id": "icon", "label": "Icon (SVG/HTML)" },
+
+        { "type": "range", "id": "border_width", "label": "Border width (px)", "min": 0, "max": 8, "step": 1, "default": 1 },
+        { "type": "range", "id": "radius", "label": "Radius (px)", "min": 0, "max": 50, "step": 1, "default": 12 }
       ]
     },
     {
@@ -686,7 +824,7 @@
   ],
   "max_blocks": 8,
   "presets": [
-    { "name": "Split Content — Banner", "category": "Banner", "blocks": [{ "type": "button" }, { "type": "button" }, { "type": "badge" }] }
+    { "name": "Hero Banner - Split Content", "category": "Hero Banners", "blocks": [{ "type": "button" }, { "type": "button" }, { "type": "badge" }] }
   ]
 }
 {% endschema %}
