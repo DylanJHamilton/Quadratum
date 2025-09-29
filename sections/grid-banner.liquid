@@ -1,9 +1,10 @@
 {% comment %}
-  Quadratum • Hero + Grid Banner (Rebuilt)
-  - Modes: hero_only / grid_only / hero_plus_grid
-  - Real hero: single tile, large height, strong type, button styles from settings
-  - Optional grid: 2/6/12 columns via CSS variables (purge-proof)
-  - No comparisons in {{ }}, no chained assigns; all logic in {% liquid %}/{% if %}
+  Quadratum • Hero + Grid Banner
+  Modes: hero_only / grid_only / hero_plus_grid
+  - True hero (single canvas) + optional magazine grid
+  - Fonts/colors/containers inherit from Theme Settings with section overrides
+  - YouTube OR MP4 backgrounds for hero and tiles
+  - No logic inside {{ }}, no chained assigns; only {% liquid %}/{% if %}
 {% endcomment %}
 
 {% assign s = section.settings %}
@@ -16,7 +17,7 @@
 {%- comment -%} Scoped section id {%- endcomment -%}
 {%- assign sid = s.anchor_id | default: 'section-' | append: section.id -%}
 
-{%- comment -%} Container classes (fallbacks kept purge-proof via inline CSS) {%- endcomment -%}
+{%- comment -%} Container classes (side padding retained) {%- endcomment -%}
 {% assign container_pad = '' %}
 {% if s.container_mode == 'contained' %}{% assign container_pad = 'px-4 md:px-6' %}{% endif %}
 {% assign container_class = '' %}
@@ -26,16 +27,15 @@
   {% assign container_class = 'mx-auto max-w-screen-xl ' | append: container_pad %}
 {% endif %}
 
-{%- comment -%} Spacing map (purge-proof pixel fallbacks) {%- endcomment -%}
-{% assign pad_mobile = 64 %}
-{% assign pad_desktop = 96 %}
+{%- comment -%} Spacing map (purge-proof) {%- endcomment -%}
+{% assign pad_mobile = 64 %}{% assign pad_desktop = 96 %}
 {% case s.pad_y %}
   {% when 'py-8 md:py-12' %}{% assign pad_mobile = 32 %}{% assign pad_desktop = 48 %}
   {% when 'py-12 md:py-16' %}{% assign pad_mobile = 48 %}{% assign pad_desktop = 64 %}
   {% when 'py-16 md:py-24' %}{% assign pad_mobile = 64 %}{% assign pad_desktop = 96 %}
 {% endcase %}
 
-{%- comment -%} Grid gap mapping {%- endcomment -%}
+{%- comment -%} Grid gaps {%- endcomment -%}
 {% assign gap_m = 16 %}{% assign gap_t = 24 %}{% assign gap_d = 32 %}
 {% case s.gap %}
   {% when 'gap-3 md:gap-4' %}{% assign gap_m = 12 %}{% assign gap_t = 16 %}{% assign gap_d = 16 %}
@@ -43,7 +43,7 @@
   {% when 'gap-6 md:gap-8' %}{% assign gap_m = 24 %}{% assign gap_t = 32 %}{% assign gap_d = 32 %}
 {% endcase %}
 
-{%- comment -%} Grid cols + row-heights {%- endcomment -%}
+{%- comment -%} Grid cols + row heights {%- endcomment -%}
 {% assign cols_m = s.cols_mobile | default: '2' %}
 {% assign cols_t = s.cols_tablet | default: '6' %}
 {% assign cols_d = s.cols_desktop | default: '12' %}
@@ -51,15 +51,18 @@
 {% assign row_t  = s.row_h_tablet  | default: 200 %}
 {% assign row_d  = s.row_h_desktop | default: 240 %}
 
+{%- comment -%} Hero↔Grid stack gap (px) {%- endcomment -%}
+{% assign stack_gap_px = s.stack_gap | default: 56 %}
+
 <section
   id="{{ sid }}"
   class="relative {{ s.pad_y | default: 'py-16 md:py-24' }}{{ visibility_classes }}"
   role="region"
   aria-label="{{ s.region_label | default: 'Promotional hero and grid' }}"
 >
-  
+
 <style>
-  /* ===== Hero + Grid Banner — unified CSS ===== */
+/* ===== Hero + Grid Banner — CSS (scoped) ===== */
 
 /* Section spacing (purge-proof) */
 #{{ sid }}{padding-top:{{ pad_mobile }}px;padding-bottom:{{ pad_mobile }}px;}
@@ -69,539 +72,516 @@
 #{{ sid }} .px-4{padding-left:16px;padding-right:16px;}
 @media (min-width:768px){#{{ sid }} .md\:px-6{padding-left:24px;padding-right:24px;}}
 
-/* Typography tokens */
+/* Container width from Theme Settings */
+#{{ sid }} .max-w-screen-xl{max-width: {{ settings.container_lg | default: 1152 }}px;}
+
+/* Hard center: always center canvases to Theme container width */
+#{{ sid }} .q-cw{max-width: {{ settings.container_lg | default: 1152 }}px;margin-left:auto;margin-right:auto;width:100%;}
+
+/* Typography tokens from Theme Settings */
 #{{ sid }}{
-  --q-font-head: {{ settings.type_header_font.family | json }}, {{ settings.type_header_font.fallback_families | json }};
-  --q-font-body: {{ settings.type_body_font.family  | json }}, {{ settings.type_body_font.fallback_families  | json }};
+  --q-font-head: {{ settings.font_heading.family | json }}, {{ settings.font_heading.fallback_families | json }};
+  --q-font-body: {{ settings.font_body.family  | json }}, {{ settings.font_body.fallback_families  | json }};
   -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility; font-synthesis-weight:none;
 }
-#{{ sid }} h1,#{{ sid }} h2,#{{ sid }} h3{font-family:var(--q-font-head);font-weight:800;line-height:1.1;letter-spacing:-.02em;}
-#{{ sid }} p,#{{ sid }} a,#{{ sid }} span{font-family:var(--q-font-body);line-height:1.6;}
+#{{ sid }} h1,#{{ sid }} h2,#{{ sid }} h3{
+  font-family:var(--q-font-head);
+  font-weight:800;
+  line-height:1.1;
+  letter-spacing: {{ settings.headings_letterspacing | default: 0 | divided_by: 1000.0 }}em;
+  text-transform: {% if settings.headings_uppercase %}uppercase{% else %}none{% endif %};
+}
+#{{ sid }} p,#{{ sid }} a,#{{ sid }} span{font-family:var(--q-font-body);line-height: {{ settings.body_line_height | default: 160 | divided_by: 100.0 }};}
 
 /* Hero */
 #{{ sid }} .q-hero{position:relative;overflow:hidden;border-radius:16px;}
-#{{ sid }} .q-hero-media{position:absolute;inset:0;z-index:0;overflow:hidden;}
-#{{ sid }} .q-hero-media img,#{{ sid }} .q-hero-media video{width:100%;height:100%;object-fit:cover;display:block;transform:scale(1.01);transition:transform .6s ease;}
-#{{ sid }} .q-hero:hover .q-hero-media img,#{{ sid }} .q-hero:hover .q-hero-media video{transform:scale(1.05);}
-#{{ sid }} .q-hero-card{position:relative;z-index:1;height:100%;display:flex;}
-#{{ sid }} .q-hero-inner{width:100%;max-width:64rem;}
-#{{ sid }} .q-hero h2{font-size:clamp(2.5rem,6vw,5rem);letter-spacing:-.02em;}
-#{{ sid }} .q-hero .sub{font-size:clamp(1.125rem,1.5vw,1.375rem);opacity:.95;}
+#{{ sid }} .q-hero-card{position:relative;z-index:1;height:100%;display:flex;width:100%;}
+#{{ sid }} .q-hero-inner{width:100%;max-width:64rem;margin:0 auto;}
+#{{ sid }} .q-hero h2{font-size:clamp(2.4rem,6vw,5rem);letter-spacing:-.02em;}
+#{{ sid }} .q-hero .sub{font-size:clamp(1.0625rem,1.5vw,1.25rem);opacity:.95;}
 
-/* Buttons — normalized so merchant colors always win */
+/* Background media wrapper */
+#{{ sid }} .q-hero-media,
+#{{ sid }} .q-media{position:absolute;inset:0;z-index:0;overflow:hidden;}
+#{{ sid }} .q-hero-media img,#{{ sid }} .q-hero-media video,#{{ sid }} .q-media img,#{{ sid }} .q-media video{width:100%;height:100%;object-fit:cover;display:block;transform:scale(1.01);transition:transform .6s ease;}
+#{{ sid }} .q-hero:hover .q-hero-media img,#{{ sid }} .q-hero:hover .q-hero-media video{transform:scale(1.05);}
+#{{ sid }} .q-yt,
+#{{ sid }} .q-yt iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
+
+/* Optional readable pills (off by default) */
+{% if s.enable_text_pills %}
+#{{ sid }} .q-hero h2,#{{ sid }} .q-hero .sub{display:inline;box-decoration-break:clone;background:rgba(0,0,0,.38);color:#fff;padding:.15em .4em;border-radius:.35em;}
+#{{ sid }} .q-hero-inner > *:first-child{display:inline-block;background:rgba(0,0,0,.35);backdrop-filter:saturate(120%) blur(2px);border-radius:12px;padding:.6rem .85rem;}
+{% endif %}
+{% if s.enable_tile_text_pills %}
+#{{ sid }} .q-inner > *:first-child{display:inline-block;background:rgba(0,0,0,.35);backdrop-filter:saturate(120%) blur(2px);border-radius:12px;padding:.6rem .85rem;}
+{% endif %}
+
+/* CTA buttons — inherit Theme Settings */
 #{{ sid }} a.q-btn{
-  position:relative;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
-  padding:.9rem 1.4rem;font-weight:700;line-height:1.2;border-radius:{{ s.button_radius }}px !important;
-  text-decoration:none;cursor:pointer;border:0 !important;box-shadow:none !important;
-  -webkit-appearance:none;appearance:none;
+  position:relative;display:inline-flex;align-items:center;justify-content:center;gap:.6rem;
+  padding:.9rem 1.4rem;font-weight:700;line-height:1.2;border-radius:{{ s.button_radius | default: settings.button_radius }}px !important;
+  text-decoration:none;cursor:pointer;border:0 !important;box-shadow:none !important;-webkit-appearance:none;appearance:none;
+  text-transform:{% if settings.buttons_uppercase %}uppercase{% else %}none{% endif %};
 }
-#{{ sid }} a.q-btn:hover{opacity:.92;}
-#{{ sid }} a.q-btn.q-btn--solid{background:{{ s.button_bg_color }} !important;color:{{ s.button_text_color }} !important;}
+#{{ sid }} a.q-btn:hover{opacity: {{ settings.button_hover_opacity | default: 92 | divided_by: 100.0 }};}
+#{{ sid }} a.q-btn:active{transform: scale({{ settings.button_active_scale | default: 98 | divided_by: 100.0 }});}
+#{{ sid }} a.q-btn.q-btn--solid{background:{{ s.button_bg_color | default: settings.color_primary }} !important;color:{{ s.button_text_color | default: settings.text_on_color }} !important;}
 #{{ sid }} a.q-btn.q-btn--outline{
-  color:{{ s.button_text_color }} !important;
-  border:{{ s.button_border_width }}px solid {{ s.button_border_color }} !important;
+  color:{{ s.button_text_color | default: settings.text_on_color }} !important;
+  border:{{ s.button_border_width | default: settings.button_border_width }}px solid {{ s.button_border_color | default: settings.text_on_color }} !important;
   background:rgba(0,0,0,.18);backdrop-filter:saturate(130%) blur(1px);
 }
+
+/* CTA row: keep on one line except on small screens */
+#{{ sid }} .q-cta{display:flex;width:100%;row-gap:.8rem;column-gap:1rem;flex-wrap:nowrap}
+#{{ sid }} .q-cta .q-btn{white-space:nowrap;min-width:0;flex:0 1 auto}
+@media (max-width:640px){#{{ sid }} .q-cta{flex-wrap:wrap}}
 
 /* Grid */
 #{{ sid }} .q-grid{
   display:grid !important;border-radius:12px;width:100%;
-  grid-auto-flow:dense; /* pack like a magazine */
+  grid-auto-flow:dense;
   grid-template-columns:repeat(var(--cols-m,2), minmax(0,1fr)) !important;
   grid-auto-rows:var(--row-m,160px) !important;
   gap:var(--gap-m,16px) !important;
 }
 #{{ sid }} .q-item{position:relative;display:flex;min-height:0;overflow:hidden;border-radius:12px;}
-#{{ sid }} .q-media{position:absolute;inset:0;z-index:0;overflow:hidden;}
-#{{ sid }} .q-media img,#{{ sid }} .q-media video{width:100%;height:100%;object-fit:cover;display:block;transform:scale(1.01);transition:transform .5s ease;}
-#{{ sid }} .q-item:hover .q-media img,#{{ sid }} .q-item:hover .q-media video{transform:scale(1.05);}
 #{{ sid }} .q-card{position:relative;z-index:1;width:100%;height:100%;display:flex;min-width:0;}
-#{{ sid }} .q-inner{width:100%;max-width:56rem;}
+#{{ sid }} .q-inner{width:100%;max-width:56rem;margin:0 auto;}
+#{{ sid }} .q-gradient{position:absolute;inset:auto 0 0 0;height:min(26%,180px);z-index:0;pointer-events:none;}
 
-/* Apply variable spans with authority */
-#{{ sid }} .q-grid > .q-item{
-  grid-column:span var(--cspan-m,1) !important;
-  grid-row:span var(--rspan-m,1) !important;
-}
+#{{ sid }} .q-grid > .q-item{grid-column:span var(--cspan-m,1) !important;grid-row:span var(--rspan-m,1) !important;}
 
 @media (min-width:640px){
-  #{{ sid }} .q-grid{
-    grid-template-columns:repeat(var(--cols-t,6), minmax(0,1fr)) !important;
-    grid-auto-rows:var(--row-t,200px) !important;
-    gap:var(--gap-t,24px) !important;
-  }
-  #{{ sid }} .q-grid > .q-item{
-    grid-column:span var(--cspan-t,2) !important;
-    grid-row:span var(--rspan-t,1) !important;
-  }
+  #{{ sid }} .q-grid{grid-template-columns:repeat(var(--cols-t,6), minmax(0,1fr)) !important;grid-auto-rows:var(--row-t,200px) !important;gap:var(--gap-t,24px) !important;}
+  #{{ sid }} .q-grid > .q-item{grid-column:span var(--cspan-t,2) !important;grid-row:span var(--rspan-t,1) !important;}
 }
-
 @media (min-width:1024px){
-  #{{ sid }} .q-grid{
-    grid-template-columns:repeat(var(--cols-d,12), minmax(0,1fr)) !important;
-    grid-auto-rows:var(--row-d,240px) !important;
-    gap:var(--gap-d,32px) !important;
-  }
-  #{{ sid }} .q-grid > .q-item{
-    grid-column:span var(--cspan-d,3) !important;
-    grid-row:span var(--rspan-d,1) !important;
-  }
+  #{{ sid }} .q-grid{grid-template-columns:repeat(var(--cols-d,12), minmax(0,1fr)) !important;grid-auto-rows:var(--row-d,240px) !important;gap:var(--gap-d,32px) !important;}
+  #{{ sid }} .q-grid > .q-item{grid-column:span var(--cspan-d,3) !important;grid-row:span var(--rspan-d,1) !important;}
 }
+</style>
 
-/* --- ALIGN EVERYTHING AS A UNIT (Hero) --- */
-/* Read the inline text-align from the H2 and apply it to the whole stack */
-#{{ sid }} .q-hero-inner:has(h2[style*="text-align: center"]) { text-align: center; }
-#{{ sid }} .q-hero-inner:has(h2[style*="text-align: right"])  { text-align: right;  }
+{%- comment -%} Optional heading block {%- endcomment -%}
+{% if s.kicker != blank or s.heading != blank or s.subheading != blank %}
+  <div class="{{ container_class }} q-cw mb-8 md:mb-10">
+    {% if s.kicker != blank %}<p class="text-sm font-semibold tracking-wide uppercase text-neutral-500">{{ s.kicker }}</p>{% endif %}
+    {% if s.heading != blank %}<h2 class="mt-2 text-3xl md:text-5xl">{{ s.heading | escape }}</h2>{% endif %}
+    {% if s.subheading != blank %}<p class="mt-3 text-base md:text-lg text-neutral-600">{{ s.subheading }}</p>{% endif %}
+  </div>
+{% endif %}
 
-/* Let text-align position the CTA group: make the group inline so it participates */
-#{{ sid }} .q-hero .flex.flex-wrap.gap-3 {
-  display: inline-flex;
-  justify-content: initial; /* don't fight text-align with flex-justify */
-}
+{%- comment -%} ============ HERO ============ {%- endcomment -%}
+{% if s.layout_mode == 'hero_only' or s.layout_mode == 'hero_plus_grid' %}
+  {% liquid
+    assign hero_has_media = false
+    if s.hero_video != blank or s.hero_image != blank or s.hero_mobile_image != blank
+      assign hero_has_media = true
+    endif
 
-/* Kicker should follow the same alignment cleanly */
-#{{ sid }} .q-hero p[class*="tracking-wide"] { display: inline-block; }
+    assign hero_ov_color = s.hero_overlay_color | default: '#000000'
+    assign hero_ov_opacity = s.hero_overlay_opacity | default: 45 | plus: 0
 
-/* --- SAME TREATMENT FOR GRID TILES --- */
-#{{ sid }} .q-inner:has(h3[style*="text-align: center"]) { text-align: center; }
-#{{ sid }} .q-inner:has(h3[style*="text-align: right"])  { text-align: right;  }
-
-#{{ sid }} .q-inner .mt-4.md\:mt-6.flex.flex-wrap.gap-3 {
-  display: inline-flex;
-  justify-content: initial;
-}
-#{{ sid }} .q-inner p[class*="tracking-wide"] { display: inline-block; }
-
-/* --- OPTIONAL: READABLE BACKGROUND FOR HERO TEXT (toggle on/off) --- */
-/* Pills behind heading + sub so “This Season’s Drop” is always readable */
-#{{ sid }} .q-hero h2,
-#{{ sid }} .q-hero .sub {
-  display: inline;
-  box-decoration-break: clone;
-  background: rgba(0,0,0,.38); /* adjust to taste */
-  color: #fff;
-  padding: .15em .4em;
-  border-radius: .35em;
-}
-#{{ sid }} .q-hero-inner > *:first-child,
-#{{ sid }} .q-inner > *:first-child {
-  display:inline-block;
-  background: rgba(0,0,0,.35);   /* dark semi-transparent */
-  backdrop-filter: saturate(120%) blur(2px);
-  border-radius: 12px;
-  padding: .75rem 1rem;
-}
-
-
-  </style>
-
-  {%- comment -%} HEADERS (optional) {%- endcomment -%}
-  {% if s.kicker != blank or s.heading != blank or s.subheading != blank %}
-    <div class="{{ container_class }} mb-8 md:mb-10">
-      {% if s.kicker != blank %}<p class="text-sm font-semibold tracking-wide uppercase text-neutral-500">{{ s.kicker }}</p>{% endif %}
-      {% if s.heading != blank %}<h2 class="mt-2 text-3xl md:text-5xl">{{ s.heading | escape }}</h2>{% endif %}
-      {% if s.subheading != blank %}<p class="mt-3 text-base md:text-lg text-neutral-600">{{ s.subheading }}</p>{% endif %}
-    </div>
-  {% endif %}
-
-  {%- comment -%} ============ HERO ============ {%- endcomment -%}
-  {% if s.layout_mode == 'hero_only' or s.layout_mode == 'hero_plus_grid' %}
-    {% liquid
-      assign hero_has_media = false
-      if s.hero_video != blank or s.hero_image != blank or s.hero_mobile_image != blank
-        assign hero_has_media = true
+    assign hero_tone = s.hero_text_tone | default: 'auto'
+    assign hero_txt  = settings.text_on_color
+    if hero_tone == 'dark'
+      assign hero_txt = settings.text_base
+    elsif hero_tone == 'light'
+      assign hero_txt = settings.text_on_color
+    elsif hero_tone == 'auto'
+      if hero_ov_opacity < 45
+        assign hero_txt = settings.text_base
       endif
+    endif
 
-      assign hero_ov_color = s.hero_overlay_color | default: '#000000'
-      assign hero_ov_opacity = s.hero_overlay_opacity | default: 45 | plus: 0
+    assign h_ai = 'center'
+    assign h_jc = 'center'
+    assign h_ta = 'center'
+    case s.hero_content_position
+      when 'top-left'
+        assign h_ai = 'flex-start'
+        assign h_jc = 'flex-start'
+        assign h_ta = 'left'
+      when 'top-right'
+        assign h_ai = 'flex-start'
+        assign h_jc = 'flex-end'
+        assign h_ta = 'right'
+      when 'bottom-left'
+        assign h_ai = 'flex-end'
+        assign h_jc = 'flex-start'
+        assign h_ta = 'left'
+      when 'bottom-right'
+        assign h_ai = 'flex-end'
+        assign h_jc = 'flex-end'
+        assign h_ta = 'right'
+      when 'left'
+        assign h_ai = 'center'
+        assign h_jc = 'flex-start'
+        assign h_ta = 'left'
+      when 'right'
+        assign h_ai = 'center'
+        assign h_jc = 'flex-end'
+        assign h_ta = 'right'
+    endcase
 
-      assign hero_tone = s.hero_text_tone | default: 'auto'
-      assign hero_txt = '#ffffff'
-      if hero_tone == 'dark'
-        assign hero_txt = '#111111'
-      elsif hero_tone == 'auto'
-        if hero_ov_opacity < 45
-          assign hero_txt = '#111111'
-        endif
-      endif
+    assign sizes_str = '(min-width: 1024px) 100vw, 100vw'
+    assign widths_str = '640,828,1080,1280,1440,1680,1920,2048'
 
-      assign h_ai = 'center'
-      assign h_jc = 'center'
-      assign h_ta = 'center'
-      case s.hero_content_position
-        when 'top-left'
-          assign h_ai = 'flex-start'
-          assign h_jc = 'flex-start'
-          assign h_ta = 'left'
-        when 'top-right'
-          assign h_ai = 'flex-start'
-          assign h_jc = 'flex-end'
-          assign h_ta = 'right'
-        when 'bottom-left'
-          assign h_ai = 'flex-end'
-          assign h_jc = 'flex-start'
-          assign h_ta = 'left'
-        when 'bottom-right'
-          assign h_ai = 'flex-end'
-          assign h_jc = 'flex-end'
-          assign h_ta = 'right'
-        when 'left'
-          assign h_ai = 'center'
-          assign h_jc = 'flex-start'
-          assign h_ta = 'left'
-        when 'right'
-          assign h_ai = 'center'
-          assign h_jc = 'flex-end'
-          assign h_ta = 'right'
-      endcase
+    assign loading_attr = 'eager'
+    assign fetchpriority_attr = 'high'
 
-      assign sizes_str = '(min-width: 1024px) 100vw, 100vw'
-      assign widths_str = '640,828,1080,1280,1440,1680,1920,2048'
+    assign hero_pad_m = s.hero_pad_y | default: 24
+    assign hero_pax_m = s.hero_pad_x | default: 24
+    assign hero_pad_d = s.hero_pad_y_d | default: 48
+    assign hero_pax_d = s.hero_pad_x_d | default: 48
+  %}
 
-      assign loading_attr = 'eager'
-      assign fetchpriority_attr = 'high'
-    %}
+  <div class="{{ container_class }} q-cw" style="margin-bottom: {{ stack_gap_px }}px;">
+    <article class="q-hero" style="height: {{ s.hero_height_m | default: 60 }}vh;">
+      <style>
+        @media (min-width:768px){#{{ sid }} .q-hero{height: {{ s.hero_height_d | default: 85 }}vh;}}
+        #{{ sid }} .q-hero .q-hero-inner{padding: {{ hero_pad_m }}px {{ hero_pax_m }}px;}
+        @media (min-width:768px){#{{ sid }} .q-hero .q-hero-inner{padding: {{ hero_pad_d }}px {{ hero_pax_d }}px;}}
+      </style>
 
-    <div class="{{ container_class }} mb-10">
-      <article class="q-hero" style="height: {{ s.hero_height_m }}vh;">
-        <style>
-          @media (min-width:768px){#{{ sid }} .q-hero{height: {{ s.hero_height_d }}vh;}}
-          #{{ sid }} .q-hero .q-hero-inner{padding: {{ s.hero_pad_y }}px {{ s.hero_pad_x }}px;}
-          @media (min-width:768px){#{{ sid }} .q-hero .q-hero-inner{padding: {{ s.hero_pad_y_d }}px {{ s.hero_pad_x_d }}px;}}
-        </style>
-
-        <div class="q-hero-media">
-          {% if s.hero_video != blank %}
-            <video class="absolute inset-0 w-full h-full object-cover" style="object-position: {{ s.hero_object_position | default: 'center center' }};"
-                   autoplay loop muted playsinline preload="none"
-                   {% if s.hero_image != blank %}poster="{{ s.hero_image | image_url: width: 1280 }}"{% endif %}>
-              <source src="{{ s.hero_video }}" type="video/mp4">
-            </video>
-          {% elsif s.hero_image != blank %}
-            {% if s.hero_mobile_image != blank %}
-              <picture>
-                <source media="(max-width: 639px)" srcset="{{ s.hero_mobile_image | image_url: width: 960 }}">
-                {{ s.hero_image | image_url: width: 2048 | image_tag:
-                    widths: widths_str,
-                    sizes: sizes_str,
-                    loading: loading_attr,
-                    fetchpriority: fetchpriority_attr,
-                    class: 'absolute inset-0 w-full h-full object-cover',
-                    alt: s.hero_image_alt }}
-              </picture>
-            {% else %}
-              {{ s.hero_image | image_url: width: 2048 | image_tag:
-                  widths: widths_str,
-                  sizes: sizes_str,
-                  loading: loading_attr,
-                  fetchpriority: fetchpriority_attr,
-                  class: 'absolute inset-0 w-full h-full object-cover',
-                  alt: s.hero_image_alt }}
-            {% endif %}
-          {% endif %}
-        </div>
-
-        {% if hero_has_media and hero_ov_opacity > 0 %}
-          <div class="absolute inset-0" aria-hidden="true" style="background-color: {{ hero_ov_color }}; opacity: {{ hero_ov_opacity | divided_by: 100.0 }};"></div>
-          {% if s.hero_use_gradient %}
-            <div class="absolute inset-x-0 bottom-0 h-1/3" aria-hidden="true" style="background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.45) 100%);"></div>
+      <div class="q-hero-media" aria-hidden="true">
+        {% liquid
+          assign yt_id = ''
+          assign u = s.hero_video | strip
+          if u contains 'youtu.be/'
+            assign yt_id = u | split: 'youtu.be/' | last | split: '?' | first
+          elsif u contains 'youtube.com/watch?v='
+            assign yt_id = u | split: 'watch?v=' | last | split: '&' | first
+          elsif u contains 'youtube.com/embed/'
+            assign yt_id = u | split: '/embed/' | last | split: '?' | first
+          endif
+        %}
+        {% if yt_id != '' %}
+          <div class="q-yt">
+            <iframe title="YouTube video" loading="lazy"
+              src="https://www.youtube.com/embed/{{ yt_id }}?autoplay=1&mute=1&loop=1&playlist={{ yt_id }}&controls=0&playsinline=1&modestbranding=1&rel=0&iv_load_policy=3"
+              allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="origin-when-cross-origin"></iframe>
+          </div>
+        {% elsif s.hero_video != blank %}
+          <video class="absolute inset-0 w-full h-full object-cover"
+                 style="object-position: {{ s.hero_object_position | default: 'center center' }};"
+                 autoplay loop muted playsinline preload="none"
+                 {% if s.hero_image != blank %}poster="{{ s.hero_image | image_url: width: 1280 }}"{% endif %}>
+            <source src="{{ s.hero_video }}" type="video/mp4">
+          </video>
+        {% elsif s.hero_image != blank %}
+          {% if s.hero_mobile_image != blank %}
+            <picture>
+              <source media="(max-width: 639px)" srcset="{{ s.hero_mobile_image | image_url: width: 960 }}">
+              {{ s.hero_image | image_url: width: 2048 | image_tag: widths: widths_str, sizes: sizes_str, loading: loading_attr, fetchpriority: fetchpriority_attr, class: 'absolute inset-0 w-full h-full object-cover', alt: s.hero_image_alt }}
+            </picture>
+          {% else %}
+            {{ s.hero_image | image_url: width: 2048 | image_tag: widths: widths_str, sizes: sizes_str, loading: loading_attr, fetchpriority: fetchpriority_attr, class: 'absolute inset-0 w-full h-full object-cover', alt: s.hero_image_alt }}
           {% endif %}
         {% endif %}
+      </div>
 
-        <div class="q-hero-card" style="align-items: {{ h_ai }}; justify-content: {{ h_jc }};">
-          <div class="q-hero-inner">
-            {% if s.hero_kicker != blank %}
-              <p class="mb-2 text-sm font-semibold tracking-wide uppercase" style="color: {{ hero_txt }};">{{ s.hero_kicker }}</p>
-            {% endif %}
-            {% if s.hero_heading != blank %}
-              <h2 class="mb-3" style="color: {{ hero_txt }}; text-align: {{ h_ta }};">{{ s.hero_heading }}</h2>
-            {% endif %}
-            {% if s.hero_subheading != blank %}
-              <p class="sub mb-5" style="color: {{ hero_txt }}; text-align: {{ h_ta }};">{{ s.hero_subheading }}</p>
-            {% endif %}
+      {% if hero_has_media and hero_ov_opacity > 0 %}
+        <div class="absolute inset-0" style="background-color: {{ hero_ov_color }}; opacity: {{ hero_ov_opacity | times: 0.01 }};"></div>
+        {% if s.hero_use_gradient %}<div class="q-gradient" style="background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.35) 100%);"></div>{% endif %}
+      {% endif %}
 
-            {% liquid
-              assign cta_href = s.hero_cta_link
-              if cta_href == blank and s.hero_cta_product
-                assign cta_href = s.hero_cta_product.url
-              endif
-              if cta_href == blank and s.hero_cta_collection
-                assign cta_href = s.hero_cta_collection.url
-              endif
-              if cta_href == blank and s.hero_cta_article
-                assign cta_href = s.hero_cta_article.url
-              endif
-
-              assign cta2_href = s.hero_cta2_link
-              if cta2_href == blank and s.hero_cta2_product
-                assign cta2_href = s.hero_cta2_product.url
-              endif
-              if cta2_href == blank and s.hero_cta2_collection
-                assign cta2_href = s.hero_cta2_collection.url
-              endif
-              if cta2_href == blank and s.hero_cta2_article
-                assign cta2_href = s.hero_cta2_article.url
-              endif
-
-              assign has_cta1 = false
-              if s.hero_cta_text != blank and cta_href != blank
-                assign has_cta1 = true
-              endif
-              assign has_cta2 = false
-              if s.hero_cta2_text != blank and cta2_href != blank
-                assign has_cta2 = true
-              endif
-            %}
-
-            {% if has_cta1 or has_cta2 %}
-              <div class="flex flex-wrap gap-3 {% if h_ta == 'center' %}justify-center{% elsif h_ta == 'right' %}justify-end{% else %}justify-start{% endif %}">
-                {% if has_cta1 %}
-                  <a href="{{ cta_href }}" class="q-btn q-btn--solid"
-                     aria-label="{{ s.hero_cta_aria | default: s.hero_cta_text | escape }}"
-                     style="background-color: {{ s.button_bg_color }}; color: {{ s.button_text_color }}; border-radius: {{ s.button_radius }}px;">
-                    {{ s.hero_cta_text }}
-                  </a>
-                {% endif %}
-                {% if has_cta2 %}
-                  <a href="{{ cta2_href }}" class="q-btn q-btn--outline"
-                     aria-label="{{ s.hero_cta2_aria | default: s.hero_cta2_text | escape }}"
-                     style="color: {{ s.button_text_color }}; border: {{ s.button_border_width }}px solid {{ s.button_border_color }}; border-radius: {{ s.button_radius }}px;">
-                    {{ s.hero_cta2_text }}
-                  </a>
-                {% endif %}
-              </div>
-            {% endif %}
-          </div>
-        </div>
-      </article>
-    </div>
-  {% endif %}
-
-  {%- comment -%} ============ GRID ============ {%- endcomment -%}
-  {% if s.layout_mode == 'grid_only' or s.layout_mode == 'hero_plus_grid' %}
-    <div class="{{ container_class }}">
-      <div class="q-grid"
-           style="--cols-m: {{ cols_m }}; --cols-t: {{ cols_t }}; --cols-d: {{ cols_d }}; --row-m: {{ row_m }}px; --row-t: {{ row_t }}px; --row-d: {{ row_d }}px; --gap-m: {{ gap_m }}px; --gap-t: {{ gap_t }}px; --gap-d: {{ gap_d }}px;">
-        {% for block in section.blocks %}
-          {% assign b = block.settings %}
+      <div class="q-hero-card" style="align-items: {{ h_ai }}; justify-content: {{ h_jc }};">
+        <div class="q-hero-inner">
+          {% if s.hero_kicker != blank %}<p class="mb-2 text-sm font-semibold tracking-wide uppercase" style="color: {{ hero_txt }}; text-align: {{ h_ta }};">{{ s.hero_kicker }}</p>{% endif %}
+          {% if s.hero_heading != blank %}<h2 class="mb-3" style="color: {{ hero_txt }}; text-align: {{ h_ta }};">{{ s.hero_heading }}</h2>{% endif %}
+          {% if s.hero_subheading != blank %}<p class="sub mb-5" style="color: {{ hero_txt }}; text-align: {{ h_ta }};">{{ s.hero_subheading }}</p>{% endif %}
 
           {% liquid
-            assign cs_m = b.span_cols_m | default: 1
-            assign rs_m = b.span_rows_m | default: 1
-            assign cs_t = b.span_cols_t | default: 3
-            assign rs_t = b.span_rows_t | default: 1
-            assign cs_d = b.span_cols_d | default: 3
-            assign rs_d = b.span_rows_d | default: 1
-
-            if forloop.first
-              if b.span_cols_d == blank
-                assign cs_d = 6
-              endif
-              if b.span_rows_d == blank
-                assign rs_d = 2
-              endif
-              if b.span_cols_t == blank
-                assign cs_t = 4
-              endif
-              if b.span_rows_t == blank
-                assign rs_t = 2
-              endif
-              if b.span_cols_m == blank
-                assign cs_m = 2
-              endif
-              if b.span_rows_m == blank
-                assign rs_m = 2
-              endif
+            assign cta_href = s.hero_cta_link
+            if cta_href == blank and s.hero_cta_product
+              assign cta_href = s.hero_cta_product.url
+            endif
+            if cta_href == blank and s.hero_cta_collection
+              assign cta_href = s.hero_cta_collection.url
+            endif
+            if cta_href == blank and s.hero_cta_article
+              assign cta_href = s.hero_cta_article.url
             endif
 
-            assign has_media = false
-            if b.background_video != blank or b.background_image != blank or b.mobile_image != blank
-              assign has_media = true
+            assign cta2_href = s.hero_cta2_link
+            if cta2_href == blank and s.hero_cta2_product
+              assign cta2_href = s.hero_cta2_product.url
             endif
-
-            assign ov_color = b.overlay_color
-            if ov_color == blank
-              assign ov_color = s.overlay_color
+            if cta2_href == blank and s.hero_cta2_collection
+              assign cta2_href = s.hero_cta2_collection.url
             endif
-            assign ov_opacity = s.overlay_opacity | default: 45 | plus: 0
-            assign b_ov = b.overlay_opacity | plus: 0
-            if b_ov > 0
-              assign ov_opacity = b_ov
-            endif
-
-            assign tone = b.text_tone | default: s.text_tone | default: 'auto'
-            assign txt = '#ffffff'
-            if tone == 'dark'
-              assign txt = '#111111'
-            elsif tone == 'auto'
-              if ov_opacity < 45
-                assign txt = '#111111'
-              endif
-            endif
-
-            assign pos = b.content_position | default: 'center'
-            assign ai = 'center'
-            assign jc = 'center'
-            assign ta = 'center'
-            if pos == 'top-left'
-              assign ai = 'flex-start'
-              assign jc = 'flex-start'
-              assign ta = 'left'
-            elsif pos == 'top-right'
-              assign ai = 'flex-start'
-              assign jc = 'flex-end'
-              assign ta = 'right'
-            elsif pos == 'bottom-left'
-              assign ai = 'flex-end'
-              assign jc = 'flex-start'
-              assign ta = 'left'
-            elsif pos == 'bottom-right'
-              assign ai = 'flex-end'
-              assign jc = 'flex-end'
-              assign ta = 'right'
-            elsif pos == 'left'
-              assign ai = 'center'
-              assign jc = 'flex-start'
-              assign ta = 'left'
-            elsif pos == 'right'
-              assign ai = 'center'
-              assign jc = 'flex-end'
-              assign ta = 'right'
-            endif
-
-            assign cta_href = b.cta_link
-            if cta_href == blank and b.cta_product
-              assign cta_href = b.cta_product.url
-            endif
-            if cta_href == blank and b.cta_collection
-              assign cta_href = b.cta_collection.url
-            endif
-            if cta_href == blank and b.cta_article
-              assign cta_href = b.cta_article.url
-            endif
-
-            assign cta2_href = b.cta2_link
-            if cta2_href == blank and b.cta2_product
-              assign cta2_href = b.cta2_product.url
-            endif
-            if cta2_href == blank and b.cta2_collection
-              assign cta2_href = b.cta2_collection.url
-            endif
-            if cta2_href == blank and b.cta2_article
-              assign cta2_href = b.cta2_article.url
+            if cta2_href == blank and s.hero_cta2_article
+              assign cta2_href = s.hero_cta2_article.url
             endif
 
             assign has_cta1 = false
-            if b.cta_text != blank and cta_href != blank
+            if s.hero_cta_text != blank and cta_href != blank
               assign has_cta1 = true
             endif
             assign has_cta2 = false
-            if b.cta2_text != blank and cta2_href != blank
+            if s.hero_cta2_text != blank and cta2_href != blank
               assign has_cta2 = true
             endif
           %}
 
-          {% assign sizes_str = '(min-width: 1024px) calc(100vw / ' | append: cols_d | append: ' * ' | append: cs_d | append: ' - ' | append: gap_d | append: 'px), (min-width: 640px) calc(100vw / ' | append: cols_t | append: ' * ' | append: cs_t | append: ' - ' | append: gap_t | append: 'px), 100vw' %}
-          {% assign widths_str = '480,640,750,828,960,1080,1280,1440,1680,1920,2048' %}
-          {% if forloop.first and s.layout_mode == 'grid_only' %}
-            {% assign loading_attr = 'eager' %}{% assign fetchpriority_attr = 'high' %}
-          {% else %}
-            {% assign loading_attr = 'lazy' %}{% assign fetchpriority_attr = 'auto' %}
-          {% endif %}
-
-          <article class="q-item"
-                   style="--cspan-m: {{ cs_m }}; --rspan-m: {{ rs_m }}; --cspan-t: {{ cs_t }}; --rspan-t: {{ rs_t }}; --cspan-d: {{ cs_d }}; --rspan-d: {{ rs_d }};"
-                   aria-label="{{ b.heading | default: b.kicker | default: 'Promotional tile' | escape }}"
-                   {{ block.shopify_attributes }}>
-            <div class="q-media">
-              {% if b.background_video != blank %}
-                <video class="absolute inset-0 w-full h-full object-cover" style="object-position: {{ b.object_position | default: 'center center' }};"
-                       autoplay loop muted playsinline preload="none"
-                       {% if b.background_image != blank %}poster="{{ b.background_image | image_url: width: 1280 }}"{% endif %}>
-                  <source src="{{ b.background_video }}" type="video/mp4">
-                </video>
-              {% elsif b.background_image != blank %}
-                {% if b.mobile_image != blank %}
-                  <picture>
-                    <source media="(max-width: 639px)" srcset="{{ b.mobile_image | image_url: width: 960 }}">
-                    {{ b.background_image | image_url: width: 2048 | image_tag:
-                        widths: widths_str,
-                        sizes: sizes_str,
-                        loading: loading_attr,
-                        fetchpriority: fetchpriority_attr,
-                        class: 'absolute inset-0 w-full h-full object-cover',
-                        alt: b.image_alt }}
-                  </picture>
-                {% else %}
-                  {{ b.background_image | image_url: width: 2048 | image_tag:
-                      widths: widths_str,
-                      sizes: sizes_str,
-                      loading: loading_attr,
-                      fetchpriority: fetchpriority_attr,
-                      class: 'absolute inset-0 w-full h-full object-cover',
-                      alt: b.image_alt }}
-                {% endif %}
+          {% if has_cta1 or has_cta2 %}
+            <div class="q-cta {% if h_ta == 'center' %}justify-center{% elsif h_ta == 'right' %}justify-end{% else %}justify-start{% endif %}">
+              {% if has_cta1 %}
+                <a href="{{ cta_href }}" class="q-btn q-btn--solid"
+                  aria-label="{{ s.hero_cta_aria | default: s.hero_cta_text | escape }}"
+                  style="background-color: {{ s.button_bg_color | default: settings.color_primary }}; color: {{ s.button_text_color | default: settings.text_on_color }}; border-radius: {{ s.button_radius | default: settings.button_radius }}px;">
+                  {{ s.hero_cta_text }}
+                </a>
+              {% endif %}
+              {% if has_cta2 %}
+                <a href="{{ cta2_href }}" class="q-btn q-btn--outline"
+                  aria-label="{{ s.hero_cta2_aria | default: s.hero_cta2_text | escape }}"
+                  style="color: {{ s.button_text_color | default: settings.text_on_color }}; border: {{ s.button_border_width | default: settings.button_border_width }}px solid {{ s.button_border_color | default: settings.text_on_color }}; border-radius: {{ s.button_radius | default: settings.button_radius }}px;">
+                  {{ s.hero_cta2_text }}
+                </a>
               {% endif %}
             </div>
+          {% endif %}
+        </div>
+      </div>
+    </article>
+  </div>
+{% endif %}
 
-            {% if has_media and ov_opacity > 0 %}
-              <div class="absolute inset-0" aria-hidden="true" style="background-color: {{ ov_color }}; opacity: {{ ov_opacity | divided_by: 100.0 }};"></div>
-              {% if s.use_gradient %}
-                <div class="absolute inset-x-0 bottom-0 h-1/3" aria-hidden="true" style="background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.45) 100%);"></div>
+{%- comment -%} ============ GRID ============ {%- endcomment -%}
+{% if s.layout_mode == 'grid_only' or s.layout_mode == 'hero_plus_grid' %}
+  <div class="{{ container_class }} q-cw">
+    <div class="q-grid"
+         style="--cols-m: {{ cols_m }}; --cols-t: {{ cols_t }}; --cols-d: {{ cols_d }}; --row-m: {{ row_m }}px; --row-t: {{ row_t }}px; --row-d: {{ row_d }}px; --gap-m: {{ gap_m }}px; --gap-t: {{ gap_t }}px; --gap-d: {{ gap_d }}px;">
+      {% for block in section.blocks %}
+        {% assign b = block.settings %}
+        {% liquid
+          assign cs_m = b.span_cols_m | default: 1
+          assign rs_m = b.span_rows_m | default: 1
+          assign cs_t = b.span_cols_t | default: 3
+          assign rs_t = b.span_rows_t | default: 1
+          assign cs_d = b.span_cols_d | default: 3
+          assign rs_d = b.span_rows_d | default: 1
+
+          if forloop.first
+            if b.span_cols_d == blank
+              assign cs_d = 6
+            endif
+            if b.span_rows_d == blank
+              assign rs_d = 2
+            endif
+            if b.span_cols_t == blank
+              assign cs_t = 4
+            endif
+            if b.span_rows_t == blank
+              assign rs_t = 2
+            endif
+            if b.span_cols_m == blank
+              assign cs_m = 2
+            endif
+            if b.span_rows_m == blank
+              assign rs_m = 2
+            endif
+          endif
+
+          assign has_media = false
+          if b.background_video != blank or b.background_image != blank or b.mobile_image != blank
+            assign has_media = true
+          endif
+
+          assign ov_color = b.overlay_color
+          if ov_color == blank
+            assign ov_color = s.overlay_color
+          endif
+          assign ov_opacity = s.overlay_opacity | default: 45 | plus: 0
+          assign b_ov = b.overlay_opacity | plus: 0
+          if b_ov > 0
+            assign ov_opacity = b_ov
+          endif
+
+          assign tone = b.text_tone | default: s.text_tone | default: 'auto'
+          assign txt = settings.text_on_color
+          if tone == 'dark'
+            assign txt = settings.text_base
+          elsif tone == 'light'
+            assign txt = settings.text_on_color
+          elsif tone == 'auto'
+            if ov_opacity < 45
+              assign txt = settings.text_base
+            endif
+          endif
+
+          assign pos = b.content_position | default: 'center'
+          assign ai = 'center'
+          assign jc = 'center'
+          assign ta = 'center'
+
+          if pos == 'top-left'
+            assign ai = 'flex-start'
+            assign jc = 'flex-start'
+            assign ta = 'left'
+          elsif pos == 'top-right'
+            assign ai = 'flex-start'
+            assign jc = 'flex-end'
+            assign ta = 'right'
+          elsif pos == 'bottom-left'
+            assign ai = 'flex-end'
+            assign jc = 'flex-start'
+            assign ta = 'left'
+          elsif pos == 'bottom-right'
+            assign ai = 'flex-end'
+            assign jc = 'flex-end'
+            assign ta = 'right'
+          elsif pos == 'left'
+            assign ai = 'center'
+            assign jc = 'flex-start'
+            assign ta = 'left'
+          elsif pos == 'right'
+            assign ai = 'center'
+            assign jc = 'flex-end'
+            assign ta = 'right'
+          endif
+
+          assign cta_href = b.cta_link
+          if cta_href == blank and b.cta_product
+            assign cta_href = b.cta_product.url
+          endif
+          if cta_href == blank and b.cta_collection
+            assign cta_href = b.cta_collection.url
+          endif
+          if cta_href == blank and b.cta_article
+            assign cta_href = b.cta_article.url
+          endif
+
+          assign cta2_href = b.cta2_link
+          if cta2_href == blank and b.cta2_product
+            assign cta2_href = b.cta2_product.url
+          endif
+          if cta2_href == blank and b.cta2_collection
+            assign cta2_href = b.cta2_collection.url
+          endif
+          if cta2_href == blank and b.cta2_article
+            assign cta2_href = b.cta2_article.url
+          endif
+
+          assign has_cta1 = false
+          if b.cta_text != blank and cta_href != blank
+            assign has_cta1 = true
+          endif
+          assign has_cta2 = false
+          if b.cta2_text != blank and cta2_href != blank
+            assign has_cta2 = true
+          endif
+
+          assign sizes_str = '(min-width: 1024px) calc(100vw / ' | append: cols_d | append: ' * ' | append: cs_d | append: ' - ' | append: gap_d | append: 'px), (min-width: 640px) calc(100vw / ' | append: cols_t | append: ' * ' | append: cs_t | append: ' - ' | append: gap_t | append: 'px), 100vw'
+          assign widths_str = '480,640,750,828,960,1080,1280,1440,1680,1920,2048'
+
+          if forloop.first and s.layout_mode == 'grid_only'
+            assign loading_attr = 'eager'
+            assign fetchpriority_attr = 'high'
+          else
+            assign loading_attr = 'lazy'
+            assign fetchpriority_attr = 'auto'
+          endif
+        %}
+
+        <article class="q-item"
+          style="--cspan-m: {{ cs_m }}; --rspan-m: {{ rs_m }}; --cspan-t: {{ cs_t }}; --rspan-t: {{ rs_t }}; --cspan-d: {{ cs_d }}; --rspan-d: {{ rs_d }};"
+          aria-label="{{ b.heading | default: b.kicker | default: 'Promotional tile' | escape }}"
+          {{ block.shopify_attributes }}>
+          <div class="q-media" aria-hidden="true">
+            {% liquid
+              assign tyt = ''
+              assign tu = b.background_video | strip
+              if tu contains 'youtu.be/'
+                assign tyt = tu | split: 'youtu.be/' | last | split: '?' | first
+              elsif tu contains 'youtube.com/watch?v='
+                assign tyt = tu | split: 'watch?v=' | last | split: '&' | first
+              elsif tu contains 'youtube.com/embed/'
+                assign tyt = tu | split: '/embed/' | last | split: '?' | first
+              endif
+            %}
+            {% if tyt != '' %}
+              <div class="q-yt">
+                <iframe title="YouTube video" loading="lazy"
+                  src="https://www.youtube.com/embed/{{ tyt }}?autoplay=1&mute=1&loop=1&playlist={{ tyt }}&controls=0&playsinline=1&modestbranding=1&rel=0&iv_load_policy=3"
+                  allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="origin-when-cross-origin"></iframe>
+              </div>
+            {% elsif b.background_video != blank %}
+              <video class="absolute inset-0 w-full h-full object-cover"
+                     style="object-position: {{ b.object_position | default: 'center center' }};"
+                     autoplay loop muted playsinline preload="none"
+                     {% if b.background_image != blank %}poster="{{ b.background_image | image_url: width: 1280 }}"{% endif %}>
+                <source src="{{ b.background_video }}" type="video/mp4">
+              </video>
+            {% elsif b.background_image != blank %}
+              {% if b.mobile_image != blank %}
+                <picture>
+                  <source media="(max-width: 639px)" srcset="{{ b.mobile_image | image_url: width: 960 }}">
+                  {{ b.background_image | image_url: width: 2048 | image_tag: widths: widths_str, sizes: sizes_str, loading: loading_attr, fetchpriority: fetchpriority_attr, class: 'absolute inset-0 w-full h-full object-cover', alt: b.image_alt }}
+                </picture>
+              {% else %}
+                {{ b.background_image | image_url: width: 2048 | image_tag: widths: widths_str, sizes: sizes_str, loading: loading_attr, fetchpriority: fetchpriority_attr, class: 'absolute inset-0 w-full h-full object-cover', alt: b.image_alt }}
               {% endif %}
             {% endif %}
+          </div>
 
-            <div class="q-card" style="align-items: {{ ai }}; justify-content: {{ jc }};">
-              <div class="q-inner {{ s.pad_content | default: 'p-8 md:p-10' }}">
-                {% if b.kicker != blank %}<p class="mb-2 text-sm font-semibold tracking-wide uppercase" style="color: {{ txt }};">{{ b.kicker }}</p>{% endif %}
-                {% if b.heading != blank %}<h3 class="text-2xl md:text-4xl" style="color: {{ txt }}; text-align: {{ ta }};">{{ b.heading }}</h3>{% endif %}
-                {% if b.subheading != blank %}
-                  <p class="mt-2 text-base md:text-lg {% if b.hide_text_mobile %}hidden md:block{% endif %}" style="color: {{ txt }}; text-align: {{ ta }};">{{ b.subheading }}</p>
-                {% endif %}
+          {% if has_media and ov_opacity > 0 %}
+            <div class="absolute inset-0" aria-hidden="true" style="background-color: {{ ov_color }}; opacity: {{ ov_opacity | times: 0.01 }};"></div>
+            {% if s.use_gradient %}<div class="q-gradient" style="background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.35) 100%);"></div>{% endif %}
+          {% endif %}
 
-                {% if has_cta1 or has_cta2 %}
-                  <div class="mt-4 md:mt-6 flex flex-wrap gap-3 {% if ta == 'center' %}justify-center{% elsif ta == 'right' %}justify-end{% else %}justify-start{% endif %}">
-                    {% if has_cta1 %}
-                      <a href="{{ cta_href }}" class="q-btn q-btn--solid"
-                         aria-label="{{ b.cta_aria_label | default: b.cta_text | escape }}"
-                         style="background-color: {{ s.button_bg_color }}; color: {{ s.button_text_color }}; border-radius: {{ s.button_radius }}px;">
-                        {{ b.cta_text }}
-                      </a>
-                    {% endif %}
-                    {% if has_cta2 %}
-                      <a href="{{ cta2_href }}" class="q-btn q-btn--outline"
-                         aria-label="{{ b.cta2_aria_label | default: b.cta2_text | escape }}"
-                         style="color: {{ s.button_text_color }}; border: {{ s.button_border_width }}px solid {{ s.button_border_color }}; border-radius: {{ s.button_radius }}px;">
-                         {{ b.cta2_text }}
-                      </a>
-                    {% endif %}
-                  </div>
-                {% endif %}
-              </div>
+          <div class="q-card" style="align-items: {{ ai }}; justify-content: {{ jc }};">
+            <div class="q-inner {{ s.pad_content | default: 'p-8 md:p-10' }}">
+              {% if b.kicker != blank %}<p class="mb-2 text-sm font-semibold tracking-wide uppercase" style="color: {{ txt }}; text-align: {{ ta }};">{{ b.kicker }}</p>{% endif %}
+              {% if b.heading != blank %}<h3 class="text-2xl md:text-4xl" style="color: {{ txt }}; text-align: {{ ta }};">{{ b.heading }}</h3>{% endif %}
+              {% if b.subheading != blank %}<p class="mt-2 text-base md:text-lg {% if b.hide_text_mobile %}hidden md:block{% endif %}" style="color: {{ txt }}; text-align: {{ ta }};">{{ b.subheading }}</p>{% endif %}
+
+              {% if has_cta1 or has_cta2 %}
+                <div class="q-cta {% if ta == 'center' %}justify-center{% elsif ta == 'right' %}justify-end{% else %}justify-start{% endif %}">
+                  {% if has_cta1 %}
+                    <a href="{{ cta_href }}" class="q-btn q-btn--solid"
+                       aria-label="{{ b.cta_aria_label | default: b.cta_text | escape }}"
+                       style="background-color: {{ s.button_bg_color | default: settings.color_primary }}; color: {{ s.button_text_color | default: settings.text_on_color }}; border-radius: {{ s.button_radius | default: settings.button_radius }}px;">
+                      {{ b.cta_text }}
+                    </a>
+                  {% endif %}
+                  {% if has_cta2 %}
+                    <a href="{{ cta2_href }}" class="q-btn q-btn--outline"
+                       aria-label="{{ b.cta2_aria_label | default: b.cta2_text | escape }}"
+                       style="color: {{ s.button_text_color | default: settings.text_on_color }}; border: {{ s.button_border_width | default: settings.button_border_width }}px solid {{ s.button_border_color | default: settings.text_on_color }}; border-radius: {{ s.button_radius | default: settings.button_radius }}px;">
+                      {{ b.cta2_text }}
+                    </a>
+                  {% endif %}
+                </div>
+              {% endif %}
             </div>
-          </article>
-        {% endfor %}
-      </div>
+          </div>
+        </article>
+      {% endfor %}
     </div>
-  {% endif %}
+  </div>
+{% endif %}
 
-  {% if s.send_events %}
-    <script>
-      (function() {
-        var root = document.getElementById('{{ sid }}');
-        if (!root) return;
-        root.addEventListener('click', function(e) {
-          var a = e.target.closest('a.q-btn');
-          if (!a) return;
-          var payload = { component: 'hero_grid', href: a.getAttribute('href') };
-          window.dispatchEvent(new CustomEvent('quadratum:cta', { detail: payload }));
-          if (window.dataLayer && Array.isArray(window.dataLayer)) {
-            window.dataLayer.push({ event: 'quadratum_cta', component: payload.component, href: payload.href });
-          }
-        });
-      })();
-    </script>
-  {% endif %}
+{% if s.send_events %}
+  <script>
+    (function() {
+      var root = document.getElementById('{{ sid }}');
+      if (!root) return;
+      root.addEventListener('click', function(e) {
+        var a = e.target.closest('a.q-btn');
+        if (!a) return;
+        var payload = { component: 'hero_grid', href: a.getAttribute('href') };
+        window.dispatchEvent(new CustomEvent('quadratum:cta', { detail: payload }));
+        if (window.dataLayer && Array.isArray(window.dataLayer)) {
+          window.dataLayer.push({ event: 'quadratum_cta', component: payload.component, href: payload.href });
+        }
+      });
+    })();
+  </script>
+{% endif %}
 </section>
 
 {% render 'tw-safelist-banners' %}
@@ -641,7 +621,7 @@
     { "type": "image_picker", "id": "hero_image", "label": "Hero image" },
     { "type": "image_picker", "id": "hero_mobile_image", "label": "Hero mobile image (optional)" },
     { "type": "text", "id": "hero_image_alt", "label": "Image alt" },
-    { "type": "text", "id": "hero_video", "label": "Hero video URL (MP4)" },
+    { "type": "text", "id": "hero_video", "label": "Hero background video (YouTube URL or MP4)" },
     { "type": "text", "id": "hero_object_position", "label": "Object position (e.g., 'center 30%')" },
 
     { "type": "color", "id": "hero_overlay_color", "label": "Hero overlay color", "default": "#000000" },
@@ -663,20 +643,9 @@
     { "type": "range", "id": "hero_pad_x_d", "label": "Hero inner pad X (desktop, px)", "min": 12, "max": 160, "step": 4, "default": 48 },
     { "type": "range", "id": "hero_pad_y_d", "label": "Hero inner pad Y (desktop, px)", "min": 12, "max": 160, "step": 4, "default": 48 },
 
-    { "type": "header", "content": "Hero CTAs" },
-    { "type": "text", "id": "hero_cta_text", "label": "Primary text", "default": "Shop Now" },
-    { "type": "url", "id": "hero_cta_link", "label": "Primary URL" },
-    { "type": "product", "id": "hero_cta_product", "label": "…or product" },
-    { "type": "collection", "id": "hero_cta_collection", "label": "…or collection" },
-    { "type": "article", "id": "hero_cta_article", "label": "…or article" },
-    { "type": "text", "id": "hero_cta_aria", "label": "Primary ARIA label", "default": "Shop Now" },
+    { "type": "range", "id": "stack_gap", "label": "Space below hero (px)", "min": 0, "max": 120, "step": 4, "default": 56 },
 
-    { "type": "text", "id": "hero_cta2_text", "label": "Secondary text", "default": "Explore" },
-    { "type": "url", "id": "hero_cta2_link", "label": "Secondary URL" },
-    { "type": "product", "id": "hero_cta2_product", "label": "…or product" },
-    { "type": "collection", "id": "hero_cta2_collection", "label": "…or collection" },
-    { "type": "article", "id": "hero_cta2_article", "label": "…or article" },
-    { "type": "text", "id": "hero_cta2_aria", "label": "Secondary ARIA label", "default": "Learn More" },
+    { "type": "checkbox", "id": "enable_text_pills", "label": "Readable text pills (hero)", "default": false },
 
     { "type": "header", "content": "Grid (if shown)" },
     { "type": "select", "id": "cols_mobile", "label": "Columns (mobile ≤640px)", "default": "2", "options": [
@@ -699,6 +668,7 @@
     { "type": "select", "id": "pad_content", "label": "Tile inner padding", "default": "p-8 md:p-10", "options": [
       { "value": "p-6 md:p-8", "label": "Small" }, { "value": "p-8 md:p-10", "label": "Medium" }, { "value": "p-10 md:p-12", "label": "Large" }
     ]},
+    { "type": "checkbox", "id": "enable_tile_text_pills", "label": "Readable text pills (tiles)", "default": false },
 
     { "type": "header", "content": "Overlay & Tone (Grid defaults)" },
     { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
@@ -730,7 +700,7 @@
         { "type": "header", "content": "Background" },
         { "type": "image_picker", "id": "background_image", "label": "Background image" },
         { "type": "image_picker", "id": "mobile_image", "label": "Mobile image (optional)" },
-        { "type": "text", "id": "background_video", "label": "Background video URL (MP4)" },
+        { "type": "text", "id": "background_video", "label": "Background video (YouTube URL or MP4)" },
         { "type": "text", "id": "image_alt", "label": "Alt text" },
 
         { "type": "header", "content": "Overlay & Tone" },
@@ -796,6 +766,7 @@
         "hero_pad_y": 24,
         "hero_pad_x_d": 48,
         "hero_pad_y_d": 48,
+        "stack_gap": 56,
         "cols_mobile": "2",
         "cols_tablet": "6",
         "cols_desktop": "12",
