@@ -1,288 +1,736 @@
 {% comment %}
-  Quadratum • Boxed-in Content Banner
-  - Centered “boxed” promo with optional media (image/video), overlay, text, bullets and CTAs.
-  - Controls: media position, media width, padding, background image/overlay, outline/solid buttons.
-  - A11y: labeled region, reduced-motion friendly, focus-visible rings.
-  - Perf: responsive images with sane width set; no mixed quotes in image_tag.
-  - Analytics: optional events via dataLayer + custom event.
+  File: sections/boxed-content-banner.liquid
+  Quadratum — Boxed Hero (3-in-1)
+  Variants:
+    • card      – Carded hero (boxed surface with optional media inside)
+    • boxed_bg  – Full-width band with background (image/video or solid color)
+    • panel     – Floating content panel over background (screenshot-style)
+  Notes:
+    - Video mode falls back to image if video is missing.
+    - If no background image is provided, solid surface/background color is used.
+    - Compiler-safe Liquid (no boolean expressions in {{ }}).
 {% endcomment %}
 
-{% assign s = section.settings %}
+{% liquid
+  assign s = section.settings
 
-{%- comment -%} Container padding for contained mode {%- endcomment -%}
-{% assign container_pad = '' %}
-{% if s.container_mode == 'contained' %}
-  {% assign container_pad = 'px-4 md:px-6' %}
-{% endif %}
+  # Theme container width
+  assign cw = settings.container_lg | default: 1152
+  if settings.style_kit == 'wide'
+    assign cw = settings.container_xl | default: 1440
+  elsif settings.style_kit == 'cozy'
+    assign cw = settings.container_md | default: 960
+  elsif settings.style_kit == 'full'
+    assign cw = 99999
+  endif
 
-{%- comment -%} Visibility toggles {%- endcomment -%}
-{% assign visibility_classes = '' %}
-{% if s.hide_on_mobile %}{% assign visibility_classes = visibility_classes | append: ' hidden md:block' %}{% endif %}
-{% if s.hide_on_desktop %}{% assign visibility_classes = visibility_classes | append: ' md:hidden' %}{% endif %}
+  # Layout + media
+  assign layout_variant = s.layout_variant | default: 'card'
+  assign bg_mode = s.background_mode | default: 'image'
+  assign hero_image = s.background_image
+  assign has_bg_asset = false
 
-{%- comment -%} Media width (desktop) {%- endcomment -%}
-{% assign media_w = s.media_width | default: '6' %}
-{% case media_w %}
-  {% when '4' %}{% assign media_cols = 4 %}{% assign content_cols = 8 %}
-  {% when '5' %}{% assign media_cols = 5 %}{% assign content_cols = 7 %}
-  {% when '6' %}{% assign media_cols = 6 %}{% assign content_cols = 6 %}
-  {% when '7' %}{% assign media_cols = 7 %}{% assign content_cols = 5 %}
-  {% else %}{% assign media_cols = 6 %}{% assign content_cols = 6 %}
-{% endcase %}
+  if bg_mode == 'video'
+    if s.background_video != blank
+      assign has_bg_asset = true
+    elsif hero_image != blank
+      assign bg_mode = 'image'
+      assign has_bg_asset = true
+    endif
+  elsif bg_mode == 'image' and hero_image != blank
+    assign has_bg_asset = true
+  endif
 
-{%- comment -%} Build class strings for grid {%- endcomment -%}
-{% assign media_col_class = 'lg:col-span-' | append: media_cols %}
-{% assign content_col_class = 'lg:col-span-' | append: content_cols %}
+  # Scrim 0..1
+  assign scrim_opacity = 0
+  if s.overlay_opacity != blank
+    assign scrim_opacity = s.overlay_opacity | times: 0.01
+  endif
 
-<section
-  id="{{ s.anchor_id | default: 'section-' | append: section.id }}"
-  class="relative {{ s.pad_y | default: 'py-12 md:py-16' }}{{ visibility_classes }}"
-  role="region"
-  aria-label="{{ s.region_label | default: 'Promotional content' }}"
->
-  <div class="mx-auto max-w-screen-xl {{ container_pad }}">
-    <div class="relative overflow-hidden rounded-2xl bg-card ring-1 ring-border">
-      {%- if s.box_background_image != blank -%}
-        {%- assign sizes_bg = '100vw' -%}
-        {%- assign widths_bg = '960,1280,1600,1920' -%}
-        <div class="absolute inset-0 -z-10">
-          {{ s.box_background_image
-            | image_url: width: 1920
-            | image_tag:
-              widths: widths_bg,
-              sizes: sizes_bg,
-              loading: 'eager',
-              fetchpriority: 'high',
-              class: 'absolute inset-0 w-full h-full object-cover',
-              alt: s.box_bg_alt }}
-          <div class="absolute inset-0" aria-hidden="true"
-               style="background-color: {{ s.overlay_color }}; opacity: {{ s.overlay_opacity | divided_by: 100.0 }};">
-          </div>
-        </div>
-      {%- endif -%}
+  # CTAs present?
+  assign has_primary = false
+  if s.cta_text != blank and s.cta_link != blank
+    assign has_primary = true
+  endif
+  assign has_secondary = false
+  if s.cta2_text != blank and s.cta2_link != blank
+    assign has_secondary = true
+  endif
 
-      <div class="{{ s.pad_box | default: 'p-6 md:p-10' }}">
-        {% if s.kicker != blank or s.heading != blank or s.subheading != blank %}
-          <div class="mb-6 md:mb-8 {{ s.header_align | default: 'text-center' }}">
-            {% if s.kicker != blank %}
-              <p class="text-sm font-semibold tracking-wide uppercase text-muted-foreground">{{ s.kicker }}</p>
-            {% endif %}
-            {% if s.heading != blank %}
-              <h2 class="mt-2 text-2xl md:text-4xl font-semibold leading-tight text-foreground">{{ s.heading | escape }}</h2>
-            {% endif %}
-            {% if s.subheading != blank %}
-              <p class="mt-3 text-base md:text-lg text-muted-foreground">{{ s.subheading }}</p>
-            {% endif %}
-          </div>
-        {% endif %}
+  # Inline bg style for image
+  assign bg_style = ''
+  if has_bg_asset and bg_mode == 'image'
+    assign bg_url = hero_image | image_url: width: 2880
+    assign pos = s.bg_position | default: 'center'
+    assign bg_style = 'background-image:url(' | append: bg_url | append: ');background-size:cover;background-position:' | append: pos | append: ';'
+  endif
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-center">
-          {%- comment -%} SAFE boolean flag for media ordering {%- endcomment -%}
-          {% assign media_first = false %}
-          {% if s.media_position == 'left' %}
-            {% assign media_first = true %}
-          {% endif %}
+  # Desktop horizontal alignment utility
+  assign align_class = 'align-left'
+  if s.text_alignment == 'center'
+    assign align_class = 'align-center'
+  elsif s.text_alignment == 'right'
+    assign align_class = 'align-right'
+  endif
 
-          {% if media_first %}
-            {% render 'boxed-content-media', s: s, media_col_class: media_col_class %}
-          {% endif %}
+  # Resolve CTA alignment (desktop) — inherits from text_alignment unless overridden
+  assign cta_desktop = s.cta_alignment_desktop | default: 'inherit'
+  if cta_desktop == 'inherit'
+    assign cta_desktop = s.text_alignment | default: 'left'
+  endif
+  assign cta_class = 'justify-start'
+  if cta_desktop == 'center'
+    assign cta_class = 'justify-center'
+  elsif cta_desktop == 'right'
+    assign cta_class = 'justify-end'
+  endif
 
-          <div class="col-span-1 {{ content_col_class }}">
-            <div class="{{ s.content_align | default: 'text-left' }}">
-              {% if s.content_kicker != blank %}
-                <p class="text-sm font-semibold tracking-wide uppercase text-muted-foreground">{{ s.content_kicker }}</p>
+  # Resolve CTA alignment (mobile) — inherits from desktop unless overridden
+  assign cta_mobile = s.cta_alignment_mobile | default: 'inherit'
+  if cta_mobile == 'inherit'
+    assign cta_mobile = cta_desktop
+  endif
+  assign cta_m_class = 'm-justify-start'
+  if cta_mobile == 'center'
+    assign cta_m_class = 'm-justify-center'
+  elsif cta_mobile == 'right'
+    assign cta_m_class = 'm-justify-end'
+  endif
+
+  # Mobile vertical alignment utility (top/center/bottom)
+  assign v_class = 'v-center'
+  if s.mobile_v_align == 'top'
+    assign v_class = 'v-top'
+  elsif s.mobile_v_align == 'bottom'
+    assign v_class = 'v-bottom'
+  endif
+
+  # ===== Animation mappings (classes + CSS vars) =====
+  # Easing maps
+  assign ease_full = 'ease'
+  if s.full_ease == 'ease-out'
+    assign ease_full = 'ease-out'
+  elsif s.full_ease == 'ease-in-out'
+    assign ease_full = 'ease-in-out'
+  elsif s.full_ease == 'linear'
+    assign ease_full = 'linear'
+  elsif s.full_ease == 'emphasized'
+    assign ease_full = 'cubic-bezier(0.22,1,0.36,1)'
+  endif
+
+  assign ease_content = 'ease'
+  if s.content_ease == 'ease-out'
+    assign ease_content = 'ease-out'
+  elsif s.content_ease == 'ease-in-out'
+    assign ease_content = 'ease-in-out'
+  elsif s.content_ease == 'linear'
+    assign ease_content = 'linear'
+  elsif s.content_ease == 'emphasized'
+    assign ease_content = 'cubic-bezier(0.22,1,0.36,1)'
+  endif
+
+  assign ease_btn = 'ease'
+  if s.button_ease == 'ease-out'
+    assign ease_btn = 'ease-out'
+  elsif s.button_ease == 'ease-in-out'
+    assign ease_btn = 'ease-in-out'
+  elsif s.button_ease == 'linear'
+    assign ease_btn = 'linear'
+  elsif s.button_ease == 'emphasized'
+    assign ease_btn = 'cubic-bezier(0.22,1,0.36,1)'
+  endif
+
+  # Type to class maps
+  assign a_full_class = ''
+  if s.full_animation == 'fade'
+    assign a_full_class = 'a-full-fade'
+  elsif s.full_animation == 'zoom-in'
+    assign a_full_class = 'a-full-zoom'
+  elsif s.full_animation == 'slide-up'
+    assign a_full_class = 'a-full-up'
+  elsif s.full_animation == 'slide-left'
+    assign a_full_class = 'a-full-left'
+  elsif s.full_animation == 'slide-right'
+    assign a_full_class = 'a-full-right'
+  endif
+
+  assign a_content_class = ''
+  if s.content_animation == 'fade'
+    assign a_content_class = 'a-content-fade'
+  elsif s.content_animation == 'zoom-in'
+    assign a_content_class = 'a-content-zoom'
+  elsif s.content_animation == 'slide-up'
+    assign a_content_class = 'a-content-up'
+  elsif s.content_animation == 'slide-left'
+    assign a_content_class = 'a-content-left'
+  elsif s.content_animation == 'slide-right'
+    assign a_content_class = 'a-content-right'
+  endif
+
+  assign a_button_class = ''
+  if s.button_animation == 'fade'
+    assign a_button_class = 'a-btn-fade'
+  elsif s.button_animation == 'zoom-in'
+    assign a_button_class = 'a-btn-zoom'
+  elsif s.button_animation == 'slide-up'
+    assign a_button_class = 'a-btn-up'
+  elsif s.button_animation == 'slide-left'
+    assign a_button_class = 'a-btn-left'
+  elsif s.button_animation == 'slide-right'
+    assign a_button_class = 'a-btn-right'
+  elsif s.button_animation == 'pop'
+    assign a_button_class = 'a-btn-pop'
+  endif
+%}
+
+<section id="{{ s.aria_id | default: 'boxed-hero-' | append: section.id }}"
+         class="q-boxed-hero"
+         role="region"
+         aria-label="{{ s.region_label | default: 'Hero' }}">
+
+  <style>
+    /* Breakpoints from theme settings (embedded as values for @media) */
+    /* md (tablet): {{ settings.bp_md | default: 768 }}px, lg (desktop): {{ settings.bp_lg | default: 1024 }}px */
+
+    #shopify-section-{{ section.id }}{
+      /* Theme tokens */
+      --q-head: {{ settings.font_heading.family | default: 'ui-sans-serif' }}, {{ settings.font_heading.fallback_families | default: 'system-ui' }};
+      --q-body: {{ settings.font_body.family | default: 'ui-sans-serif' }}, {{ settings.font_body.fallback_families | default: 'system-ui' }};
+      --q-cw: {{ cw }}px;
+
+      /* Surface & text colors */
+      --q-surface: {{ s.surface_color | default: '#111111' }};
+      --q-on-surface: {{ s.text_on_color | default: '#ffffff' }};
+      --q-panel-bg: {{ s.panel_bg_color | default: '#ffffff' }};
+      --q-panel-on: {{ s.panel_text_color | default: '#0f172a' }};
+
+      /* Card/panel radii & shadows */
+      --q-box-radius: {{ s.box_radius | default: 20 }}px;
+      --q-box-shadow: {{ s.box_shadow | default: '0 10px 30px rgba(0,0,0,.20)' }};
+
+      /* Heights & paddings */
+      --q-min-h-d: {{ s.min_height_desktop | default: 60 }}vh;
+      --q-min-h-m: {{ s.min_height_mobile | default: 46 }}vh;
+
+      --q-pad-x-d: {{ s.pad_x_desktop | default: 40 }}px;
+      --q-pad-x-m: {{ s.pad_x_mobile | default: 16 }}px;
+      --q-pad-y-d: {{ s.pad_y_desktop | default: 80 }}px;
+      --q-pad-y-m: {{ s.pad_y_mobile | default: 56 }}px;
+
+      /* Panel paddings */
+      --q-panel-pad-x-d: {{ s.panel_pad_x_desktop | default: 28 }}px;
+      --q-panel-pad-y-d: {{ s.panel_pad_y_desktop | default: 28 }}px;
+      --q-panel-pad-x-m: {{ s.panel_pad_x_mobile  | default: 18 }}px;
+      --q-panel-pad-y-m: {{ s.panel_pad_y_mobile  | default: 18 }}px;
+
+      /* Copy width */
+      --q-copy-max: {{ s.copy_max_ch | default: 60 }}ch;
+
+      /* Section spacing */
+      --q-sec-pt: {{ s.section_pad_top | default: 40 }}px;
+      --q-sec-pb: {{ s.section_pad_bottom | default: 40 }}px;
+
+      /* Panel max width */
+      --q-panel-max: {{ s.panel_max_w | default: 720 }}px;
+
+      /* NEW: Card max widths (responsive) */
+      --q-card-max-d: {{ s.card_max_w_desktop | default: 1152 }}px;
+      --q-card-max-t: {{ s.card_max_w_tablet  | default: 960 }}px;
+      --q-card-max-m: {{ s.card_max_w_mobile  | default: 720 }}px;
+
+      /* ===== Animation custom properties ===== */
+      --a-full-dur: {{ s.full_duration_ms | default: 800 }}ms;
+      --a-full-delay: {{ s.full_delay_ms | default: 0 }}ms;
+      --a-full-ease: {{ ease_full }};
+
+      --a-c-dur: {{ s.content_duration_ms | default: 700 }}ms;
+      --a-c-delay: {{ s.content_delay_ms | default: 100 }}ms;
+      --a-c-ease: {{ ease_content }};
+
+      --a-b-dur: {{ s.button_duration_ms | default: 600 }}ms;
+      --a-b-delay: {{ s.button_delay_ms | default: 200 }}ms;
+      --a-b-ease: {{ ease_btn }};
+      --a-b-stagger: {{ s.button_stagger_ms | default: 100 }}ms;
+    }
+
+    #shopify-section-{{ section.id }} .cw{max-width:min(100%,var(--q-cw));margin-inline:auto;}
+    #shopify-section-{{ section.id }} .outer{padding-top:var(--q-sec-pt);padding-bottom:var(--q-sec-pb);padding-left:16px;padding-right:16px;}
+
+    /* Shared media layers */
+    #shopify-section-{{ section.id }} .media{position:absolute; inset:0; z-index:0; pointer-events:none;}
+    #shopify-section-{{ section.id }} .media video{width:100%;height:100%;object-fit:cover;}
+    #shopify-section-{{ section.id }} .scrim{position:absolute; inset:0; z-index:10; pointer-events:none;}
+
+    /* Alignment helpers (desktop horizontal) */
+    #shopify-section-{{ section.id }} .align-left { text-align:left; }
+    #shopify-section-{{ section.id }} .align-center { text-align:center; }
+    #shopify-section-{{ section.id }} .align-right { text-align:right; }
+    #shopify-section-{{ section.id }} .align-center .copy { margin-inline:auto; }
+    #shopify-section-{{ section.id }} .align-right .copy { margin-left:auto; }
+    #shopify-section-{{ section.id }} .auto-center { margin-left:auto; margin-right:auto; }
+    #shopify-section-{{ section.id }} .auto-right { margin-left:auto; }
+
+    /* Mobile vertical alignment helpers (attach to grid containers) */
+    @media (max-width: {{ settings.bp_md | default: 768 }}px){
+      #shopify-section-{{ section.id }} .v-top{ align-items:start; }
+      #shopify-section-{{ section.id }} .v-center{ align-items:center; }
+      #shopify-section-{{ section.id }} .v-bottom{ align-items:end; }
+    }
+
+    /* Typography */
+    #shopify-section-{{ section.id }} .kicker{
+      display:inline-flex; align-items:center; gap:.5rem; font-family:var(--q-body);
+      font-weight:700; background:rgba(255,255,255,.16);
+      padding:.45rem .75rem; border-radius:9999px; margin-bottom:1rem; letter-spacing:.04em; text-transform:uppercase;
+      font-size:.8rem; color:var(--q-on-surface);
+    }
+    #shopify-section-{{ section.id }} h1,h2{
+      font-family:var(--q-head); line-height:1.12; margin:0 0 .75rem 0; letter-spacing:-.01em;
+    }
+    #shopify-section-{{ section.id }} p{font-family:var(--q-body); margin:0; opacity:.94;}
+    #shopify-section-{{ section.id }} .copy{max-width: var(--q-copy-max);}
+
+    /* Buttons */
+    #shopify-section-{{ section.id }} .ctas{margin-top:1.25rem; display:flex; flex-wrap:wrap; gap:.75rem;}
+    #shopify-section-{{ section.id }} .btn{
+      display:inline-flex; align-items:center; justify-content:center; font-weight:700; text-decoration:none;
+      border-radius: {{ settings.button_radius | default: 12 }}px;
+      padding: 12px 22px;
+      border: {{ settings.button_border_width | default: 1 }}px solid;
+      transition: opacity .15s ease, transform .05s ease;
+    }
+    #shopify-section-{{ section.id }} .btn:hover{opacity:{{ settings.button_hover_opacity | default: 92 }}%;}
+    #shopify-section-{{ section.id }} .btn:active{transform:scale({{ settings.button_active_scale | default: 98 }}%);}
+
+    /* CTA alignment utilities (match selects) */
+    #shopify-section-{{ section.id }} .ctas.justify-start  { justify-content: flex-start; }
+    #shopify-section-{{ section.id }} .ctas.justify-center { justify-content: center; }
+    #shopify-section-{{ section.id }} .ctas.justify-end    { justify-content: flex-end; }
+
+    /* Mobile CTA overrides (apply only on phones) */
+    @media (max-width: {{ settings.bp_md | default: 768 }}px){
+      #shopify-section-{{ section.id }} .ctas.m-justify-start  { justify-content: flex-start; }
+      #shopify-section-{{ section.id }} .ctas.m-justify-center { justify-content: center; }
+      #shopify-section-{{ section.id }} .ctas.m-justify-end    { justify-content: flex-end; }
+    }
+
+    /* ===== Variant: card (contained; customizable max-width) ===== */
+    #shopify-section-{{ section.id }} .card{
+      position: relative; display:grid; align-items:center;
+      border-radius: var(--q-box-radius); overflow: hidden;
+      background: var(--q-surface); color: var(--q-on-surface);
+      box-shadow: var(--q-box-shadow); min-height: var(--q-min-h-d);
+
+      /* NEW: responsive maximum widths + center */
+      max-width: var(--q-card-max-d);
+      width: 100%;
+      margin-inline: auto;
+    }
+    /* Tablet size */
+    @media (max-width: {{ settings.bp_lg | default: 1024 }}px) and (min-width: {{ settings.bp_md | default: 768 }}px){
+      #shopify-section-{{ section.id }} .card{ max-width: var(--q-card-max-t); }
+    }
+    /* Mobile size */
+    @media (max-width: {{ settings.bp_md | default: 768 }}px){
+      #shopify-section-{{ section.id }} .card{
+        min-height: var(--q-min-h-m);
+        max-width: var(--q-card-max-m);
+      }
+    }
+
+    #shopify-section-{{ section.id }} .card-inner{position:relative; z-index:20; padding: var(--q-pad-y-d) var(--q-pad-x-d);}
+    @media (max-width: {{ settings.bp_md | default: 768 }}px){ #shopify-section-{{ section.id }} .card-inner{padding: var(--q-pad-y-m) var(--q-pad-x-m);} }
+
+    #shopify-section-{{ section.id }} .card .btn[data-variant="primary"]{ background: {{ settings.color_primary | default: '#111111' }}; color: {{ settings.text_on_color | default: '#ffffff' }}; border-color: transparent; }
+    #shopify-section-{{ section.id }} .card .btn[data-variant="secondary"]{ background: transparent; color: var(--q-on-surface); border-color: rgba(255,255,255,.65); }
+
+    /* ===== FULL BLEED for band & panel while content stays boxed ===== */
+    #shopify-section-{{ section.id }} .band,
+    #shopify-section-{{ section.id }} .panel-wrap{
+      width: 100vw;
+      max-width: 100vw;
+      margin-left: calc(50% - 50vw);
+      margin-right: calc(50% - 50vw);
+
+      position: relative; display:grid; align-items:center; overflow:hidden;
+      min-height: var(--q-min-h-d);
+    }
+    #shopify-section-{{ section.id }} .band{
+      border-radius: {{ s.band_radius | default: 0 }}px;
+      background: {{ s.band_bg_color | default: '#111111' }}; color: {{ s.band_text_on | default: '#ffffff' }};
+    }
+    #shopify-section-{{ section.id }} .panel-wrap{
+      border-radius: {{ s.panel_band_radius | default: 0 }}px; background: {{ s.panel_band_bg | default: '#0b0b0b' }};
+    }
+    @media (max-width: {{ settings.bp_md | default: 768 }}px){
+      #shopify-section-{{ section.id }} .band,
+      #shopify-section-{{ section.id }} .panel-wrap{ min-height: var(--q-min-h-m); }
+    }
+
+    /* ===== Variant: boxed_bg (content paddings) ===== */
+    #shopify-section-{{ section.id }} .band-inner{position:relative; z-index:20; padding: var(--q-pad-y-d) var(--q-pad-x-d);}
+    @media (max-width: {{ settings.bp_md | default: 768 }}px){ #shopify-section-{{ section.id }} .band-inner{padding: var(--q-pad-y-m) var(--q-pad-x-m);} }
+    #shopify-section-{{ section.id }} .band .btn[data-variant="primary"]{ background: {{ settings.color_primary | default: '#111111' }}; color: {{ settings.text_on_color | default: '#ffffff' }}; border-color: transparent; }
+    #shopify-section-{{ section.id }} .band .btn[data-variant="secondary"]{ background: transparent; color: currentColor; border-color: rgba(255,255,255,.65); }
+
+    /* ===== Variant: panel (floating content box) ===== */
+    #shopify-section-{{ section.id }} .panel-box{
+      position: relative; z-index:20; max-width: var(--q-panel-max);
+      background: var(--q-panel-bg); color: var(--q-panel-on);
+      border-radius: var(--q-box-radius); box-shadow: var(--q-box-shadow);
+      padding: var(--q-panel-pad-y-d) var(--q-panel-pad-x-d);
+    }
+    @media (max-width: {{ settings.bp_md | default: 768 }}px){ #shopify-section-{{ section.id }} .panel-box{padding: var(--q-panel-pad-y-m) var(--q-panel-pad-x-m);} }
+    #shopify-section-{{ section.id }} .panel-box .kicker{ background: rgba(15,23,42,.08); color: var(--q-panel-on); }
+    #shopify-section-{{ section.id }} .panel-box .btn[data-variant="primary"]{ background: {{ settings.color_primary | default: '#111111' }}; color: {{ settings.text_on_color | default: '#ffffff' }}; border-color: transparent; }
+    #shopify-section-{{ section.id }} .panel-box .btn[data-variant="secondary"]{ background: transparent; color: var(--q-panel-on); border-color: rgba(2,6,23,.25); }
+
+    /* ===== Animations: keyframes ===== */
+    @keyframes a-fade { from{opacity:0} to{opacity:1} }
+    @keyframes a-zoom { from{opacity:0; transform:scale(.96)} to{opacity:1; transform:scale(1)} }
+    @keyframes a-up   { from{opacity:0; transform:translateY(16px)} to{opacity:1; transform:translateY(0)} }
+    @keyframes a-left { from{opacity:0; transform:translateX(-16px)} to{opacity:1; transform:translateX(0)} }
+    @keyframes a-right{ from{opacity:0; transform:translateX(16px)} to{opacity:1; transform:translateX(0)} }
+    @keyframes a-pop  { 0%{transform:scale(.92); opacity:0} 60%{transform:scale(1.02); opacity:1} 100%{transform:scale(1)} }
+
+    /* Banner (background/wrapper) animation classes */
+    #shopify-section-{{ section.id }} .a-full-fade  { animation: a-fade  var(--a-full-dur)  var(--a-full-ease)  both; animation-delay: var(--a-full-delay); }
+    #shopify-section-{{ section.id }} .a-full-zoom  { animation: a-zoom  var(--a-full-dur)  var(--a-full-ease)  both; animation-delay: var(--a-full-delay); transform-origin:center; }
+    #shopify-section-{{ section.id }} .a-full-up    { animation: a-up    var(--a-full-dur)  var(--a-full-ease)  both; animation-delay: var(--a-full-delay); }
+    #shopify-section-{{ section.id }} .a-full-left  { animation: a-left  var(--a-full-dur)  var(--a-full-ease)  both; animation-delay: var(--a-full-delay); }
+    #shopify-section-{{ section.id }} .a-full-right { animation: a-right var(--a-full-dur)  var(--a-full-ease)  both; animation-delay: var(--a-full-delay); }
+
+    /* Content animation classes (applied to .copy) */
+    #shopify-section-{{ section.id }} .a-content-fade  { animation: a-fade  var(--a-c-dur) var(--a-c-ease) both; animation-delay: var(--a-c-delay); }
+    #shopify-section-{{ section.id }} .a-content-zoom  { animation: a-zoom  var(--a-c-dur) var(--a-c-ease) both; animation-delay: var(--a-c-delay); transform-origin: var(--a-c-origin, center); }
+    #shopify-section-{{ section.id }} .a-content-up    { animation: a-up    var(--a-c-dur) var(--a-c-ease) both; animation-delay: var(--a-c-delay); }
+    #shopify-section-{{ section.id }} .a-content-left  { animation: a-left  var(--a-c-dur) var(--a-c-ease) both; animation-delay: var(--a-c-delay); }
+    #shopify-section-{{ section.id }} .a-content-right { animation: a-right var(--a-c-dur) var(--a-c-ease) both; animation-delay: var(--a-c-delay); }
+
+    /* Button animation classes (stagger on children) */
+    #shopify-section-{{ section.id }} .a-btn-fade  .btn{ opacity:0; animation: a-fade  var(--a-b-dur) var(--a-b-ease) both; }
+    #shopify-section-{{ section.id }} .a-btn-zoom  .btn{ opacity:0; animation: a-zoom  var(--a-b-dur) var(--a-b-ease) both; transform-origin:center; }
+    #shopify-section-{{ section.id }} .a-btn-up    .btn{ opacity:0; animation: a-up    var(--a-b-dur) var(--a-b-ease) both; }
+    #shopify-section-{{ section.id }} .a-btn-left  .btn{ opacity:0; animation: a-left  var(--a-b-dur) var(--a-b-ease) both; }
+    #shopify-section-{{ section.id }} .a-btn-right .btn{ opacity:0; animation: a-right var(--a-b-dur) var(--a-b-ease) both; }
+    #shopify-section-{{ section.id }} .a-btn-pop   .btn{ opacity:0; animation: a-pop   var(--a-b-dur) var(--a-b-ease) both; }
+
+    /* Stagger up to 6 buttons */
+    #shopify-section-{{ section.id }} .ctas.a-btn-fade  .btn:nth-child(1),
+    #shopify-section-{{ section.id }} .ctas.a-btn-zoom  .btn:nth-child(1),
+    #shopify-section-{{ section.id }} .ctas.a-btn-up    .btn:nth-child(1),
+    #shopify-section-{{ section.id }} .ctas.a-btn-left  .btn:nth-child(1),
+    #shopify-section-{{ section.id }} .ctas.a-btn-right .btn:nth-child(1),
+    #shopify-section-{{ section.id }} .ctas.a-btn-pop   .btn:nth-child(1){ animation-delay: calc(var(--a-b-delay) + 0 * var(--a-b-stagger)); }
+    #shopify-section-{{ section.id }} .ctas.a-btn-fade  .btn:nth-child(2),
+    #shopify-section-{{ section.id }} .ctas.a-btn-zoom  .btn:nth-child(2),
+    #shopify-section-{{ section.id }} .ctas.a-btn-up    .btn:nth-child(2),
+    #shopify-section-{{ section.id }} .ctas.a-btn-left  .btn:nth-child(2),
+    #shopify-section-{{ section.id }} .ctas.a-btn-right .btn:nth-child(2),
+    #shopify-section-{{ section.id }} .ctas.a-btn-pop   .btn:nth-child(2){ animation-delay: calc(var(--a-b-delay) + 1 * var(--a-b-stagger)); }
+    #shopify-section-{{ section.id }} .ctas.a-btn-fade  .btn:nth-child(3),
+    #shopify-section-{{ section.id }} .ctas.a-btn-zoom  .btn:nth-child(3),
+    #shopify-section-{{ section.id }} .ctas.a-btn-up    .btn:nth-child(3),
+    #shopify-section-{{ section.id }} .ctas.a-btn-left  .btn:nth-child(3),
+    #shopify-section-{{ section.id }} .ctas.a-btn-right .btn:nth-child(3),
+    #shopify-section-{{ section.id }} .ctas.a-btn-pop   .btn:nth-child(3){ animation-delay: calc(var(--a-b-delay) + 2 * var(--a-b-stagger)); }
+    #shopify-section-{{ section.id }} .ctas.a-btn-fade  .btn:nth-child(4),
+    #shopify-section-{{ section.id }} .ctas.a-btn-zoom  .btn:nth-child(4),
+    #shopify-section-{{ section.id }} .ctas.a-btn-up    .btn:nth-child(4),
+    #shopify-section-{{ section.id }} .ctas.a-btn-left  .btn:nth-child(4),
+    #shopify-section-{{ section.id }} .ctas.a-btn-right .btn:nth-child(4),
+    #shopify-section-{{ section.id }} .ctas.a-btn-pop   .btn:nth-child(4){ animation-delay: calc(var(--a-b-delay) + 3 * var(--a-b-stagger)); }
+
+    /* Respect reduced motion */
+    @media (prefers-reduced-motion: reduce){
+      #shopify-section-{{ section.id }} *{
+        animation: none !important; transition: none !important;
+      }
+    }
+  </style>
+
+  <div class="outer">
+    {% case layout_variant %}
+
+      {% when 'card' %}
+        <div class="cw">
+          <div class="card {{ v_class }} {{ a_full_class }}" style="{% if has_bg_asset and bg_mode == 'image' %}{{ bg_style }}{% endif %}">
+            <div class="media" aria-hidden="true">
+              {% if has_bg_asset and bg_mode == 'video' %}
+                <video autoplay muted loop playsinline>
+                  <source src="{{ s.background_video | escape }}" type="video/mp4">
+                </video>
               {% endif %}
-              {% if s.content_heading != blank %}
-                <h3 class="mt-1 text-xl md:text-2xl font-semibold text-foreground">{{ s.content_heading | escape }}</h3>
-              {% endif %}
-              {% if s.content_text != blank %}
-                <div class="mt-3 prose prose-sm md:prose-base max-w-none text-foreground/90">
-                  {{ s.content_text }}
-                </div>
-              {% endif %}
-
-              {% assign bullet_blocks = section.blocks | where: 'type', 'bullet' %}
-              {% if bullet_blocks.size > 0 %}
-                <ul class="mt-4 space-y-2">
-                  {% for block in bullet_blocks %}
-                    {% assign b = block.settings %}
-                    <li class="flex items-start gap-3" {{ block.shopify_attributes }}>
-                      {% case b.icon %}
-                        {% when 'check' %}<svg class="mt-1 h-4 w-4 text-emerald-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M16.707 5.293a1 1 0 010 1.414l-7.5 7.5a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L8.5 12.086l6.793-6.793a1 1 0 011.414 0z"/></svg>
-                        {% when 'star' %}<svg class="mt-1 h-4 w-4 text-amber-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.802 2.036a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.802-2.036a1 1 0 00-1.176 0l-2.802 2.036c-.785.57-1.84-.197-1.54-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.88 8.72c-.783-.57-.38-1.81.588-1.81h3.462a1 1 0 00.95-.69l1.07-3.292z"/></svg>
-                        {% when 'bolt' %}<svg class="mt-1 h-4 w-4 text-sky-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M11.3 1L3 11h5l-.8 8L15 9h-5l1.3-8z"/></svg>
-                        {% else %}<span class="mt-1 inline-block h-2 w-2 rounded-full bg-primary"></span>
-                      {% endcase %}
-                      <span class="text-sm md:text-base text-foreground/90">{{ b.text }}</span>
-                    </li>
-                  {% endfor %}
-                </ul>
-              {% endif %}
-
-              {% assign has_cta1 = false %}
-              {% if s.cta_text != blank and s.cta_link != blank %}{% assign has_cta1 = true %}{% endif %}
-              {% assign has_cta2 = false %}
-              {% if s.cta2_text != blank and s.cta2_link != blank %}{% assign has_cta2 = true %}{% endif %}
-
-              {% if has_cta1 or has_cta2 %}
-                <div class="mt-5 flex flex-wrap gap-3 {% if s.cta_group_align == 'left' %}justify-start{% elsif s.cta_group_align == 'right' %}justify-end{% else %}justify-start{% endif %}">
-                  {% if has_cta1 %}
-                    <a href="{{ s.cta_link }}"
-                       data-cta="primary"
-                       class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition
-                              {% if s.button_mode == 'outline' %}border bg-transparent{% else %}bg-primary text-primary-foreground hover:opacity-90{% endif %}"
-                       style="{% if s.button_mode == 'outline' %}color: {{ s.button_text_color }}; border-color: {{ s.button_border_color }}; border-width: {{ s.button_border_width }}px;{% else %}color: {{ s.button_text_color }}; background-color: {{ s.button_bg_color }};{% endif %} border-radius: {{ s.button_radius }}px;"
-                       aria-label="{{ s.cta_aria_label | default: s.cta_text | escape }}">
-                      {{ s.cta_text }}
-                    </a>
-                  {% endif %}
-                  {% if has_cta2 %}
-                    <a href="{{ s.cta2_link }}"
-                       data-cta="secondary"
-                       class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition
-                              {% if s.button_mode == 'outline' %}border bg-transparent{% else %}border border-input bg-background hover:bg-accent hover:text-accent-foreground{% endif %}"
-                       style="{% if s.button_mode == 'outline' %}color: {{ s.button_text_color }}; border-color: {{ s.button_border_color }}; border-width: {{ s.button_border_width }}px;{% else %}color: {{ s.button_text_color }};{% endif %} border-radius: {{ s.button_radius }}px;"
-                       aria-label="{{ s.cta2_aria_label | default: s.cta2_text | escape }}">
-                      {{ s.cta2_text }}
-                    </a>
-                  {% endif %}
-                </div>
+              {% if scrim_opacity > 0 %}
+                <div class="scrim" style="background: {{ s.overlay_color | default: '#000000' }}; opacity: {{ scrim_opacity }};"></div>
               {% endif %}
             </div>
+
+            <div class="card-inner {{ align_class }}">
+              <div class="copy {{ a_content_class }}">
+                {% if s.kicker != blank %}<div class="kicker">{{ s.kicker }}</div>{% endif %}
+                {% if s.heading != blank %}
+                  <{{ s.heading_level | default: 'h1' }} style="font-size: {{ s.heading_size | default: 'clamp(2rem,4vw,3.25rem)' }}; color: var(--q-on-surface);">{{ s.heading }}</{{ s.heading_level | default: 'h1' }}>
+                {% endif %}
+                {% if s.subheading != blank %}
+                  <p style="font-size: {{ s.sub_size | default: 'clamp(1rem,1.5vw,1.125rem)' }}; color: var(--q-on-surface);">{{ s.subheading }}</p>
+                {% endif %}
+                {% if has_primary or has_secondary %}
+                  <div class="ctas {{ cta_class }} {{ cta_m_class }} {{ a_button_class }}">
+                    {% if has_primary %}<a href="{{ s.cta_link }}" class="btn" data-variant="primary" aria-label="{{ s.cta_aria | default: s.cta_text }}">{{ s.cta_text }}</a>{% endif %}
+                    {% if has_secondary %}<a href="{{ s.cta2_link }}" class="btn" data-variant="secondary" aria-label="{{ s.cta2_aria | default: s.cta2_text }}">{{ s.cta2_text }}</a>{% endif %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+      {% when 'boxed_bg' %}
+        <div class="band {{ v_class }} {{ a_full_class }}" style="{% if has_bg_asset and bg_mode == 'image' %}{{ bg_style }}{% endif %}">
+          <div class="media" aria-hidden="true">
+            {% if has_bg_asset and bg_mode == 'video' %}
+              <video autoplay muted loop playsinline>
+                <source src="{{ s.background_video | escape }}" type="video/mp4">
+              </video>
+            {% endif %}
+            {% if scrim_opacity > 0 %}
+              <div class="scrim" style="background: {{ s.overlay_color | default: '#000000' }}; opacity: {{ scrim_opacity }};"></div>
+            {% endif %}
           </div>
 
-          {% unless media_first %}
-            {% render 'boxed-content-media', s: s, media_col_class: media_col_class %}
-          {% endunless %}
+          <div class="band-inner">
+            <div class="cw {{ align_class }}">
+              <div class="copy {{ a_content_class }}">
+                {% if s.kicker != blank %}<div class="kicker">{{ s.kicker }}</div>{% endif %}
+                {% if s.heading != blank %}
+                  <{{ s.heading_level | default: 'h1' }} style="font-size: {{ s.heading_size | default: 'clamp(2rem,4vw,3.25rem)' }};">{{ s.heading }}</{{ s.heading_level | default: 'h1' }}>
+                {% endif %}
+                {% if s.subheading != blank %}
+                  <p style="font-size: {{ s.sub_size | default: 'clamp(1rem,1.5vw,1.125rem)' }};">{{ s.subheading }}</p>
+                {% endif %}
+                {% if has_primary or has_secondary %}
+                  <div class="ctas {{ cta_class }} {{ cta_m_class }} {{ a_button_class }}">
+                    {% if has_primary %}<a href="{{ s.cta_link }}" class="btn" data-variant="primary" aria-label="{{ s.cta_aria | default: s.cta_text }}">{{ s.cta_text }}</a>{% endif %}
+                    {% if has_secondary %}<a href="{{ s.cta2_link }}" class="btn" data-variant="secondary" aria-label="{{ s.cta2_aria | default: s.cta2_text }}">{{ s.cta2_text }}</a>{% endif %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+
+      {% else %}
+        {%- comment -%} panel {%- endcomment -%}
+        <div class="panel-wrap {{ v_class }} {{ a_full_class }}" style="{% if has_bg_asset and bg_mode == 'image' %}{{ bg_style }}{% endif %}">
+          <div class="media" aria-hidden="true">
+            {% if has_bg_asset and bg_mode == 'video' %}
+              <video autoplay muted loop playsinline>
+                <source src="{{ s.background_video | escape }}" type="video/mp4">
+              </video>
+            {% endif %}
+            {% if scrim_opacity > 0 %}
+              <div class="scrim" style="background: {{ s.overlay_color | default: '#000000' }}; opacity: {{ scrim_opacity }};"></div>
+            {% endif %}
+          </div>
+
+          <div class="cw">
+            <div class="{{ align_class }}">
+              <div class="panel-box {% if s.text_alignment == 'center' %}auto-center{% elsif s.text_alignment == 'right' %}auto-right{% endif %}">
+                <div class="copy {{ a_content_class }}">
+                  {% if s.kicker != blank %}<div class="kicker">{{ s.kicker }}</div>{% endif %}
+                  {% if s.heading != blank %}
+                    <{{ s.heading_level | default: 'h1' }} style="font-size: {{ s.heading_size | default: 'clamp(2rem,4vw,3.25rem)' }};">{{ s.heading }}</{{ s.heading_level | default: 'h1' }}>
+                  {% endif %}
+                  {% if s.subheading != blank %}
+                    <p style="font-size: {{ s.sub_size | default: 'clamp(1rem,1.5vw,1.125rem)' }};">{{ s.subheading }}</p>
+                  {% endif %}
+                  {% if has_primary or has_secondary %}
+                    <div class="ctas {{ cta_class }} {{ cta_m_class }} {{ a_button_class }}">
+                      {% if has_primary %}<a href="{{ s.cta_link }}" class="btn" data-variant="primary" aria-label="{{ s.cta_aria | default: s.cta_text }}">{{ s.cta_text }}</a>{% endif %}
+                      {% if has_secondary %}<a href="{{ s.cta2_link }}" class="btn" data-variant="secondary" aria-label="{{ s.cta2_aria | default: s.cta2_text }}">{{ s.cta2_text }}</a>{% endif %}
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+    {% endcase %}
   </div>
-
-  {% if s.send_events %}
-    <script>
-      (function(){
-        var root = document.getElementById('{{ s.anchor_id | default: 'section-' | append: section.id }}');
-        if(!root) return;
-        root.addEventListener('click', function(e){
-          var a = e.target.closest('a[data-cta]');
-          if(!a) return;
-          var payload = { component: 'boxed_content_banner', cta_type: a.getAttribute('data-cta'), href: a.getAttribute('href') };
-          window.dispatchEvent(new CustomEvent('quadratum:cta', { detail: payload }));
-          if(window.dataLayer && Array.isArray(window.dataLayer)){
-            window.dataLayer.push({ event: 'quadratum_cta', component: payload.component, cta_type: payload.cta_type, href: payload.href });
-          }
-        });
-      })();
-    </script>
-  {% endif %}
 </section>
-
-{% render 'tw-safelist-banners' %}
 
 {% schema %}
 {
-  "name": "Boxed-in Content Banner",
+  "name": "Boxed • Hero",
   "tag": "section",
-  "class": "q-boxed-banner",
+  "class": "q-boxed-hero",
   "settings": [
-    { "type": "header", "content": "Header" },
-    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Featured" },
-    { "type": "text", "id": "heading", "label": "Heading", "default": "Built for conversions" },
-    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "A concise supporting line that nudges action." },
-
     { "type": "header", "content": "Layout" },
-    { "type": "select", "id": "media_position", "label": "Media position", "default": "left", "options": [
-      { "value": "left", "label": "Left" },
-      { "value": "right", "label": "Right" }
-    ]},
-    { "type": "select", "id": "media_width", "label": "Media width (desktop)", "default": "6", "options": [
-      { "value": "4", "label": "1/3" },
-      { "value": "5", "label": "5/12" },
-      { "value": "6", "label": "1/2" },
-      { "value": "7", "label": "7/12" }
-    ]},
-    { "type": "select", "id": "header_align", "label": "Header alignment", "default": "text-center", "options": [
-      { "value": "text-left", "label": "Left" },
-      { "value": "text-center", "label": "Center" },
-      { "value": "text-right", "label": "Right" }
-    ]},
-    { "type": "select", "id": "content_align", "label": "Body alignment", "default": "text-left", "options": [
-      { "value": "text-left", "label": "Left" },
-      { "value": "text-center", "label": "Center" },
-      { "value": "text-right", "label": "Right" }
+    { "type": "select", "id": "layout_variant", "label": "Layout Variant", "default": "card", "options": [
+      { "value": "card", "label": "Carded Hero (boxed surface)" },
+      { "value": "boxed_bg", "label": "Boxed Background (full-width band)" },
+      { "value": "panel", "label": "Boxed Content Panel (floating box)" }
     ]},
 
-    { "type": "header", "content": "Box background" },
-    { "type": "image_picker", "id": "box_background_image", "label": "Background image (optional)" },
-    { "type": "text", "id": "box_bg_alt", "label": "Background image alt", "default": "Decorative background" },
+    { "type": "header", "content": "Content" },
+    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Featured" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Your hair, but better." },
+    { "type": "select", "id": "heading_level", "label": "Heading level", "default": "h1", "options": [
+      { "value": "h1", "label": "H1" }, { "value": "h2", "label": "H2" }
+    ]},
+    { "type": "text", "id": "heading_size", "label": "Heading size (CSS)", "default": "clamp(2.25rem,4vw,3.25rem)" },
+    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Lather up with our newest shampoo for clean, strong, and healthy hair." },
+    { "type": "text", "id": "sub_size", "label": "Subheading size (CSS)", "default": "clamp(1rem,1.5vw,1.125rem)" },
+
+    { "type": "header", "content": "CTAs" },
+    { "type": "text", "id": "cta_text", "label": "Primary label", "default": "Shop shampoo" },
+    { "type": "url", "id": "cta_link", "label": "Primary link" },
+    { "type": "text", "id": "cta2_text", "label": "Secondary label", "default": "Secondary CTA" },
+    { "type": "url", "id": "cta2_link", "label": "Secondary link" },
+
+    { "type": "header", "content": "Background (image/video/scrim)" },
+    { "type": "select", "id": "background_mode", "label": "Mode", "default": "image", "options": [
+      { "value": "image", "label": "Image" },
+      { "value": "video", "label": "Video (MP4)" }
+    ]},
+    { "type": "image_picker", "id": "background_image", "label": "Background image" },
+    { "type": "url", "id": "background_video", "label": "Background video (MP4)" },
+    { "type": "select", "id": "bg_position", "label": "Background position", "default": "center", "options": [
+      { "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" },
+      { "value": "top", "label": "Top" }, { "value": "bottom", "label": "Bottom" }
+    ]},
     { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
-    { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 20, "unit": "%" },
+    { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 35, "unit": "%" },
 
-    { "type": "header", "content": "Padding & container" },
-    { "type": "select", "id": "pad_box", "label": "Inner padding", "default": "p-6 md:p-10", "options": [
-      { "value": "p-6 md:p-8", "label": "Small" },
-      { "value": "p-6 md:p-10", "label": "Medium" },
-      { "value": "p-8 md:p-12", "label": "Large" }
-    ]},
-    { "type": "select", "id": "pad_y", "label": "Vertical section padding", "default": "py-12 md:py-16", "options": [
-      { "value": "py-8 md:py-12", "label": "Small" },
-      { "value": "py-12 md:py-16", "label": "Medium" },
-      { "value": "py-16 md:py-24", "label": "Large" }
-    ]},
-    { "type": "select", "id": "container_mode", "label": "Container", "default": "contained", "options": [
-      { "value": "contained", "label": "Contained (side padding)" },
-      { "value": "full", "label": "Full-bleed (edge to edge)" }
-    ]},
+    { "type": "header", "content": "Variant: Card (surface)" },
+    { "type": "color", "id": "surface_color", "label": "Surface color (fallback)", "default": "#111111" },
+    { "type": "color", "id": "text_on_color", "label": "Text on surface", "default": "#ffffff" },
 
-    { "type": "header", "content": "Primary content" },
-    { "type": "text", "id": "content_kicker", "label": "Content kicker", "default": "Why choose us" },
-    { "type": "text", "id": "content_heading", "label": "Content heading", "default": "Made to sell, built to last" },
-    { "type": "richtext", "id": "content_text", "label": "Content text", "default": "<p>Use this area for persuasive copy: your value prop, differentiators, and guarantees.</p>" },
+    { "type": "header", "content": "Variant: Boxed Background (band colors)" },
+    { "type": "color", "id": "band_bg_color", "label": "Band background color", "default": "#111111" },
+    { "type": "color", "id": "band_text_on", "label": "Text on band", "default": "#ffffff" },
+    { "type": "range", "id": "band_radius", "label": "Band corner radius (px)", "min": 0, "max": 40, "step": 2, "default": 0 },
 
-    { "type": "header", "content": "Buttons (global)" },
-    { "type": "select", "id": "cta_group_align", "label": "Button alignment", "default": "left", "options": [
+    { "type": "header", "content": "Variant: Panel (floating box)" },
+    { "type": "color", "id": "panel_bg_color", "label": "Panel background", "default": "#ffffff" },
+    { "type": "color", "id": "panel_text_color", "label": "Panel text color", "default": "#0f172a" },
+    { "type": "range", "id": "panel_max_w", "label": "Panel max width (px)", "min": 520, "max": 980, "step": 20, "default": 720 },
+    { "type": "range", "id": "panel_pad_x_desktop", "label": "Panel padding X (desktop, px)", "min": 12, "max": 80, "step": 2, "default": 28 },
+    { "type": "range", "id": "panel_pad_y_desktop", "label": "Panel padding Y (desktop, px)", "min": 12, "max": 120, "step": 2, "default": 28 },
+    { "type": "range", "id": "panel_pad_x_mobile",  "label": "Panel padding X (mobile, px)",  "min": 8, "max": 48, "step": 2, "default": 18 },
+    { "type": "range", "id": "panel_pad_y_mobile",  "label": "Panel padding Y (mobile, px)",  "min": 8, "max": 80, "step": 2, "default": 18 },
+    { "type": "color", "id": "panel_band_bg", "label": "Panel variant band color (behind image)", "default": "#0b0b0b" },
+    { "type": "range", "id": "panel_band_radius", "label": "Panel variant band corner radius (px)", "min": 0, "max": 40, "step": 2, "default": 0 },
+
+    { "type": "header", "content": "Shared Alignment" },
+    { "type": "select", "id": "text_alignment", "label": "Desktop text alignment", "default": "left", "options": [
       { "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" }
     ]},
-    { "type": "select", "id": "button_mode", "label": "Button style", "default": "solid", "options": [
-      { "value": "solid", "label": "Solid" },
-      { "value": "outline", "label": "Outline" }
+    { "type": "select", "id": "mobile_v_align", "label": "Mobile vertical alignment", "default": "center", "options": [
+      { "value": "top", "label": "Top" }, { "value": "center", "label": "Middle" }, { "value": "bottom", "label": "Bottom" }
     ]},
-    { "type": "text", "id": "cta_text", "label": "Primary button text", "default": "Shop now" },
-    { "type": "url", "id": "cta_link", "label": "Primary button URL" },
-    { "type": "text", "id": "cta_aria_label", "label": "Primary button ARIA label", "default": "Shop now" },
-    { "type": "text", "id": "cta2_text", "label": "Secondary button text", "default": "Learn more" },
-    { "type": "url", "id": "cta2_link", "label": "Secondary button URL" },
-    { "type": "text", "id": "cta2_aria_label", "label": "Secondary button ARIA label", "default": "Learn more" },
 
-    { "type": "header", "content": "Visibility & analytics" },
-    { "type": "text", "id": "anchor_id", "label": "Optional anchor ID" },
-    { "type": "text", "id": "region_label", "label": "Accessible region label", "default": "Promotional content" },
-    { "type": "checkbox", "id": "hide_on_mobile", "label": "Hide on mobile", "default": false },
-    { "type": "checkbox", "id": "hide_on_desktop", "label": "Hide on desktop", "default": false },
-    { "type": "checkbox", "id": "send_events", "label": "Send analytics events on clicks", "default": false }
+    { "type": "header", "content": "CTA Alignment" },
+    { "type": "select", "id": "cta_alignment_desktop", "label": "CTA alignment (desktop)", "default": "inherit", "options": [
+      { "value": "inherit", "label": "Inherit from text alignment" },
+      { "value": "left",    "label": "Left" },
+      { "value": "center",  "label": "Center" },
+      { "value": "right",   "label": "Right" }
+    ]},
+    { "type": "select", "id": "cta_alignment_mobile", "label": "CTA alignment (mobile)", "default": "inherit", "options": [
+      { "value": "inherit", "label": "Inherit from desktop CTA alignment" },
+      { "value": "left",    "label": "Left" },
+      { "value": "center",  "label": "Center" },
+      { "value": "right",   "label": "Right" }
+    ]},
+
+    { "type": "header", "content": "Shared Layout" },
+    { "type": "text", "id": "copy_max_ch", "label": "Max copy width (ch)", "default": "60" },
+    { "type": "range", "id": "min_height_desktop", "label": "Min height (desktop, vh)", "min": 40, "max": 90, "step": 2, "default": 60 },
+    { "type": "range", "id": "min_height_mobile", "label": "Min height (mobile, vh)", "min": 40, "max": 80, "step": 2, "default": 46 },
+    { "type": "range", "id": "pad_x_desktop", "label": "Horizontal padding (desktop, px)", "min": 0, "max": 160, "step": 4, "default": 40 },
+    { "type": "range", "id": "pad_x_mobile",  "label": "Horizontal padding (mobile, px)",  "min": 0, "max": 64,  "step": 4, "default": 16 },
+    { "type": "range", "id": "pad_y_desktop", "label": "Vertical padding (desktop, px)", "min": 0, "max": 240, "step": 8, "default": 80 },
+    { "type": "range", "id": "pad_y_mobile",  "label": "Vertical padding (mobile, px)",  "min": 0, "max": 200, "step": 8, "default": 56 },
+
+    { "type": "header", "content": "Card Width (responsive)" },
+    { "type": "range", "id": "card_max_w_desktop", "label": "Card max width (desktop, px)", "min": 400, "max": 1920, "step": 16, "default": 1152 },
+    { "type": "range", "id": "card_max_w_tablet",  "label": "Card max width (tablet, px)",  "min": 400, "max": 1440, "step": 16, "default": 960 },
+    { "type": "range", "id": "card_max_w_mobile",  "label": "Card max width (mobile, px)",  "min": 320, "max": 1024, "step": 8,  "default": 720 },
+
+    { "type": "header", "content": "Radius & Shadow" },
+    { "type": "range", "id": "box_radius", "label": "Box/panel radius (px)", "min": 0, "max": 40, "step": 2, "default": 20 },
+    { "type": "text",  "id": "box_shadow", "label": "Box/panel shadow (CSS)", "default": "0 10px 30px rgba(0,0,0,.20)" },
+
+    { "type": "header", "content": "Section Spacing" },
+    { "type": "range", "id": "section_pad_top", "label": "Top padding (px)", "min": 0, "max": 160, "step": 4, "default": 40 },
+    { "type": "range", "id": "section_pad_bottom", "label": "Bottom padding (px)", "min": 0, "max": 160, "step": 4, "default": 40 },
+
+    { "type": "header", "content": "Animations — Banner / Content / Buttons" },
+    { "type": "select", "id": "full_animation", "label": "Full banner animation", "default": "fade", "options": [
+      { "value": "none",       "label": "None" },
+      { "value": "fade",       "label": "Fade In" },
+      { "value": "zoom-in",    "label": "Zoom In" },
+      { "value": "slide-up",   "label": "Slide Up" },
+      { "value": "slide-left", "label": "Slide Left" },
+      { "value": "slide-right","label": "Slide Right" }
+    ]},
+    { "type": "range", "id": "full_duration_ms", "label": "Banner duration (ms)", "min": 0, "max": 2000, "step": 50, "default": 800 },
+    { "type": "range", "id": "full_delay_ms", "label": "Banner delay (ms)", "min": 0, "max": 2000, "step": 50, "default": 0 },
+    { "type": "select", "id": "full_ease", "label": "Banner easing", "default": "emphasized", "options": [
+      { "value": "ease",        "label": "Ease" },
+      { "value": "ease-out",    "label": "Ease-out" },
+      { "value": "ease-in-out", "label": "Ease-in-out" },
+      { "value": "linear",      "label": "Linear" },
+      { "value": "emphasized",  "label": "Emphasized (CB 0.22,1,0.36,1)" }
+    ]},
+
+    { "type": "select", "id": "content_animation", "label": "Content animation", "default": "slide-up", "options": [
+      { "value": "none",       "label": "None" },
+      { "value": "fade",       "label": "Fade In" },
+      { "value": "zoom-in",    "label": "Zoom In" },
+      { "value": "slide-up",   "label": "Slide Up" },
+      { "value": "slide-left", "label": "Slide Left" },
+      { "value": "slide-right","label": "Slide Right" }
+    ]},
+    { "type": "range", "id": "content_duration_ms", "label": "Content duration (ms)", "min": 0, "max": 2000, "step": 50, "default": 700 },
+    { "type": "range", "id": "content_delay_ms", "label": "Content delay (ms)", "min": 0, "max": 2000, "step": 50, "default": 100 },
+    { "type": "select", "id": "content_ease", "label": "Content easing", "default": "emphasized", "options": [
+      { "value": "ease",        "label": "Ease" },
+      { "value": "ease-out",    "label": "Ease-out" },
+      { "value": "ease-in-out", "label": "Ease-in-out" },
+      { "value": "linear",      "label": "Linear" },
+      { "value": "emphasized",  "label": "Emphasized (CB 0.22,1,0.36,1)" }
+    ]},
+
+    { "type": "select", "id": "button_animation", "label": "Button animation", "default": "slide-up", "options": [
+      { "value": "none",       "label": "None" },
+      { "value": "fade",       "label": "Fade In" },
+      { "value": "zoom-in",    "label": "Zoom In" },
+      { "value": "slide-up",   "label": "Slide Up" },
+      { "value": "slide-left", "label": "Slide Left" },
+      { "value": "slide-right","label": "Slide Right" },
+      { "value": "pop",        "label": "Pop" }
+    ]},
+    { "type": "range", "id": "button_duration_ms", "label": "Button duration (ms)", "min": 0, "max": 2000, "step": 50, "default": 600 },
+    { "type": "range", "id": "button_delay_ms", "label": "Button base delay (ms)", "min": 0, "max": 2000, "step": 50, "default": 200 },
+    { "type": "range", "id": "button_stagger_ms", "label": "Button stagger per item (ms)", "min": 0, "max": 600, "step": 50, "default": 100 },
+    { "type": "select", "id": "button_ease", "label": "Button easing", "default": "emphasized", "options": [
+      { "value": "ease",        "label": "Ease" },
+      { "value": "ease-out",    "label": "Ease-out" },
+      { "value": "ease-in-out", "label": "Ease-in-out" },
+      { "value": "linear",      "label": "Linear" },
+      { "value": "emphasized",  "label": "Emphasized (CB 0.22,1,0.36,1)" }
+    ]},
+
+    { "type": "header", "content": "Accessibility" },
+    { "type": "text", "id": "aria_id", "label": "ARIA ID / Section ID" },
+    { "type": "text", "id": "region_label", "label": "Region label", "default": "Hero" }
   ],
-  "blocks": [
-    {
-      "type": "bullet",
-      "name": "Bullet",
-      "settings": [
-        { "type": "select", "id": "icon", "label": "Icon", "default": "check", "options": [
-          { "value": "dot", "label": "Dot" },
-          { "value": "check", "label": "Check" },
-          { "value": "star", "label": "Star" },
-          { "value": "bolt", "label": "Bolt" }
-        ]},
-        { "type": "text", "id": "text", "label": "Text", "default": "Fast, free shipping & returns" }
-      ]
-    }
-  ],
-  "max_blocks": 8,
   "presets": [
-    {
-      "name": "Boxed content • Media left",
-      "category": "Banner"
-    }
+    { "name": "Hero banner - Boxed Content", "category": "Hero Banners", "settings": { "layout_variant": "panel", "text_alignment": "left" } }
   ]
 }
 {% endschema %}
