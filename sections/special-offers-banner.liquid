@@ -1,551 +1,483 @@
 {% comment %}
-  Quadratum • Special Offers Banner (Aligned copy + Spacing + Typography + Full‑bleed stabilized)
-  - Aligns subtext under heading by wrapping both in a shared .q-text container with a unified max-width + alignment
-  - Fixes spacing by honoring s.pad_y via data attribute + scoped CSS map (purge-safe)
-  - Uses container_mode to control inner max-width/padding
-  - Ensures H1–H6 + body copy use theme fonts with sane sizes
-  - Full‑bleed background via .q-bleed; contained content stays centered
+  Quadratum — Special Offers Banner
+  Compositions:
+    • hero_only        – Cinematic hero only
+    • hero_plus_grid   – Hero + wide 2-up promo grid below
+    • split_one        – Hero text + ONE large promo (right/left weight)
+
+  Guarantees:
+    - If video is selected but missing, we fall back to image.
+    - If no hero image is set, we fall back to the first promo block’s image.
+    - Background is rendered per composition.
+    - Content always sits above the background.
+    - Spacing and widths are controllable from schema (no JSON hacks).
 {% endcomment %}
 
 {% liquid
   assign s = section.settings
 
-  assign container_pad = ''
-  if s.container_mode == 'contained'
-    assign container_pad = 'px-4 md:px-6'
+  # Container width from theme kit
+  assign cw = settings.container_lg | default: 1152
+  if settings.style_kit == 'wide'
+    assign cw = settings.container_xl | default: 1440
+  elsif settings.style_kit == 'cozy'
+    assign cw = settings.container_md | default: 960
+  elsif settings.style_kit == 'full'
+    assign cw = 99999
   endif
 
-  assign container_wrap = container_pad
+  # Container padding helper
+  assign inner_pad = ''
   if s.container_mode == 'contained'
-    assign container_wrap = 'mx-auto max-w-screen-xl ' | append: container_pad
+    assign inner_pad = 'px-4 md:px-6'
   endif
 
-  assign visibility_classes = ''
+  # Visibility
+  assign vis = ''
   if s.hide_on_mobile
-    assign visibility_classes = visibility_classes | append: ' hidden md:block'
+    assign vis = vis | append: ' hidden md:block'
   endif
   if s.hide_on_desktop
-    assign visibility_classes = visibility_classes | append: ' md:hidden'
+    assign vis = vis | append: ' md:hidden'
   endif
 
-  assign is_outline = false
-  if s.button_mode == 'outline'
-    assign is_outline = true
+  # CTA checks (Liquid-safe)
+  assign has_primary = false
+  if s.cta_text != blank and s.cta_link != blank
+    assign has_primary = true
+  endif
+  assign has_secondary = false
+  if s.cta2_text != blank and s.cta2_link != blank
+    assign has_secondary = true
   endif
 
-  assign pad_y_value = s.pad_y | default: 'py-12 md:py-16'
+  # ---- BACKGROUND RESOLUTION ----
+  assign bg_mode = s.background_mode | default: 'image'
+
+  assign hero_image = s.background_image
+  if hero_image == blank and section.blocks.size > 0
+    assign fb_img = section.blocks.first.settings.image
+    if fb_img != blank
+      assign hero_image = fb_img
+    endif
+  endif
+
+  assign has_bg_asset = false
+  if bg_mode == 'video'
+    if s.background_video != blank
+      assign has_bg_asset = true
+    elsif hero_image != blank
+      assign bg_mode = 'image'
+      assign has_bg_asset = true
+    endif
+  elsif bg_mode == 'image' and hero_image != blank
+    assign has_bg_asset = true
+  endif
+
+  # Scrim opacity (0–1)
+  assign scrim_opacity = 0
+  if s.overlay_opacity != blank
+    assign scrim_opacity = s.overlay_opacity | times: 0.01
+  endif
+
+  assign bg_alt = s.bg_image_alt | default: 'Hero background'
+  assign composition = s.composition | default: 'hero_plus_grid'
+
+  # has_blocks
+  assign has_blocks = false
+  if section.blocks.size > 0
+    assign has_blocks = true
+  endif
+
+  # Precompute inline bg style for image mode
+  assign bg_style = ''
+  if has_bg_asset and bg_mode == 'image' and hero_image != blank
+    assign bg_url = hero_image | image_url: width: 2880
+    assign bg_style = 'background-image:url(' | append: bg_url | append: ');background-size:cover;background-position:center;'
+  endif
 %}
 
-<section id="{{ s.anchor_id | default: 'section-' | append: section.id }}"
-         class="relative overflow-hidden{{ visibility_classes }}"
+<section id="{{ s.anchor_id | default: 'offers-hero-' | append: section.id }}"
+         class="q-offers-hero relative overflow-hidden{{ vis }}"
          role="region"
-         aria-label="{{ s.region_label | default: 'Special offers' }}"
-         data-pad="{{ pad_y_value }}">
+         aria-label="{{ s.region_label | default: 'Special offers hero' }}">
 
-  {%- comment -%} Scoped typography + spacing (purge-safe) {%- endcomment -%}
   <style>
-    #shopify-section-{{ section.id }} {
-      --q-head: {{ settings.type_header_font.family | default: 'ui-sans-serif' }}, {{ settings.type_header_font.fallback_families | default: 'system-ui' }};
-      --q-body: {{ settings.type_body_font.family | default: 'ui-sans-serif' }}, {{ settings.type_body_font.fallback_families | default: 'system-ui' }};
+    /* ---------------- Tokens ---------------- */
+    #shopify-section-{{ section.id }}{
+      --q-head: {{ settings.font_heading.family | default: 'ui-sans-serif' }}, {{ settings.font_heading.fallback_families | default: 'system-ui' }};
+      --q-body: {{ settings.font_body.family | default: 'ui-sans-serif' }}, {{ settings.font_body.fallback_families | default: 'system-ui' }};
+      --q-primary: {{ settings.color_primary | default: '#111111' }};
+      --q-oncolor: {{ settings.text_on_color | default: '#ffffff' }};
+      --q-text: {{ settings.text_base | default: '#111111' }};
+      --q-muted: {{ settings.text_muted | default: '#9aa0a6' }};
+      --q-cw: {{ cw }}px;
+
+      --q-h1: {{ settings.type_h1_size | default: 240 | times: 0.01 | round: 3 }}rem;
+      --q-h2: {{ settings.type_h2_size | default: 200 | times: 0.01 | round: 3 }}rem;
+
+      --q-btn-radius: {{ settings.button_radius | default: 12 }}px;
+      --q-btn-bw: {{ settings.button_border_width | default: 1 }}px;
+
+      /* Designer knobs (schema-driven) */
+      --q-hero-min-d: {{ s.hero_height_d | default: 80 }}vh;
+      --q-hero-min-m: {{ s.hero_height_m | default: 64 }}vh;
+
+      /* Explicit hero paddings (stops edge hugging on full-width) */
+      --q-hero-pad-x-d: {{ s.hero_pad_x_desktop | default: 64 }}px;
+      --q-hero-pad-x-m: {{ s.hero_pad_x_mobile | default: 16 }}px;
+      --q-hero-pad-y-d: {{ s.hero_pad_y_desktop | default: 96 }}px;
+      --q-hero-pad-y-m: {{ s.hero_pad_y_mobile | default: 72 }}px;
+
+      /* Grid width + gutters (WIDER by default) */
+      --q-support-max: {{ s.support_max_w | default: 1600 }}px; /* was 1440 */
+      --q-support-offset: {{ s.support_offset_y | default: -48 }}px; /* pull grid up */
+      --q-support-gx: {{ s.support_gutter_x | default: 24 }}px; /* narrower gutter for wider feel */
+
+      --q-card-min: {{ s.card_min_h | default: 420 }}px;
+      --q-grid-gap: 16px;
+      --q-grid-gap-m: 12px;
     }
 
-    /* Typography */
+    /* ---------------- Utilities ---------------- */
+    #shopify-section-{{ section.id }} .q-cw{max-width:min(100%,var(--q-cw));margin-left:auto;margin-right:auto;}
+    #shopify-section-{{ section.id }} .q-media{position:absolute; inset:0; z-index:0; pointer-events:none;}
+    #shopify-section-{{ section.id }} .q-media video{width:100%;height:100%;object-fit:cover;}
+    #shopify-section-{{ section.id }} .q-scrim{position:absolute; inset:0; z-index:10; pointer-events:none;}
+    #shopify-section-{{ section.id }} .q-layer{position:relative; z-index:20;}
+
+    /* ---------------- Hero band ---------------- */
+    #shopify-section-{{ section.id }} .q-hero{
+      min-height: var(--q-hero-min-d);
+      display:grid; align-items:center;
+    }
+    @media (max-width: 767px){
+      #shopify-section-{{ section.id }} .q-hero{min-height: var(--q-hero-min-m);}
+    }
+
+    /* Ensure content sits above bg in all compositions + apply paddings */
+    #shopify-section-{{ section.id }} .q-hero-inner{
+      position:relative; 
+      z-index:30;
+      padding-left: var(--q-hero-pad-x-d);
+      padding-right: var(--q-hero-pad-x-d);
+      padding-top: var(--q-hero-pad-y-d);
+      padding-bottom: var(--q-hero-pad-y-d);
+    }
+    @media (max-width: 767px){
+      #shopify-section-{{ section.id }} .q-hero-inner{
+        padding-left: var(--q-hero-pad-x-m);
+        padding-right: var(--q-hero-pad-x-m);
+        padding-top: var(--q-hero-pad-y-m);
+        padding-bottom: var(--q-hero-pad-y-m);
+      }
+    }
+
+    /* Type */
+    #shopify-section-{{ section.id }} .q-h1{font-size:var(--q-h1);}
+    #shopify-section-{{ section.id }} .q-h2{font-size:var(--q-h2);}
     #shopify-section-{{ section.id }} h1,
-    #shopify-section-{{ section.id }} h2,
-    #shopify-section-{{ section.id }} h3,
-    #shopify-section-{{ section.id }} h4,
-    #shopify-section-{{ section.id }} h5,
-    #shopify-section-{{ section.id }} h6 {
-      font-family: var(--q-head);
-      font-weight: 700;
-      line-height: 1.2;
-      color: var(--q-foreground);
-      margin: 0 0 1rem 0;
-      letter-spacing: -.01em;
+    #shopify-section-{{ section.id }} h2{
+      font-family:var(--q-head); line-height:1.12; margin:0 0 .75rem 0; color:var(--q-oncolor);
+      letter-spacing:-.01em;
     }
-    #shopify-section-{{ section.id }} p,
-    #shopify-section-{{ section.id }} li,
-    #shopify-section-{{ section.id }} span {
-      font-family: var(--q-body);
-      font-weight: 400;
-      line-height: 1.65;
-      color: var(--q-foreground);
-      margin: 0;
-    }
-    #shopify-section-{{ section.id }} h1 { font-size: 2.25rem; }
-    #shopify-section-{{ section.id }} h2 { font-size: 1.875rem; }
-    #shopify-section-{{ section.id }} h3 { font-size: 1.5rem; }
-    #shopify-section-{{ section.id }} h4 { font-size: 1.25rem; }
-    #shopify-section-{{ section.id }} p,
-    #shopify-section-{{ section.id }} li { font-size: 1rem; }
-    @media (min-width:768px){
-      #shopify-section-{{ section.id }} h1 { font-size: 3rem; }
-      #shopify-section-{{ section.id }} h2 { font-size: 2.25rem; }
-      #shopify-section-{{ section.id }} h3 { font-size: 1.875rem; }
-      #shopify-section-{{ section.id }} h4 { font-size: 1.5rem; }
-      #shopify-section-{{ section.id }} p,
-      #shopify-section-{{ section.id }} li { font-size: 1.125rem; }
+    #shopify-section-{{ section.id }} p{font-family:var(--q-body); margin:0; color:var(--q-oncolor);}
+    #shopify-section-{{ section.id }} .q-kicker{
+      display:inline-flex; align-items:center; gap:.5rem; font-family:var(--q-body);
+      font-weight:700; color:var(--q-oncolor); background:rgba(255,255,255,.14);
+      padding:.45rem .75rem; border-radius:9999px; margin-bottom:1rem; letter-spacing:.04em; text-transform:uppercase;
+      font-size:.8rem;
     }
 
-    /* Rhythm + container fallbacks (purge-safe) */
-    #shopify-section-{{ section.id }} .q-flow > * + * { margin-top: 0.875rem; }
-    #shopify-section-{{ section.id }} .q-cta-row { margin-top: 1.25rem; }
-    /* Container padding fallbacks */
-    #shopify-section-{{ section.id }} .px-4 { padding-left:16px; padding-right:16px; }
-    @media (min-width:768px){ #shopify-section-{{ section.id }} .md\:px-6 { padding-left:24px; padding-right:24px; } }
-
-    /* Section vertical spacing: map Tailwind options -> real pixels (survives purge) */
-    #shopify-section-{{ section.id }} .q-pad { padding-top:48px; padding-bottom:64px; } /* default safety */
-    #shopify-section-{{ section.id }}[data-pad='py-8 md:py-12']  .q-pad { padding-top:32px; padding-bottom:48px; }
-    #shopify-section-{{ section.id }}[data-pad='py-12 md:py-16'] .q-pad { padding-top:48px; padding-bottom:64px; }
-    #shopify-section-{{ section.id }}[data-pad='py-16 md:py-24'] .q-pad { padding-top:64px; padding-bottom:96px; }
-
-    /* Grid gaps balance */
-    #shopify-section-{{ section.id }} .q-grid { display:grid; gap:24px; }
-    @media (min-width:768px){ #shopify-section-{{ section.id }} .q-grid { gap:32px; } }
-
-    /* Badge */
-    #shopify-section-{{ section.id }} .q-badge {
-      display:inline-flex; align-items:center; gap:.5rem;
-      padding:.375rem .75rem; border-radius:9999px; font-weight:600; font-size:.75rem; line-height:1rem;
+    /* CTAs */
+    #shopify-section-{{ section.id }} .q-ctas{margin-top:1.25rem; display:flex; flex-wrap:wrap; gap:.75rem;}
+    #shopify-section-{{ section.id }} .q-cta{
+      display:inline-flex; align-items:center; justify-content:center; font-weight:700;
+      text-decoration:none; border-radius:var(--q-btn-radius); padding:12px 22px;
+      border-width:var(--q-btn-bw); border-style:solid; transition:opacity .15s ease, transform .05s ease;
     }
-    #shopify-section-{{ section.id }} .q-badge.q-flash { position:relative; overflow:hidden; }
-    @keyframes qFlash{{ section.id }} { 0%{opacity:.85;transform:translateX(-30%);} 100%{opacity:0;transform:translateX(130%);} }
-    #shopify-section-{{ section.id }} .q-badge.q-flash:after {
-      content:""; position:absolute; inset:0;
-      background: radial-gradient(120px 120px at 0% 50%, rgba(255,255,255,.25), transparent 60%);
-      animation: qFlash{{ section.id }} 2.8s linear infinite; pointer-events:none;
+    #shopify-section-{{ section.id }} .q-cta[data-variant="primary"]{ background:var(--q-primary); border-color:transparent; color:var(--q-oncolor);}
+    #shopify-section-{{ section.id }} .q-cta[data-variant="secondary"]{ background:transparent; border-color:var(--q-oncolor); color:var(--q-oncolor);}
+    #shopify-section-{{ section.id }} .q-cta:hover{opacity:.92;} #shopify-section-{{ section.id }} .q-cta:active{transform:scale(.985);}
+
+    /* ---------------- Split composition ---------------- */
+    #shopify-section-{{ section.id }} .q-split{
+      display:grid; gap:28px; grid-template-columns: 1fr;
     }
-    @media (prefers-reduced-motion: reduce){
-      #shopify-section-{{ section.id }} .q-badge.q-flash:after { animation:none !important; }
+    @media(min-width: 1024px){
+      #shopify-section-{{ section.id }} .q-split{
+        {% assign ratio = s.split_ratio | default: 'balanced' %}
+        {% if ratio == 'wide_right' %}
+          grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+        {% elsif ratio == 'wide_left' %}
+          grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+        {% else %}
+          grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+        {% endif %}
+        align-items: center;
+      }
     }
 
-    /* Cards */
-    #shopify-section-{{ section.id }} .q-card { border-radius:16px; overflow:hidden; }
-    #shopify-section-{{ section.id }} .q-card-body { padding:24px; }
-    @media (min-width:768px){ #shopify-section-{{ section.id }} .q-card-body { padding:32px; } }
-
-    /* Unified copy width/alignment: keeps subtext aligned directly under heading */
-    #shopify-section-{{ section.id }} .q-text {
-      max-width: 64ch; /* shared for heading + subtext */
+    /* ---------------- Promo Grid ---------------- */
+    #shopify-section-{{ section.id }} .q-support-wrap{
+      position:relative; 
+      z-index:20; 
+      padding-left: var(--q-support-gx);
+      padding-right: var(--q-support-gx);
+      margin-top:32px;  /* tighter stack (was 48) */
+      transform: translateY(var(--q-support-offset));
     }
-    /* center by default (matching heading block), can be changed if you add a left/right utility on wrapper */
-    #shopify-section-{{ section.id }} .q-text-center { margin-left:auto; margin-right:auto; text-align:center; }
-    #shopify-section-{{ section.id }} .q-text-left { text-align:left; }
-    #shopify-section-{{ section.id }} .q-text-right { text-align:right; }
+    #shopify-section-{{ section.id }} .q-support-max{
+      max-width:var(--q-support-max); 
+      margin-left:auto; 
+      margin-right:auto;
+    }
+    #shopify-section-{{ section.id }} .q-support{
+      display:grid; 
+      gap:var(--q-grid-gap-m);
+      grid-template-columns: 1fr;
+    }
+    @media(min-width:768px){
+      #shopify-section-{{ section.id }} .q-support{
+        gap:var(--q-grid-gap);
+        grid-template-columns: repeat(2, minmax(0,1fr));
+      }
+    }
+
+    /* Promo Card */
+    #shopify-section-{{ section.id }} .q-card{
+      position:relative; overflow:hidden; border-radius:20px; min-height:var(--q-card-min);
+      background:#0b0b0b; display:flex; align-items:flex-end; border:1px solid rgba(255,255,255,.12);
+    }
+    #shopify-section-{{ section.id }} .q-card img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+    #shopify-section-{{ section.id }} .q-card .q-grad{
+      position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,.0) 10%, rgba(0,0,0,.55) 75%);
+    }
+    #shopify-section-{{ section.id }} .q-card .q-body{
+      position:relative; width:100%; padding:18px; display:grid; gap:8px; color:#fff;
+    }
+    #shopify-section-{{ section.id }} .q-chip{
+      display:inline-flex; align-items:center; font-weight:800; background:rgba(255,255,255,.18);
+      color:#fff; border-radius:9999px; padding:.35rem .6rem; font-size:.78rem; letter-spacing:.02em;
+    }
+    #shopify-section-{{ section.id }} .q-title{font-family:var(--q-head); font-size:1.15rem; line-height:1.22; margin:0;}
+    #shopify-section-{{ section.id }} .q-card .q-btn{margin-top:6px; align-self:start;}
+    #shopify-section-{{ section.id }} .q-support > *:only-child { grid-column: 1 / -1; }
   </style>
 
-  {%- comment -%}
-    BACKGROUND LAYER (section-level fallback)
-    - Guarantees a visible backdrop even if blocks provide no image.
-  {%- endcomment -%}
-  <div class="q-bleed absolute inset-0" aria-hidden="true">
-    {% liquid
-      assign has_section_bg_image = false
-      if s.background_image != blank
-        assign has_section_bg_image = true
-      endif
-    %}
-    {% if has_section_bg_image %}
-      {{ s.background_image
-        | image_url: width: 2880
-        | image_tag:
-          widths: '960,1440,1920,2560,2880',
-          sizes: '100vw',
-          loading: 'eager',
-          fetchpriority: 'high',
-          class: 'absolute inset-0 w-full h-full object-cover',
-          alt: s.bg_image_alt | default: 'Decorative background' }}
-      <div class="absolute inset-0"
-           style="background-color: {{ s.overlay_color }}; opacity: {{ s.overlay_opacity | divided_by: 100.0 }};"></div>
-    {% else %}
-      {% if s.use_gradient %}
-        <div class="absolute inset-0"
-             style="background: linear-gradient({{ s.gradient_angle | default: 135 }}deg, {{ s.gradient_color_1 | default: '#111827' }}, {{ s.gradient_color_2 | default: '#0b0f19' }});"></div>
-      {% else %}
-        <div class="absolute inset-0" style="background-color: {{ s.solid_bg_color | default: '#111111' }};"></div>
+  <!-- HERO (bg is rendered per instance; content is above bg) -->
+  <div class="q-layer q-hero">
+    <div class="q-media" aria-hidden="true" style="{{ bg_style }}">
+      {% if has_bg_asset and bg_mode == 'video' and s.background_video != blank %}
+        <video autoplay muted loop playsinline>
+          <source src="{{ s.background_video | escape }}" type="video/mp4">
+        </video>
       {% endif %}
-    {% endif %}
-  </div>
+      {% if scrim_opacity > 0 %}
+        <div class="q-scrim" style="background: {{ s.overlay_color | default: '#000000' }}; opacity: {{ scrim_opacity }};"></div>
+      {% endif %}
+    </div>
 
-  {%- comment -%} CONTENT {%- endcomment -%}
-  <div class="relative z-10 q-bleed">
-    <div class="q-pad">
-      <div class="{{ container_wrap }}">
-        <div class="q-flow q-text q-text-center">
-          {% if s.kicker != blank %}
-            <div class="q-badge q-flash" style="background: rgba(255,255,255,.15); color: #fff;">
-              <span>{{ s.kicker }}</span>
-            </div>
-          {% endif %}
-
-          {% if s.heading != blank %}
-            <h2 style="color:#fff;">{{ s.heading }}</h2>
-          {% endif %}
-
-          {% if s.subheading != blank %}
-            <p style="color: rgba(255,255,255,.92);">
-              {{ s.subheading }}
-            </p>
-          {% endif %}
-        </div>
-
-        {% liquid
-          assign cols = s.cols_desktop | default: '2'
-          assign col_class = 'q-cols-1'
-          if cols == '1'
-            assign col_class = 'q-cols-1'
-          elsif cols == '2'
-            assign col_class = 'q-cols-2'
-          elsif cols == '3'
-            assign col_class = 'q-cols-3'
-          endif
-        %}
-
-        <div class="q-grid {{ col_class }} mt-8">
-          <style>
-            /* Responsive column templates without Tailwind dynamic classes */
-            #shopify-section-{{ section.id }} .q-cols-1 { grid-template-columns: 1fr; }
-            @media (min-width:768px){ #shopify-section-{{ section.id }} .q-cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)); } }
-            @media (min-width:768px){ #shopify-section-{{ section.id }} .q-cols-3 { grid-template-columns: repeat(3, minmax(0,1fr)); } }
-          </style>
-
-          {% for block in section.blocks %}
-            {% assign b = block.settings %}
-
-            {% if block.type == 'offer' %}
-              <div class="q-card relative ring-1 ring-border bg-card">
-                {% if b.background_image != blank %}
-                  {{ b.background_image
-                    | image_url: width: 1920
-                    | image_tag:
-                      widths: '960,1440,1920',
-                      sizes: '100vw',
-                      loading: 'lazy',
-                      class: 'absolute inset-0 w-full h-full object-cover',
-                      alt: b.image_alt }}
-                  <div class="absolute inset-0" aria-hidden="true"
-                       style="background-color: {{ b.overlay_color | default: '#000000' }}; opacity: {{ b.overlay_opacity | default: 30 | divided_by: 100.0 }};"></div>
-                {% else %}
-                  <div class="absolute inset-0" style="background: rgba(255,255,255,.04);"></div>
+    <div class="q-hero-inner {% if s.container_mode == 'contained' %}q-cw {{ inner_pad }}{% else %}{{ inner_pad }}{% endif %}">
+      {% case composition %}
+        {% when 'split_one' %}
+          <div class="q-split">
+            <div>
+              <div class="{% if s.text_alignment == 'center' %}text-center mx-auto{% elsif s.text_alignment == 'right' %}text-right ml-auto{% else %}text-left{% endif %}"
+                   style="max-width: {{ s.content_measure | default: '60ch' }};">
+                {% if s.kicker != blank %}<div class="q-kicker">{{ s.kicker }}</div>{% endif %}
+                {% if s.heading != blank %}
+                  <{{ s.heading_scale | default: 'h1' }} class="{% if s.heading_scale == 'h2' %}q-h2{% else %}q-h1{% endif %}">{{ s.heading }}</{{ s.heading_scale | default: 'h1' }}>
                 {% endif %}
-
-                <div class="q-card-body relative z-10">
-                  <div class="q-flow">
-                    {% if b.badge_text != blank %}
-                      <div class="q-badge {% if b.flash_badge %}q-flash{% endif %}"
-                           style="background: {{ b.badge_bg | default: '#EF4444' }}; color: {{ b.badge_color | default: '#FFFFFF' }};"
-                           aria-label="{{ b.badge_aria | default: 'Special offer' | escape }}">
-                        {% if b.badge_icon == 'star' %}
-                          <svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 0 0 .95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.802 2.036a1 1 0 0 0-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.802-2.036a1 1 0 0 0-1.176 0l-2.802 2.036c-.785.57-1.84-.197-1.54-1.118l-1.07-3.292a1 1 0 0 0-.364-1.118L2.88 8.72c-.783-.57-.38-1.81.588-1.81h3.462a1 1 0 0 0 .95-.69l1.07-3.292z"/></svg>
-                        {% elsif b.badge_icon == 'bolt' %}
-                          <svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M11.3 1L3 11h5l-.8 8L15 9h-5l1.3-8z"/></svg>
-                        {% elsif b.badge_icon == 'tag' %}
-                          <svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M17.707 10.293l-7-7A1 1 0 0 0 9.999 3H4a1 1 0 0 0-1 1v6a1 1 0 0 0 .293.707l7 7a1 1 0 0 0 1.414 0l6-6a1 1 0 0 0 0-1.414zM7 7a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/></svg>
-                        {% endif %}
-                        <span>{{ b.badge_text }}</span>
-                      </div>
-                    {% endif %}
-
-                    {% if b.kicker != blank %}
-                      <p style="opacity:.9;">{{ b.kicker }}</p>
-                    {% endif %}
-
-                    {% if b.heading != blank %}
-                      <div class="q-text q-text-left">
-                        <h3 style="color:#111;">{{ b.heading }}</h3>
-                      </div>
-                    {% endif %}
-
-                    {% if b.subheading != blank %}
-                      <div class="q-text q-text-left">
-                        <p class="{% if b.hide_text_mobile %}hidden md:block{% endif %}" style="opacity:.85;">
-                          {{ b.subheading }}
-                        </p>
-                      </div>
-                    {% endif %}
-
-                    {% assign has_cta1 = false %}
-                    {% if b.cta_text != blank and b.cta_link != blank %}
-                      {% assign has_cta1 = true %}
-                    {% endif %}
-                    {% assign has_cta2 = false %}
-                    {% if b.cta2_text != blank and b.cta2_link != blank %}
-                      {% assign has_cta2 = true %}
-                    {% endif %}
-
-                    {% if has_cta1 or has_cta2 %}
-                      {% assign cta_justify = 'justify-center' %}
-                      {% if b.cta_group_align == 'left' %}
-                        {% assign cta_justify = 'justify-start' %}
-                      {% elsif b.cta_group_align == 'right' %}
-                        {% assign cta_justify = 'justify-end' %}
-                      {% endif %}
-                      <div class="q-cta-row flex flex-wrap gap-3 {{ cta_justify }}{% if b.hide_buttons_mobile %} hidden md:flex{% endif %}">
-                        {% if has_cta1 %}
-                          <a href="{{ b.cta_link }}"
-                             aria-label="{{ b.cta_aria_label | default: b.cta_text | escape }}"
-                             class="inline-flex items-center justify-center font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition"
-                             style="
-                               color: {{ s.button_text_color }};
-                               {% if is_outline %}
-                                 border-style: solid; border-width: {{ s.button_border_width }}px; border-color: {{ s.button_border_color }}; background-color: transparent;
-                               {% else %}
-                                 background-color: {{ s.button_bg_color }};
-                               {% endif %}
-                               border-radius: {{ s.button_radius }}px;
-                               padding: {{ s.button_padding_vertical | default: 10 }}px {{ s.button_padding_horizontal | default: 20 }}px;">
-                            {{ b.cta_text }}
-                          </a>
-                        {% endif %}
-                        {% if has_cta2 %}
-                          <a href="{{ b.cta2_link }}"
-                             aria-label="{{ b.cta2_aria_label | default: b.cta2_text | escape }}"
-                             class="inline-flex items-center justify-center font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition"
-                             style="
-                               color: {{ s.button_text_color }};
-                               {% if is_outline %}
-                                 border-style: solid; border-width: {{ s.button_border_width }}px; border-color: {{ s.button_border_color }}; background-color: transparent;
-                               {% else %}
-                                 background-color: {{ s.button_bg_color }};
-                               {% endif %}
-                               border-radius: {{ s.button_radius }}px;
-                               padding: {{ s.button_padding_vertical | default: 10 }}px {{ s.button_padding_horizontal | default: 20 }}px;">
-                            {{ b.cta2_text }}
-                          </a>
-                        {% endif %}
-                      </div>
-                    {% endif %}
+                {% if s.subheading != blank %}<p style="opacity:.92">{{ s.subheading }}</p>{% endif %}
+                {% if has_primary or has_secondary %}
+                  <div class="q-ctas {% if s.text_alignment == 'center' %}justify-center{% elsif s.text_alignment == 'right' %}justify-end{% else %}justify-start{% endif %}">
+                    {% if has_primary %}<a href="{{ s.cta_link }}" class="q-cta" data-variant="primary" aria-label="{{ s.cta_aria | default: s.cta_text }}">{{ s.cta_text }}</a>{% endif %}
+                    {% if has_secondary %}<a href="{{ s.cta2_link }}" class="q-cta" data-variant="secondary" aria-label="{{ s.cta2_aria | default: s.cta2_text }}">{{ s.cta2_text }}</a>{% endif %}
                   </div>
-                </div>
+                {% endif %}
               </div>
-
-            {% elsif block.type == 'product' %}
-              {% assign p = b.product %}
-              {% if p != blank %}
-                {% assign v = p.selected_or_first_available_variant %}
-                <div class="q-card relative ring-1 ring-border bg-card">
-                  <div class="q-card-body">
-                    <div class="q-flow">
-                      <div class="q-text q-text-left">
-                        <h3>{{ p.title | escape }}</h3>
-                      </div>
-
-                      {% if p.featured_image %}
-                        {{ p.featured_image
-                          | image_url: width: 1200
-                          | image_tag:
-                            widths: '640,750,828,960,1080,1200',
-                            sizes: '100vw',
-                            loading: 'lazy',
-                            class: 'w-full h-auto object-cover rounded-xl',
-                            alt: p.title }}
-                      {% endif %}
-
-                      <div class="q-text q-text-left">
-                        <p style="opacity:.9;">
-                          {% if v.compare_at_price > v.price %}
-                            <span><strong>{{ v.price | money }}</strong> <s style="opacity:.7">{{ v.compare_at_price | money }}</s></span>
-                          {% else %}
-                            <span><strong>{{ v.price | money }}</strong></span>
-                          {% endif %}
-                        </p>
-                      </div>
-
-                      {% if b.quick_add and v %}
-                        <form method="post" action="/cart/add" enctype="multipart/form-data" class="flex flex-wrap gap-3 items-center" data-q-quickadd>
-                          <input type="hidden" name="id" value="{{ v.id }}">
-                          <input type="hidden" name="quantity" value="1">
-                          <button type="submit"
-                                  class="inline-flex items-center justify-center font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition"
-                                  {% unless v.available %}disabled{% endunless %}
-                                  aria-label="{{ b.quick_add_label | default: 'Add to cart' | escape }}"
-                                  style="
-                                    color: {{ s.button_text_color }};
-                                    {% if is_outline %}
-                                      border-style: solid; border-width: {{ s.button_border_width }}px; border-color: {{ s.button_border_color }}; background-color: transparent;
-                                    {% else %}
-                                      background-color: {{ s.button_bg_color }};
-                                    {% endif %}
-                                    border-radius: {{ s.button_radius }}px;
-                                    padding: {{ s.button_padding_vertical | default: 10 }}px {{ s.button_padding_horizontal | default: 20 }}px;">
-                            {{ b.quick_add_label | default: 'Add to cart' }}
-                          </button>
-
-                          <a href="{{ p.url }}"
-                             class="inline-flex items-center justify-center font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition"
-                             aria-label="{{ b.view_product_label | default: 'View product' | escape }}"
-                             style="
-                               color: {{ s.button_text_color }};
-                               {% if is_outline %}
-                                 border-style: solid; border-width: {{ s.button_border_width }}px; border-color: {{ s.button_border_color }}; background-color: transparent;
-                               {% else %}
-                                 background-color: transparent; border-style: solid; border-width: 1px; border-color: var(--q-border);
-                               {% endif %}
-                               border-radius: {{ s.button_radius }}px;
-                               padding: {{ s.button_padding_vertical | default: 10 }}px {{ s.button_padding_horizontal | default: 20 }}px;">
-                            {{ b.view_product_label | default: 'View product' }}
-                          </a>
-                        </form>
+            </div>
+            <div>
+              {% if has_blocks %}
+                {% assign b = section.blocks.first.settings %}
+                {% assign card_alt = b.image_alt | default: b.title %}
+                <div class="q-support">
+                  <div class="q-card">
+                    {% if b.image != blank %}
+                      {{ b.image | image_url: width: 1440 | image_tag: widths: '960,1200,1440', sizes: '50vw', loading: 'eager', alt: card_alt }}
+                    {% endif %}
+                    <div class="q-grad"></div>
+                    <div class="q-body">
+                      {% if b.badge_text != blank %}<span class="q-chip">{{ b.badge_text }}</span>{% endif %}
+                      {% if b.title != blank %}<h3 class="q-title">{{ b.title }}</h3>{% endif %}
+                      {% if b.link != blank and b.label != blank %}
+                        <a href="{{ b.link }}" class="q-cta q-btn" data-variant="secondary" aria-label="{{ b.aria | default: b.label }}">{{ b.label }}</a>
                       {% endif %}
                     </div>
                   </div>
                 </div>
               {% endif %}
+            </div>
+          </div>
+
+        {% when 'hero_only' %}
+          <div class="{% if s.text_alignment == 'center' %}text-center mx-auto{% elsif s.text_alignment == 'right' %}text-right ml-auto{% else %}text-left{% endif %}"
+               style="max-width: {{ s.content_measure | default: '60ch' }};">
+            {% if s.kicker != blank %}<div class="q-kicker">{{ s.kicker }}</div>{% endif %}
+            {% if s.heading != blank %}
+              <{{ s.heading_scale | default: 'h1' }} class="{% if s.heading_scale == 'h2' %}q-h2{% else %}q-h1{% endif %}">{{ s.heading }}</{{ s.heading_scale | default: 'h1' }}>
             {% endif %}
+            {% if s.subheading != blank %}<p style="opacity:.92">{{ s.subheading }}</p>{% endif %}
+            {% if has_primary or has_secondary %}
+              <div class="q-ctas {% if s.text_alignment == 'center' %}justify-center{% elsif s.text_alignment == 'right' %}justify-end{% else %}justify-start{% endif %}">
+                {% if has_primary %}<a href="{{ s.cta_link }}" class="q-cta" data-variant="primary" aria-label="{{ s.cta_aria | default: s.cta_text }}">{{ s.cta_text }}</a>{% endif %}
+                {% if has_secondary %}<a href="{{ s.cta2_link }}" class="q-cta" data-variant="secondary" aria-label="{{ s.cta2_aria | default: s.cta2_text }}">{{ s.cta2_text }}</a>{% endif %}
+              </div>
+            {% endif %}
+          </div>
+
+        {% else %}
+          {%- comment -%} hero_plus_grid {%- endcomment -%}
+          <div class="{% if s.text_alignment == 'center' %}text-center mx-auto{% elsif s.text_alignment == 'right' %}text-right ml-auto{% else %}text-left{% endif %}"
+               style="max-width: {{ s.content_measure | default: '66ch' }};">
+            {% if s.kicker != blank %}<div class="q-kicker">{{ s.kicker }}</div>{% endif %}
+            {% if s.heading != blank %}
+              <{{ s.heading_scale | default: 'h1' }} class="{% if s.heading_scale == 'h2' %}q-h2{% else %}q-h1{% endif %}">{{ s.heading }}</{{ s.heading_scale | default: 'h1' }}>
+            {% endif %}
+            {% if s.subheading != blank %}<p style="opacity:.92">{{ s.subheading }}</p>{% endif %}
+            {% if has_primary or has_secondary %}
+              <div class="q-ctas {% if s.text_alignment == 'center' %}justify-center{% elsif s.text_alignment == 'right' %}justify-end{% else %}justify-start{% endif %}">
+                {% if has_primary %}<a href="{{ s.cta_link }}" class="q-cta" data-variant="primary" aria-label="{{ s.cta_aria | default: s.cta_text }}">{{ s.cta_text }}</a>{% endif %}
+                {% if has_secondary %}<a href="{{ s.cta2_link }}" class="q-cta" data-variant="secondary" aria-label="{{ s.cta2_aria | default: s.cta2_text }}">{{ s.cta2_text }}</a>{% endif %}
+              </div>
+            {% endif %}
+          </div>
+      {% endcase %}
+    </div>
+  </div>
+
+  {% if composition == 'hero_plus_grid' and has_blocks %}
+    <div class="q-layer q-support-wrap">
+      <div class="q-support-max">
+        <div class="q-support">
+          {% for block in section.blocks %}
+            {% assign b = block.settings %}
+            {% assign card_alt = b.image_alt | default: b.title %}
+            <div class="q-card" {{ block.shopify_attributes }}>
+              {% if b.image != blank %}
+                {{ b.image | image_url: width: 1600 | image_tag: widths: '960,1200,1440,1600', sizes: '(min-width: 768px) 50vw, 100vw', loading: 'lazy', alt: card_alt }}
+              {% endif %}
+              <div class="q-grad"></div>
+              <div class="q-body">
+                {% if b.badge_text != blank %}<span class="q-chip">{{ b.badge_text }}</span>{% endif %}
+                {% if b.title != blank %}<h3 class="q-title">{{ b.title }}</h3>{% endif %}
+                {% if b.link != blank and b.label != blank %}
+                  <a href="{{ b.link }}" class="q-cta q-btn" data-variant="secondary" aria-label="{{ b.aria | default: b.label }}">{{ b.label }}</a>
+                {% endif %}
+              </div>
+            </div>
           {% endfor %}
         </div>
       </div>
     </div>
-  </div>
-
-  {% if s.send_events %}
-    <script>
-      (function(){
-        var root = document.getElementById('{{ s.anchor_id | default: 'section-' | append: section.id }}');
-        if(!root) return;
-        root.addEventListener('click', function(e){
-          var a = e.target.closest('a');
-          if(!a || !{{ s.send_events | json }}) return;
-          var payload = { component: 'special_offers_banner', href: a.getAttribute('href') };
-          window.dispatchEvent(new CustomEvent('quadratum:cta', { detail: payload }));
-          if(window.dataLayer && Array.isArray(window.dataLayer)){
-            window.dataLayer.push({ event: 'quadratum_cta', component: payload.component, href: payload.href });
-          }
-        });
-      })();
-    </script>
   {% endif %}
 </section>
 
-{% render 'tw-safelist-banners' %}
-
 {% schema %}
 {
-  "name": "Special Offers Banner",
+  "name": "Offers • Hero",
   "tag": "section",
-  "class": "q-special-offers",
+  "class": "q-offers-hero",
   "settings": [
-    { "type": "header", "content": "Heading" },
-    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Special offers" },
-    { "type": "text", "id": "heading", "label": "Heading", "default": "Don’t miss these deals" },
-    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Limited-time promos, bundles, and markdowns." },
+    { "type": "header", "content": "Composition" },
+    { "type": "select", "id": "composition", "label": "Layout", "default": "hero_plus_grid", "options": [
+      { "value": "hero_only", "label": "Hero only" },
+      { "value": "hero_plus_grid", "label": "Hero + grid below" },
+      { "value": "split_one", "label": "Split hero (one promo on right)" }
+    ]},
+
+    { "type": "header", "content": "Content" },
+    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Featured" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "New season. Big savings." },
+    { "type": "select", "id": "heading_scale", "label": "Heading scale", "default": "h1", "options": [
+      { "value": "h1", "label": "Hero (H1)" },
+      { "value": "h2", "label": "Large (H2)" }
+    ] },
+    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Curated bundles, limited drops, and members-only markdowns." },
+
+    { "type": "header", "content": "CTAs" },
+    { "type": "text", "id": "cta_text", "label": "Primary label", "default": "Shop Women" },
+    { "type": "url", "id": "cta_link", "label": "Primary link" },
+    { "type": "text", "id": "cta2_text", "label": "Secondary label", "default": "Learn more" },
+    { "type": "url", "id": "cta2_link", "label": "Secondary link" },
 
     { "type": "header", "content": "Background" },
-    { "type": "checkbox", "id": "use_gradient", "label": "Use gradient background", "default": true },
-    { "type": "color", "id": "gradient_color_1", "label": "Gradient color 1", "default": "#111827" },
-    { "type": "color", "id": "gradient_color_2", "label": "Gradient color 2", "default": "#0b0f19" },
-    { "type": "range", "id": "gradient_angle", "label": "Gradient angle (deg)", "min": 0, "max": 360, "step": 5, "default": 135 },
-    { "type": "color", "id": "solid_bg_color", "label": "Solid background (when gradient off)", "default": "#111111" },
-    { "type": "image_picker", "id": "background_image", "label": "Background image (optional)" },
-    { "type": "text", "id": "bg_image_alt", "label": "Background image alt", "default": "Decorative background" },
+    { "type": "select", "id": "background_mode", "label": "Mode", "default": "image", "options": [
+      { "value": "image", "label": "Image" },
+      { "value": "video", "label": "Video (MP4)" }
+    ] },
+    { "type": "image_picker", "id": "background_image", "label": "Background image" },
+    { "type": "text", "id": "bg_image_alt", "label": "Image alt", "default": "Hero background" },
+    { "type": "url", "id": "background_video", "label": "Background video (MP4)" },
     { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
-    { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 30, "unit": "%" },
+    { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 40, "unit": "%" },
 
-    { "type": "header", "content": "Layout & padding" },
-    { "type": "select", "id": "cols_desktop", "label": "Offer columns (desktop)", "default": "2", "options": [
-      { "value": "1", "label": "1" },
-      { "value": "2", "label": "2" },
-      { "value": "3", "label": "3" }
-    ]},
-    { "type": "select", "id": "container_mode", "label": "Container", "default": "contained", "options": [
-      { "value": "contained", "label": "Contained (side padding)" },
-      { "value": "full", "label": "Full-bleed (edge to edge)" }
-    ]},
-    { "type": "select", "id": "pad_y", "label": "Vertical padding", "default": "py-12 md:py-16", "options": [
-      { "value": "py-8 md:py-12", "label": "Small" },
-      { "value": "py-12 md:py-16", "label": "Medium" },
-      { "value": "py-16 md:py-24", "label": "Large" }
+    { "type": "header", "content": "Layout Controls — Hero" },
+    { "type": "select", "id": "text_alignment", "label": "Text alignment", "default": "left", "options": [
+      { "value": "left", "label": "Left" },
+      { "value": "center", "label": "Center" },
+      { "value": "right", "label": "Right" }
+    ] },
+    { "type": "select", "id": "container_mode", "label": "Hero container", "default": "contained", "options": [
+      { "value": "contained", "label": "Contained (theme width)" },
+      { "value": "full", "label": "Full width" }
+    ] },
+    { "type": "text", "id": "content_measure", "label": "Max copy width", "default": "60ch" },
+    { "type": "range", "id": "hero_height_d", "label": "Hero height (desktop, vh)", "min": 40, "max": 90, "step": 2, "default": 80 },
+    { "type": "range", "id": "hero_height_m", "label": "Hero height (mobile, vh)", "min": 40, "max": 80, "step": 2, "default": 64 },
+    { "type": "range", "id": "hero_pad_x_desktop", "label": "Hero padding X (desktop, px)", "min": 0, "max": 160, "step": 4, "default": 64 },
+    { "type": "range", "id": "hero_pad_x_mobile", "label": "Hero padding X (mobile, px)", "min": 0, "max": 64, "step": 4, "default": 16 },
+    { "type": "range", "id": "hero_pad_y_desktop", "label": "Hero padding Y (desktop, px)", "min": 0, "max": 240, "step": 8, "default": 96 },
+    { "type": "range", "id": "hero_pad_y_mobile", "label": "Hero padding Y (mobile, px)", "min": 0, "max": 200, "step": 8, "default": 72 },
+
+    { "type": "header", "content": "Layout Controls — Support Grid" },
+    { "type": "range", "id": "support_max_w", "label": "Grid max width (px)", "min": 960, "max": 1920, "step": 40, "default": 1600 },
+    { "type": "range", "id": "support_gutter_x", "label": "Grid side gutter (px)", "min": 0, "max": 80, "step": 4, "default": 24 },
+    { "type": "range", "id": "support_offset_y", "label": "Grid vertical offset (px, negative pulls up)", "min": -160, "max": 160, "step": 8, "default": -48 },
+    { "type": "range", "id": "card_min_h", "label": "Promo card min height (px)", "min": 320, "max": 560, "step": 20, "default": 420 },
+
+    { "type": "select", "id": "split_ratio", "label": "Split ratio (split_one)", "default": "balanced", "options": [
+      { "value": "balanced", "label": "Balanced" },
+      { "value": "wide_right", "label": "Wider promo (right)" },
+      { "value": "wide_left",  "label": "Wider hero text (left)" }
     ]},
 
-    { "type": "header", "content": "Buttons (global defaults)" },
-    { "type": "select", "id": "button_mode", "label": "Button style", "default": "solid", "options": [
-      { "value": "solid", "label": "Solid" },
-      { "value": "outline", "label": "Outline" }
-    ]},
-    { "type": "color", "id": "button_bg_color", "label": "Button background (solid)", "default": "#ffffff" },
-    { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#000000" },
-    { "type": "color", "id": "button_border_color", "label": "Button border color (outline)", "default": "#ffffff" },
-    { "type": "range", "id": "button_border_width", "label": "Outline border width", "min": 0, "max": 6, "step": 1, "default": 1 },
-    { "type": "range", "id": "button_radius", "label": "Corner radius", "min": 0, "max": 36, "step": 2, "default": 12 },
-
-    { "type": "header", "content": "Visibility & analytics" },
-    { "type": "text", "id": "anchor_id", "label": "Optional anchor ID" },
-    { "type": "text", "id": "region_label", "label": "Accessible region label", "default": "Special offers" },
+    { "type": "header", "content": "Visibility & Region" },
+    { "type": "text", "id": "anchor_id", "label": "Anchor ID" },
+    { "type": "text", "id": "region_label", "label": "Region label", "default": "Special offers hero" },
     { "type": "checkbox", "id": "hide_on_mobile", "label": "Hide on mobile", "default": false },
-    { "type": "checkbox", "id": "hide_on_desktop", "label": "Hide on desktop", "default": false },
-    { "type": "checkbox", "id": "send_events", "label": "Send analytics events on clicks", "default": true }
+    { "type": "checkbox", "id": "hide_on_desktop", "label": "Hide on desktop", "default": false }
   ],
   "blocks": [
     {
-      "type": "offer",
-      "name": "Offer",
+      "type": "support",
+      "name": "Support promo",
       "settings": [
-        { "type": "header", "content": "Media (optional)" },
-        { "type": "image_picker", "id": "background_image", "label": "Background image" },
-        { "type": "text", "id": "image_alt", "label": "Image alt", "default": "Offer background" },
-        { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
-        { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 30, "unit": "%" },
-
-        { "type": "header", "content": "Badge" },
-        { "type": "select", "id": "badge_shape", "label": "Badge shape", "default": "star", "options": [
-          { "value": "star", "label": "Starburst" },
-          { "value": "pill", "label": "Pill" }
-        ]},
-        { "type": "select", "id": "badge_icon", "label": "Badge icon", "default": "star", "options": [
-          { "value": "none", "label": "None" },
-          { "value": "star", "label": "Star" },
-          { "value": "bolt", "label": "Bolt" },
-          { "value": "tag",  "label": "Tag" }
-        ]},
-        { "type": "text", "id": "badge_text", "label": "Badge text", "default": "Hot deal" },
-        { "type": "color", "id": "badge_bg", "label": "Badge background", "default": "#EF4444" },
-        { "type": "color", "id": "badge_color", "label": "Badge text color", "default": "#FFFFFF" },
-        { "type": "checkbox", "id": "flash_badge", "label": "Flash animation on badge", "default": true },
-        { "type": "text", "id": "badge_aria", "label": "Badge ARIA label", "default": "Special offer" },
-
-        { "type": "header", "content": "Text" },
-        { "type": "text", "id": "kicker", "label": "Kicker", "default": "Limited time" },
-        { "type": "text", "id": "heading", "label": "Heading", "default": "Save big today" },
-        { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Extra savings applied at checkout." },
-        { "type": "checkbox", "id": "hide_text_mobile", "label": "Hide subheading on mobile", "default": false },
-
-        { "type": "header", "content": "Buttons" },
-        { "type": "select", "id": "cta_group_align", "label": "Button alignment", "default": "center", "options": [
-          { "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" }
-        ]},
-        { "type": "text", "id": "cta_text", "label": "Primary button text", "default": "Shop now" },
-        { "type": "url", "id": "cta_link", "label": "Primary button URL" },
-        { "type": "text", "id": "cta_aria_label", "label": "Primary button ARIA label", "default": "Shop now" },
-        { "type": "text", "id": "cta2_text", "label": "Secondary button text", "default": "Learn more" },
-        { "type": "url", "id": "cta2_link", "label": "Secondary button URL" },
-        { "type": "text", "id": "cta2_aria_label", "label": "Secondary button ARIA label", "default": "Learn more" }
-      ]
-    },
-    {
-      "type": "product",
-      "name": "Featured product",
-      "settings": [
-        { "type": "product", "id": "product", "label": "Product" },
-        { "type": "checkbox", "id": "quick_add", "label": "Enable Quick Add (first available variant)", "default": true },
-        { "type": "text", "id": "quick_add_label", "label": "Quick Add button label", "default": "Add to cart" },
-        { "type": "text", "id": "view_product_label", "label": "View product link label", "default": "View product" }
+        { "type": "image_picker", "id": "image", "label": "Image" },
+        { "type": "text", "id": "image_alt", "label": "Image alt", "default": "Promo image" },
+        { "type": "text", "id": "badge_text", "label": "Badge", "default": "Featured" },
+        { "type": "text", "id": "title", "label": "Title", "default": "Promo title" },
+        { "type": "text", "id": "label", "label": "Button label", "default": "Shop now" },
+        { "type": "url", "id": "link", "label": "Button link" }
       ]
     }
   ],
   "max_blocks": 6,
   "presets": [
-    {
-      "name": "Special Offers • Sale + Product",
-      "category": "Banner",
-      "blocks": [
-        { "type": "offer", "settings": { "badge_text": "Extra 20% off", "kicker": "Today only", "heading": "Last chance savings", "cta_text": "Shop deals" } },
-        { "type": "offer", "settings": { "badge_shape": "pill", "badge_bg": "#10B981", "badge_text": "Bundles", "kicker": "Save more", "heading": "Buy 2, save 15%", "cta_text": "Build bundle" } },
-        { "type": "product" }
-      ]
-    }
+    { "name": "Special Offers Banner - Hero (Hero only)", "category": "Hero Banners", "settings": { "composition": "hero_only" } },
+    { "name": "Special Offers Banner - Hero (Hero + grid)", "category": "Hero Banners", "settings": { "composition": "hero_plus_grid" } },
+    { "name": "Special Offers Banner - Hero (Split one)", "category": "Hero Banners", "settings": { "composition": "split_one", "split_ratio": "wide_right" } }
   ]
 }
 {% endschema %}
-
-{% render 'tw-safelist-banners' %}
