@@ -1,324 +1,456 @@
 {% comment %}
-  Quadratum • Featured Product Hero (full-bleed safe, spacing fixed)
-  - Full bleed wrapper for background
-  - Scoped spacing + typography
-  - CTA fallbacks intact
+  Featured Product Hero
+  - Layouts: overlay (card-on-image), media-left, media-right
+  - Background image/video with color overlay
+  - Content backdrop: none / panel / glass
+  - Optional SINGLE product (ATC) OR COLLECTION row under the hero
+  - Text & button color overrides; per-section button motion; reveal + parallax
+  - Accessibility: ARIA region label, descriptive alt, labeled CTAs
 {% endcomment %}
 
 {% assign s = section.settings %}
 
-{%- comment -%} Container padding {%- endcomment -%}
-{% assign container_pad = '' %}
-{% if s.container_mode == 'contained' %}
-  {% assign container_pad = 'px-4 md:px-6' %}
+{%- comment -%} Overlay opacity as 0–1 {%- endcomment -%}
+{% assign _raw_overlay = s.overlay_opacity | default: 0 %}
+{% assign overlay_op = _raw_overlay | times: 0.01 %}
+
+{%- comment -%} Optional product {%- endcomment -%}
+{% assign prod = nil %}
+{% if s.product != blank %}
+  {% assign prod = all_products[s.product] %}
 {% endif %}
 
-{%- comment -%} Wrapper class that respects container_mode {%- endcomment -%}
-{% assign container_wrap = container_pad %}
-{% if s.container_mode == 'contained' %}
-  {% assign container_wrap = 'mx-auto max-w-screen-xl ' | append: container_pad %}
+{%- comment -%} Optional collection {%- endcomment -%}
+{% assign row_collection = nil %}
+{% if s.product_block_mode == 'collection' and s.row_collection != blank %}
+  {% assign row_collection = collections[s.row_collection] %}
 {% endif %}
 
-{%- comment -%} Visibility toggles {%- endcomment -%}
-{% assign visibility_classes = '' %}
-{% if s.hide_on_mobile %}{% assign visibility_classes = visibility_classes | append: ' hidden md:block' %}{% endif %}
-{% if s.hide_on_desktop %}{% assign visibility_classes = visibility_classes | append: ' md:hidden' %}{% endif %}
-
-{%- comment -%} Product {%- endcomment -%}
-{% assign p = s.product %}
-{% assign has_product = false %}
-{% if p != blank %}{% assign has_product = true %}{% endif %}
-{% if has_product %}
-  {% assign v = p.selected_or_first_available_variant %}
+{%- comment -%} Button motion vars (global → section override) {%- endcomment -%}
+{% assign hover_opacity = settings.button_hover_opacity | default: 92 %}
+{% assign active_scale_100 = settings.button_active_scale | default: 98 %}
+{% if s.use_section_button_motion %}
+  {% assign hover_opacity = s.btn_hover_opacity_local %}
+  {% assign active_scale_100 = s.btn_active_scale_local %}
 {% endif %}
-
-{%- comment -%} CTA hrefs {%- endcomment -%}
-{% assign href1 = s.cta_link %}
-{% if href1 == blank and s.cta_product %}{% assign href1 = s.cta_product.url %}{% endif %}
-{% if href1 == blank and s.cta_collection %}{% assign href1 = s.cta_collection.url %}{% endif %}
-{% if href1 == blank and s.cta_article %}{% assign href1 = s.cta_article.url %}{% endif %}
-
-{% assign href2 = s.cta2_link %}
-{% if href2 == blank and s.cta2_product %}{% assign href2 = s.cta2_product.url %}{% endif %}
-{% if href2 == blank and s.cta2_collection %}{% assign href2 = s.cta2_collection.url %}{% endif %}
-{% if href2 == blank and s.cta2_article %}{% assign href2 = s.cta2_article.url %}{% endif %}
-
-{%- comment -%} Responsive sizes {%- endcomment -%}
-{% assign sizes_bg = '100vw' %}
-{% assign widths_bg = '960,1280,1600,1920,2240' %}
-{% assign sizes_media = '(min-width: 1024px) 50vw, 100vw' %}
-{% assign widths_media = '640,750,828,960,1080,1280,1440,1600' %}
-
-{%- comment -%} Scoped id + helpers {%- endcomment -%}
-{% assign sid = s.anchor_id | default: 'section-' | append: section.id %}
-{% assign text_align = s.text_align | default: 'text-left' %}
-{% assign content_max = s.content_max_w | default: 'max-w-3xl' %}
-{% assign wrapper_align = '' %}
-{% if text_align == 'text-center' %}
-  {% assign wrapper_align = 'mx-auto' %}
-{% elsif text_align == 'text-right' %}
-  {% assign wrapper_align = 'ml-auto' %}
-{% endif %}
+{% assign active_scale = active_scale_100 | divided_by: 100.0 %}
 
 <section
-  id="{{ sid }}"
-  class="relative overflow-hidden {{ visibility_classes }}"
+  id="fp-hero-{{ section.id }}"
+  class="fp-hero fp-hero--{{ s.layout_variant }}"
   role="region"
-  aria-label="{{ s.region_label | default: 'Featured product hero' }}"
-  style="min-height: {{ s.min_height_vh | default: 70 }}vh;"
+  aria-label="{{ s.region_label | escape }}"
+  style="
+    min-height: {{ s.min_h_vh }}vh;
+    --btn-hover-op: {{ hover_opacity }}%;
+    --btn-active-scale: {{ active_scale }};
+  "
 >
-  <style>
-    #{{ sid }} .q-bleed{width:100vw;max-width:100vw;position:relative;left:50%;right:50%;margin-left:-50vw;margin-right:-50vw;}
-    #{{ sid }} .q-bg{position:absolute;inset:0;z-index:-1;}
-    #{{ sid }} .q-flow > * + *{margin-top:1.25rem;} /* improved spacing */
-    #{{ sid }} .q-price-row{margin-top:1.25rem;}
-    #{{ sid }} .q-variant{margin-top:1rem;}
-    #{{ sid }} .q-cta-row{margin-top:1.25rem;}
-    #{{ sid }} h1,#{{ sid }} h2{font-family:var(--q-head);line-height:1.2;}
-    #{{ sid }} p{font-family:var(--q-body);line-height:1.6;}
-    #{{ sid }} .px-4{padding-left:16px;padding-right:16px;}
-    @media (min-width:768px){#{{ sid }} .md\:px-6{padding-left:24px;padding-right:24px;}}
-  </style>
-
-  <div class="q-bleed">
-    {%- if s.background_image != blank -%}
-      <div class="q-bg">
-        {{ s.background_image
-          | image_url: width: 2240
-          | image_tag:
-            widths: widths_bg,
-            sizes: sizes_bg,
+  <!-- Background -->
+  <div class="fp-bg{% if s.parallax_enable %} parallax{% endif %}" aria-hidden="true">
+    {% if s.bg_image != blank %}
+      {{ s.bg_image
+        | image_url: width: 2400
+        | image_tag:
+            alt: s.bg_alt,
             loading: 'eager',
             fetchpriority: 'high',
-            class: 'absolute inset-0 w-full h-full object-cover',
-            alt: s.bg_image_alt }}
-        <div class="absolute inset-0" aria-hidden="true"
-             style="background-color: {{ s.overlay_color }}; opacity: {{ s.overlay_opacity | divided_by: 100.0 }};"></div>
-      </div>
+            class: 'fp-bg-img' }}
     {% endif %}
 
-    <div class="relative z-10">
-      <div class="{{ container_wrap }}">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-center"
-             style="padding-top: {{ s.padding_top | default: 72 }}px; padding-bottom: {{ s.padding_bottom | default: 72 }}px;">
+    {% if s.bg_video_url != blank %}
+      <video class="fp-bg-video" autoplay muted loop playsinline aria-hidden="true">
+        <source src="{{ s.bg_video_url | escape }}" type="video/mp4">
+      </video>
+    {% endif %}
 
-          {% assign media_first = false %}
-          {% if s.media_position == 'left' %}
-            {% assign media_first = true %}
+    {% if overlay_op > 0 %}
+      <div class="fp-overlay" style="background: {{ s.overlay_color }}; opacity: {{ overlay_op }};"></div>
+    {% endif %}
+  </div>
+
+  <!-- Content grid -->
+  <div class="fp-container">
+    <div class="fp-grid">
+      {% if s.layout_variant != 'overlay' %}
+        <div class="fp-media" data-reveal="left">
+          {% if prod and prod.featured_image %}
+            {{ prod.featured_image | image_url: width: 1400 | image_tag: class: 'fp-media-img', alt: prod.title }}
+          {% elsif s.bg_image == blank and s.bg_video_url == blank %}
+            <div class="fp-media-fallback" aria-hidden="true"></div>
           {% endif %}
+        </div>
+      {% endif %}
 
-          {% assign media_cols = 6 %}
-          {% assign content_cols = 6 %}
-          {% if s.media_width == '5' %}{% assign media_cols = 5 %}{% assign content_cols = 7 %}{% endif %}
-          {% if s.media_width == '7' %}{% assign media_cols = 7 %}{% assign content_cols = 5 %}{% endif %}
-          {% assign media_col_class = 'lg:col-span-' | append: media_cols %}
-          {% assign content_col_class = 'lg:col-span-' | append: content_cols %}
+      <div class="fp-content fp-align-{{ s.text_align }}" style="max-width: {{ s.copy_max_ch }}ch;">
+        {% if s.card_style != 'none' %}
+          <span class="fp-panel fp-panel--{{ s.card_style }}" aria-hidden="true" data-reveal></span>
+        {% endif %}
 
-          {% if media_first %}
-            <div class="col-span-1 {{ media_col_class }}">
-              {% if has_product and p.featured_image %}
-                {{ p.featured_image
-                  | image_url: width: 1600
-                  | image_tag:
-                    widths: widths_media,
-                    sizes: sizes_media,
-                    loading: 'lazy',
-                    class: 'w-full h-auto object-cover rounded-2xl',
-                    alt: p.title }}
-              {% elsif s.fallback_image != blank %}
-                {{ s.fallback_image
-                  | image_url: width: 1600
-                  | image_tag:
-                    widths: widths_media,
-                    sizes: sizes_media,
-                    loading: 'lazy',
-                    class: 'w-full h-auto object-cover rounded-2xl',
-                    alt: s.fallback_alt }}
-              {% endif %}
-            </div>
-          {% endif %}
+        {% if s.badge != blank %}
+          <span class="fp-badge" data-reveal="{{ s.reveal_style }}">{{ s.badge }}</span>
+        {% endif %}
 
-          <div class="col-span-1 {{ content_col_class }}">
-            <div class="q-flow {{ text_align }} {{ content_max }} {{ wrapper_align }}">
-              {% if s.badge_text != blank %}
-                <div class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-border bg-card relative overflow-hidden">
-                  {% if s.badge_icon == 'bolt' %}
-                    <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M11.3 1L3 11h5l-.8 8L15 9h-5l1.3-8z"/></svg>
-                  {% elsif s.badge_icon == 'star' %}
-                    <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 0 0 .95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.802 2.036a1 1 0 0 0-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.802-2.036a1 1 0 0 0-1.176 0l-2.802 2.036c-.785.57-1.84-.197-1.54-1.118l-1.07-3.292a1 1 0 0 0-.364-1.118L2.88 8.72c-.783-.57-.38-1.81.588-1.81h3.462a1 1 0 0 0 .95-.69l1.07-3.292z"/></svg>
-                  {% endif %}
-                  <span>{{ s.badge_text }}</span>
-                  {% if s.badge_flash %}
-                    <span class="absolute inset-0 pointer-events-none" style="background: radial-gradient(120px 120px at 0% 50%, rgba(255,255,255,.25), transparent 60%); animation: qFlash 2.8s linear infinite;"></span>
-                  {% endif %}
-                </div>
-              {% endif %}
+        {% assign htag = s.heading_level | default: 'h1' %}
+        {% if s.heading != blank or prod %}
+          <{{ htag }} class="fp-heading"
+              style="font-size: {{ s.heading_size }}; color: {{ s.heading_color }}"
+              data-reveal="{{ s.reveal_style }}">
+            {% if s.heading != blank %}
+              {{ s.heading }}
+            {% elsif prod %}
+              {{ prod.title }}
+            {% endif %}
+          </{{ htag }}>
+        {% endif %}
 
-              {% assign heading_text = s.heading | default: p.title %}
-              {% if heading_text != blank %}
-                {% if s.heading_level == 'h1' %}
-                  <h1 class="text-3xl md:text-5xl leading-tight text-foreground">{{ heading_text | escape }}</h1>
-                {% else %}
-                  <h2 class="text-3xl md:text-5xl leading-tight text-foreground">{{ heading_text | escape }}</h2>
-                {% endif %}
-              {% endif %}
+        {% if s.subheading != blank %}
+          <p class="fp-sub" style="font-size: {{ s.sub_size }}; color: {{ s.subheading_color }}" data-reveal="{{ s.reveal_style }}">{{ s.subheading }}</p>
+        {% endif %}
 
-              {% if s.subheading != blank %}
-                <p class="text-base md:text-lg text-foreground/80 {% if s.hide_sub_mobile %}hidden md:block{% endif %}">
-                  {{ s.subheading }}
-                </p>
-              {% endif %}
+        {% if s.copy != blank %}
+          <p class="fp-copy" style="color: {{ s.copy_color }}" data-reveal="{{ s.reveal_style }}">{{ s.copy }}</p>
+        {% endif %}
 
-              ... <!-- CTA / product logic unchanged -->
-            </div>
+        {% if s.product_block_mode == 'single' and s.show_atc and prod %}
+          <div class="fp-atc" data-reveal="{{ s.reveal_style }}">
+            {% if prod.has_only_default_variant == false %}
+              <form method="post" action="/cart/add" class="fp-atc-form">
+                <label class="sr-only" for="fp-var-{{ section.id }}">{{ 'products.product.selector_label' | t }}</label>
+                <select id="fp-var-{{ section.id }}" class="fp-variant" name="id" aria-label="{{ 'products.product.selector_label' | t }}">
+                  {% for v in prod.variants %}
+                    <option value="{{ v.id }}" {% unless v.available %}disabled{% endunless %}>
+                      {{ v.title }}{% unless v.available %} — {{ 'products.product.sold_out' | t }}{% endunless %}
+                    </option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-solid" aria-label="Add {{ prod.title }} to cart">
+                  {{ 'products.product.add_to_cart' | t }} — {{ prod.price | money }}
+                </button>
+              </form>
+            {% else %}
+              <form method="post" action="/cart/add" class="fp-atc-form">
+                <input type="hidden" name="id" value="{{ prod.variants.first.id }}">
+                <button type="submit" class="btn btn-solid" aria-label="Add {{ prod.title }} to cart">
+                  {{ 'products.product.add_to_cart' | t }} — {{ prod.price | money }}
+                </button>
+              </form>
+            {% endif %}
           </div>
+        {% endif %}
 
-          {% unless media_first %}
-            <div class="col-span-1 {{ media_col_class }}">
-              {% if has_product and p.featured_image %}
-                {{ p.featured_image
-                  | image_url: width: 1600
-                  | image_tag:
-                    widths: widths_media,
-                    sizes: sizes_media,
-                    loading: 'lazy',
-                    class: 'w-full h-auto object-cover rounded-2xl',
-                    alt: p.title }}
-              {% elsif s.fallback_image != blank %}
-                {{ s.fallback_image
-                  | image_url: width: 1600
-                  | image_tag:
-                    widths: widths_media,
-                    sizes: sizes_media,
-                    loading: 'lazy',
-                    class: 'w-full h-auto object-cover rounded-2xl',
-                    alt: s.fallback_alt }}
-              {% endif %}
-            </div>
-          {% endunless %}
+        <div class="fp-ctas fp-ctas-{{ s.cta_align }}" data-reveal="{{ s.reveal_style }}">
+          {% if s.cta1_text != blank and s.cta1_link != blank %}
+            <a class="btn btn-solid" href="{{ s.cta1_link }}" aria-label="{{ s.cta1_aria }}">{{ s.cta1_text }}</a>
+          {% endif %}
+          {% if s.cta2_text != blank and s.cta2_link != blank %}
+            <a class="btn btn-outline" href="{{ s.cta2_link }}" aria-label="{{ s.cta2_aria }}">{{ s.cta2_text }}</a>
+          {% endif %}
         </div>
       </div>
     </div>
   </div>
 
-  {% if s.send_events %}
-    <script>
-      (function(){
-        var root=document.getElementById('{{ sid }}');if(!root)return;
-        var sel=root.querySelector('#q-variant-{{ section.id }}');var form=root.querySelector('[data-q-quickadd]');
-        if(sel&&form){sel.addEventListener('change',function(){var input=form.querySelector('input[name="id"]');if(input)input.value=this.value;});}
-        root.addEventListener('click',function(e){
-          var a=e.target.closest('a[data-cta]');if(!a||!{{ s.send_events | json }})return;
-          var payload={component:'featured_product_hero',cta_type:a.getAttribute('data-cta'),href:a.getAttribute('href')};
-          window.dispatchEvent(new CustomEvent('quadratum:cta',{detail:payload}));
-          if(window.dataLayer&&Array.isArray(window.dataLayer)){window.dataLayer.push({event:'quadratum_cta',component:payload.component,cta_type:payload.cta_type,href:payload.href});}
-        });
-      })();
-    </script>
+  {% if s.product_block_mode == 'collection' and row_collection %}
+    <div class="fp-row"
+         style="
+           {% if s.row_bg_enable %}background: {{ s.row_bg_color }};{% endif %}
+           padding-top: {{ s.row_pad_top }}px; padding-bottom: {{ s.row_pad_bottom }}px;
+         ">
+      <div class="fp-container">
+        {% if s.row_heading != blank %}
+          <h3 class="fp-row-heading" data-reveal="{{ s.reveal_style }}">{{ s.row_heading }}</h3>
+        {% endif %}
+
+        <div class="fp-row-grid"
+             data-cols-d="{{ s.row_cols_desktop }}"
+             data-cols-t="{{ s.row_cols_tablet }}"
+             data-cols-m="{{ s.row_cols_mobile }}"
+             style="gap: {{ s.row_gap }}px;">
+          {% for p in row_collection.products limit: s.row_count %}
+            <article class="fp-card" aria-label="{{ p.title | escape }}" data-reveal>
+              <a class="fp-card-media" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
+                {% if p.featured_image %}
+                  {{ p.featured_image | image_url: width: 900 | image_tag:
+                      alt: p.title,
+                      class: 'fp-card-img',
+                      loading: 'lazy' }}
+                {% endif %}
+              </a>
+              <div class="fp-card-body">
+                <a class="fp-card-title" href="{{ p.url }}">{{ p.title }}</a>
+                <div class="fp-card-price">
+                  <span class="price">{{ p.price | money }}</span>
+                  {% if p.compare_at_price > p.price %}
+                    <span class="compare">{{ p.compare_at_price | money }}</span>
+                  {% endif %}
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
   {% endif %}
 
-  <style>
-    @keyframes qFlash{0%{transform:translateX(-30%);opacity:.8;}100%{transform:translateX(130%);opacity:0;}}
-    @media (prefers-reduced-motion: reduce){[style*="qFlash"]{animation:none!important;}}
-  </style>
+  {% if s.reveal_enable or s.parallax_enable %}
+  <script>
+  (function(){
+    var root=document.getElementById('fp-hero-{{ section.id }}'); if(!root) return;
+
+    // Reveal
+    {% if s.reveal_enable %}
+    try{
+      var io=new IntersectionObserver(function(entries){
+        entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('is-in'); io.unobserve(e.target); }});
+      },{threshold:0.15});
+      root.querySelectorAll('[data-reveal]').forEach(function(n){ io.observe(n); });
+    }catch(e){}
+    {% endif %}
+
+    // Parallax
+    {% if s.parallax_enable %}
+    var bg=root.querySelector('.fp-bg'); if(bg){ bg.classList.add('parallax'); }
+    var strength={{ s.parallax_strength }};
+    var ticking=false;
+    function onScroll(){
+      if(ticking) return; ticking=true;
+      requestAnimationFrame(function(){
+        var r=root.getBoundingClientRect();
+        var winH=window.innerHeight||document.documentElement.clientHeight;
+        var mid=r.top + r.height/2 - winH/2;
+        var offset=Math.max(-60, Math.min(60, -mid * (strength/100)));
+        if(bg) bg.style.setProperty('--fp-parallax', offset+'px');
+        ticking=false;
+      });
+    }
+    onScroll();
+    window.addEventListener('scroll', onScroll, {passive:true});
+    {% endif %}
+  })();
+  </script>
+  {% endif %}
 </section>
 
-{% render 'tw-safelist-banners' %}
+<style>
+/* --------- Scope --------- */
+#fp-hero-{{ section.id }}{position:relative;isolation:isolate;overflow:hidden;min-height:{{ s.min_h_vh }}vh;padding-top:{{ s.pad_top }}px;padding-bottom:{{ s.pad_bottom }}px;}
+#fp-hero-{{ section.id }} .fp-bg{position:absolute;inset:0;z-index:0;}
+#fp-hero-{{ section.id }} .fp-bg-img,#fp-hero-{{ section.id }} .fp-bg-video{width:100%;height:100%;object-fit:cover;display:block;}
+#fp-hero-{{ section.id }} .fp-overlay{position:absolute;inset:0;}
+#fp-hero-{{ section.id }} .fp-bg.parallax{transform: translate3d(0, var(--fp-parallax,0px), 0); will-change: transform;}
+
+#fp-hero-{{ section.id }} .fp-container{
+  position:relative;z-index:1;
+  max-width:{% case settings.style_kit %}
+              {% when 'cozy' %}{{ settings.container_lg | default: 1088 }}
+              {% when 'comfort' %}{{ settings.container_lg | default: 1152 }}
+              {% when 'wide' %}{{ settings.container_xl | default: 1440 }}
+              {% when 'full' %}99999
+              {% else %}{{ settings.container_lg | default: 1152 }}
+            {% endcase %}px;
+  margin-inline:auto;padding-inline:16px;
+}
+#fp-hero-{{ section.id }} .fp-grid{display:grid;gap:24px;align-items:center;min-height:inherit;}
+
+@media (min-width: {{ settings.bp_lg | default: 1024 }}px){
+  #fp-hero-{{ section.id }}.fp-hero--media-left  .fp-grid{grid-template-columns:1.05fr .95fr;}
+  #fp-hero-{{ section.id }}.fp-hero--media-right .fp-grid{grid-template-columns:.95fr 1.05fr;}
+  #fp-hero-{{ section.id }}.fp-hero--media-right .fp-media{order:2;}
+  #fp-hero-{{ section.id }}.fp-hero--media-right .fp-content{order:1;}
+}
+#fp-hero-{{ section.id }}.fp-hero--overlay .fp-grid{grid-template-columns:1fr;}
+
+#fp-hero-{{ section.id }} .fp-media-img{width:100%;height:auto;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.15);}
+#fp-hero-{{ section.id }} .fp-media-fallback{height:360px;background:rgba(0,0,0,.06);border-radius:16px;}
+
+/* Content alignment */
+#fp-hero-{{ section.id }} .fp-content{position:relative}
+#fp-hero-{{ section.id }} .fp-align-left{text-align:left;margin-inline:0;}
+#fp-hero-{{ section.id }} .fp-align-center{text-align:center;margin-inline:auto;}
+#fp-hero-{{ section.id }} .fp-align-right{text-align:right;margin-left:auto;margin-right:0;}
+
+/* Backdrops */
+#fp-hero-{{ section.id }} .fp-panel{position:absolute;inset:-14px;z-index:-1;border-radius:16px;}
+#fp-hero-{{ section.id }} .fp-panel--panel{background: {{ s.card_bg }}; box-shadow:0 8px 24px rgba(0,0,0,.14);}
+#fp-hero-{{ section.id }} .fp-panel--glass{background: rgba(255,255,255,.12); backdrop-filter: blur(10px); box-shadow:0 8px 24px rgba(0,0,0,.12); border:1px solid rgba(255,255,255,.18);}
+
+/* Tokens */
+#fp-hero-{{ section.id }} .fp-badge{display:inline-flex;gap:.5rem;align-items:center;font-weight:700;padding:.45rem .75rem;border-radius:999px;font-size:.75rem;background:rgba(0,0,0,.6);color:#fff;margin-bottom:.75rem;}
+#fp-hero-{{ section.id }} .fp-heading{margin:0;line-height:1.1;}
+#fp-hero-{{ section.id }} .fp-sub{margin:.875rem 0 0;}
+#fp-hero-{{ section.id }} .fp-copy{margin: .875rem 0 0;}
+
+/* CTAs / Buttons */
+#fp-hero-{{ section.id }} .fp-ctas{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1rem;justify-content:flex-start;}
+#fp-hero-{{ section.id }} .fp-ctas-center{justify-content:center;}
+#fp-hero-{{ section.id }} .fp-ctas-right{justify-content:flex-end;}
+
+#fp-hero-{{ section.id }} .btn{
+  display:inline-flex;align-items:center;justify-content:center;font-weight:700;text-decoration:none;
+  padding:.75rem 1.1rem;border-radius:{{ s.btn_radius }}px;border:{{ s.btn_border_w }}px solid transparent;
+  transition:opacity .15s ease, transform .05s ease;
+}
+#fp-hero-{{ section.id }} .btn-solid{
+  background:{{ s.btn_bg }};color:{{ s.btn_text }};
+}
+#fp-hero-{{ section.id }} .btn-outline{
+  background:transparent;border-color:{{ s.btn_outline }};color:{{ s.btn_outline }};
+}
+/* Per-section motion via CSS vars (falls back to theme if not overridden) */
+#fp-hero-{{ section.id }} .btn:hover{opacity: var(--btn-hover-op);}
+#fp-hero-{{ section.id }} .btn:active{transform: scale(var(--btn-active-scale));}
+
+/* Reveal animations */
+#fp-hero-{{ section.id }} [data-reveal]{opacity:0;transform:translateY(16px);transition:opacity {{ s.reveal_dur }}ms {{ s.reveal_ease }}, transform {{ s.reveal_dur }}ms {{ s.reveal_ease }};}
+#fp-hero-{{ section.id }} [data-reveal].is-in{opacity:1;transform:none;}
+#fp-hero-{{ section.id }} [data-reveal="left"]{transform:translateX(-18px);}
+#fp-hero-{{ section.id }} [data-reveal="right"]{transform:translateX(18px);}
+@media (prefers-reduced-motion: reduce){
+  #fp-hero-{{ section.id }} [data-reveal]{opacity:1;transform:none;}
+  #fp-hero-{{ section.id }} .fp-bg.parallax{transform:none;}
+}
+
+/* ATC */
+#fp-hero-{{ section.id }} .fp-atc{margin-top:1rem;}
+#fp-hero-{{ section.id }} .fp-variant{padding:.6rem .75rem;border-radius:10px;border:1px solid rgba(2,6,23,.14);margin-right:.5rem;}
+
+/* Row / grid */
+#fp-hero-{{ section.id }} .fp-row-heading{margin:0 0 12px;font-size:clamp(1.125rem,1.8vw,1.5rem);font-weight:700;color:{{ settings.text_base | default: '#111' }};}
+#fp-hero-{{ section.id }} .fp-row-grid{display:grid;}
+#fp-hero-{{ section.id }} .fp-row-grid[data-cols-m="1"]{grid-template-columns:repeat(1,minmax(0,1fr));}
+#fp-hero-{{ section.id }} .fp-row-grid[data-cols-m="2"]{grid-template-columns:repeat(2,minmax(0,1fr));}
+@media (min-width: {{ settings.bp_md | default: 768 }}px){
+  #fp-hero-{{ section.id }} .fp-row-grid{grid-template-columns:repeat( {{ s.row_cols_tablet | default: 3 }}, minmax(0,1fr));}
+}
+@media (min-width: {{ settings.bp_lg | default: 1024 }}px){
+  #fp-hero-{{ section.id }} .fp-row-grid{grid-template-columns:repeat( {{ s.row_cols_desktop | default: 4 }}, minmax(0,1fr));}
+}
+#fp-hero-{{ section.id }} .fp-card{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.08);display:flex;flex-direction:column;}
+#fp-hero-{{ section.id }} .fp-card-media{display:block;position:relative;aspect-ratio:
+  {% if s.row_card_ratio == '1:1' %}1/1
+  {% elsif s.row_card_ratio == '3:2' %}3/2
+  {% elsif s.row_card_ratio == '16:9' %}16/9
+  {% else %}4/5{% endif %}
+;}
+#fp-hero-{{ section.id }} .fp-card-img{width:100%;height:100%;object-fit:cover;display:block;}
+#fp-hero-{{ section.id }} .fp-card-body{padding:12px 14px;}
+#fp-hero-{{ section.id }} .fp-card-title{display:inline-block;margin:0 0 6px;font-weight:700;color:{{ settings.text_base | default: '#111' }};text-decoration:none;}
+#fp-hero-{{ section.id }} .fp-card-price{font-weight:700;}
+#fp-hero-{{ section.id }} .fp-card-price .compare{margin-left:.45rem;opacity:.6;text-decoration:line-through;font-weight:500;}
+</style>
+
 {% schema %}
 {
   "name": "Featured Product Hero",
   "tag": "section",
-  "class": "q-featured-product-hero",
+  "class": "section-featured-product-hero",
   "settings": [
-    { "type": "header", "content": "Content" },
-    { "type": "text", "id": "heading", "label": "Heading", "default": "Our best-seller, now better" },
-    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Trusted by thousands. Designed for daily performance." },
-    { "type": "select", "id": "heading_level", "label": "Heading level", "default": "h2", "options": [
+    { "type": "select", "id": "layout_variant", "label": "Layout", "default": "overlay", "options": [
+      { "value": "overlay", "label": "Overlay (text on image)" },
+      { "value": "media-left", "label": "Media left (image/product left)" },
+      { "value": "media-right", "label": "Media right (image/product right)" }
+    ]},
+
+    { "type": "range", "id": "min_h_vh", "label": "Min height (vh)", "min": 50, "max": 100, "step": 5, "default": 80 },
+    { "type": "range", "id": "pad_top", "label": "Padding top (px)", "min": 0, "max": 200, "step": 4, "default": 96 },
+    { "type": "range", "id": "pad_bottom", "label": "Padding bottom (px)", "min": 0, "max": 200, "step": 4, "default": 96 },
+
+    { "type": "image_picker", "id": "bg_image", "label": "Background image" },
+    { "type": "url", "id": "bg_video_url", "label": "Background video URL" },
+    { "type": "text", "id": "bg_alt", "label": "Background alt text", "default": "Hero background" },
+    { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
+    { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity (%)", "min": 0, "max": 100, "step": 5, "default": 40 },
+
+    { "type": "select", "id": "card_style", "label": "Content backdrop style", "default": "none", "options": [
+      { "value": "none", "label": "None (transparent)" },
+      { "value": "panel", "label": "Panel (solid)" },
+      { "value": "glass", "label": "Glass (blur)" }
+    ]},
+    { "type": "color", "id": "card_bg", "label": "Panel background (for 'panel')", "default": "#ffffff" },
+
+    { "type": "text", "id": "badge", "label": "Badge", "default": "Badge" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Goodness in Every Bite" },
+    { "type": "select", "id": "heading_level", "label": "Heading level", "default": "h1", "options": [
       { "value": "h1", "label": "H1" }, { "value": "h2", "label": "H2" }
     ]},
+    { "type": "text", "id": "heading_size", "label": "Heading size (CSS)", "default": "clamp(2.25rem,4vw,3.5rem)" },
+    { "type": "color", "id": "heading_color", "label": "Heading color", "default": "#ffffff" },
 
-    { "type": "header", "content": "Product" },
-    { "type": "product", "id": "product", "label": "Product" },
-    { "type": "image_picker", "id": "fallback_image", "label": "Fallback image (if no product)" },
-    { "type": "text", "id": "fallback_alt", "label": "Fallback image alt", "default": "Product image" },
+    { "type": "text", "id": "subheading", "label": "Subheading", "default": "Delight your taste buds with premium ingredients and feel-good nutrition." },
+    { "type": "text", "id": "sub_size", "label": "Subheading size (CSS)", "default": "clamp(1rem,1.6vw,1.125rem)" },
+    { "type": "color", "id": "subheading_color", "label": "Subheading color", "default": "#ffffff" },
 
-    { "type": "header", "content": "Layout & alignment" },
-    { "type": "range", "id": "min_height_vh", "label": "Min height (vh)", "min": 40, "max": 100, "step": 5, "default": 70 },
-    { "type": "range", "id": "padding_top", "label": "Padding top (px)", "min": 0, "max": 200, "step": 8, "default": 72 },
-    { "type": "range", "id": "padding_bottom", "label": "Padding bottom (px)", "min": 0, "max": 200, "step": 8, "default": 72 },
-    { "type": "select", "id": "media_position", "label": "Media position", "default": "right", "options": [
-      { "value": "left", "label": "Left" }, { "value": "right", "label": "Right" }
-    ]},
-    { "type": "select", "id": "media_width", "label": "Media width (desktop)", "default": "6", "options": [
-      { "value": "5", "label": "5/12" }, { "value": "6", "label": "1/2" }, { "value": "7", "label": "7/12" }
-    ]},
-    { "type": "select", "id": "text_align", "label": "Text alignment", "default": "text-left", "options": [
-      { "value": "text-left", "label": "Left" }, { "value": "text-center", "label": "Center" }, { "value": "text-right", "label": "Right" }
-    ]},
-    { "type": "select", "id": "content_max_w", "label": "Text width", "default": "max-w-3xl", "options": [
-      { "value": "max-w-2xl", "label": "Narrow" }, { "value": "max-w-3xl", "label": "Comfort" }, { "value": "max-w-4xl", "label": "Wide" }
-    ]},
-    { "type": "select", "id": "container_mode", "label": "Container", "default": "contained", "options": [
-      { "value": "contained", "label": "Contained (side padding)" }, { "value": "full", "label": "Full-bleed (edge to edge)" }
-    ]},
-
-    { "type": "header", "content": "Badge" },
-    { "type": "text", "id": "badge_text", "label": "Badge text", "default": "Special offer" },
-    { "type": "select", "id": "badge_icon", "label": "Badge icon", "default": "bolt", "options": [
-      { "value": "none", "label": "None" }, { "value": "bolt", "label": "Bolt" }, { "value": "star", "label": "Star" }
-    ]},
-    { "type": "checkbox", "id": "badge_flash", "label": "Flash animation", "default": true },
-
-    { "type": "header", "content": "Background (optional)" },
-    { "type": "image_picker", "id": "background_image", "label": "Background image" },
-    { "type": "text", "id": "bg_image_alt", "label": "Background image alt", "default": "Decorative background" },
-    { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
-    { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 20, "unit": "%" },
-
-    { "type": "header", "content": "Buttons" },
-    { "type": "select", "id": "cta_group_align", "label": "CTA alignment (when no product)", "default": "left", "options": [
+    { "type": "text", "id": "copy", "label": "Body text", "default": "Fast shipping. 30-day returns. Quality you can feel." },
+    { "type": "range", "id": "copy_max_ch", "label": "Body max width (ch)", "min": 40, "max": 80, "step": 1, "default": 60 },
+    { "type": "select", "id": "text_align", "label": "Text alignment", "default": "left", "options": [
       { "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" }
     ]},
-    { "type": "select", "id": "button_mode", "label": "Button style", "default": "solid", "options": [
-      { "value": "solid", "label": "Solid" }, { "value": "outline", "label": "Outline" }
-    ]},
-    { "type": "color", "id": "button_bg_color", "label": "Button background (solid)", "default": "#111111" },
-    { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#ffffff" },
-    { "type": "color", "id": "button_border_color", "label": "Button border (outline)", "default": "#111111" },
-    { "type": "range", "id": "button_border_width", "label": "Outline border width", "min": 0, "max": 6, "step": 1, "default": 1 },
-    { "type": "range", "id": "button_radius", "label": "Corner radius", "min": 0, "max": 36, "step": 2, "default": 12 },
-    { "type": "text", "id": "cta_text", "label": "Primary CTA text", "default": "Shop now" },
-    { "type": "url", "id": "cta_link", "label": "Primary CTA URL" },
-    { "type": "product", "id": "cta_product", "label": "…or link to product" },
-    { "type": "collection", "id": "cta_collection", "label": "…or link to collection" },
-    { "type": "article", "id": "cta_article", "label": "…or link to article" },
-    { "type": "text", "id": "cta_aria_label", "label": "Primary CTA ARIA label", "default": "Shop now" },
-    { "type": "text", "id": "cta2_text", "label": "Secondary CTA text", "default": "Learn more" },
-    { "type": "url", "id": "cta2_link", "label": "Secondary CTA URL" },
-    { "type": "product", "id": "cta2_product", "label": "Secondary… link to product" },
-    { "type": "collection", "id": "cta2_collection", "label": "Secondary… link to collection" },
-    { "type": "article", "id": "cta2_article", "label": "Secondary… link to article" },
-    { "type": "text", "id": "cta2_aria_label", "label": "Secondary CTA ARIA label", "default": "Learn more" },
+    { "type": "color", "id": "copy_color", "label": "Body text color", "default": "#ffffff" },
 
-    { "type": "header", "content": "Visibility & analytics" },
-    { "type": "text", "id": "anchor_id", "label": "Optional anchor ID" },
-    { "type": "text", "id": "region_label", "label": "Accessible region label", "default": "Featured product hero" },
-    { "type": "checkbox", "id": "hide_on_mobile", "label": "Hide on mobile", "default": false },
-    { "type": "checkbox", "id": "hide_on_desktop", "label": "Hide on desktop", "default": false },
-    { "type": "checkbox", "id": "send_events", "label": "Send analytics events on clicks", "default": true }
+    { "type": "color", "id": "btn_bg", "label": "Button background", "default": "#111111" },
+    { "type": "color", "id": "btn_text", "label": "Button text", "default": "#ffffff" },
+    { "type": "color", "id": "btn_outline", "label": "Button outline color", "default": "#111111" },
+    { "type": "range", "id": "btn_border_w", "label": "Button border width (px)", "min": 0, "max": 6, "step": 1, "default": 1 },
+    { "type": "range", "id": "btn_radius", "label": "Button radius (px)", "min": 0, "max": 32, "step": 1, "default": 12 },
+
+    { "type": "text", "id": "cta1_text", "label": "Primary CTA text", "default": "Shop Now" },
+    { "type": "url", "id": "cta1_link", "label": "Primary CTA link" },
+    { "type": "text", "id": "cta1_aria", "label": "Primary CTA ARIA label", "default": "Shop now" },
+    { "type": "text", "id": "cta2_text", "label": "Secondary CTA text", "default": "Learn More" },
+    { "type": "url", "id": "cta2_link", "label": "Secondary CTA link" },
+    { "type": "text", "id": "cta2_aria", "label": "Secondary CTA ARIA label", "default": "Learn more" },
+
+    { "type": "select", "id": "product_block_mode", "label": "Product content", "default": "none", "options": [
+      { "value": "none", "label": "None" },
+      { "value": "single", "label": "Single product (ATC in hero)" },
+      { "value": "collection", "label": "Collection grid under hero" }
+    ]},
+    { "type": "product", "id": "product", "label": "Featured product (for 'single')" },
+    { "type": "checkbox", "id": "show_atc", "label": "Show Add to Cart (for 'single')", "default": true },
+
+    { "type": "collection", "id": "row_collection", "label": "Collection (for 'collection')" },
+    { "type": "text", "id": "row_heading", "label": "Row heading", "default": "Trending now" },
+    { "type": "range", "id": "row_count", "label": "Max items", "min": 2, "max": 12, "step": 1, "default": 8 },
+    { "type": "range", "id": "row_cols_desktop", "label": "Columns (desktop)", "min": 2, "max": 5, "step": 1, "default": 4 },
+    { "type": "range", "id": "row_cols_tablet", "label": "Columns (tablet)", "min": 2, "max": 4, "step": 1, "default": 3 },
+    { "type": "select", "id": "row_cols_mobile", "label": "Columns (mobile)", "default": "2", "options": [
+      { "value": "1", "label": "1" }, { "value": "2", "label": "2" }
+    ]},
+    { "type": "select", "id": "row_card_ratio", "label": "Card media aspect", "default": "4:5", "options": [
+      { "value": "1:1", "label": "Square (1:1)" },
+      { "value": "4:5", "label": "Portrait (4:5)" },
+      { "value": "3:2", "label": "Landscape (3:2)" },
+      { "value": "16:9", "label": "Widescreen (16:9)" }
+    ]},
+    { "type": "range", "id": "row_gap", "label": "Grid gap (px)", "min": 8, "max": 32, "step": 2, "default": 16 },
+    { "type": "checkbox", "id": "row_bg_enable", "label": "Row background", "default": false },
+    { "type": "color", "id": "row_bg_color", "label": "Row background color", "default": "#ffffff" },
+    { "type": "range", "id": "row_pad_top", "label": "Row padding top (px)", "min": 0, "max": 120, "step": 4, "default": 24 },
+    { "type": "range", "id": "row_pad_bottom", "label": "Row padding bottom (px)", "min": 0, "max": 120, "step": 4, "default": 24 },
+
+    { "type": "header", "content": "Motion" },
+    { "type": "checkbox", "id": "reveal_enable", "label": "Enable reveal animations", "default": true },
+    { "type": "select", "id": "reveal_style", "label": "Default reveal direction", "default": "up", "options": [
+      { "value": "up", "label": "Up" }, { "value": "left", "label": "Left" }, { "value": "right", "label": "Right" }, { "value": "fade", "label": "Fade only" }
+    ]},
+    { "type": "text", "id": "reveal_ease", "label": "Reveal easing", "default": "cubic-bezier(.2,.8,.2,1)" },
+    { "type": "range", "id": "reveal_dur", "label": "Reveal duration (ms)", "min": 300, "max": 1200, "step": 50, "default": 700 },
+
+    { "type": "checkbox", "id": "parallax_enable", "label": "Enable background parallax", "default": false },
+    { "type": "range", "id": "parallax_strength", "label": "Parallax strength", "min": 0, "max": 30, "step": 1, "default": 12 },
+
+    { "type": "header", "content": "Per-section Button Motion (optional)" },
+    { "type": "checkbox", "id": "use_section_button_motion", "label": "Override global button motion for this hero", "default": false },
+    { "type": "range", "id": "btn_hover_opacity_local", "label": "Hover opacity (%)", "min": 60, "max": 100, "step": 1, "default": 92 },
+    { "type": "range", "id": "btn_active_scale_local", "label": "Pressed scale (×100)", "min": 95, "max": 100, "step": 1, "default": 98 },
+
+    { "type": "text", "id": "region_label", "label": "ARIA region label", "default": "Featured product hero" }
   ],
-  "blocks": [],
   "presets": [
-    {
-      "name": "Featured Product • Hero",
-      "category": "Banner",
-      "settings": {
-        "badge_text": "New & improved",
-        "media_position": "right"
-      }
-    }
+    { "name":"Featured Product Hero Banner (Left Aligned)","category":"Hero Banners" },
+    { "name":"Featured Product Hero Banner (Right Aligned)","category":"Hero Banners" },
+    { "name":"Featured Product Hero Banner (Product Card on Image)","category":"Hero Banners" }
   ]
 }
 {% endschema %}
-
-{% render 'tw-safelist-banners' %}
