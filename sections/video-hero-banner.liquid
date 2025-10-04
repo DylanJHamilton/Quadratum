@@ -1,429 +1,500 @@
 {% comment %}
-  Quadratum • Video Hero Banner
-  - MP4 (poster-first) or deferred YouTube/Vimeo embed.
-  - Autoplay when in view (IO), muted by default; reduced-motion disables autoplay.
-  - Optional overlay, headings, dual CTAs with pickers, analytics toggle.
-  - Perf: loads poster eagerly only when wanted; defers heavy players.
-  - A11y: labeled region, visible focus, captions track for MP4.
+  File: sections/video-hero-banner.liquid
+  Video background hero with MP4 / YouTube / Vimeo support.
+  - If a video is set (via "Video source"), it overrides the background image.
+  - Poster image shows if no video and as MP4 poster.
+  - YouTube/Vimeo play muted, looped, no UI, background.
+  - Scoped styles via #section-{{ section.id }}.
 {% endcomment %}
 
-{% assign s = section.settings %}
+{%- assign scope_id = 'section-' | append: section.id -%}
 
-{%- comment -%} Container padding for contained mode {%- endcomment -%}
-{% assign container_pad = '' %}
-{% if s.container_mode == 'contained' %}
-  {% assign container_pad = 'px-4 md:px-6' %}
-{% endif %}
+{%- assign src_type    = section.settings.video_source -%}
+{%- assign mp4_url     = section.settings.mp4_url | strip -%}
+{%- assign yt_in       = section.settings.youtube_input | strip -%}
+{%- assign vimeo_in    = section.settings.vimeo_input | strip -%}
+{%- assign bg_image    = section.settings.bg_image -%}
+{%- assign poster      = section.settings.poster_image -%}
 
-{%- comment -%} Visibility toggles {%- endcomment -%}
-{% assign visibility_classes = '' %}
-{% if s.hide_on_mobile %}{% assign visibility_classes = visibility_classes | append: ' hidden md:block' %}{% endif %}
-{% if s.hide_on_desktop %}{% assign visibility_classes = visibility_classes | append: ' md:hidden' %}{% endif %}
+{%- assign align_h     = section.settings.text_align_h -%}
+{%- assign align_v     = section.settings.text_align_v -%}
+{%- assign min_vh      = section.settings.min_height_vh -%}
+{%- assign pad_t       = section.settings.pad_top -%}
+{%- assign pad_b       = section.settings.pad_bottom -%}
+{%- assign text_color  = section.settings.text_color -%}
+{%- assign overlay_color = section.settings.overlay_color -%}
+{%- assign overlay_opacity_percent = section.settings.overlay_opacity -%}
+{%- assign max_w       = section.settings.container_max_w -%}
 
-{%- comment -%} CTA href resolution via pickers (fallback to URLs) {%- endcomment -%}
-{% assign href1 = s.cta_link %}
-{% if href1 == blank and s.cta_product %}{% assign href1 = s.cta_product.url %}{% endif %}
-{% if href1 == blank and s.cta_collection %}{% assign href1 = s.cta_collection.url %}{% endif %}
-{% if href1 == blank and s.cta_article %}{% assign href1 = s.cta_article.url %}{% endif %}
+{%- assign hide_mobile  = section.settings.hide_on_mobile -%}
+{%- assign hide_desktop = section.settings.hide_on_desktop -%}
 
-{% assign href2 = s.cta2_link %}
-{% if href2 == blank and s.cta2_product %}{% assign href2 = s.cta2_product.url %}{% endif %}
-{% if href2 == blank and s.cta2_collection %}{% assign href2 = s.cta2_collection.url %}{% endif %}
-{% if href2 == blank and s.cta2_article %}{% assign href2 = s.cta2_article.url %}{% endif %}
+{%- assign h1 = section.settings.heading -%}
+{%- assign h2 = section.settings.subheading -%}
+{%- assign kicker = section.settings.kicker -%}
 
-{%- comment -%} Poster responsive sizes and loading/fetchpriority {%- endcomment -%}
-{% assign sizes_poster = '100vw' %}
-{% assign widths_poster = '960,1280,1600,1920,2240' %}
-{% assign poster_loading = 'lazy' %}
-{% assign poster_fetch = 'auto' %}
-{% if s.eager_poster %}
-  {% assign poster_loading = 'eager' %}
-  {% assign poster_fetch = 'high' %}
-{% endif %}
+{%- assign cta1_text = section.settings.cta1_text | strip -%}
+{%- assign cta1_link = section.settings.cta1_link | strip -%}
+{%- assign cta2_text = section.settings.cta2_text | strip -%}
+{%- assign cta2_link = section.settings.cta2_link | strip -%}
 
-<section
-  id="{{ s.anchor_id | default: 'section-' | append: section.id }}"
-  class="relative overflow-hidden {{ visibility_classes }}"
-  role="region"
-  aria-label="{{ s.region_label | default: 'Featured video hero' }}"
-  style="min-height: {{ s.min_height_vh | default: 70 }}vh;"
->
-  <div class="absolute inset-0 -z-10">
-    {%- if s.poster_image != blank -%}
-      {{ s.poster_image
-        | image_url: width: 2240
-        | image_tag:
-          widths: widths_poster,
-          sizes: sizes_poster,
-          loading: poster_loading,
-          fetchpriority: poster_fetch,
-          class: 'absolute inset-0 w-full h-full object-cover',
-          alt: s.poster_alt }}
-    {%- endif -%}
-    {%- if s.overlay_opacity > 0 -%}
-      <div class="absolute inset-0" aria-hidden="true"
-           style="background-color: {{ s.overlay_color }}; opacity: {{ s.overlay_opacity | divided_by: 100.0 }};">
-      </div>
-    {%- endif -%}
-  </div>
+{%- comment %} Normalize YouTube ID if a full URL was provided. {% endcomment -%}
+{%- assign yt_id = yt_in -%}
+{%- if yt_in contains 'youtube.com' or yt_in contains 'youtu.be' -%}
+  {%- assign tmp = yt_in -%}
+  {%- if tmp contains 'v=' -%}
+    {%- assign after_v = tmp | split: 'v=' | last -%}
+    {%- assign yt_id = after_v | split: '&' | first -%}
+  {%- elsif tmp contains 'youtu.be/' -%}
+    {%- assign after_host = tmp | split: 'youtu.be/' | last -%}
+    {%- assign yt_id = after_host | split: '?' | first -%}
+  {%- endif -%}
+{%- endif -%}
 
-  {%- comment -%} Video container {%- endcomment -%}
-  <div class="absolute inset-0 -z-10">
-    {% assign is_mp4 = false %}
-    {% if s.source == 'mp4' and s.video_mp4_url != blank %}
-      {% assign is_mp4 = true %}
-    {% endif %}
+{%- comment %} Normalize Vimeo ID if a full URL was provided. {% endcomment -%}
+{%- assign vimeo_id = vimeo_in -%}
+{%- if vimeo_in contains 'vimeo.com' -%}
+  {%- assign last_part = vimeo_in | split: 'vimeo.com/' | last -%}
+  {%- assign vimeo_id = last_part | split: '?' | first | split: '/' | last -%}
+{%- endif -%}
 
-    {% if is_mp4 %}
-      <video
-        class="w-full h-full object-cover"
-        muted
-        playsinline
-        loop="{% if s.loop %}true{% else %}false{% endif %}"
-        preload="none"
-        controls="{% if s.native_controls %}true{% else %}false{% endif %}"
-        data-q-video
-        data-autoplay="{% if s.autoplay %}true{% else %}false{% endif %}"
-      >
-        <source src="{{ s.video_mp4_url | escape }}" type="video/mp4">
-        {% if s.track_vtt_url != blank %}
-          <track kind="captions" src="{{ s.track_vtt_url | escape }}" srclang="{{ s.track_lang | default: 'en' | escape }}" label="{{ s.track_label | default: 'Captions' | escape }}">
-        {% endif %}
-      </video>
-    {% elsif s.source != 'mp4' and s.defer_embed and s.embed_provider != 'none' and s.embed_id != blank %}
-      {%- comment -%} Click-to-load placeholder for YouTube/Vimeo improves LCP {%- endcomment -%}
-      <button type="button"
-              class="group w-full h-full"
-              data-q-embed-trigger
-              aria-label="{{ 'Play video' | t }}">
-        {%- if s.poster_image != blank -%}
-          {{ s.poster_image
-            | image_url: width: 2240
-            | image_tag:
-              widths: widths_poster,
-              sizes: sizes_poster,
-              loading: 'eager',
-              fetchpriority: 'high',
-              class: 'absolute inset-0 w-full h-full object-cover',
-              alt: s.poster_alt }}
-        {%- endif -%}
-        <span class="absolute inset-0 flex items-center justify-center">
-          <span class="inline-flex h-16 w-16 items-center justify-center rounded-full bg-black/60 ring-1 ring-white/30 transition group-hover:scale-105">
-            <svg viewBox="0 0 24 24" class="h-7 w-7 text-white" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-          </span>
-        </span>
-      </button>
-      <div data-q-embed-target class="absolute inset-0" hidden></div>
-    {% elsif s.embed_provider != 'none' and s.embed_id != blank %}
-      {%- comment -%} Immediate embed (not deferred) {%- endcomment -%}
-      <div class="absolute inset-0">
-        {% if s.embed_provider == 'youtube' %}
+{%- comment %} Determine if a valid video is present for the chosen source. {% endcomment -%}
+{%- assign has_video = false -%}
+{%- if src_type == 'mp4' and mp4_url != blank -%}
+  {%- assign has_video = true -%}
+{%- elsif src_type == 'youtube' and yt_id != blank -%}
+  {%- assign has_video = true -%}
+{%- elsif src_type == 'vimeo' and vimeo_id != blank -%}
+  {%- assign has_video = true -%}
+{%- endif -%}
+
+{%- assign img_class = scope_id | append: '__img' -%}
+
+<section id="{{ scope_id }}"
+  class="video-hero{% if hide_mobile %} hide-mobile{% endif %}{% if hide_desktop %} hide-desktop{% endif %}"
+  aria-label="{{ h1 | default: 'Video hero banner' | escape }}">
+  <div class="{{ scope_id }}__media">
+    {%- if has_video -%}
+      {%- if src_type == 'mp4' and mp4_url != blank -%}
+        <video
+          class="{{ scope_id }}__video"
+          autoplay
+          muted
+          loop
+          playsinline
+          preload="metadata"
+          {% if poster != blank %}poster="{{ poster | image_url: width: 1920 }}"{% endif %}
+        >
+          <source src="{{ mp4_url | escape }}" type="video/mp4">
+          {%- if poster != blank -%}
+            <img src="{{ poster | image_url: width: 1920 }}" alt="" loading="lazy">
+          {%- elsif bg_image != blank -%}
+            <img src="{{ bg_image | image_url: width: 1920 }}" alt="" loading="lazy">
+          {%- endif -%}
+        </video>
+      {%- elsif src_type == 'youtube' and yt_id != blank -%}
+        <div class="{{ scope_id }}__iframe-wrap" data-aspect="16-9">
           <iframe
-            title="{{ s.embed_title | default: 'YouTube video' | escape }}"
-            src="https://www.youtube-nocookie.com/embed/{{ s.embed_id | escape }}?rel=0&modestbranding=1&playsinline=1&autoplay={% if s.autoplay %}1{% else %}0{% endif %}&mute=1&loop={% if s.loop %}1{% else %}0{% endif %}&playlist={{ s.embed_id | escape }}"
-            class="w-full h-full"
-            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-            loading="lazy"></iframe>
-        {% elsif s.embed_provider == 'vimeo' %}
-          <iframe
-            title="{{ s.embed_title | default: 'Vimeo video' | escape }}"
-            src="https://player.vimeo.com/video/{{ s.embed_id | escape }}?autoplay={% if s.autoplay %}1{% else %}0{% endif %}&muted=1&loop={% if s.loop %}1{% else %}0{% endif %}&byline=0&title=0&portrait=0"
-            class="w-full h-full"
-            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-            loading="lazy"></iframe>
-        {% endif %}
-      </div>
-    {% endif %}
-  </div>
-
-  <div class="relative z-10">
-    <div class="mx-auto max-w-screen-xl {{ container_pad }}">
-      <div class="flex items-center justify-{{ s.content_h_align | default: 'center' }} text-{{ s.text_align | default: 'center' }}"
-           style="min-height: 40vh; padding-top: {{ s.padding_top | default: 72 }}px; padding-bottom: {{ s.padding_bottom | default: 72 }}px;">
-        <div class="{{ s.content_max_w | default: 'max-w-3xl' }} w-full">
-          {% if s.kicker != blank %}
-            <p class="text-sm font-semibold tracking-wide uppercase text-primary-foreground/90">{{ s.kicker }}</p>
-          {% endif %}
-
-          {% assign heading_text = s.heading | default: 'Bring the story to life' %}
-          {% if s.heading_level == 'h1' %}
-            <h1 class="mt-2 text-3xl md:text-5xl font-semibold leading-tight text-primary-foreground">{{ heading_text | escape }}</h1>
-          {% else %}
-            <h2 class="mt-2 text-3xl md:text-5xl font-semibold leading-tight text-primary-foreground">{{ heading_text | escape }}</h2>
-          {% endif %}
-
-          {% if s.subheading != blank %}
-            <p class="mt-3 text-base md:text-lg text-primary-foreground/90 {% if s.hide_sub_mobile %}hidden md:block{% endif %}">
-              {{ s.subheading }}
-            </p>
-          {% endif %}
-
-          {% assign has_cta1 = false %}
-          {% if s.cta_text != blank and href1 != blank %}{% assign has_cta1 = true %}{% endif %}
-          {% assign has_cta2 = false %}
-          {% if s.cta2_text != blank and href2 != blank %}{% assign has_cta2 = true %}{% endif %}
-
-          {% if has_cta1 or has_cta2 %}
-            <div class="mt-5 flex flex-wrap gap-3 {% if s.cta_group_align == 'left' %}justify-start{% elsif s.cta_group_align == 'right' %}justify-end{% else %}justify-center{% endif %}">
-              {% if has_cta1 %}
-                {% assign cta_label = s.cta_text %}
-                {% if cta_label == blank %}{% assign cta_label = 'actions.shop_now' | t %}{% endif %}
-                <a href="{{ href1 }}"
-                   data-cta="primary"
-                   class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition
-                          {% if s.button_mode == 'outline' %}border bg-transparent{% else %}bg-primary text-primary-foreground hover:opacity-90{% endif %}"
-                   style="{% if s.button_mode == 'outline' %}color: {{ s.button_text_color }}; border-color: {{ s.button_border_color }}; border-width: {{ s.button_border_width }}px;{% else %}color: {{ s.button_text_color }}; background-color: {{ s.button_bg_color }};{% endif %} border-radius: {{ s.button_radius }}px;"
-                   aria-label="{{ s.cta_aria_label | default: cta_label | escape }}">
-                  {{ cta_label }}
-                </a>
-              {% endif %}
-              {% if has_cta2 %}
-                {% assign cta2_label = s.cta2_text %}
-                {% if cta2_label == blank %}{% assign cta2_label = 'actions.learn_more' | t %}{% endif %}
-                <a href="{{ href2 }}"
-                   data-cta="secondary"
-                   class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition
-                          {% if s.button_mode == 'outline' %}border bg-transparent{% else %}border border-input bg-background hover:bg-accent hover:text-accent-foreground{% endif %}"
-                   style="{% if s.button_mode == 'outline' %}color: {{ s.button_text_color }}; border-color: {{ s.button_border_color }}; border-width: {{ s.button_border_width }}px;{% else %}color: {{ s.button_text_color }};{% endif %} border-radius: {{ s.button_radius }}px;"
-                   aria-label="{{ s.cta2_aria_label | default: cta2_label | escape }}">
-                  {{ cta2_label }}
-                </a>
-              {% endif %}
-            </div>
-          {% endif %}
+            class="{{ scope_id }}__iframe"
+            src="https://www.youtube.com/embed/{{ yt_id | escape }}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&enablejsapi=1&playlist={{ yt_id | escape }}"
+            title="YouTube video"
+            allow="autoplay; fullscreen; accelerometer; encrypted-media; picture-in-picture"
+            frameborder="0"
+            aria-hidden="true"
+            tabindex="-1"
+          ></iframe>
         </div>
-      </div>
-    </div>
+      {%- elsif src_type == 'vimeo' and vimeo_id != blank -%}
+        <div class="{{ scope_id }}__iframe-wrap" data-aspect="16-9">
+          <iframe
+            class="{{ scope_id }}__iframe"
+            src="https://player.vimeo.com/video/{{ vimeo_id | escape }}?background=1&autoplay=1&muted=1&loop=1&title=0&byline=0&portrait=0"
+            title="Vimeo video"
+            allow="autoplay; fullscreen; picture-in-picture"
+            frameborder="0"
+            aria-hidden="true"
+            tabindex="-1"
+          ></iframe>
+        </div>
+      {%- endif -%}
+      {%- if overlay_color != blank -%}
+        <div class="{{ scope_id }}__overlay" aria-hidden="true"></div>
+      {%- endif -%}
+    {%- else -%}
+      {%- if poster != blank -%}
+        <div class="{{ scope_id }}__image">
+          {{ poster | image_url: width: 1920 | image_tag: alt: '', loading: 'lazy', class: img_class }}
+        </div>
+      {%- elsif bg_image != blank -%}
+        <div class="{{ scope_id }}__image">
+          {{ bg_image | image_url: width: 1920 | image_tag: alt: '', loading: 'lazy', class: img_class }}
+        </div>
+      {%- else -%}
+        <div class="{{ scope_id }}__placeholder" role="img" aria-label="Hero background placeholder"></div>
+      {%- endif -%}
+      {%- if overlay_color != blank -%}
+        <div class="{{ scope_id }}__overlay" aria-hidden="true"></div>
+      {%- endif -%}
+    {%- endif -%}
   </div>
 
-  {% if s.show_controls and s.source == 'mp4' and s.video_mp4_url != blank and s.native_controls == false %}
-    <div class="absolute left-4 bottom-4 z-10 flex items-center gap-2">
-      <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-              data-q-video-toggle
-              aria-label="Play/Pause video"
-              aria-pressed="false">
-        ▌▌
-      </button>
-      <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-              data-q-audio-toggle
-              aria-label="Mute/Unmute video"
-              aria-pressed="true">
-        🔇
-      </button>
+  <div class="{{ scope_id }}__inner">
+    <div class="{{ scope_id }}__content">
+      {%- if kicker != blank -%}
+        <p class="{{ scope_id }}__kicker">{{ kicker }}</p>
+      {%- endif -%}
+      {%- if h1 != blank -%}
+        <h1 class="{{ scope_id }}__heading">{{ h1 }}</h1>
+      {%- endif -%}
+      {%- if h2 != blank -%}
+        <p class="{{ scope_id }}__subheading">{{ h2 }}</p>
+      {%- endif -%}
+      {%- if cta1_text != blank or cta2_text != blank -%}
+        <div class="{{ scope_id }}__buttons">
+          {%- if cta1_text != blank -%}
+            <a class="{{ scope_id }}__btn {{ scope_id }}__btn--primary" href="{{ cta1_link | default: '#' | escape }}">
+              {{ cta1_text }}
+            </a>
+          {%- endif -%}
+          {%- if cta2_text != blank -%}
+            <a class="{{ scope_id }}__btn {{ scope_id }}__btn--secondary" href="{{ cta2_link | default: '#' | escape }}">
+              {{ cta2_text }}
+            </a>
+          {%- endif -%}
+        </div>
+      {%- endif -%}
     </div>
-  {% endif %}
-
-  {% if s.send_events or s.autoplay %}
-    <script>
-      (function(){
-        var root = document.getElementById('{{ s.anchor_id | default: 'section-' | append: section.id }}');
-        if(!root) return;
-
-        var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        var v = root.querySelector('[data-q-video]');
-        var toggleBtn = root.querySelector('[data-q-video-toggle]');
-        var audioBtn  = root.querySelector('[data-q-audio-toggle]');
-        var embedTrigger = root.querySelector('[data-q-embed-trigger]');
-        var embedTarget  = root.querySelector('[data-q-embed-target]');
-
-        function send(evtName, detail){
-          if(!{{ s.send_events | json }}) return;
-          window.dispatchEvent(new CustomEvent('quadratum:video', { detail: { component:'video_hero_banner', event: evtName, ...detail } }));
-          if(window.dataLayer && Array.isArray(window.dataLayer)){
-            window.dataLayer.push({ event: 'quadratum_video', component: 'video_hero_banner', action: evtName, detail: detail });
-          }
-        }
-
-        if (v) {
-          if ({{ s.autoplay | json }} && !prefersReduced) {
-            var io = new IntersectionObserver(function(entries){
-              entries.forEach(function(e){
-                if(e.isIntersecting){
-                  v.muted = true;
-                  v.play().catch(function(){});
-                } else {
-                  v.pause();
-                }
-              });
-            }, { threshold: 0.25 });
-            io.observe(v);
-          }
-
-          if (toggleBtn) {
-            toggleBtn.addEventListener('click', function(){
-              if (v.paused) { v.play().catch(function(){}); this.setAttribute('aria-pressed','true'); this.textContent='▌▌'; send('play', {}); }
-              else { v.pause(); this.setAttribute('aria-pressed','false'); this.textContent='▶'; send('pause', {}); }
-            });
-          }
-          if (audioBtn) {
-            audioBtn.addEventListener('click', function(){
-              v.muted = !v.muted;
-              this.setAttribute('aria-pressed', v.muted ? 'true' : 'false');
-              this.textContent = v.muted ? '🔇' : '🔊';
-              send(v.muted ? 'mute' : 'unmute', {});
-            });
-          }
-        }
-
-        if (embedTrigger && embedTarget) {
-          embedTrigger.addEventListener('click', function(){
-            var provider = {{ s.embed_provider | json }};
-            var id = {{ s.embed_id | json }};
-            var autoplay = {{ s.autoplay | json }} ? 1 : 0;
-            var loop = {{ s.loop | json }} ? 1 : 0;
-            var html = '';
-            if (provider === 'youtube') {
-              html = '<iframe title="{{ s.embed_title | default: 'YouTube video' | escape }}" src="https://www.youtube-nocookie.com/embed/' + id + '?rel=0&modestbranding=1&playsinline=1&autoplay=' + autoplay + '&mute=1&loop=' + loop + '&playlist=' + id + '" class="w-full h-full" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" loading="lazy"></iframe>';
-            } else if (provider === 'vimeo') {
-              html = '<iframe title="{{ s.embed_title | default: 'Vimeo video' | escape }}" src="https://player.vimeo.com/video/' + id + '?autoplay=' + autoplay + '&muted=1&loop=' + loop + '&byline=0&title=0&portrait=0" class="w-full h-full" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" loading="lazy"></iframe>';
-            }
-            embedTarget.innerHTML = html;
-            embedTarget.hidden = false;
-            embedTrigger.remove();
-            send('embed_loaded', { provider: provider });
-          }, { once: true });
-        }
-      })();
-    </script>
-  {% endif %}
-
-  <style>
-    /* No arbitrary Tailwind needed; keep JIT safe */
-  </style>
+  </div>
 </section>
 
-{% render 'tw-safelist-banners' %}
+<style>
+  #{{ scope_id }} {
+    position: relative;
+    isolation: isolate;
+    color: {{ text_color }};
+    min-height: {{ min_vh }}vh;
+    padding-top: {{ pad_t }}px;
+    padding-bottom: {{ pad_b }}px;
+    overflow: clip;
+  }
+
+  #{{ scope_id }} .{{ scope_id }}__media {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    z-index: 0;
+    background: {% if bg_image != blank or poster != blank %}transparent{% else %}#000{% endif %};
+  }
+
+  #{{ scope_id }} .{{ scope_id }}__video,
+  #{{ scope_id }} .{{ scope_id }}__img,
+  #{{ scope_id }} .{{ scope_id }}__placeholder {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  #{{ scope_id }} .{{ scope_id }}__iframe-wrap {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+  }
+  /* Cover behavior for iframe similar to object-fit: cover */
+  #{{ scope_id }} .{{ scope_id }}__iframe {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 177.78vh;
+    height: 100vh;
+    transform: translate(-50%, -50%);
+    min-width: 100%;
+    min-height: 56.25vw;
+  }
+
+  #{{ scope_id }} .{{ scope_id }}__overlay {
+    position: absolute;
+    inset: 0;
+    background-color: {{ overlay_color }};
+    opacity: {{ overlay_opacity_percent | times: 0.01 }};
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  #{{ scope_id }} .{{ scope_id }}__inner {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: {% case align_v %}{% when 'top' %}flex-start{% when 'middle' %}center{% else %}flex-end{% endcase %};
+    justify-content: {% case align_h %}{% when 'left' %}flex-start{% when 'center' %}center{% else %}flex-end{% endcase %};
+    min-height: {{ min_vh }}vh;
+  }
+
+  #{{ scope_id }} .{{ scope_id }}__content {
+    width: 100%;
+    max-width: {{ max_w }}px;
+    padding-inline: 1rem;
+    text-align: {% case align_h %}{% when 'left' %}left{% when 'center' %}center{% else %}right{% endcase %};
+  }
+
+  #{{ scope_id }} .{{ scope_id }}__kicker {
+    margin: 0 0 .5rem 0;
+    font-weight: 600;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  #{{ scope_id }} .{{ scope_id }}__heading {
+    margin: 0 0 .75rem 0;
+    font-size: clamp(2rem, 4vw, 3.25rem);
+    line-height: 1.1;
+  }
+  #{{ scope_id }} .{{ scope_id }}__subheading {
+    margin: 0 0 1.25rem 0;
+    font-size: clamp(1rem, 1.8vw, 1.25rem);
+    line-height: 1.6;
+  }
+  #{{ scope_id }} .{{ scope_id }}__buttons {
+    display: inline-flex;
+    gap: .75rem;
+    flex-wrap: wrap;
+  }
+  #{{ scope_id }} .{{ scope_id }}__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: .75rem 1.25rem;
+    border-radius: .75rem;
+    font-weight: 600;
+    text-decoration: none;
+    border: 2px solid currentColor;
+    transition: transform .15s ease, opacity .15s ease;
+  }
+  #{{ scope_id }} .{{ scope_id }}__btn:hover { transform: translateY(-1px); }
+  #{{ scope_id }} .{{ scope_id }}__btn:active { transform: translateY(0); opacity: .9; }
+
+  #{{ scope_id }} .{{ scope_id }}__btn--primary {
+    background: currentColor;
+    color: #000;
+    border-color: currentColor;
+  }
+  #{{ scope_id }} .{{ scope_id }}__btn--secondary {
+    background: transparent;
+    color: {{ text_color }};
+    border-color: currentColor;
+  }
+
+  #{{ scope_id }} .{{ scope_id }}__placeholder {
+    background: #111;
+  }
+
+  /* Visibility toggles */
+  #{{ scope_id }}.hide-mobile { display: block; }
+  #{{ scope_id }}.hide-desktop { display: block; }
+  @media (max-width: 749px) {
+    #{{ scope_id }}.hide-mobile { display: none; }
+  }
+  @media (min-width: 750px) {
+    #{{ scope_id }}.hide-desktop { display: none; }
+  }
+</style>
 
 {% schema %}
 {
-  "name": "Video Hero Banner",
+  "name": "Video hero banner",
   "tag": "section",
-  "class": "q-video-hero",
+  "class": "video-hero-banner",
   "settings": [
-    { "type": "header", "content": "Header" },
-    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Now playing" },
-    { "type": "text", "id": "heading", "label": "Heading", "default": "Bring the story to life" },
-    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Autoplay-on-view, motion-safe, and fast." },
-    { "type": "select", "id": "heading_level", "label": "Heading level", "default": "h2", "options": [
-      { "value": "h1", "label": "H1" }, { "value": "h2", "label": "H2" }
-    ]},
-
-    { "type": "header", "content": "Layout & alignment" },
-    { "type": "range", "id": "min_height_vh", "label": "Min height (vh)", "min": 40, "max": 100, "step": 5, "default": 70 },
-    { "type": "range", "id": "padding_top", "label": "Padding top (px)", "min": 0, "max": 200, "step": 8, "default": 72 },
-    { "type": "range", "id": "padding_bottom", "label": "Padding bottom (px)", "min": 0, "max": 200, "step": 8, "default": 72 },
-    { "type": "select", "id": "content_h_align", "label": "Horizontal alignment", "default": "center", "options": [
-      { "value": "start", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "end", "label": "Right" }
-    ]},
-    { "type": "select", "id": "text_align", "label": "Text alignment", "default": "center", "options": [
-      { "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" }
-    ]},
-    { "type": "select", "id": "content_max_w", "label": "Text width", "default": "max-w-3xl", "options": [
-      { "value": "max-w-2xl", "label": "Narrow" },
-      { "value": "max-w-3xl", "label": "Comfort" },
-      { "value": "max-w-4xl", "label": "Wide" }
-    ]},
-    { "type": "select", "id": "container_mode", "label": "Container", "default": "contained", "options": [
-      { "value": "contained", "label": "Contained (side padding)" },
-      { "value": "full", "label": "Full-bleed (edge to edge)" }
-    ]},
-
-    { "type": "header", "content": "Overlay" },
-    { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
-    { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 25, "unit": "%" },
-
-    { "type": "header", "content": "Video source" },
-    { "type": "select", "id": "source", "label": "Source", "default": "mp4", "options": [
-      { "value": "mp4", "label": "MP4 (URL)" },
-      { "value": "embed", "label": "YouTube/Vimeo" }
-    ]},
-
-    { "type": "paragraph", "content": "MP4 (recommended for performance/LCP)" },
-    { "type": "text", "id": "video_mp4_url", "label": "MP4 URL" },
-    { "type": "text", "id": "track_vtt_url", "label": "Captions VTT URL (optional)" },
-    { "type": "text", "id": "track_label", "label": "Captions label", "default": "Captions" },
-    { "type": "text", "id": "track_lang", "label": "Captions language (BCP-47)", "default": "en" },
-
-    { "type": "paragraph", "content": "YouTube/Vimeo (lazy embedded)" },
-    { "type": "select", "id": "embed_provider", "label": "Embed provider", "default": "youtube", "options": [
-      { "value": "none", "label": "None" },
-      { "value": "youtube", "label": "YouTube" },
-      { "value": "vimeo", "label": "Vimeo" }
-    ]},
-    { "type": "text", "id": "embed_id", "label": "Video ID (YouTube ID / Vimeo ID)" },
-    { "type": "text", "id": "embed_title", "label": "Embed title", "default": "Video" },
-    { "type": "checkbox", "id": "defer_embed", "label": "Defer loading until clicked (recommended)", "default": true },
-
-    { "type": "header", "content": "Poster" },
-    { "type": "image_picker", "id": "poster_image", "label": "Poster image" },
-    { "type": "text", "id": "poster_alt", "label": "Poster alt", "default": "Video poster" },
-    { "type": "checkbox", "id": "eager_poster", "label": "Load poster eagerly (above-the-fold)", "default": true },
-
-    { "type": "header", "content": "Playback" },
-    { "type": "checkbox", "id": "autoplay", "label": "Autoplay when in view (motion-safe)", "default": true },
-    { "type": "checkbox", "id": "loop", "label": "Loop", "default": true },
-    { "type": "checkbox", "id": "native_controls", "label": "Show native controls (MP4 only)", "default": false },
-    { "type": "checkbox", "id": "show_controls", "label": "Show minimal overlay controls (MP4 only)", "default": true },
-
-    { "type": "header", "content": "Buttons" },
-    { "type": "select", "id": "cta_group_align", "label": "CTA alignment", "default": "center", "options": [
-      { "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" }
-    ]},
-    { "type": "select", "id": "button_mode", "label": "Button style", "default": "solid", "options": [
-      { "value": "solid", "label": "Solid" }, { "value": "outline", "label": "Outline" }
-    ]},
-    { "type": "color", "id": "button_bg_color", "label": "Button background (solid)", "default": "#111111" },
-    { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#ffffff" },
-    { "type": "color", "id": "button_border_color", "label": "Button border (outline)", "default": "#ffffff" },
-    { "type": "range", "id": "button_border_width", "label": "Outline border width", "min": 0, "max": 6, "step": 1, "default": 1 },
-    { "type": "range", "id": "button_radius", "label": "Corner radius", "min": 0, "max": 36, "step": 2, "default": 12 },
-    { "type": "text", "id": "cta_text", "label": "Primary CTA text", "default": "Shop now" },
-    { "type": "url", "id": "cta_link", "label": "Primary CTA URL" },
-    { "type": "product", "id": "cta_product", "label": "…or link to product" },
-    { "type": "collection", "id": "cta_collection", "label": "…or link to collection" },
-    { "type": "article", "id": "cta_article", "label": "…or link to article" },
-    { "type": "text", "id": "cta_aria_label", "label": "Primary CTA ARIA label", "default": "Shop now" },
-    { "type": "text", "id": "cta2_text", "label": "Secondary CTA text", "default": "Learn more" },
-    { "type": "url", "id": "cta2_link", "label": "Secondary CTA URL" },
-    { "type": "product", "id": "cta2_product", "label": "Secondary… link to product" },
-    { "type": "collection", "id": "cta2_collection", "label": "Secondary… link to collection" },
-    { "type": "article", "id": "cta2_article", "label": "Secondary… link to article" },
-    { "type": "text", "id": "cta2_aria_label", "label": "Secondary CTA ARIA label", "default": "Learn more" },
-
-    { "type": "header", "content": "Visibility & analytics" },
-    { "type": "text", "id": "anchor_id", "label": "Optional anchor ID" },
-    { "type": "text", "id": "region_label", "label": "Accessible region label", "default": "Featured video hero" },
-    { "type": "checkbox", "id": "hide_on_mobile", "label": "Hide on mobile", "default": false },
-    { "type": "checkbox", "id": "hide_on_desktop", "label": "Hide on desktop", "default": false },
-    { "type": "checkbox", "id": "send_events", "label": "Send analytics events on interactions", "default": true }
-  ],
-  "blocks": [],
-  "presets": [
     {
-      "name": "Video Hero • Product demo",
-      "category": "Banner",
-      "settings": {
-        "kicker": "Demo",
-        "heading": "See it in action",
-        "subheading": "Fast to load, motion-safe, and on-brand.",
-        "source": "mp4",
-        "autoplay": true,
-        "loop": true
-      }
+      "type": "select",
+      "id": "video_source",
+      "label": "Video source",
+      "default": "mp4",
+      "options": [
+        { "value": "mp4", "label": "MP4" },
+        { "value": "youtube", "label": "YouTube" },
+        { "value": "vimeo", "label": "Vimeo" }
+      ]
     },
     {
-      "name": "Video Hero • YouTube (deferred)",
-      "category": "Banner",
-      "settings": {
-        "kicker": "Behind the scenes",
-        "heading": "Crafted with care",
-        "source": "embed",
-        "embed_provider": "youtube",
-        "defer_embed": true
-      }
+      "type": "text",
+      "id": "mp4_url",
+      "label": "MP4 URL",
+      "default": "https://example.com/video.mp4"
+    },
+    {
+      "type": "text",
+      "id": "youtube_input",
+      "label": "YouTube ID or URL",
+      "default": "dQw4w9WgXcQ"
+    },
+    {
+      "type": "text",
+      "id": "vimeo_input",
+      "label": "Vimeo ID or URL",
+      "default": "76979871"
+    },
+    {
+      "type": "image_picker",
+      "id": "poster_image",
+      "label": "Poster image",
+      "info": "Used if no video is set and as MP4 poster."
+    },
+    {
+      "type": "image_picker",
+      "id": "bg_image",
+      "label": "Background image (fallback)"
+    },
+    {
+      "type": "color",
+      "id": "overlay_color",
+      "label": "Overlay color",
+      "default": "#000000"
+    },
+    {
+      "type": "range",
+      "id": "overlay_opacity",
+      "label": "Overlay opacity",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "default": 40
+    },
+    {
+      "type": "text",
+      "id": "kicker",
+      "label": "Kicker",
+      "default": "Featured"
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Bring your story to life"
+    },
+    {
+      "type": "text",
+      "id": "subheading",
+      "label": "Subheading",
+      "default": "Autoplaying background video with clean, bold messaging."
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "select",
+      "id": "text_align_h",
+      "label": "Horizontal align",
+      "default": "center",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "text_align_v",
+      "label": "Vertical align",
+      "default": "middle",
+      "options": [
+        { "value": "top", "label": "Top" },
+        { "value": "middle", "label": "Middle" },
+        { "value": "bottom", "label": "Bottom" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "container_max_w",
+      "label": "Container max width",
+      "min": 480,
+      "max": 1600,
+      "step": 20,
+      "unit": "px",
+      "default": 1200
+    },
+    {
+      "type": "range",
+      "id": "min_height_vh",
+      "label": "Min height",
+      "min": 30,
+      "max": 100,
+      "step": 1,
+      "unit": "vh",
+      "default": 70
+    },
+    {
+      "type": "range",
+      "id": "pad_top",
+      "label": "Padding top",
+      "min": 0,
+      "max": 200,
+      "step": 2,
+      "unit": "px",
+      "default": 40
+    },
+    {
+      "type": "range",
+      "id": "pad_bottom",
+      "label": "Padding bottom",
+      "min": 0,
+      "max": 200,
+      "step": 2,
+      "unit": "px",
+      "default": 40
+    },
+    {
+      "type": "text",
+      "id": "cta1_text",
+      "label": "Primary button text",
+      "default": "Shop now"
+    },
+    {
+      "type": "text",
+      "id": "cta1_link",
+      "label": "Primary button link",
+      "default": "https://example.com/"
+    },
+    {
+      "type": "text",
+      "id": "cta2_text",
+      "label": "Secondary button text",
+      "default": "Learn more"
+    },
+    {
+      "type": "text",
+      "id": "cta2_link",
+      "label": "Secondary button link",
+      "default": "https://example.com/"
+    },
+    {
+      "type": "checkbox",
+      "id": "hide_on_mobile",
+      "label": "Hide on mobile",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "hide_on_desktop",
+      "label": "Hide on desktop",
+      "default": false
+    }
+  ],
+  "presets": [
+    {
+      "name": "Video Banner",
+      "category": "Hero Banners"
     }
   ]
 }
 {% endschema %}
 
-{% render 'tw-safelist-banners' %}
+{% javascript %}{% endjavascript %}
