@@ -1,0 +1,168 @@
+{%- comment -%}
+Renders a single slide for the multipurpose hero banner.
+Receives:
+- slide (block)
+- content_blocks (array of blocks scoped to this slide)
+- index (number), total (number)
+- layout (string: single/split-50-50/split-60-40/split-40-60)
+- image_side (string: left/right for split)
+{%- endcomment -%}
+
+{%- liquid
+  assign s = slide.settings
+
+  # Overlay solids and gradients
+  assign ov_alpha  = s.overlay_opacity | default: 0 | times: 0.01
+  assign solid_rgba = s.overlay_color  | color_modify: 'alpha', ov_alpha
+
+  assign gs_alpha = s.grad_start_opacity | default: 0 | times: 0.01
+  assign ge_alpha = s.grad_end_opacity   | default: 0 | times: 0.01
+  assign grad_start_rgba = s.grad_start | color_modify: 'alpha', gs_alpha
+  assign grad_end_rgba   = s.grad_end   | color_modify: 'alpha', ge_alpha
+
+  # Classes
+  assign slide_classes = 'q-mpb-slide'
+  if index == 1
+    assign slide_classes = slide_classes | append: ' active'
+  endif
+  assign slide_classes = slide_classes | append: ' q-mpb-' | append: layout
+  if image_side == 'right'
+    assign slide_classes = slide_classes | append: ' q-mpb-image-right'
+  else
+    assign slide_classes = slide_classes | append: ' q-mpb-image-left'
+  endif
+
+  # Content alignment
+  assign pos       = s.content_position | default: 'center-center'
+  assign pos_m     = s.content_position_mobile | default: 'center-center'
+  assign text_align = s.text_alignment | default: 'center'
+  assign maxw      = s.content_max_width | default: 'medium'
+
+  # Content panel background
+  assign c_style = s.content_bg_style | default: 'none'
+  assign c_alpha = s.content_bg_opacity | default: 100 | times: 0.01
+  assign c_color = s.content_bg_color | color_modify: 'alpha', c_alpha
+
+  # Wedge vars (for split “Eurus” shape)
+  assign wedge_alpha = s.wedge_bg_opacity | default: 86 | times: 0.01
+-%}
+
+<div
+  class="{{ slide_classes }}"
+  style="
+    --q-mpb-fallback: {{ s.bg_color }};
+    {%- if s.overlay_type == 'solid' -%}
+      --q-mpb-overlay: {{ solid_rgba }};
+    {%- elsif s.overlay_type == 'gradient' -%}
+      --q-mpb-grad: linear-gradient({{ s.grad_angle | default: 180 }}deg, {{ grad_start_rgba }} 0%, {{ grad_end_rgba }} 100%);
+    {%- endif -%}
+    --q-mpb-wedge: {{ s.wedge_bg | default: '#ffffff' }};
+    --q-mpb-wedge-alpha: {{ wedge_alpha }};
+  "
+  data-index="{{ index }}"
+  role="group"
+  aria-roledescription="slide"
+  aria-label="{{ index }} of {{ total }}"
+>
+
+  {%- comment -%} MEDIA LAYER {%- endcomment -%}
+  <div class="q-mpb-media">
+    {%- if s.video_url != blank -%}
+      <video class="q-mpb-video" autoplay muted loop playsinline preload="metadata">
+        <source src="{{ s.video_url }}" type="video/mp4">
+      </video>
+    {%- elsif s.youtube_url != blank -%}
+      <iframe class="q-mpb-youtube"
+        src="https://www.youtube.com/embed/{{ s.youtube_url | split: 'v=' | last | split: '&' | first }}?autoplay=1&mute=1&loop=1&playlist={{ s.youtube_url | split: 'v=' | last | split: '&' | first }}"
+        title="Video"
+        frameborder="0"
+        allow="autoplay; fullscreen; picture-in-picture"
+        allowfullscreen></iframe>
+    {%- else -%}
+      {%- assign img = s.image -%}
+      {%- assign img_m = s.mobile_image | default: s.image -%}
+      <picture>
+        <source media="(max-width: 749px)" srcset="{{ img_m | image_url: width: 1500 }}">
+        <img class="q-mpb-image" src="{{ img | image_url: width: 3000 }}" alt="" loading="lazy" />
+      </picture>
+    {%- endif -%}
+
+    {%- if s.overlay_type == 'solid' -%}
+      <span class="q-mpb-overlay q-mpb-overlay--solid" aria-hidden="true"></span>
+    {%- elsif s.overlay_type == 'gradient' -%}
+      <span class="q-mpb-overlay q-mpb-overlay--gradient" aria-hidden="true"></span>
+    {%- endif -%}
+  </div>
+
+  {%- comment -%} LAYOUT WRAPPER {%- endcomment -%}
+  <div class="q-mpb-layout">
+    {%- if layout == 'single' -%}
+      <div class="q-mpb-content-wrap {{ 'pos-' | append: pos }} {{ 'posm-' | append: pos_m }} ta-{{ text_align }} mw-{{ maxw }}">
+        {% render 'multipurpose-banner-content',
+          slide: slide,
+          content_blocks: content_blocks,
+          c_style: c_style,
+          c_color: c_color,
+          kicker: s.kicker_text,
+          heading: s.heading,
+          heading_level: s.heading_level,
+          paragraph: s.paragraph,
+          cta_text: s.cta_text,
+          cta_link: s.cta_link,
+          cta_variant: s.cta_variant,
+          cta2_text: s.cta2_text,
+          cta2_link: s.cta2_link,
+          cta2_variant: s.cta2_variant
+        %}
+      </div>
+    {%- else -%}
+      <div class="q-mpb-split q-mpb-split--{{ layout | replace: 'split-', '' }} q-mpb-split--{{ image_side }}">
+        {%- if image_side == 'left' -%}
+          <div class="q-mpb-pane q-mpb-pane-media" aria-hidden="true"></div>
+          <div class="q-mpb-pane q-mpb-pane-content" data-bg>
+            <div class="q-mpb-content {{ 'pos-' | append: pos }} {{ 'posm-' | append: pos_m }} ta-{{ text_align }} mw-{{ maxw }}">
+              {% render 'multipurpose-banner-content',
+                slide: slide,
+                content_blocks: content_blocks,
+                c_style: c_style,
+                c_color: c_color,
+                kicker: s.kicker_text,
+                heading: s.heading,
+                heading_level: s.heading_level,
+                paragraph: s.paragraph,
+                cta_text: s.cta_text,
+                cta_link: s.cta_link,
+                cta_variant: s.cta_variant,
+                cta2_text: s.cta2_text,
+                cta2_link: s.cta2_link,
+                cta2_variant: s.cta2_variant
+              %}
+            </div>
+          </div>
+        {%- else -%}
+          <div class="q-mpb-pane q-mpb-pane-content" data-bg>
+            <div class="q-mpb-content {{ 'pos-' | append: pos }} {{ 'posm-' | append: pos_m }} ta-{{ text_align }} mw-{{ maxw }}">
+              {% render 'multipurpose-banner-content',
+                slide: slide,
+                content_blocks: content_blocks,
+                c_style: c_style,
+                c_color: c_color,
+                kicker: s.kicker_text,
+                heading: s.heading,
+                heading_level: s.heading_level,
+                paragraph: s.paragraph,
+                cta_text: s.cta_text,
+                cta_link: s.cta_link,
+                cta_variant: s.cta_variant,
+                cta2_text: s.cta2_text,
+                cta2_link: s.cta2_link,
+                cta2_variant: s.cta2_variant
+              %}
+            </div>
+          </div>
+          <div class="q-mpb-pane q-mpb-pane-media" aria-hidden="true"></div>
+        {%- endif -%}
+      </div>
+    {%- endif -%}
+  </div>
+</div>
