@@ -1,0 +1,675 @@
+{% comment %}
+  Sub Page Banner (Transparent)
+  - Quadratum Theme — lighter/shorter variant of Transparent Hero
+  - Background: image / video / slideshow (max 8) with optional gradient overlay
+  - Transparent overlays, tokenized buttons (.q-btn variants)
+  - Background & overlays are inert (pointer-events:none) so CTAs are always clickable
+  - Accessibility: ARIA region/labels; carousel roles when slideshow
+
+  Notes:
+  - Uses computed `anchor_id` (schema default "auto") to ensure valid, unique IDs without dynamic schema defaults.
+{% endcomment %}
+
+{% liquid
+  assign s = section.settings
+
+  # Theme tokens
+  assign T_font_heading = settings.font_heading
+  assign T_font_body = settings.font_body
+  assign T_head_letter = settings.headings_letterspacing | default: 0
+  assign T_head_uppercase = settings.headings_uppercase
+  assign T_btn_variant_default = settings.button_variant_default | default: 'solid'
+  assign T_btn_radius = settings.button_radius | default: 12
+  assign T_btn_bw = settings.button_border_width | default: 1
+  assign T_btn_hover_opacity = settings.button_hover_opacity | default: 92
+  assign T_btn_active_scale = settings.button_active_scale | default: 98
+
+  assign C_primary = settings.color_primary | default: '#2563eb'
+  assign C_text_on_color = settings.text_on_color | default: '#ffffff'
+
+  # Slides / mode
+  assign slide_count = section.blocks | size
+  assign is_slideshow = false
+  if s.mode == 'slideshow' and section.blocks.size > 1
+    assign is_slideshow = true
+  endif
+
+  assign show_arrows = false
+  if is_slideshow and s.nav_arrows
+    assign show_arrows = true
+  endif
+
+  assign show_dots = false
+  if is_slideshow and s.nav_dots
+    assign show_dots = true
+  endif
+
+  assign use_autoplay = false
+  if is_slideshow and s.autoplay
+    assign use_autoplay = true
+  endif
+
+  assign autoplay_ms = s.autoplay_delay_ms | default: 6000
+
+  # Root classes
+  assign root_classes = 'q-sub-banner-transparent'
+  if is_slideshow
+    assign root_classes = root_classes | append: ' qsb--slideshow'
+  else
+    assign root_classes = root_classes | append: ' qsb--static'
+  endif
+  if s.enable_header_overlap
+    assign root_classes = root_classes | append: ' qsb--overlap'
+  endif
+  if s.simple_mode
+    assign root_classes = root_classes | append: ' qsb--simple'
+  endif
+
+  # Responsive visibility classes
+  assign visibility_classes = ''
+  if s.hide_on_mobile
+    assign visibility_classes = visibility_classes | append: ' hidden md:block'
+  endif
+  if s.hide_on_desktop
+    assign visibility_classes = visibility_classes | append: ' block md:hidden'
+  endif
+
+  # Height handling -> --q-min-h (vh), final min-height = calc(var(--q-min-h, 60vh) + 40px)
+  assign min_h_vh = s.min_height_vh | default: 60
+  assign min_h_vh_m = s.min_height_vh_mobile | default: 52
+
+  # Button per-section overrides (fallback to theme tokens)
+  assign BTN_bg = s.cta_btn_bg | default: C_primary
+  assign BTN_text = s.cta_btn_text | default: C_text_on_color
+  assign BTN_border = s.cta_btn_border | default: C_primary
+  assign BTN_radius = s.cta_btn_radius | default: T_btn_radius
+  assign BTN_hover_opacity = s.cta_btn_hover_opacity | default: T_btn_hover_opacity
+
+  # Arrow background transparency helper (Liquid cannot compute with parentheses inline)
+  assign arrow_bg_opacity = s.arrow_bg_opacity | default: 35
+  assign arrow_bg_trans = 100 | minus: arrow_bg_opacity
+
+  # -------- Anchor ID (schema default "auto" -> compute unique id) --------
+  assign anchor_raw = s.anchor_id | default: 'auto'
+  assign anchor_id = anchor_raw
+  if anchor_raw == 'auto'
+    assign anchor_id = section.id
+  endif
+%}
+
+<style>
+  /* ===================== Scoped to .q-sub-banner-transparent ===================== */
+  #{{ anchor_id }}{
+    /* Layout */
+    --q-min-h: {{ min_h_vh }}vh;
+    --q-safe-offset: 0px; /* set by JS if overlapping header */
+
+    /* Buttons */
+    --q-btn-bg: {{ BTN_bg }};
+    --q-btn-text: {{ BTN_text }};
+    --q-btn-border: {{ BTN_border }};
+    --q-btn-radius: {{ BTN_radius }}px;
+    --q-btn-bw: {{ T_btn_bw }}px;
+    --q-btn-hover-opacity: {{ BTN_hover_opacity | default: 92 }};
+    --q-btn-active-scale: {{ T_btn_active_scale | divided_by: 100.0 }};
+
+    /* Heading typography (per section) */
+    --q-head-weight: {{ s.heading_weight | default: 700 }};
+    --q-head-letter: {{ s.heading_letter | default: 0 | divided_by: 1000.0 }}em;
+    --q-head-max: {{ s.heading_size_clamp | default: 48 }}px;
+  }
+  @media (max-width: 767px){
+    #{{ anchor_id }}{ --q-min-h: {{ min_h_vh_m }}vh; }
+  }
+
+  .q-sub-banner-transparent{
+    position: relative;
+    isolation: isolate;
+    margin-top: {{ s.margin_top | default: 0 }}px;
+    margin-bottom: {{ s.margin_bottom | default: 0 }}px;
+  }
+  /* If overlapping header, pull up by header height (set via JS) */
+  #{{ anchor_id }}.qsb--overlap{ margin-top: calc(var(--q-header-h, 0px) * -1); }
+
+  .qsb__viewport{ position: relative; overflow: hidden; z-index: 0; }
+
+  /* Track / slides (supports static + slideshow) */
+  .qsb__track{
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+    min-height: calc(var(--q-min-h, 60vh) + 40px);
+  }
+  .qsb__slide{
+    flex: 0 0 100%;
+    position: relative;
+    min-height: calc(var(--q-min-h, 60vh) + 40px);
+    scroll-snap-align: start;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    z-index: 0;
+  }
+
+  /* Media & overlays (inert) */
+  .qsb__media,
+  .qsb__overlay{ position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+  .qsb__img,
+  .qsb__video{ width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* Content */
+  .qsb__content{
+    position: relative;
+    z-index: 2;
+    display: grid;
+    padding: 2rem;
+    padding-top: calc(2rem + var(--q-safe-offset, 0px));
+    max-width: min(95%, 1200px);
+    margin-inline: auto;
+  }
+
+  /* Position presets */
+  .qsb__content--top-left{ align-items:start; justify-items:start; }
+  .qsb__content--top-center{ align-items:start; justify-items:center; }
+  .qsb__content--top-right{ align-items:start; justify-items:end; }
+  .qsb__content--center-left{ align-items:center; justify-items:start; }
+  .qsb__content--center-center{ align-items:center; justify-items:center; }
+  .qsb__content--center-right{ align-items:center; justify-items:end; }
+  .qsb__content--bottom-left{ align-items:end; justify-items:start; }
+  .qsb__content--bottom-center{ align-items:end; justify-items:center; }
+  .qsb__content--bottom-right{ align-items:end; justify-items:end; }
+
+  .qsb__text-left{text-align:left;}
+  .qsb__text-center{text-align:center;}
+  .qsb__text-right{text-align:right;}
+
+  /* Typography (colors are applied inline per-block for granular control) */
+  #{{ anchor_id }} .qsb__heading{
+    {% if T_font_heading %}font-family: {{ T_font_heading.family }}, {{ T_font_heading.fallback_families }};{% endif %}
+    {% if T_head_uppercase %}text-transform: uppercase;{% endif %}
+    letter-spacing: var(--q-head-letter);
+    font-weight: var(--q-head-weight);
+    font-size: clamp(24px, 3vw + 1rem, var(--q-head-max));
+    margin: 0;
+  }
+  #{{ anchor_id }} .qsb__subheading{
+    {% if T_font_body %}font-family: {{ T_font_body.family }}, {{ T_font_body.fallback_families }};{% endif %}
+    opacity: .92;
+    margin-top: .5rem;
+  }
+
+  /* CTAs */
+  .qsb__ctas{ display: inline-flex; gap: .75rem; flex-wrap: wrap; margin-top: 1.125rem; }
+  .q-btn{
+    display:inline-block;
+    padding:.75rem 1.25rem;
+    border-radius: var(--q-btn-radius);
+    border: var(--q-btn-bw) solid var(--q-btn-border);
+    font-weight: 500;
+    text-decoration: none;
+    transition: opacity .2s ease, transform .08s ease;
+    cursor: pointer;
+    pointer-events: auto;
+  }
+  .q-btn--solid{ background: var(--q-btn-bg); color: var(--q-btn-text); }
+  .q-btn--outline{ background: transparent; color: var(--q-btn-text); border-color: var(--q-btn-border); }
+  .q-btn--ghost{ background: transparent; color: var(--q-btn-text); border-color: transparent; }
+  .q-btn:hover{ opacity: calc(var(--q-btn-hover-opacity) / 100); }
+  .q-btn:active{ transform: scale(var(--q-btn-active-scale)); }
+
+  /* Simple mode trims decorative elements (kept for future extensibility) */
+  .qsb--simple .qsb__decor,
+  .qsb--simple .qsb__particles{ display:none !important; }
+
+  /* Arrows/Dots */
+  .qsb__arrows{ position:absolute; inset:0; pointer-events:none; z-index:3; }
+  #{{ anchor_id }} .qsb__arrow{
+    pointer-events:auto;
+    position:absolute; top:50%; transform:translateY(-50%);
+    width: {{ s.arrow_size | default: 40 }}px; height: {{ s.arrow_size | default: 40 }}px;
+    display:grid; place-items:center; border-radius:999px;
+    background: color-mix(in srgb, {{ s.arrow_bg | default: '#000000' }}, transparent {{ arrow_bg_trans }}%);
+    color: {{ s.arrow_color | default: '#ffffff' }};
+    border: 1px solid rgba(255,255,255,0.14);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    cursor:pointer; opacity: .9;
+    line-height: 1; font-size: 16px;
+  }
+  .qsb__arrow--prev{ left: 16px; }
+  .qsb__arrow--next{ right: 16px; }
+  .qsb__arrow:hover{ opacity: 1; }
+
+  .qsb__dots{
+    position:absolute; left:50%; transform:translateX(-50%);
+    bottom:20px; display:flex; gap:8px; padding:6px 10px;
+    border-radius:999px; backdrop-filter:saturate(140%) blur(8px);
+    background: rgba(0,0,0,.35); z-index:3; pointer-events:auto;
+  }
+  #{{ anchor_id }} .qsb__dot{
+    width:10px; height:10px; border-radius:50%;
+    background: {{ s.dot_color | default: '#ffffff99' }}; border:0; cursor:pointer;
+    transition: transform .2s ease, background-color .2s ease;
+  }
+  #{{ anchor_id }} .qsb__dot.is-active{ background: {{ s.dot_active_color | default: '#ffffff' }}; transform: scale(1.1); }
+</style>
+
+<section
+  id="{{ anchor_id }}"
+  class="{{ root_classes }} {{ visibility_classes }}"
+  role="region"
+  aria-label="{{ s.aria_label | default: 'Sub page banner' }}"
+  data-slideshow="{{ is_slideshow }}"
+  data-has-arrows="{{ show_arrows }}"
+  data-has-dots="{{ show_dots }}"
+  data-autoplay="{{ use_autoplay }}"
+  data-autoplay-ms="{{ autoplay_ms }}"
+>
+  <div class="qsb__viewport" tabindex="-1">
+    <div class="qsb__track" role="{% if is_slideshow %}group{% else %}none{% endif %}" aria-roledescription="{% if is_slideshow %}carousel{% endif %}">
+      {% if is_slideshow %}
+        {% for block in section.blocks %}
+          {% assign b = block.settings %}
+          <article
+            id="{{ section.id }}-slide-{{ forloop.index }}"
+            class="qsb__slide"
+            role="group"
+            aria-label="Slide {{ forloop.index }} of {{ slide_count }}"
+            {% if forloop.first %}aria-current="true"{% endif %}
+            {{ block.shopify_attributes }}
+          >
+            <div class="qsb__media">
+              {% if b.video_url != blank %}
+                <video class="qsb__video"
+                  {% if settings.video_autoplay %}autoplay{% endif %}
+                  {% if settings.video_muted %}muted{% endif %}
+                  playsinline
+                  {% if settings.video_loop %}loop{% endif %}
+                  {% if settings.video_controls %}controls{% endif %}
+                  preload="metadata"
+                  poster="{% if b.image %}{{ b.image | image_url: width: 1920 }}{% endif %}">
+                  <source src="{{ b.video_url | escape }}" type="video/mp4">
+                </video>
+              {% elsif b.image %}
+                {% liquid
+                  assign should_eager = false
+                  if forloop.first and s.eager_load_first
+                    assign should_eager = true
+                  endif
+                  assign alt_text = b.alt | default: b.heading | default: 'Sub banner image'
+                  assign alt_text_safe = alt_text | escape
+                %}
+                {% if should_eager %}
+                  {{ b.image
+                    | image_url: width: 3200
+                    | image_tag:
+                      loading: 'eager',
+                      sizes: '(min-width: 1024px) 100vw, 100vw',
+                      alt: alt_text_safe,
+                      class: 'qsb__img'
+                  }}
+                {% else %}
+                  {{ b.image
+                    | image_url: width: 3200
+                    | image_tag:
+                      loading: 'lazy',
+                      sizes: '(min-width: 1024px) 100vw, 100vw',
+                      alt: alt_text_safe,
+                      class: 'qsb__img'
+                  }}
+                {% endif %}
+              {% else %}
+                <div class="qsb__overlay" style="background: {{ b.bg_color | default: '#000000' }};"></div>
+              {% endif %}
+
+              {% if b.overlay_type != 'none' %}
+                {% if b.overlay_type == 'solid' %}
+                  <div class="qsb__overlay" style="background-color: {{ b.overlay_color | default: '#000000' }}; opacity: {{ b.overlay_opacity | default: 40 | divided_by: 100.0 }};"></div>
+                {% else %}
+                  <div class="qsb__overlay" style="background: linear-gradient({{ b.grad_angle | default: 180 }}deg, rgba({{ b.grad_start | color_to_rgb }}, {{ b.grad_start_opacity | default: 60 | divided_by: 100.0 }}), rgba({{ b.grad_end | color_to_rgb }}, {{ b.grad_end_opacity | default: 0 | divided_by: 100.0 }}));"></div>
+                {% endif %}
+              {% endif %}
+            </div>
+
+            {% assign heading_tag = s.heading_tag | default: 'h2' %}
+            <div class="qsb__content qsb__content--{{ b.content_position | default: 'center-center' }} qsb__text-{{ b.text_alignment | default: 'center' }}">
+              {% if b.heading != blank %}
+                <{{ heading_tag }} class="qsb__heading" style="color: {{ b.heading_color | default: C_text_on_color }};">{{ b.heading }}</{{ heading_tag }}>
+              {% endif %}
+              {% if b.subheading != blank %}
+                <p class="qsb__subheading" style="color: {{ b.subheading_color | default: C_text_on_color }};">{{ b.subheading }}</p>
+              {% endif %}
+              <div class="qsb__ctas">
+                {% if b.cta_text and b.cta_link %}
+                  <a class="q-btn q-btn--{{ b.cta_variant | default: T_btn_variant_default }}" href="{{ b.cta_link }}" aria-label="{{ b.cta_text | escape }}">{{ b.cta_text }}</a>
+                {% endif %}
+                {% if b.cta2_text and b.cta2_link %}
+                  <a class="q-btn q-btn--{{ b.cta2_variant | default: 'outline' }}" href="{{ b.cta2_link }}" aria-label="{{ b.cta2_text | escape }}">{{ b.cta2_text }}</a>
+                {% endif %}
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      {% else %}
+        {% assign b = section.blocks.first.settings %}
+        <article class="qsb__slide qsb__slide--single">
+          <div class="qsb__media">
+            {% if b and b.video_url != blank %}
+              <video class="qsb__video"
+                {% if settings.video_autoplay %}autoplay{% endif %}
+                {% if settings.video_muted %}muted{% endif %}
+                playsinline
+                {% if settings.video_loop %}loop{% endif %}
+                {% if settings.video_controls %}controls{% endif %}
+                preload="metadata"
+                poster="{% if b.image %}{{ b.image | image_url: width: 1920 }}{% endif %}">
+                <source src="{{ b.video_url | escape }}" type="video/mp4">
+              </video>
+            {% elsif b and b.image %}
+              {% assign static_alt = b.alt | default: b.heading | default: 'Sub banner image' | escape %}
+              {{ b.image
+                | image_url: width: 3200
+                | image_tag:
+                  loading: 'eager',
+                  sizes: '(min-width: 1024px) 100vw, 100vw',
+                  alt: static_alt,
+                  class: 'qsb__img'
+              }}
+            {% else %}
+              <div class="qsb__overlay" style="background: {{ s.fallback_bg | default: settings.bg_contrast | default: '#111111' }};"></div>
+            {% endif %}
+
+            {% if b and b.overlay_type != 'none' %}
+              {% if b.overlay_type == 'solid' %}
+                <div class="qsb__overlay" style="background-color: {{ b.overlay_color | default: '#000000' }}; opacity: {{ b.overlay_opacity | default: 40 | divided_by: 100.0 }};"></div>
+              {% else %}
+                <div class="qsb__overlay" style="background: linear-gradient({{ b.grad_angle | default: 180 }}deg, rgba({{ b.grad_start | color_to_rgb }}, {{ b.grad_start_opacity | default: 60 | divided_by: 100.0 }}), rgba({{ b.grad_end | color_to_rgb }}, {{ b.grad_end_opacity | default: 0 | divided_by: 100.0 }}));"></div>
+              {% endif %}
+            {% endif %}
+          </div>
+
+          {% assign heading_tag = s.heading_tag | default: 'h2' %}
+          <div class="qsb__content qsb__content--{{ b.content_position | default: 'center-center' }} qsb__text-{{ b.text_alignment | default: 'center' }}">
+            {% if b and b.heading != blank %}
+              <{{ heading_tag }} class="qsb__heading" style="color: {{ b.heading_color | default: C_text_on_color }};">{{ b.heading }}</{{ heading_tag }}>
+            {% endif %}
+            {% if b and b.subheading != blank %}
+              <p class="qsb__subheading" style="color: {{ b.subheading_color | default: C_text_on_color }};">{{ b.subheading }}</p>
+            {% endif %}
+            <div class="qsb__ctas">
+              {% if b and b.cta_text and b.cta_link %}
+                <a class="q-btn q-btn--{{ b.cta_variant | default: T_btn_variant_default }}" href="{{ b.cta_link }}">{{ b.cta_text }}</a>
+              {% endif %}
+              {% if b and b.cta2_text and b.cta2_link %}
+                <a class="q-btn q-btn--{{ b.cta2_variant | default: 'outline' }}" href="{{ b.cta2_link }}">{{ b.cta2_text }}</a>
+              {% endif %}
+            </div>
+          </div>
+        </article>
+      {% endif %}
+    </div>
+
+    {% if show_arrows %}
+      <div class="qsb__arrows" aria-hidden="false">
+        <button class="qsb__arrow qsb__arrow--prev" type="button" aria-label="Previous slide" data-dir="-1">‹</button>
+        <button class="qsb__arrow qsb__arrow--next" type="button" aria-label="Next slide" data-dir="1">›</button>
+      </div>
+    {% endif %}
+
+    {% if show_dots %}
+      <div class="qsb__dots" role="tablist" aria-label="Slide navigation">
+        {% for block in section.blocks %}
+          <button
+            class="qsb__dot{% if forloop.first %} is-active{% endif %}"
+            role="tab"
+            aria-controls="{{ section.id }}-slide-{{ forloop.index }}"
+            aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+            data-slide="{{ forloop.index0 }}">
+          </button>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<script>
+(function(){
+  var root = document.getElementById('{{ anchor_id }}');
+  if (!root) return;
+
+  /* Transparent header sync (measure header height into CSS var) */
+  if (root.classList.contains('qsb--overlap')) {
+    var header = document.querySelector('[data-header]') || document.querySelector('header');
+    var setHeaderVars = function(){
+      if (!header) return;
+      var h = header.getBoundingClientRect().height || 0;
+      root.style.setProperty('--q-header-h', h + 'px');
+      var safe = h + ({{ s.content_safe_offset_px | default: 0 }});
+      root.style.setProperty('--q-safe-offset', safe + 'px');
+    };
+    setHeaderVars();
+    window.addEventListener('resize', setHeaderVars, {passive:true});
+    window.addEventListener('orientationchange', setHeaderVars, {passive:true});
+  }
+
+  /* Slideshow controls */
+  var isSlideshow = root.dataset.slideshow === 'true';
+  if (!isSlideshow) return;
+
+  var track  = root.querySelector('.qsb__track');
+  var slides = Array.prototype.slice.call(root.querySelectorAll('.qsb__slide'));
+  var dots   = Array.prototype.slice.call(root.querySelectorAll('.qsb__dot'));
+  var prev   = root.querySelector('.qsb__arrow--prev');
+  var next   = root.querySelector('.qsb__arrow--next');
+
+  var current = 0;
+
+  function setActive(i){
+    slides.forEach(function(slide, idx){ slide.toggleAttribute('aria-current', idx === i); });
+    dots.forEach(function(dot, idx){
+      var on = (idx === i);
+      dot.classList.toggle('is-active', on);
+      dot.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+  }
+
+  function goTo(i){
+    i = (i + slides.length) % slides.length;
+    var target = slides[i];
+    if (track && target){
+      track.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
+    }
+    current = i; setActive(current);
+  }
+
+  if (dots.length){
+    dots.forEach(function(dot){
+      dot.addEventListener('click', function(){
+        var idx = parseInt(dot.getAttribute('data-slide'), 10) || 0;
+        goTo(idx);
+      });
+    });
+  }
+  if (prev && next){
+    prev.addEventListener('click', function(){ goTo(current - 1); });
+    next.addEventListener('click', function(){ goTo(current + 1); });
+  }
+
+  /* Autoplay (respect prefers-reduced-motion and theme setting) */
+  var autoplay = root.dataset.autoplay === 'true';
+  try {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) autoplay = false;
+    if ({{ settings.reduce_motion_mode | default: true }}) {
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) autoplay = false;
+    }
+  } catch(e) {}
+  var delay = parseInt(root.dataset.autoplayMs || '6000', 10);
+  var timer = null;
+  function start(){ if (!autoplay) return; stop(); timer = setInterval(function(){ goTo(current + 1); }, delay); }
+  function stop(){ if (timer){ clearInterval(timer); timer = null; } }
+
+  root.addEventListener('mouseenter', stop);
+  root.addEventListener('mouseleave', start);
+  document.addEventListener('visibilitychange', function(){ if (document.hidden) stop(); else start(); });
+
+  setActive(0);
+  start();
+})();
+</script>
+
+{% schema %}
+{
+  "name": "Sub Banner (Transparent)",
+  "tag": "section",
+  "class": "q-sub-banner-transparent",
+  "settings": [
+    { "type": "header", "content": "Mode" },
+    {
+      "type": "select",
+      "id": "mode",
+      "label": "Banner mode",
+      "default": "static",
+      "options": [
+        { "value": "static", "label": "Static (single banner)" },
+        { "value": "slideshow", "label": "Slideshow (use slide blocks)" }
+      ]
+    },
+
+    { "type": "header", "content": "Layout & Height" },
+    { "type": "range", "id": "min_height_vh", "label": "Minimum height (vh, desktop)", "min": 40, "max": 90, "step": 1, "default": 60 },
+    { "type": "range", "id": "min_height_vh_mobile", "label": "Minimum height (vh, mobile)", "min": 30, "max": 80, "step": 1, "default": 52 },
+    { "type": "range", "id": "margin_top", "label": "Margin top (px)", "min": 0, "max": 120, "step": 4, "default": 0 },
+    { "type": "range", "id": "margin_bottom", "label": "Margin bottom (px)", "min": 0, "max": 120, "step": 4, "default": 0 },
+
+    { "type": "header", "content": "Transparent header sync" },
+    { "type": "checkbox", "id": "enable_header_overlap", "label": "Let header sit over this banner", "default": false },
+    { "type": "range", "id": "content_safe_offset_px", "label": "Extra content top offset (px)", "min": 0, "max": 160, "step": 4, "default": 0 },
+
+    { "type": "header", "content": "Slideshow controls" },
+    { "type": "checkbox", "id": "nav_arrows", "label": "Show arrows", "default": true },
+    { "type": "checkbox", "id": "nav_dots", "label": "Show dots", "default": true },
+    { "type": "checkbox", "id": "autoplay", "label": "Autoplay", "default": false },
+    { "type": "range", "id": "autoplay_delay_ms", "label": "Autoplay delay (ms)", "min": 2000, "max": 9000, "step": 500, "default": 6000 },
+    { "type": "checkbox", "id": "eager_load_first", "label": "Eager-load first slide image", "default": true },
+
+    { "type": "header", "content": "Typography (this section)" },
+    { "type": "range", "id": "heading_size_clamp", "label": "Heading max size (px)", "min": 24, "max": 80, "step": 1, "default": 48 },
+    { "type": "range", "id": "heading_weight", "label": "Heading weight", "min": 300, "max": 900, "step": 50, "default": 700 },
+    { "type": "range", "id": "heading_letter", "label": "Heading letter-spacing (×1000 em)", "min": -50, "max": 200, "step": 5, "default": 0 },
+
+    { "type": "header", "content": "Buttons (per-section overrides)" },
+    { "type": "color", "id": "cta_btn_bg", "label": "Button background", "default": "#2563eb" },
+    { "type": "color", "id": "cta_btn_text", "label": "Button text", "default": "#ffffff" },
+    { "type": "color", "id": "cta_btn_border", "label": "Button border", "default": "#2563eb" },
+    { "type": "range", "id": "cta_btn_radius", "label": "Button radius (px)", "min": 0, "max": 32, "step": 1, "default": 12 },
+    { "type": "range", "id": "cta_btn_hover_opacity", "label": "Hover opacity", "min": 60, "max": 100, "step": 1, "default": 92 },
+
+    { "type": "header", "content": "Simplicity" },
+    { "type": "checkbox", "id": "simple_mode", "label": "Enable simple mode (hide particles/grid/shadows)", "default": true },
+
+    { "type": "header", "content": "Visibility & A11y" },
+    { "type": "text", "id": "anchor_id", "label": "Anchor ID (optional)", "default": "auto" },
+    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Sub page banner" },
+    { "type": "checkbox", "id": "hide_on_mobile", "label": "Hide on mobile", "default": false },
+    { "type": "checkbox", "id": "hide_on_desktop", "label": "Hide on desktop", "default": false },
+
+    { "type": "header", "content": "Arrows & Dots Style" },
+    { "type": "range", "id": "arrow_size", "label": "Arrow size (px)", "min": 28, "max": 80, "step": 2, "default": 40 },
+    { "type": "color", "id": "arrow_bg", "label": "Arrow background", "default": "#000000" },
+    { "type": "range", "id": "arrow_bg_opacity", "label": "Arrow background opacity (%)", "min": 0, "max": 100, "step": 1, "default": 35 },
+    { "type": "color", "id": "arrow_color", "label": "Arrow icon color", "default": "#ffffff" },
+    { "type": "color", "id": "dot_color", "label": "Dot color (idle)", "default": "#ffffff99" },
+    { "type": "color", "id": "dot_active_color", "label": "Dot color (active)", "default": "#ffffffff" }
+  ],
+  "blocks": [
+    {
+      "type": "slide",
+      "name": "Slide",
+      "limit": 8,
+      "settings": [
+        { "type": "header", "content": "Media" },
+        { "type": "image_picker", "id": "image", "label": "Image" },
+        { "type": "text", "id": "alt", "label": "Accessible image alt (recommended)", "default": "Sub banner image" },
+        { "type": "text", "id": "video_url", "label": "Video URL (MP4)", "default": "https://example.com/video.mp4" },
+        { "type": "color", "id": "bg_color", "label": "Background (if no media)", "default": "#000000" },
+
+        { "type": "header", "content": "Overlay" },
+        { "type": "select", "id": "overlay_type", "label": "Overlay type", "default": "gradient",
+          "options": [
+            { "value": "none", "label": "None" },
+            { "value": "solid", "label": "Solid color" },
+            { "value": "gradient", "label": "Gradient" }
+          ]
+        },
+        { "type": "color", "id": "overlay_color", "label": "Overlay color (solid)", "default": "#000000" },
+        { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 40, "unit": "%" },
+        { "type": "color", "id": "grad_start", "label": "Gradient start", "default": "#000000" },
+        { "type": "range", "id": "grad_start_opacity", "label": "Gradient start opacity", "min": 0, "max": 100, "step": 5, "default": 60, "unit": "%" },
+        { "type": "color", "id": "grad_end", "label": "Gradient end", "default": "#000000" },
+        { "type": "range", "id": "grad_end_opacity", "label": "Gradient end opacity", "min": 0, "max": 100, "step": 5, "default": 0, "unit": "%" },
+        { "type": "range", "id": "grad_angle", "label": "Gradient angle", "min": 0, "max": 360, "step": 15, "default": 180, "unit": "deg" },
+
+        { "type": "header", "content": "Content" },
+        { "type": "text", "id": "heading", "label": "Heading", "default": "Sub page banner" },
+        { "type": "color", "id": "heading_color", "label": "Heading color", "default": "#ffffff" },
+        { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Use this concise banner to introduce the page." },
+        { "type": "color", "id": "subheading_color", "label": "Subheading color", "default": "#ffffff" },
+
+        { "type": "header", "content": "Layout" },
+        { "type": "select", "id": "content_position", "label": "Content position", "default": "center-center",
+          "options": [
+            { "value": "top-left", "label": "Top left" },
+            { "value": "top-center", "label": "Top center" },
+            { "value": "top-right", "label": "Top right" },
+            { "value": "center-left", "label": "Center left" },
+            { "value": "center-center", "label": "Center center" },
+            { "value": "center-right", "label": "Center right" },
+            { "value": "bottom-left", "label": "Bottom left" },
+            { "value": "bottom-center", "label": "Bottom center" },
+            { "value": "bottom-right", "label": "Bottom right" }
+          ]
+        },
+        { "type": "select", "id": "text_alignment", "label": "Text alignment", "default": "center",
+          "options": [
+            { "value": "left", "label": "Left" },
+            { "value": "center", "label": "Center" },
+            { "value": "right", "label": "Right" }
+          ]
+        },
+
+        { "type": "header", "content": "CTAs (max 2)" },
+        { "type": "text", "id": "cta_text", "label": "Primary button text", "default": "Learn more" },
+        { "type": "url", "id": "cta_link", "label": "Primary button link", "default": "/" },
+        { "type": "select", "id": "cta_variant", "label": "Primary button style", "default": "solid",
+          "options": [
+            { "value": "solid", "label": "Solid" },
+            { "value": "outline", "label": "Outline" },
+            { "value": "ghost", "label": "Ghost" }
+          ]
+        },
+        { "type": "text", "id": "cta2_text", "label": "Secondary button text", "default": "Shop now" },
+        { "type": "url", "id": "cta2_link", "label": "Secondary button link", "default": "/" },
+        { "type": "select", "id": "cta2_variant", "label": "Secondary button style", "default": "outline",
+          "options": [
+            { "value": "solid", "label": "Solid" },
+            { "value": "outline", "label": "Outline" },
+            { "value": "ghost", "label": "Ghost" }
+          ]
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Sub Page Banner (Transparent)",
+      "category": "Banners",
+      "blocks": [
+        { "type": "slide" }
+      ]
+    }
+  ]
+}
+{% endschema %}
