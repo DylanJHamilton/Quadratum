@@ -1,0 +1,915 @@
+{% comment %}
+  CTA Banner — Quadratum
+  Variants: classic | web3 | modern | product | newsletter
+  Modes: plain (color) or media (image/video background)
+  - Media priority: video > image > plain
+  - Inert background layers; overlays optional
+  - A11y: role=region, aria-label, heading level, visible focus
+  - Performance: lazy images, reduced motion respect, no heavy JS
+{% endcomment %}
+
+{% liquid
+  assign s = section.settings
+
+  assign anchor_raw = s.anchor_id | default: 'auto'
+  assign anchor_id = anchor_raw
+  if anchor_raw == 'auto'
+    assign anchor_id = section.id
+  endif
+
+  assign justify_val = 'center'
+  if s.text_alignment == 'left'
+    assign justify_val = 'flex-start'
+  elsif s.text_alignment == 'right'
+    assign justify_val = 'flex-end'
+  endif
+
+  assign cap_class = s.content_max_w | default: 'max-w-3xl'
+  assign safe_offset = s.safe_offset_px | default: 0
+
+  assign grad_start_a = s.grad_start_opacity | default: 36 | divided_by: 100.0
+  assign grad_end_a = s.grad_end_opacity | default: 0 | divided_by: 100.0
+
+  # --- WEB3 ONLY: ensure a visible radius even if merchant left setting at 0
+  assign sec_radius = 0
+  if s.layout_variant == 'web3'
+    assign sec_radius = s.section_radius | default: 16
+    if sec_radius == 0
+      assign sec_radius = 16
+    endif
+  endif
+
+  assign prod_mode   = s.prod_media_mode   | default: 'contain'
+  assign prod_aspect = s.prod_media_aspect | default: 'natural'
+  assign prod_aspect_norm = prod_aspect | replace: ':', '_'
+  assign prod_max_h_d = s.prod_media_max_h_desktop | default: 520
+  assign prod_max_h_m = s.prod_media_max_h_mobile  | default: 340
+  assign prod_hard_crop = s.prod_media_hard_crop
+  assign prod_aspect_value = ''
+  if prod_aspect_norm == '1_1'
+    assign prod_aspect_value = '1 / 1'
+  elsif prod_aspect_norm == '4_5'
+    assign prod_aspect_value = '4 / 5'
+  elsif prod_aspect_norm == '16_9'
+    assign prod_aspect_value = '16 / 9'
+  endif
+%}
+
+<section id="{{ anchor_id }}" class="q-cta-banner" role="region" aria-label="{{ s.aria_label | escape }}">
+  {%- capture style_scope -%}
+  /* ---- Scoped vars & base layout -------------------------------------- */
+  #{{ anchor_id }} {
+    --q-min-h: {{ s.min_height_vh | default: 48 }}vh;
+    --q-min-h-m: {{ s.min_height_vh_mobile | default: 42 }}vh;
+    --q-safe-offset: {% if s.enable_header_overlap %}{{ safe_offset }}{% else %}0{% endif %};
+
+    --cta-justify: {{ justify_val }};
+
+    /* Section bg (only used by 'plain' mode) */
+    --sec-bg: {{ s.section_bg_color | default: '#FFFFFF' }};
+    --sec-bg-o: {{ s.section_bg_opacity | default: 0 | divided_by: 100.0 }};
+
+    /* Button tokens (section-level) */
+    --q-btn-bg: {{ s.cta_btn_bg | default: '#2563eb' }};
+    --q-btn-text: {{ s.cta_btn_text | default: '#ffffff' }};
+    --q-btn-border: {{ s.cta_btn_border | default: '#2563eb' }};
+    --q-btn-radius: {{ s.cta_btn_radius | default: 12 }}px;
+    --q-btn-bw: 1px;
+    --q-btn-hover-opacity: {{ s.cta_btn_hover_opacity | default: 92 }};
+    --q-btn-active-scale: {{ s.cta_btn_active_scale | default: 98 | divided_by: 100.0 }};
+    --q-btn-hover-bg: {{ s.cta_btn_hover_bg | default: s.cta_btn_bg | default: '#1E40AF' }};
+    --q-btn-hover-text: {{ s.cta_btn_hover_text | default: s.cta_btn_text | default: '#FFFFFF' }};
+    --q-btn-hover-border: {{ s.cta_btn_hover_border | default: s.cta_btn_border | default: '#1E40AF' }};
+
+    /* Newsletter submit overrides */
+    --q-nl-btn-bg: {{ s.newsletter_btn_bg | default: s.cta_btn_bg | default: '#2563eb' }};
+    --q-nl-btn-text: {{ s.newsletter_btn_text | default: s.cta_btn_text | default: '#ffffff' }};
+    --q-nl-btn-border: {{ s.newsletter_btn_border | default: s.cta_btn_border | default: '#2563eb' }};
+    --q-nl-btn-radius: {{ s.newsletter_btn_radius | default: s.cta_btn_radius | default: 12 }}px;
+    --q-nl-btn-hover-bg: {{ s.newsletter_btn_hover_bg | default: s.newsletter_btn_bg | default: '#C2410C' }};
+    --q-nl-btn-hover-text: {{ s.newsletter_btn_hover_text | default: s.newsletter_btn_text | default: '#FFFFFF' }};
+    --q-nl-btn-hover-border: {{ s.newsletter_btn_hover_border | default: s.newsletter_btn_border | default: '#C2410C' }};
+
+    /* Typo helpers */
+    --q-head-weight: 700;
+    --q-head-letter: 0;
+    --q-head-max: 13ch;
+
+    /* Content overlay (panel behind text/buttons) */
+    --content-ov-blur: {{ s.content_overlay_blur | default: 0 }}px;
+    --content-ov-radius: {{ s.content_overlay_radius | default: 12 }}px;
+
+    /* Web3-only corner radius (others stay square) */
+    --sec-radius: {% if s.layout_variant == 'web3' %}{{ sec_radius }}px{% else %}0px{% endif %};
+
+    /* Product media sizing (consumed by CSS below) */
+    --prod-max-h-d: {{ prod_max_h_d }}px;
+    --prod-max-h-m: {{ prod_max_h_m }}px;
+    --prod-fit: {{ prod_mode }};
+    {% if prod_aspect_value != '' %}--prod-aspect: {{ prod_aspect_value }};{% endif %}
+  }
+
+  #{{ anchor_id }} .qcta__outer {
+    position: relative;
+    min-height: var(--q-min-h);
+    display: grid;
+    align-items: center;
+    isolation: isolate;
+    padding-top: calc(var(--q-safe-offset) * 1px);
+    border-radius: var(--sec-radius);
+    overflow: hidden;
+  }
+
+  #{{ anchor_id }} .qcta__media,
+  #{{ anchor_id }} .qcta__overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+  #{{ anchor_id }} .qcta__media img,
+  #{{ anchor_id }} .qcta__media video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  #{{ anchor_id }} .qcta__container {
+    position: relative;
+    z-index: 2;
+    margin-left: auto;
+    margin-right: auto;
+    display: flex;
+    justify-content: var(--cta-justify);
+    padding: 2rem 1rem;
+  }
+
+  #{{ anchor_id }} .qcta__inner { width: 100%; }
+  #{{ anchor_id }} .qcta__content {
+    max-width: 64rem;
+    text-align: {% if s.text_alignment == 'left' %}left{% elsif s.text_alignment == 'right' %}right{% else %}center{% endif %};
+    color: inherit;
+  }
+
+  /* Generic optional content overlay panel (section-level) */
+  #{{ anchor_id }} .qcta__contentbox {
+    {% if s.content_overlay_enabled %}background: {{ s.content_overlay_color | default: '#000000' | color_modify: 'alpha', s.content_overlay_opacity | default: 0 | divided_by: 100.0 }};{% endif %}
+    {% if s.content_overlay_enabled %}backdrop-filter: blur(var(--content-ov-blur));{% endif %}
+    {% if s.content_overlay_enabled %}border-radius: var(--content-ov-radius);{% endif %}
+    {% if s.content_overlay_enabled %}padding: 1.25rem;{% endif %}
+  }
+
+  /* Product content panel — used when enabled at block level */
+  #{{ anchor_id }} .qcta__contentpanel {
+    box-shadow: 0 10px 28px rgba(0,0,0,.18);
+    border: 1px solid rgba(255,255,255,.12);
+  }
+
+  /* Heading sizes */
+  #{{ anchor_id }} .qcta__heading { font-weight: var(--q-head-weight); letter-spacing: var(--q-head-letter); margin: 0; }
+  #{{ anchor_id }} .qcta__heading.size-theme { font-size: clamp(1.875rem, 2.5vw + 1rem, 3rem); line-height: 1.1; }
+  #{{ anchor_id }} .qcta__heading.size-2xl { font-size: clamp(1.5rem, 2.2vw + 0.75rem, 2.25rem); line-height: 1.15; }
+  #{{ anchor_id }} .qcta__heading.size-3xl { font-size: clamp(1.875rem, 2.8vw + 1rem, 3rem); line-height: 1.1; }
+  #{{ anchor_id }} .qcta__heading.size-4xl { font-size: clamp(2.25rem, 3.2vw + 1.25rem, 3.5rem); line-height: 1.05; }
+
+  #{{ anchor_id }} .qcta__sub { margin-top: .75rem; opacity: .92; }
+
+  /* Price — better hierarchy */
+  #{{ anchor_id }} .qcta__price {
+    margin-top: .85rem;
+    font-weight: 800;
+    letter-spacing: -.01em;
+    font-size: clamp(1.125rem, 0.9vw + 0.9rem, 1.625rem);
+    line-height: 1.1;
+    text-shadow: 0 1px 0 rgba(0,0,0,.25);
+  }
+
+  /* Buttons */
+  #{{ anchor_id }} .qcta__btns {
+    display: flex; gap: .75rem; flex-wrap: wrap; margin-top: 1.25rem; justify-content: var(--cta-justify);
+  }
+  #{{ anchor_id }} .q-btn {
+    appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+    padding: .75rem 1.25rem; border-radius: var(--q-btn-radius);
+    border: var(--q-btn-bw) solid var(--q-btn-border);
+    background: var(--q-btn-bg); color: var(--q-btn-text);
+    text-decoration: none; line-height: 1.2; font-weight: 600;
+    transition: transform .12s ease, opacity .12s ease, box-shadow .12s ease, background-color .12s ease, color .12s ease, border-color .12s ease;
+    --q-btn-hover-bg: var(--q-btn-bg);
+    --q-btn-hover-text: var(--q-btn-text);
+    --q-btn-hover-border: var(--q-btn-border);
+  }
+
+  /* Keep inner elements in sync with token colors */
+  #{{ anchor_id }} .q-btn,
+  #{{ anchor_id }} .q-btn span,
+  #{{ anchor_id }} .q-btn strong,
+  #{{ anchor_id }} .q-btn em { color: var(--q-btn-text) !important; }
+  #{{ anchor_id }} .q-btn * { color: currentColor !important; }
+  #{{ anchor_id }} .q-btn .qcta__icon,
+  #{{ anchor_id }} .q-btn .qcta__icon svg {
+    color: currentColor !important; fill: currentColor !important; stroke: currentColor !important;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    #{{ anchor_id }} .q-btn:hover {
+      background: var(--q-btn-hover-bg);
+      color: var(--q-btn-hover-text);
+      border-color: var(--q-btn-hover-border);
+      opacity: calc(var(--q-btn-hover-opacity) / 100);
+    }
+    #{{ anchor_id }} .q-btn:hover * { color: var(--q-btn-hover-text) !important; }
+    #{{ anchor_id }} .q-btn:active { transform: scale(var(--q-btn-active-scale)); }
+  }
+  @media (hover: none), (pointer: coarse) {
+    #{{ anchor_id }} .q-btn { opacity: 1 !important; -webkit-tap-highlight-color: transparent; }
+    #{{ anchor_id }} .q-btn:active,
+    #{{ anchor_id }} .q-btn:focus-visible {
+      background: var(--q-btn-hover-bg);
+      color: var(--q-btn-hover-text);
+      border-color: var(--q-btn-hover-border);
+      transform: scale(var(--q-btn-active-scale));
+      opacity: 1;
+    }
+    #{{ anchor_id }} .q-btn:active *,
+    #{{ anchor_id }} .q-btn:focus-visible * { color: var(--q-btn-hover-text) !important; }
+  }
+  #{{ anchor_id }} .q-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+  /* Variants */
+  #{{ anchor_id }} .q-btn--outline { background: transparent; }
+  #{{ anchor_id }} .q-btn--ghost { background: transparent; border-color: transparent; text-decoration: underline; color: var(--q-btn-text); }
+  #{{ anchor_id }} .q-btn--ghost:hover,
+  #{{ anchor_id }} .q-btn--ghost:active,
+  #{{ anchor_id }} .q-btn--ghost:focus-visible { color: var(--q-btn-hover-text); }
+
+  /* Product split */
+  #{{ anchor_id }} .qcta__grid { display: grid; grid-template-columns: 1fr; gap: 1.25rem; align-items: center; }
+  @media (min-width: 768px) {
+    #{{ anchor_id }} .qcta__grid--split { grid-template-columns: 1fr 1fr; gap: 2rem; }
+    #{{ anchor_id }} .qcta__grid--rev { direction: rtl; }
+    #{{ anchor_id }} .qcta__grid--rev > * { direction: ltr; }
+  }
+
+  /* Product media pane sizing */
+  #{{ anchor_id }} .qcta__pane--media .qcta__prodimg {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%;
+    padding: 0; margin: 0;
+    {% if prod_aspect_value != '' %}aspect-ratio: var(--prod-aspect);{% endif %}
+    max-height: var(--prod-max-h-d);
+  }
+  @media (max-width: 767px) {
+    #{{ anchor_id }} .qcta__pane--media .qcta__prodimg { max-height: var(--prod-max-h-m); }
+  }
+  #{{ anchor_id }} .qcta__pane--media .qcta__prodimg img {
+    display: block; max-width: 100%; max-height: 100%; height: auto; width: auto;
+    object-fit: {% if prod_mode == 'cover' %}cover{% else %}contain{% endif %};
+    border-radius: 12px;
+    box-shadow: 0 10px 28px rgba(0,0,0,.2);
+  }
+
+  /* Badges (web3) */
+  #{{ anchor_id }} .qcta__badges { margin-top: 1rem; display: flex; flex-wrap: wrap; gap: .5rem .75rem; justify-content: var(--cta-justify); }
+  #{{ anchor_id }} .qcta__badge {
+    display: inline-flex; align-items: center; gap: .5rem; padding: .375rem .75rem; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.06); backdrop-filter: blur(6px);
+    pointer-events: none; font-weight: 600; font-size: .875rem;
+  }
+
+  /* Newsletter form */
+  #{{ anchor_id }} .qcta__form { margin-top: 1rem; display: grid; grid-template-columns: 1fr; gap: .75rem; }
+  @media (min-width: 640px) { #{{ anchor_id }} .qcta__form { grid-template-columns: 1fr auto; } }
+  #{{ anchor_id }} .qcta__input, #{{ anchor_id }} .qcta__checkbox { width: 100%; }
+  #{{ anchor_id }} .qcta__input input[type="email"] { width: 100%; padding: .75rem .875rem; border-radius: .75rem; border: 1px solid rgba(0,0,0,.15); }
+  #{{ anchor_id }} .qcta__consent { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: .5rem; font-size: .875rem; opacity: .9; }
+  #{{ anchor_id }} .qcta__submit {
+    --q-btn-bg: var(--q-nl-btn-bg);
+    --q-btn-text: var(--q-nl-btn-text);
+    --q-btn-border: var(--q-nl-btn-border);
+    --q-btn-radius: var(--q-nl-btn-radius);
+    --q-btn-hover-bg: var(--q-nl-btn-hover-bg);
+    --q-btn-hover-text: var(--q-nl-btn-hover-text);
+    --q-btn-hover-border: var(--q-nl-btn-hover-border);
+  }
+
+  /* Height & mobile tweaks */
+  #{{ anchor_id }} .qcta__outer--min { min-height: var(--q-min-h); }
+  @media (max-width: 767px) { #{{ anchor_id }} .qcta__outer--min { min-height: var(--q-min-h-m); } }
+
+  /* Overlays */
+  #{{ anchor_id }} .qcta__overlay--solid {
+    background: {{ s.overlay_color | default: '#000000' }};
+    opacity: {{ s.overlay_opacity | default: 0 | divided_by: 100.0 }};
+  }
+  #{{ anchor_id }} .qcta__overlay--gradient {
+    background: linear-gradient({{ s.grad_angle | default: 135 }}deg,
+      {{ s.grad_start | default: '#000000' | color_modify: 'alpha', grad_start_a }} 0%,
+      {{ s.grad_end | default: '#000000' | color_modify: 'alpha', grad_end_a }} 100%
+    );
+    opacity: 1;
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) { #{{ anchor_id }} video { animation: none !important; } }
+  {%- endcapture -%}
+  <style>{{ style_scope }}</style>
+
+  <div class="qcta__outer qcta__outer--min {% if s.mode == 'plain' %}qcta__outer--plain{% else %}qcta__outer--media{% endif %}"
+       style="{% if s.mode == 'plain' %}background-color: rgba(255,255,255,0); background-color: {{ s.section_bg_color | default: '#FFFFFF' }};{% endif %}">
+    {%- if s.mode == 'media' -%}
+      <div class="qcta__media" aria-hidden="true">
+        {%- if s.video_url != blank -%}
+          <video
+            {% if s.video_autoplay %}autoplay{% endif %}
+            {% if s.video_loop %}loop{% endif %}
+            {% if s.video_muted %}muted{% endif %}
+            {% if s.video_controls %}controls{% endif %}
+            playsinline preload="metadata">
+            <source src="{{ s.video_url }}" type="video/mp4">
+          </video>
+        {%- elsif s.image != blank -%}
+          {{ s.image | image_url: width: 2400 | image_tag:
+            loading: 'lazy',
+            sizes: '(min-width: 1024px) 1200px, 100vw',
+            alt: s.image_alt | default: 'CTA image' }}
+        {%- endif -%}
+      </div>
+      {%- if s.overlay_type == 'solid' -%}
+        <div class="qcta__overlay qcta__overlay--solid" aria-hidden="true"></div>
+      {%- elsif s.overlay_type == 'gradient' -%}
+        <div class="qcta__overlay qcta__overlay--gradient" aria-hidden="true"></div>
+      {%- endif -%}
+    {%- endif -%}
+
+    <div class="qcta__container {{ cap_class }}">
+      <div class="qcta__inner">
+        {%- assign HeadTag = s.heading_level | default: 'h1' -%}
+
+        {%- if s.layout_variant == 'product' -%}
+          {%- assign product_block = nil -%}
+          {%- for block in section.blocks -%}
+            {%- if block.type == 'product' -%}{% assign product_block = block %}{% endif -%}
+          {%- endfor -%}
+          {%- assign p = nil -%}
+          {%- if product_block and product_block.settings.product != blank -%}
+            {%- assign p = product_block.settings.product -%}
+          {%- endif -%}
+
+          {%- assign grid_classes = 'qcta__grid qcta__grid--split' -%}
+          {%- if s.layout_dir == 'media-right' -%}{% assign grid_classes = grid_classes | append: ' qcta__grid--rev' %}{% endif %}
+          <div class="{{ grid_classes }}">
+            <div class="qcta__pane qcta__pane--media">
+              <div class="qcta__prodimg">
+                {%- assign target_width = 1600 -%}
+                {%- assign target_height = blank -%}
+                {%- if prod_aspect_norm == '1_1' -%}
+                  {%- assign target_height = 1600 -%}
+                {%- elsif prod_aspect_norm == '4_5' -%}
+                  {%- assign target_height = 2000 -%}
+                {%- elsif prod_aspect_norm == '16_9' -%}
+                  {%- assign target_height = 900 -%}
+                {%- endif -%}
+
+                {%- capture prod_img -%}
+                  {%- if p and p.featured_media and p.featured_media.preview_image -%}
+                    {%- if prod_hard_crop and target_height != blank -%}
+                      {{ p.featured_media.preview_image | image_url: width: target_width, height: target_height, crop: 'center' | image_tag:
+                        loading: 'lazy', sizes: '(min-width: 1024px) 800px, 90vw', alt: p.title | append: ' image' }}
+                    {%- else -%}
+                      {{ p.featured_media.preview_image | image_url: width: target_width | image_tag:
+                        loading: 'lazy', sizes: '(min-width: 1024px) 800px, 90vw', alt: p.title | append: ' image' }}
+                    {%- endif -%}
+                  {%- elsif p and p.featured_image -%}
+                    {%- if prod_hard_crop and target_height != blank -%}
+                      {{ p.featured_image | image_url: width: target_width, height: target_height, crop: 'center' | image_tag:
+                        loading: 'lazy', sizes: '(min-width: 1024px) 800px, 90vw', alt: p.title | append: ' image' }}
+                    {%- else -%}
+                      {{ p.featured_image | image_url: width: target_width | image_tag:
+                        loading: 'lazy', sizes: '(min-width: 1024px) 800px, 90vw', alt: p.title | append: ' image' }}
+                    {%- endif -%}
+                  {%- elsif product_block and product_block.settings.fallback_image != blank -%}
+                    {%- if prod_hard_crop and target_height != blank -%}
+                      {{ product_block.settings.fallback_image | image_url: width: target_width, height: target_height, crop: 'center' | image_tag:
+                        loading: 'lazy', sizes: '(min-width: 1024px) 800px, 90vw', alt: product_block.settings.fallback_image_alt | default: 'Product image' }}
+                    {%- else -%}
+                      {{ product_block.settings.fallback_image | image_url: width: target_width | image_tag:
+                        loading: 'lazy', sizes: '(min-width: 1024px) 800px, 90vw', alt: product_block.settings.fallback_image_alt | default: 'Product image' }}
+                    {%- endif -%}
+                  {%- else -%}
+                    <div style="height: 280px; width: 100%; background: rgba(0,0,0,0.05); border-radius: 12px;"></div>
+                  {%- endif -%}
+                {%- endcapture -%}
+                {{ prod_img }}
+              </div>
+            </div>
+
+            <div class="qcta__pane qcta__pane--content">
+              {%- assign panel_enabled = false -%}
+              {%- assign panel_color = '#000000' -%}
+              {%- assign panel_opacity = 0 -%}
+              {%- assign panel_blur = 0 -%}
+              {%- assign panel_radius = 12 -%}
+              {%- if product_block -%}
+                {%- if product_block.settings.content_panel_enabled -%}{% assign panel_enabled = true %}{%- endif -%}
+                {%- if product_block.settings.content_panel_color != blank -%}{% assign panel_color = product_block.settings.content_panel_color %}{%- endif -%}
+                {%- if product_block.settings.content_panel_opacity != blank -%}{% assign panel_opacity = product_block.settings.content_panel_opacity %}{%- endif -%}
+                {%- if product_block.settings.content_panel_blur != blank -%}{% assign panel_blur = product_block.settings.content_panel_blur %}{%- endif -%}
+                {%- if product_block.settings.content_panel_radius != blank -%}{% assign panel_radius = product_block.settings.content_panel_radius %}{%- endif -%}
+              {%- endif -%}
+
+              <div class="qcta__content {% if panel_enabled %}qcta__contentpanel{% else %}qcta__contentbox{% endif %}"
+                   style="{% if panel_enabled %}background: {{ panel_color | color_modify: 'alpha', panel_opacity | divided_by: 100.0 }}; backdrop-filter: {% if panel_blur > 0 %}blur({{ panel_blur }}px){% else %}none{% endif %}; border-radius: {{ panel_radius }}px; padding: 1.25rem;{% endif %}">
+                {%- if HeadTag == 'h1' -%}
+                  <h1 class="qcta__heading size-{{ s.heading_size | default: '3xl' }}" style="color: {{ s.heading_color | default: '#111827' }};">
+                {%- else -%}
+                  <h2 class="qcta__heading size-{{ s.heading_size | default: '3xl' }}" style="color: {{ s.heading_color | default: '#111827' }};">
+                {%- endif -%}
+                  {%- if p -%}
+                    {{ p.title | default: 'Featured product' }}
+                  {%- else -%}
+                    {{ product_block.settings.title | default: s.heading | default: 'Refresh your space' }}
+                  {%- endif -%}
+                {%- if HeadTag == 'h1' -%}</h1>{%- else -%}</h2>{%- endif -%}
+
+                {%- if s.subheading != blank -%}
+                  <div class="qcta__sub" style="color: {{ s.subheading_color | default: '#4B5563' }};">{{ s.subheading }}</div>
+                {%- endif -%}
+
+                {%- assign price_out = '' -%}
+                {%- if p and p.price_min -%}
+                  {%- assign price_out = p.price_min | money -%}
+                {%- elsif product_block and product_block.settings.price != blank -%}
+                  {%- assign price_out = product_block.settings.price -%}
+                {%- endif -%}
+                {%- if price_out != '' -%}
+                  <div class="qcta__price" style="color: {{ s.heading_color | default: '#111827' }};">{{ price_out }}</div>
+                {%- endif -%}
+
+                <div class="qcta__btns">
+                  {%- for block in section.blocks -%}
+                    {%- if block.type == 'button' -%}
+                      {%- assign mode = block.settings.button_mode | default: 'solid' -%}
+                      {%- assign btn_class = 'q-btn' -%}
+                      {%- if mode == 'outline' -%}{% assign btn_class = btn_class | append: ' q-btn--outline' %}{% endif -%}
+                      {%- if mode == 'ghost' -%}{% assign btn_class = btn_class | append: ' q-btn--ghost' %}{% endif -%}
+                      {%- assign href = block.settings.link | default: '/' -%}
+                      {%- if p and href == '/' and p.url != blank -%}
+                        {%- assign href = p.url -%}
+                      {%- elsif href == '/' and product_block and product_block.settings.link != blank -%}
+                        {%- assign href = product_block.settings.link -%}
+                      {%- endif -%}
+                      {%- assign use_theme = block.settings.use_theme_colors -%}
+                      {%- assign txt_override = block.settings.text_color -%}
+                      <a class="{{ btn_class }}"
+                         href="{{ href }}"
+                         aria-label="{{ block.settings.aria_label | default: block.settings.label }}"
+                         {% if block.settings.new_tab %}target="_blank" rel="noopener"{% endif %}
+                         style="
+                           {% if mode == 'ghost' %}
+                             {% assign auto_txt = txt_override | default: '' %}
+                             {% if auto_txt == '' or auto_txt == 'transparent' %}
+                               --q-btn-text: {{ s.heading_color | default: '#FFFFFF' }};
+                               --q-btn-hover-text: {{ s.subheading_color | default: '#E5E7EB' }};
+                               --q-btn-bg: transparent;
+                               --q-btn-border: transparent;
+                             {% endif %}
+                           {% endif %}
+                           {% if use_theme == false %}
+                             --q-btn-bg: {{ block.settings.bg_color | default: s.cta_btn_bg | default: '#2563eb' }};
+                             --q-btn-text: {{ block.settings.text_color | default: s.cta_btn_text | default: '#ffffff' }};
+                             --q-btn-border: {{ block.settings.border_color | default: s.cta_btn_border | default: '#2563eb' }};
+                             --q-btn-bw: {{ block.settings.border_width | default: 1 }}px;
+                             --q-btn-radius: {{ block.settings.radius | default: s.cta_btn_radius | default: 12 }}px;
+                             {% if block.settings.hover_bg_color %}--q-btn-hover-bg: {{ block.settings.hover_bg_color }};{% endif %}
+                             {% if block.settings.hover_text_color %}--q-btn-hover-text: {{ block.settings.hover_text_color }};{% endif %}
+                             {% if block.settings.hover_border_color %}--q-btn-hover-border: {{ block.settings.hover_border_color }};{% endif %}
+                           {% endif %}
+                           {% if block.settings.active_scale %}--q-btn-active-scale: {{ block.settings.active_scale | divided_by: 100.0 }};{% endif %}
+                         ">
+                        {%- if block.settings.icon and block.settings.icon != 'none' -%}
+                          <span class="qcta__icon" aria-hidden="true">{{ block.settings.icon }}</span>
+                        {%- endif -%}
+                        <span>{{ block.settings.label | default: 'Learn more' }}</span>
+                      </a>
+                    {%- endif -%}
+                  {%- endfor -%}
+                </div>
+              </div>
+            </div>
+          </div>
+
+        {%- else -%}
+          <div class="qcta__content qcta__contentbox {{ cap_class }}">
+            {%- assign head_color = s.heading_color | default: '#111827' -%}
+            {%- if HeadTag == 'h1' -%}
+              <h1 class="qcta__heading size-{{ s.heading_size | default: '3xl' }}" style="color: {{ head_color }};">{{ s.heading | default: 'Refresh your space' }}</h1>
+            {%- else -%}
+              <h2 class="qcta__heading size-{{ s.heading_size | default: '3xl' }}" style="color: {{ head_color }};">{{ s.heading | default: 'Refresh your space' }}</h2>
+            {%- endif -%}
+
+            {%- if s.subheading != blank -%}
+              <div class="qcta__sub" style="color: {{ s.subheading_color | default: '#4B5563' }};">{{ s.subheading }}</div>
+            {%- endif -%}
+
+            {%- if s.layout_variant == 'web3' and s.kicker != blank -%}
+              <div class="qcta__kicker" style="margin-top:.5rem;opacity:.85;">{{ s.kicker }}</div>
+            {%- endif -%}
+
+            {%- if s.layout_variant == 'modern' and s.kicker != blank -%}
+              <div class="qcta__micro" style="margin-top:.5rem;opacity:.9;">{{ s.kicker }}</div>
+            {%- endif -%}
+
+            {%- if s.layout_variant == 'newsletter' -%}
+              {%- assign form_block = section.blocks | where: 'type', 'form' | first -%}
+              {%- assign email_ph = 'Enter your email' -%}
+              {%- assign consent_label = 'I agree to receive marketing emails.' -%}
+              {%- assign submit_label = 'Subscribe' -%}
+              {%- if form_block != nil -%}
+                {%- if form_block.settings.email_placeholder != blank -%}{%- assign email_ph = form_block.settings.email_placeholder -%}{%- endif -%}
+                {%- if form_block.settings.consent_label != blank -%}{%- assign consent_label = form_block.settings.consent_label -%}{%- endif -%}
+                {%- if form_block.settings.submit_label != blank -%}{%- assign submit_label = form_block.settings.submit_label -%}{%- endif -%}
+              {%- endif -%}
+              <form
+                method="{{ s.newsletter_method | default: 'post' }}"
+                action="{{ s.newsletter_action_url | default: '/contact#contact_form' }}"
+                accept-charset="UTF-8"
+                class="qcta__form"
+                novalidate
+              >
+                {%- if s.newsletter_success_redirect != blank -%}
+                  <input type="hidden" name="return_to" value="{{ s.newsletter_success_redirect }}">
+                {%- endif -%}
+                <input type="hidden" name="form_type" value="customer">
+                <div class="qcta__input">
+                  <label for="{{ anchor_id }}-email" class="visually-hidden">Email</label>
+                  <input id="{{ anchor_id }}-email" type="email" name="contact[email]" required placeholder="{{ email_ph }}">
+                </div>
+                <button type="submit" class="q-btn qcta__submit">{{ submit_label }}</button>
+                <div class="qcta__consent">
+                  <input id="{{ anchor_id }}-consent" type="checkbox" name="contact[consent]" required>
+                  <label for="{{ anchor_id }}-consent">{{ consent_label }}</label>
+                </div>
+              </form>
+            {%- else -%}
+              <div class="qcta__btns">
+                {%- for block in section.blocks -%}
+                  {%- if block.type == 'button' -%}
+                    {%- assign mode = block.settings.button_mode | default: 'solid' -%}
+                    {%- assign btn_class = 'q-btn' -%}
+                    {%- if mode == 'outline' -%}{% assign btn_class = btn_class | append: ' q-btn--outline' %}{% endif -%}
+                    {%- if mode == 'ghost' -%}{% assign btn_class = btn_class | append: ' q-btn--ghost' %}{% endif -%}
+                    {%- assign use_theme = block.settings.use_theme_colors -%}
+                    {%- assign txt_override = block.settings.text_color -%}
+                    <a class="{{ btn_class }}"
+                       href="{{ block.settings.link | default: '/' }}"
+                       aria-label="{{ block.settings.aria_label | default: block.settings.label }}"
+                       {% if block.settings.new_tab %}target="_blank" rel="noopener"{% endif %}
+                       style="
+                         {% if mode == 'ghost' %}
+                           {% assign auto_txt = txt_override | default: '' %}
+                           {% if auto_txt == '' or auto_txt == 'transparent' %}
+                             --q-btn-text: {{ s.heading_color | default: '#FFFFFF' }};
+                             --q-btn-hover-text: {{ s.subheading_color | default: '#E5E7EB' }};
+                             --q-btn-bg: transparent;
+                             --q-btn-border: transparent;
+                           {% endif %}
+                         {% endif %}
+                         {% if use_theme == false %}
+                           --q-btn-bg: {{ block.settings.bg_color | default: s.cta_btn_bg | default: '#2563eb' }};
+                           --q-btn-text: {{ block.settings.text_color | default: s.cta_btn_text | default: '#ffffff' }};
+                           --q-btn-border: {{ block.settings.border_color | default: s.cta_btn_border | default: '#2563eb' }};
+                           --q-btn-bw: {{ block.settings.border_width | default: 1 }}px;
+                           --q-btn-radius: {{ block.settings.radius | default: s.cta_btn_radius | default: 12 }}px;
+                           {% if block.settings.hover_bg_color %}--q-btn-hover-bg: {{ block.settings.hover_bg_color }};{% endif %}
+                           {% if block.settings.hover_text_color %}--q-btn-hover-text: {{ block.settings.hover_text_color }};{% endif %}
+                           {% if block.settings.hover_border_color %}--q-btn-hover-border: {{ block.settings.hover_border_color }};{% endif %}
+                         {% endif %}
+                         {% if block.settings.active_scale %}--q-btn-active-scale: {{ block.settings.active_scale | divided_by: 100.0 }};{% endif %}
+                       ">
+                      {%- if block.settings.icon and block.settings.icon != 'none' -%}
+                        <span class="qcta__icon" aria-hidden="true">{{ block.settings.icon }}</span>
+                      {%- endif -%}
+                      <span>{{ block.settings.label | default: 'Learn more' }}</span>
+                    </a>
+                  {%- endif -%}
+                {%- endfor -%}
+              </div>
+            {%- endif -%}
+          </div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+
+  {%- if s.hide_on_mobile -%}<style>@media (max-width: 767px){#{{ anchor_id }}{display:none !important;}}</style>{%- endif -%}
+  {%- if s.hide_on_desktop -%}<style>@media (min-width: 768px){#{{ anchor_id }}{display:none !important;}}</style>{%- endif -%}
+</section>
+
+{% schema %}
+{
+  "name": "CTA Banner",
+  "tag": "section",
+  "class": "q-cta-banner",
+  "settings": [
+    { "type": "text", "id": "anchor_id", "label": "Anchor ID", "default": "auto" },
+    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "CTA banner" },
+    { "type": "checkbox", "id": "hide_on_mobile", "label": "Hide on mobile", "default": false },
+    { "type": "checkbox", "id": "hide_on_desktop", "label": "Hide on desktop", "default": false },
+    { "type": "range", "id": "section_radius", "label": "Banner corner radius (px)", "min": 0, "max": 48, "step": 1, "default": 0 },
+
+    { "type": "select", "id": "layout_variant", "label": "Layout variant", "default": "classic",
+      "options": [
+        { "value": "classic", "label": "Classic" },
+        { "value": "web3", "label": "Web3" },
+        { "value": "modern", "label": "Modernized" },
+        { "value": "product", "label": "Product-based" },
+        { "value": "newsletter", "label": "Newsletter sign-up" }
+      ]
+    },
+    { "type": "select", "id": "mode", "label": "Background mode", "default": "plain",
+      "options": [
+        { "value": "plain", "label": "Plain (color)" },
+        { "value": "media", "label": "Media (image/video)" }
+      ]
+    },
+
+    { "type": "range", "id": "min_height_vh", "label": "Min height (vh, desktop)", "min": 24, "max": 100, "step": 1, "default": 48 },
+    { "type": "range", "id": "min_height_vh_mobile", "label": "Min height (vh, mobile)", "min": 24, "max": 100, "step": 1, "default": 42 },
+
+    { "type": "select", "id": "text_alignment", "label": "Text alignment", "default": "center",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ]
+    },
+    { "type": "select", "id": "content_max_w", "label": "Content max width", "default": "max-w-3xl",
+      "options": [
+        { "value": "max-w-3xl", "label": "Max w 3xl" },
+        { "value": "max-w-4xl", "label": "Max w 4xl" },
+        { "value": "max-w-5xl", "label": "Max w 5xl" },
+        { "value": "max-w-6xl", "label": "Max w 6xl" }
+      ]
+    },
+
+    { "type": "checkbox", "id": "enable_header_overlap", "label": "Enable header overlap safety offset", "default": false },
+    { "type": "range", "id": "safe_offset_px", "label": "Safe offset (px)", "min": 0, "max": 200, "step": 2, "default": 0 },
+
+    { "type": "color", "id": "heading_color", "label": "Heading color", "default": "#111827" },
+    { "type": "color", "id": "subheading_color", "label": "Subheading color", "default": "#4B5563" },
+    { "type": "color", "id": "section_bg_color", "label": "Section background color", "default": "#F5F1EA" },
+    { "type": "range", "id": "section_bg_opacity", "label": "Section background opacity (%)", "min": 0, "max": 100, "step": 1, "default": 100 },
+
+    { "type": "image_picker", "id": "image", "label": "Background image" },
+    { "type": "text", "id": "image_alt", "label": "Image alt text", "default": "CTA image" },
+    { "type": "url", "id": "video_url", "label": "Background video URL" },
+    { "type": "checkbox", "id": "video_autoplay", "label": "Autoplay video", "default": true },
+    { "type": "checkbox", "id": "video_loop", "label": "Loop video", "default": true },
+    { "type": "checkbox", "id": "video_muted", "label": "Mute video", "default": true },
+    { "type": "checkbox", "id": "video_controls", "label": "Show video controls", "default": false },
+
+    { "type": "select", "id": "overlay_type", "label": "Overlay type", "default": "none",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "solid", "label": "Solid" },
+        { "value": "gradient", "label": "Gradient" }
+      ]
+    },
+    { "type": "color", "id": "overlay_color", "label": "Solid overlay color", "default": "#000000" },
+    { "type": "range", "id": "overlay_opacity", "label": "Solid overlay opacity (%)", "min": 0, "max": 100, "step": 1, "default": 36 },
+
+    { "type": "color", "id": "grad_start", "label": "Gradient start", "default": "#000000" },
+    { "type": "range", "id": "grad_start_opacity", "label": "Start opacity (%)", "min": 0, "max": 100, "step": 1, "default": 36 },
+    { "type": "color", "id": "grad_end", "label": "Gradient end", "default": "#000000" },
+    { "type": "range", "id": "grad_end_opacity", "label": "End opacity (%)", "min": 0, "max": 100, "step": 1, "default": 0 },
+    { "type": "range", "id": "grad_angle", "label": "Gradient angle (deg)", "min": 0, "max": 360, "step": 5, "default": 135 },
+
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Refresh your space" },
+    { "type": "select", "id": "heading_level", "label": "Heading level", "default": "h1",
+      "options": [
+        { "value": "h1", "label": "H1" },
+        { "value": "h2", "label": "H2" }
+      ]
+    },
+    { "type": "select", "id": "heading_size", "label": "Heading size", "default": "3xl",
+      "options": [
+        { "value": "theme", "label": "Theme" },
+        { "value": "2xl", "label": "2XL" },
+        { "value": "3xl", "label": "3XL" },
+        { "value": "4xl", "label": "4XL" }
+      ]
+    },
+    { "type": "text", "id": "subheading", "label": "Subheading", "default": "Modern sofas, tables and accents—crafted to last." },
+    { "type": "text", "id": "kicker", "label": "Microcopy / Kicker (web3/modern)", "default": "Flexible financing. Sustainable materials." },
+
+    { "type": "color", "id": "cta_btn_bg", "label": "CTA button background", "default": "#D97745" },
+    { "type": "color", "id": "cta_btn_text", "label": "CTA button text", "default": "#FFFFFF" },
+    { "type": "color", "id": "cta_btn_border", "label": "CTA button border", "default": "#D97745" },
+    { "type": "range", "id": "cta_btn_radius", "label": "CTA button radius (px)", "min": 0, "max": 32, "step": 1, "default": 14 },
+    { "type": "range", "id": "cta_btn_hover_opacity", "label": "CTA hover opacity (%)", "min": 50, "max": 100, "step": 1, "default": 92 },
+    { "type": "color", "id": "cta_btn_hover_bg", "label": "CTA hover background", "default": "#1E40AF" },
+    { "type": "color", "id": "cta_btn_hover_text", "label": "CTA hover text", "default": "#FFFFFF" },
+    { "type": "color", "id": "cta_btn_hover_border", "label": "CTA hover border", "default": "#1E40AF" },
+    { "type": "range", "id": "cta_btn_active_scale", "label": "CTA active scale (%)", "min": 95, "max": 100, "step": 1, "default": 98 },
+
+    { "type": "select", "id": "layout_dir", "label": "Product split direction", "default": "media-left",
+      "options": [
+        { "value": "media-left", "label": "Media left" },
+        { "value": "media-right", "label": "Media right" }
+      ]
+    },
+
+    { "type": "select", "id": "prod_media_mode", "label": "Product media fit", "default": "contain",
+      "options": [
+        { "value": "contain", "label": "Contain (no crop)" },
+        { "value": "cover", "label": "Cover (fill box)" }
+      ]
+    },
+    { "type": "select", "id": "prod_media_aspect", "label": "Product media aspect", "default": "natural",
+      "options": [
+        { "value": "natural", "label": "Natural" },
+        { "value": "1_1", "label": "1:1 (square)" },
+        { "value": "4_5", "label": "4:5 (portrait)" },
+        { "value": "16_9", "label": "16:9 (landscape)" }
+      ]
+    },
+    { "type": "range", "id": "prod_media_max_h_desktop", "label": "Product media max height (px, desktop)", "min": 240, "max": 800, "step": 10, "default": 520 },
+    { "type": "range", "id": "prod_media_max_h_mobile", "label": "Product media max height (px, mobile)", "min": 160, "max": 600, "step": 10, "default": 340 },
+    { "type": "checkbox", "id": "prod_media_hard_crop", "label": "Hard crop to aspect (use Shopify crop)", "default": false },
+
+    { "type": "url", "id": "newsletter_action_url", "label": "Newsletter form action (API/App proxy URL)" },
+    { "type": "select", "id": "newsletter_method", "label": "Newsletter method", "default": "post",
+      "options": [
+        { "value": "post", "label": "POST" },
+        { "value": "get", "label": "GET" }
+      ]
+    },
+    { "type": "url", "id": "newsletter_success_redirect", "label": "Newsletter success redirect (optional)" },
+
+    { "type": "color", "id": "newsletter_btn_bg", "label": "Newsletter button background", "default": "#D97745" },
+    { "type": "color", "id": "newsletter_btn_text", "label": "Newsletter button text", "default": "#FFFFFF" },
+    { "type": "color", "id": "newsletter_btn_border", "label": "Newsletter button border", "default": "#D97745" },
+    { "type": "range", "id": "newsletter_btn_radius", "label": "Newsletter button radius (px)", "min": 0, "max": 32, "step": 1, "default": 14 },
+    { "type": "color", "id": "newsletter_btn_hover_bg", "label": "Newsletter hover background", "default": "#C2410C" },
+    { "type": "color", "id": "newsletter_btn_hover_text", "label": "Newsletter hover text", "default": "#FFFFFF" },
+    { "type": "color", "id": "newsletter_btn_hover_border", "label": "Newsletter hover border", "default": "#C2410C" },
+
+    { "type": "checkbox", "id": "content_overlay_enabled", "label": "Enable content overlay panel", "default": false },
+    { "type": "color", "id": "content_overlay_color", "label": "Content overlay color", "default": "#000000" },
+    { "type": "range", "id": "content_overlay_opacity", "label": "Content overlay opacity (%)", "min": 0, "max": 100, "step": 1, "default": 0 },
+    { "type": "range", "id": "content_overlay_blur", "label": "Content overlay blur (px)", "min": 0, "max": 20, "step": 1, "default": 0 },
+    { "type": "range", "id": "content_overlay_radius", "label": "Content overlay radius (px)", "min": 0, "max": 32, "step": 1, "default": 12 }
+  ],
+  "blocks": [
+    {
+      "type": "button",
+      "name": "Button",
+      "limit": 2,
+      "settings": [
+        { "type": "text", "id": "label", "label": "Label", "default": "Shop now" },
+        { "type": "url", "id": "link", "label": "Link", "default": "/" },
+        { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "CTA button" },
+        { "type": "select", "id": "size", "label": "Size", "default": "md",
+          "options": [
+            { "value": "sm", "label": "Small" },
+            { "value": "md", "label": "Medium" },
+            { "value": "lg", "label": "Large" }
+          ]
+        },
+        { "type": "checkbox", "id": "new_tab", "label": "Open in new tab", "default": false },
+        { "type": "select", "id": "button_mode", "label": "Style", "default": "solid",
+          "options": [
+            { "value": "solid", "label": "Solid" },
+            { "value": "outline", "label": "Outline" },
+            { "value": "ghost", "label": "Ghost" }
+          ]
+        },
+        { "type": "checkbox", "id": "use_theme_colors", "label": "Use section button colors", "default": false },
+        { "type": "color", "id": "bg_color", "label": "Override: background", "default": "#D97745" },
+        { "type": "color", "id": "text_color", "label": "Override: text", "default": "#FFFFFF" },
+        { "type": "color", "id": "border_color", "label": "Override: border", "default": "#D97745" },
+        { "type": "range", "id": "border_width", "label": "Override: border width (px)", "min": 0, "max": 6, "step": 1, "default": 1 },
+        { "type": "range", "id": "radius", "label": "Override: radius (px)", "min": 0, "max": 32, "step": 1, "default": 14 },
+        { "type": "html", "id": "icon", "label": "Leading icon (HTML/SVG)", "default": "none" },
+        { "type": "color", "id": "hover_bg_color", "label": "Hover: background" },
+        { "type": "color", "id": "hover_text_color", "label": "Hover: text" },
+        { "type": "color", "id": "hover_border_color", "label": "Hover: border" },
+        { "type": "range", "id": "active_scale", "label": "Active scale (%)", "min": 95, "max": 100, "step": 1, "default": 98 }
+      ]
+    },
+    {
+      "type": "badge",
+      "name": "Badge (Web3)",
+      "limit": 4,
+      "settings": [
+        { "type": "text", "id": "badge_text", "label": "Badge text", "default": "Verified" },
+        { "type": "html", "id": "badge_icon", "label": "Icon (optional HTML/SVG)", "default": "none" }
+      ]
+    },
+    {
+      "type": "product",
+      "name": "Product (data)",
+      "limit": 1,
+      "settings": [
+        { "type": "product", "id": "product", "label": "Product" },
+        { "type": "text", "id": "title", "label": "Fallback title", "default": "Featured product" },
+        { "type": "text", "id": "price", "label": "Fallback price", "default": "$199" },
+        { "type": "url", "id": "link", "label": "Fallback link" },
+        { "type": "image_picker", "id": "fallback_image", "label": "Fallback image" },
+        { "type": "text", "id": "fallback_image_alt", "label": "Fallback image alt", "default": "Product image" },
+        { "type": "checkbox", "id": "content_panel_enabled", "label": "Enable product content panel", "default": false },
+        { "type": "color", "id": "content_panel_color", "label": "Product panel color", "default": "#22D3EE" },
+        { "type": "range", "id": "content_panel_opacity", "label": "Product panel opacity (%)", "min": 0, "max": 100, "step": 1, "default": 88 },
+        { "type": "range", "id": "content_panel_blur", "label": "Product panel blur (px)", "min": 0, "max": 20, "step": 1, "default": 2 },
+        { "type": "range", "id": "content_panel_radius", "label": "Product panel radius (px)", "min": 0, "max": 32, "step": 1, "default": 18 }
+      ]
+    },
+    {
+      "type": "form",
+      "name": "Newsletter form",
+      "limit": 1,
+      "settings": [
+        { "type": "text", "id": "email_placeholder", "label": "Email placeholder", "default": "Enter your email" },
+        { "type": "text", "id": "consent_label", "label": "Consent label", "default": "I agree to receive marketing emails." },
+        { "type": "text", "id": "submit_label", "label": "Submit label", "default": "Subscribe" }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "CTA Banner — Classic",
+      "category": "Call To Action",
+      "settings": {
+        "layout_variant": "classic",
+        "mode": "plain",
+        "text_alignment": "center",
+        "content_max_w": "max-w-5xl",
+        "section_bg_color": "#F5F1EA",
+        "section_bg_opacity": 100,
+        "heading": "Refresh your space",
+        "heading_level": "h1",
+        "heading_size": "3xl",
+        "heading_color": "#2B2117",
+        "subheading": "Modern sofas, tables and accents—crafted to last.",
+        "subheading_color": "#5B5B5B",
+        "cta_btn_bg": "#D97745",
+        "cta_btn_text": "#FFFFFF",
+        "cta_btn_border": "#D97745",
+        "cta_btn_radius": 14,
+        "cta_btn_hover_opacity": 92,
+        "cta_btn_hover_bg": "#B4532A",
+        "cta_btn_hover_text": "#FFFFFF",
+        "cta_btn_hover_border": "#B4532A",
+        "cta_btn_active_scale": 98
+      },
+      "blocks": [
+        { "type": "button", "settings": { "label": "Shop sofas", "link": "/collections/sofas", "button_mode": "solid" } },
+        { "type": "button", "settings": { "label": "View coffee tables", "link": "/collections/coffee-tables", "button_mode": "outline" } }
+      ]
+    },
+    {
+      "name": "CTA Banner — Web3",
+      "category": "Call To Action",
+      "settings": {
+        "layout_variant": "web3",
+        "mode": "media",
+        "overlay_type": "gradient",
+        "grad_start": "#000000",
+        "grad_start_opacity": 36,
+        "grad_end": "#000000",
+        "grad_end_opacity": 0,
+        "grad_angle": 135,
+        "heading": "Connect & collect",
+        "heading_level": "h2",
+        "heading_size": "3xl",
+        "heading_color": "#FFFFFF",
+        "subheading": "Early access drops. Wallet-required rewards.",
+        "subheading_color": "#E5E7EB",
+        "kicker": "Secure. Seamless.",
+        "cta_btn_bg": "#FFFFFF",
+        "cta_btn_text": "#111827",
+        "cta_btn_border": "#FFFFFF",
+        "cta_btn_radius": 12,
+        "cta_btn_hover_bg": "#E5E7EB",
+        "cta_btn_hover_text": "#111827",
+        "cta_btn_hover_border": "#E5E7EB",
+        "cta_btn_active_scale": 98
+      },
+      "blocks": [
+        { "type": "button", "settings": { "label": "Connect wallet", "link": "/account/login", "button_mode": "solid" } },
+        { "type": "badge", "settings": { "badge_text": "Non-custodial" } },
+        { "type": "badge", "settings": { "badge_text": "Gas-optimized" } },
+        { "type": "badge", "settings": { "badge_text": "Secure" } }
+      ]
+    }
+  ]
+}
+{% endschema %}
+
+{% stylesheet %}
+.visually-hidden{position:absolute!important;height:1px;width:1px;overflow:hidden;clip:rect(1px,1px,1px,1px);white-space:nowrap;}
+{% endstylesheet %}
