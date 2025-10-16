@@ -1,18 +1,17 @@
 {% comment %}
-  Quadratum — CTA: Featured Product (final)
-  • Reliable product resolution (picker, shopify://products/<handle>, dev handle)
-  • Styling controls: bg/text, button bg/fg, CTA alignment
-  • Media: size control + optional scroll-snap slideshow (no JS)
-  • Sticky CTA: mobile-only (≤ 749px), never renders on desktop
+  CTA — Featured Product (slides, full color controls)
+  - Product resolution: picker OR "shopify://products/<handle>" OR dev handle
+  - Slideshow: arrows + dots (section-scoped JS, ~1KB)
+  - Colors: text/muted/price/compare/savings badge bg+fg/stock in+out/btn bg+fg
+  - Layout: compact/split/minimal, media width %, aspect ratio
+  - Sticky CTA: mobile only (<=749px)
 {% endcomment %}
 
 {{ 'call-to-action-featured-product.css' | asset_url | stylesheet_tag }}
 
 {%- assign s = section.settings -%}
 
-{%- comment -%}
-  Product resolution → always end with ProductDrop or blank.
-{%- endcomment -%}
+{%- comment -%} Resolve product from picker / shopify://products/<handle> / dev handle {%- endcomment -%}
 {%- assign _raw = s.product | to_s -%}
 {%- assign _handle = '' -%}
 {%- if _raw contains 'shopify://products/' -%}
@@ -27,34 +26,52 @@
   {%- assign product = all_products[s.dev_product_handle] -%}
 {%- endif -%}
 
-{%- comment %} Theme tokens (fallbacks) {% endcomment -%}
+{%- comment %} Tokens / classes {%- endcomment -%}
 {%- assign T_btn_radius = settings.button_radius | default: 12 -%}
 {%- assign T_btn_bw     = settings.button_border_width | default: 1 -%}
 
-{%- comment %}
-  Map alignment to CSS var
-{%- endcomment -%}
-{%- assign _cta_justify = 'flex-start' -%}
-{%- if s.cta_align == 'center' -%}{%- assign _cta_justify = 'center' -%}{%- endif -%}
-{%- if s.cta_align == 'end' -%}{%- assign _cta_justify = 'flex-end' -%}{%- endif -%}
+{%- assign layout_class  = 'is-compact' -%}
+{%- if s.layout == 'split'   -%}{%- assign layout_class  = 'is-split'   -%}{%- endif -%}
+{%- if s.layout == 'minimal' -%}{%- assign layout_class  = 'is-minimal' -%}{%- endif -%}
+
+{%- assign align_class = 'align-start' -%}
+{%- if s.align == 'center' -%}{%- assign align_class = 'align-center' -%}{%- endif -%}
 
 {%- assign surface_class = '' -%}
 {%- if s.surface_style == 'elevated' -%}{%- assign surface_class = 'is-elevated' -%}{%- endif -%}
 {%- if s.surface_style == 'outlined' -%}{%- assign surface_class = 'is-outlined' -%}{%- endif -%}
 
-{%- assign layout_class = 'is-compact' -%}
-{%- if s.layout == 'split' -%}{%- assign layout_class = 'is-split' -%}{%- endif -%}
-{%- if s.layout == 'minimal' -%}{%- assign layout_class = 'is-minimal' -%}{%- endif -%}
+{%- comment %} CTA justify {%- endcomment -%}
+{%- assign _cta_justify = 'flex-start' -%}
+{%- if s.cta_align == 'center' -%}{%- assign _cta_justify = 'center' -%}{%- endif -%}
+{%- if s.cta_align == 'end' -%}{%- assign _cta_justify = 'flex-end' -%}{%- endif -%}
 
-{%- assign align_class = 'align-start' -%}
-{%- if s.align == 'center' -%}{%- assign align_class = 'align-center' -%}{%- endif -%}
+{%- comment %} Aspect ratio math (for a consistent media height if desired) {%- endcomment -%}
+{%- assign ratio_w = 0 -%}{%- assign ratio_h = 0 -%}
+{%- case s.media_ratio -%}
+  {%- when '1:1'  -%}{%- assign ratio_w = 1 -%}{%- assign ratio_h = 1 -%}
+  {%- when '4:3'  -%}{%- assign ratio_w = 4 -%}{%- assign ratio_h = 3 -%}
+  {%- when '3:2'  -%}{%- assign ratio_w = 3 -%}{%- assign ratio_h = 2 -%}
+  {%- when '16:9' -%}{%- assign ratio_w = 16 -%}{%- assign ratio_h = 9 -%}
+  {%- else -%}{%- assign ratio_w = 0 -%}{%- assign ratio_h = 0 -%}
+{%- endcase -%}
+{%- assign ratio_pad = 0 -%}
+{%- if ratio_w > 0 and ratio_h > 0 -%}
+  {%- assign ratio_pad = ratio_h | times: 100.0 | divided_by: ratio_w -%}
+{%- endif -%}
 
 <style>
-  /* Section-scoped hardening + mobile-only sticky bar */
-  #{{ s.anchor_id | default: section.id }}{
+  /* Section-scoped variables and layout */
+  #{{ section.id }}{
     --q-bg: {{ s.color_bg | default: '#ffffff' }};
     --q-text: {{ s.color_text | default: '#111111' }};
     --q-muted: {{ s.color_muted | default: '#6b7280' }};
+    --q-price: {{ s.color_price | default: '#111111' }};
+    --q-compare: {{ s.color_compare | default: '#6b7280' }};
+    --q-save-bg: {{ s.color_savings_bg | default: '#ecfccb' }};
+    --q-save-fg: {{ s.color_savings_fg | default: '#365314' }};
+    --q-stock-in: {{ s.color_stock_in | default: '#166534' }};
+    --q-stock-out: {{ s.color_stock_out | default: '#991b1b' }};
     --q-btn-bg: {{ s.color_btn_bg | default: '#2563eb' }};
     --q-btn-fg: {{ s.color_btn_fg | default: '#ffffff' }};
     --q-btn-br: {{ T_btn_radius }}px;
@@ -64,42 +81,86 @@
     --q-pad-bot: {{ s.pad_bottom | default: 32 | divided_by: 100.0 }}rem;
     --q-cta-justify: {{ _cta_justify }};
     --q-media-width: {{ s.media_width | default: 50 }}%;
+    --q-ratio-pad: {{ ratio_pad }}%;
     background: var(--q-bg);
     color: var(--q-text);
   }
-  #{{ s.anchor_id | default: section.id }} .q-ctas{ display:flex; gap:.75rem; justify-content:var(--q-cta-justify); }
-  #{{ s.anchor_id | default: section.id }} .q-btn.q-btn--solid{
-    background:var(--q-btn-bg); color:var(--q-btn-fg); border:var(--q-btn-bw) solid transparent; border-radius:var(--q-btn-br);
+
+  #{{ section.id }} .q-wrap.is-split{
+    display:grid; gap:1.5rem;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    align-items:start;
   }
-  #{{ s.anchor_id | default: section.id }} .q-btn.q-btn--ghost{
-    background:transparent; color:var(--q-btn-bg); border:var(--q-btn-bw) solid var(--q-btn-bg); border-radius:var(--q-btn-br);
-  }
-  /* split layout media sizing */
-  #{{ s.anchor_id | default: section.id }} .q-wrap.is-split{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:1.5rem; }
   @media (min-width: 900px){
-    #{{ s.anchor_id | default: section.id }} .q-wrap.is-split .q-media{ width:var(--q-media-width); }
+    #{{ section.id }} .q-wrap.is-split .q-media{ width:var(--q-media-width); }
   }
-  /* slideshow (no JS, scroll-snap) */
-  #{{ s.anchor_id | default: section.id }} .q-slider{ display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
-  #{{ s.anchor_id | default: section.id }} .q-slide{ flex:0 0 100%; scroll-snap-align:center; }
-  #{{ s.anchor_id | default: section.id }} .q-slide img{ width:100%; height:auto; display:block; border-radius:var(--q-card-br); }
-  /* sticky: mobile only */
-  #{{ s.anchor_id | default: section.id }} .q-sticky{ display:none; }
+
+  /* media / slider */
+  #{{ section.id }} .q-media{ position:relative; }
+  #{{ section.id }} .q-aspect{
+    width:100%; position:relative; overflow:hidden; border-radius:var(--q-card-br);
+  }
+  #{{ section.id }} .q-aspect::before{
+    content:""; display:block; padding-top:var(--q-ratio-pad);
+  }
+  #{{ section.id }} .q-aspect > img, 
+  #{{ section.id }} .q-aspect > video{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  }
+
+  #{{ section.id }} .q-slider{ position:relative; overflow:hidden; border-radius:var(--q-card-br); }
+  #{{ section.id }} .q-track{ display:flex; transition:transform .35s ease; }
+  #{{ section.id }} .q-slide{ flex:0 0 100%; }
+  #{{ section.id }} .q-slide img{ width:100%; height:auto; display:block; }
+
+  #{{ section.id }} .q-arrows{ position:absolute; inset:0; display:flex; justify-content:space-between; align-items:center; pointer-events:none; padding:0 .5rem; }
+  #{{ section.id }} .q-arrow{
+    pointer-events:auto; border:none; cursor:pointer; border-radius:999px; padding:.5rem .65rem; background:rgba(0,0,0,.5); color:#fff;
+  }
+
+  #{{ section.id }} .q-dots{ display:flex; gap:.35rem; justify-content:center; margin-top:.5rem; }
+  #{{ section.id }} .q-dot{
+    width:8px; height:8px; border-radius:999px; background:rgba(0,0,0,.2); border:none; cursor:pointer;
+  }
+  #{{ section.id }} .q-dot[aria-current="true"]{ background:rgba(0,0,0,.6); }
+
+  /* price / badges */
+  #{{ section.id }} [data-price]{ color:var(--q-price); font-weight:600; }
+  #{{ section.id }} [data-compare]{ color:var(--q-compare); text-decoration:line-through; margin-left:.4rem; }
+  #{{ section.id }} [data-savings]{ background:var(--q-save-bg); color:var(--q-save-fg); padding:.15rem .5rem; border-radius:999px; margin-left:.5rem; font-size:.875rem; }
+  #{{ section.id }} [data-stock]{ margin-left:.5rem; font-size:.875rem; }
+  #{{ section.id }} [data-stock][data-available="true"]{ color:var(--q-stock-in); }
+  #{{ section.id }} [data-stock][data-available="false"]{ color:var(--q-stock-out); }
+
+  /* CTAs */
+  #{{ section.id }} .q-ctas{ display:flex; gap:.75rem; justify-content:var(--q-cta-justify); }
+  #{{ section.id }} .q-btn.q-btn--solid{
+    background:var(--q-btn-bg); color:var(--q-btn-fg);
+    border:var(--q-btn-bw) solid transparent; border-radius:var(--q-btn-br);
+    padding:.65rem 1rem; font-weight:600;
+  }
+  #{{ section.id }} .q-btn.q-btn--ghost{
+    background:transparent; color:var(--q-btn-bg);
+    border:var(--q-btn-bw) solid var(--q-btn-bg); border-radius:var(--q-btn-br);
+    padding:.65rem 1rem; font-weight:600;
+  }
+
+  /* sticky CTA — strictly mobile */
+  #{{ section.id }} .q-sticky{ display:none; }
   @media (max-width: 749px){
-    #{{ s.anchor_id | default: section.id }}[data-sticky-enabled="true"] .q-sticky{ display:block; position:sticky; bottom:0; left:0; right:0; background:var(--q-bg); padding:.75rem; box-shadow:0 -6px 16px rgba(0,0,0,.08); }
-    #{{ s.anchor_id | default: section.id }} .q-sticky-inner{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    #{{ section.id }}[data-sticky-enabled="true"] .q-sticky{
+      display:block; position:sticky; bottom:0; left:0; right:0; background:var(--q-bg);
+      padding:.75rem; box-shadow:0 -6px 16px rgba(0,0,0,.08); z-index:5;
+    }
+    #{{ section.id }} .q-sticky-inner{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
   }
 </style>
 
-<section
-  id="{{ s.anchor_id | default: section.id }}"
+<section id="{{ section.id }}"
   class="q-section cta-featured-product {{ layout_class }} {{ surface_class }} {{ align_class }}"
   role="region"
   aria-label="{{ s.aria_label | default: 'Featured product call to action' }}"
-  data-section-id="{{ section.id }}"
   data-sticky-enabled="{{ s.sticky_mobile_cta }}"
-  data-variant-style="{{ s.variant_style }}"
-  data-page-handle="{{ request.page_handle | default: request.path }}"
 >
   <div class="container" style="padding-top:var(--q-pad-top);padding-bottom:var(--q-pad-bot);">
     {%- if product == blank -%}
@@ -109,47 +170,86 @@
       </div>
     {%- else -%}
       {%- assign firstv = product.selected_or_first_available_variant -%}
-      {%- assign _primary_label = s.primary_label -%}
-      {%- if _primary_label == blank -%}
-        {%- if s.primary_cta_type == 'buy' -%}{%- assign _primary_label = 'Buy now' -%}
-        {%- elsif s.primary_cta_type == 'view' -%}{%- assign _primary_label = 'View product' -%}
-        {%- else -%}{%- assign _primary_label = 'Add to cart' -%}{%- endif -%}
+
+      {%- assign primary_label = s.primary_label -%}
+      {%- if primary_label == blank -%}
+        {%- if s.primary_cta_type == 'buy' -%}{%- assign primary_label = 'Buy now' -%}
+        {%- elsif s.primary_cta_type == 'view' -%}{%- assign primary_label = 'View product' -%}
+        {%- else -%}{%- assign primary_label = 'Add to cart' -%}{%- endif -%}
       {%- endif -%}
 
-      {%- assign media = s.custom_media | default: product.featured_media -%}
       <div class="q-wrap card {{ layout_class }}">
         {%- unless layout_class == 'is-minimal' -%}
           <div class="q-media">
             {%- if s.enable_slider and product.media.size > 0 -%}
-              <div class="q-slider" aria-label="Product gallery">
-                {%- for m in product.media -%}
-                  <div class="q-slide">
-                    {{ m | image_url: width: 1600
-                       | image_tag: loading: 'lazy', decoding: 'async', sizes: '100vw', widths: '640,960,1280,1600,1920', alt: m.alt | escape }}
+              <div class="q-slider" id="slider-{{ section.id }}" data-index="0">
+                <div class="q-track">
+                  {%- for m in product.media -%}
+                    <div class="q-slide">
+                      {%- if s.media_ratio != 'auto' -%}
+                        <div class="q-aspect">
+                          {{ m | image_url: width: 1600
+                             | image_tag: loading: 'lazy', decoding: 'async',
+                               sizes: '100vw', widths: '640,960,1280,1600,1920',
+                               alt: m.alt | escape }}
+                        </div>
+                      {%- else -%}
+                        {{ m | image_url: width: 1600
+                           | image_tag: loading: 'lazy', decoding: 'async',
+                             sizes: '100vw', widths: '640,960,1280,1600,1920',
+                             alt: m.alt | escape }}
+                      {%- endif -%}
+                    </div>
+                  {%- endfor -%}
+                </div>
+                {%- if s.show_arrows -%}
+                  <div class="q-arrows">
+                    <button class="q-arrow" type="button" data-prev aria-label="Previous slide">‹</button>
+                    <button class="q-arrow" type="button" data-next aria-label="Next slide">›</button>
                   </div>
-                {%- endfor -%}
+                {%- endif -%}
+                {%- if s.show_dots -%}
+                  <div class="q-dots" aria-label="Slide navigation">
+                    {%- for m in product.media -%}
+                      <button class="q-dot" type="button" data-dot="{{ forloop.index0 }}" aria-current="{% if forloop.first %}true{% else %}false{% endif %}"></button>
+                    {%- endfor -%}
+                  </div>
+                {%- endif -%}
               </div>
             {%- else -%}
+              {%- assign media = s.custom_media | default: product.featured_media -%}
               {%- if media and media.preview_image != blank -%}
-                {{ media.preview_image
-                  | image_url: width: 1600
-                  | image_tag:
-                    loading: 'lazy',
-                    decoding: 'async',
-                    widths: '640,960,1280,1600,1920',
-                    sizes: '(min-width: 1024px) 48vw, 100vw',
-                    class: 'q-img',
-                    alt: media.alt | default: product.title | escape }}
+                {%- if s.media_ratio != 'auto' -%}
+                  <div class="q-aspect">
+                    {{ media.preview_image | image_url: width: 1600
+                      | image_tag: loading: 'lazy', decoding: 'async',
+                        widths: '640,960,1280,1600,1920',
+                        sizes: '(min-width: 1024px) 48vw, 100vw',
+                        alt: media.alt | default: product.title | escape }}
+                  </div>
+                {%- else -%}
+                  {{ media.preview_image | image_url: width: 1600
+                    | image_tag: loading: 'lazy', decoding: 'async',
+                      widths: '640,960,1280,1600,1920',
+                      sizes: '(min-width: 1024px) 48vw, 100vw',
+                      alt: media.alt | default: product.title | escape }}
+                {%- endif -%}
               {%- elsif product.featured_image -%}
-                {{ product.featured_image
-                  | image_url: width: 1600
-                  | image_tag:
-                    loading: 'lazy',
-                    decoding: 'async',
-                    widths: '640,960,1280,1600,1920',
-                    sizes: '(min-width: 1024px) 48vw, 100vw',
-                    class: 'q-img',
-                    alt: product.title | escape }}
+                {%- if s.media_ratio != 'auto' -%}
+                  <div class="q-aspect">
+                    {{ product.featured_image | image_url: width: 1600
+                      | image_tag: loading: 'lazy', decoding: 'async',
+                        widths: '640,960,1280,1600,1920',
+                        sizes: '(min-width: 1024px) 48vw, 100vw',
+                        alt: product.title | escape }}
+                  </div>
+                {%- else -%}
+                  {{ product.featured_image | image_url: width: 1600
+                    | image_tag: loading: 'lazy', decoding: 'async',
+                      widths: '640,960,1280,1600,1920',
+                      sizes: '(min-width: 1024px) 48vw, 100vw',
+                      alt: product.title | escape }}
+                {%- endif -%}
               {%- else -%}
                 <div class="q-media-ph" aria-hidden="true"></div>
               {%- endif -%}
@@ -208,12 +308,9 @@
                         <div class="q-opt-buttons" role="radiogroup" aria-label="{{ option.name }}">
                           {%- for val in option.values -%}
                             <label class="q-opt-btn" data-opt-btn>
-                              <input
-                                type="radio"
-                                name="options[{{ option.name | escape }}]"
-                                value="{{ val | escape }}"
-                                {% if option.selected_value == val %}checked{% endif %}
-                                aria-checked="{% if option.selected_value == val %}true{% else %}false{% endif %}" />
+                              <input type="radio" name="options[{{ option.name | escape }}]" value="{{ val | escape }}"
+                                     {% if option.selected_value == val %}checked{% endif %}
+                                     aria-checked="{% if option.selected_value == val %}true{% else %}false{% endif %}" />
                               <span>{{ val }}</span>
                             </label>
                           {%- endfor -%}
@@ -222,12 +319,9 @@
                         <div class="q-opt-swatches" role="radiogroup" aria-label="{{ option.name }}">
                           {%- for val in option.values -%}
                             <label class="q-swatch" data-opt-btn>
-                              <input
-                                type="radio"
-                                name="options[{{ option.name | escape }}]"
-                                value="{{ val | escape }}"
-                                {% if option.selected_value == val %}checked{% endif %}
-                                aria-checked="{% if option.selected_value == val %}true{% else %}false{% endif %}" />
+                              <input type="radio" name="options[{{ option.name | escape }}]" value="{{ val | escape }}"
+                                     {% if option.selected_value == val %}checked{% endif %}
+                                     aria-checked="{% if option.selected_value == val %}true{% else %}false{% endif %}" />
                               <span class="q-swatch-chip" aria-hidden="true"></span>
                               <span class="q-swatch-label">{{ val }}</span>
                             </label>
@@ -249,23 +343,20 @@
             {%- endif -%}
 
             {%- if s.show_qty -%}
+              {%- assign qty_label = 'products.product.quantity' | t -%}
+              {%- if qty_label contains 'translation missing' -%}{%- assign qty_label = 'Quantity' -%}{%- endif -%}
               <div class="q-qty">
-                <label for="qty-{{ section.id }}" class="sr-only">{{ 'products.product.quantity' | t }}</label>
-                <input id="qty-{{ section.id }}" class="q-input" min="1" step="1" type="number" name="quantity" value="1" inputmode="numeric" />
+                <label for="qty-{{ section.id }}" class="sr-only">{{ qty_label }}</label>
+                <input id="qty-{{ section.id }}" class="q-input" min="1" step="1" type="number" name="quantity" value="1" inputmode="numeric" aria-label="{{ qty_label }}" />
               </div>
             {%- endif -%}
 
             <div class="q-ctas">
               {%- if s.primary_cta_type == 'view' -%}
-                <a class="btn q-btn q-btn--solid" href="{{ product.url }}">{{ _primary_label }}</a>
+                <a class="btn q-btn q-btn--solid" href="{{ product.url }}">{{ primary_label }}</a>
               {%- else -%}
-                <button class="btn q-btn q-btn--solid"
-                        type="submit"
-                        name="{% if s.primary_cta_type == 'buy' %}checkout{% else %}add{% endif %}"
-                        data-primary-cta
-                        data-available="{{ firstv.available }}">
-                  {{ _primary_label }}
-                </button>
+                <button class="btn q-btn q-btn--solid" type="submit" name="{% if s.primary_cta_type == 'buy' %}checkout{% else %}add{% endif %}"
+                        data-primary-cta data-available="{{ firstv.available }}">{{ primary_label }}</button>
               {%- endif -%}
 
               {%- if s.secondary_label != blank and s.secondary_url != blank -%}
@@ -285,20 +376,43 @@
           <div class="q-sticky-inner">
             <div class="q-sticky-price" data-sticky-price>{{ firstv.price | money }}</div>
             {%- if s.primary_cta_type == 'view' -%}
-              <a class="btn q-btn q-btn--solid" href="{{ product.url }}">{{ _primary_label }}</a>
+              <a class="btn q-btn q-btn--solid" href="{{ product.url }}">{{ primary_label }}</a>
             {%- else -%}
-              <button class="btn q-btn q-btn--solid"
-                      type="submit"
-                      form="q-cta-form-{{ section.id }}"
+              <button class="btn q-btn q-btn--solid" type="submit" form="q-cta-form-{{ section.id }}"
                       name="{% if s.primary_cta_type == 'buy' %}checkout{% else %}add{% endif %}"
-                      data-sticky-button
-                      disabled>{{ _primary_label }}</button>
+                      data-sticky-button disabled>{{ primary_label }}</button>
             {%- endif -%}
           </div>
         </div>
       {%- endif -%}
 
       <script type="application/json" data-product-json>{{ product | json }}</script>
+      {%- if s.enable_slider and product.media.size > 1 -%}
+        <script>
+          (function(){
+            var root = document.getElementById('slider-{{ section.id }}');
+            if(!root) return;
+            var track = root.querySelector('.q-track');
+            var dots  = root.querySelectorAll('.q-dot');
+            var slides = root.querySelectorAll('.q-slide');
+            var i = 0, n = slides.length;
+
+            function go(to){
+              i = (to + n) % n;
+              track.style.transform = 'translateX(' + (-100 * i) + '%)';
+              dots.forEach(function(d,idx){ d.setAttribute('aria-current', idx===i ? 'true' : 'false'); });
+            }
+
+            var prev = root.querySelector('[data-prev]'), next = root.querySelector('[data-next]');
+            if(prev) prev.addEventListener('click', function(){ go(i-1); });
+            if(next) next.addEventListener('click', function(){ go(i+1); });
+            dots.forEach(function(d){ d.addEventListener('click', function(){ go(parseInt(d.getAttribute('data-dot'),10)||0); }); });
+
+            // Resize guard in case fonts/layout shift
+            window.addEventListener('resize', function(){ go(i); }, { passive:true });
+          })();
+        </script>
+      {%- endif -%}
     {%- endif -%}
   </div>
 </section>
@@ -319,6 +433,12 @@
     { "type": "color", "id": "color_bg", "label": "Background", "default": "#ffffff" },
     { "type": "color", "id": "color_text", "label": "Text", "default": "#111111" },
     { "type": "color", "id": "color_muted", "label": "Muted text", "default": "#6b7280" },
+    { "type": "color", "id": "color_price", "label": "Price text", "default": "#111111" },
+    { "type": "color", "id": "color_compare", "label": "Compare-at text", "default": "#6b7280" },
+    { "type": "color", "id": "color_savings_bg", "label": "Savings badge background", "default": "#ecfccb" },
+    { "type": "color", "id": "color_savings_fg", "label": "Savings badge text", "default": "#365314" },
+    { "type": "color", "id": "color_stock_in", "label": "In-stock text", "default": "#166534" },
+    { "type": "color", "id": "color_stock_out", "label": "Out-of-stock text", "default": "#991b1b" },
     { "type": "color", "id": "color_btn_bg", "label": "Primary button background", "default": "#2563eb" },
     { "type": "color", "id": "color_btn_fg", "label": "Primary button text", "default": "#ffffff" },
 
@@ -338,8 +458,19 @@
       { "value": "outlined", "label": "Outlined" }
     ]},
     { "type": "range", "id": "media_width", "label": "Media width (split layout, %)", "min": 30, "max": 70, "step": 5, "default": 50 },
-    { "type": "checkbox", "id": "enable_slider", "label": "Use slideshow (all product media)", "default": false },
-    { "type": "image_picker", "id": "custom_media", "label": "Custom image/video (overrides product image)" },
+    { "type": "select", "id": "media_ratio", "label": "Media aspect ratio", "default": "auto", "options": [
+      { "value": "auto", "label": "Auto (image natural ratio)" },
+      { "value": "1:1",  "label": "1:1" },
+      { "value": "4:3",  "label": "4:3" },
+      { "value": "3:2",  "label": "3:2" },
+      { "value": "16:9", "label": "16:9" }
+    ]},
+
+    { "type": "header", "content": "Slideshow" },
+    { "type": "checkbox", "id": "enable_slider", "label": "Use slideshow (uses all product media)", "default": true },
+    { "type": "checkbox", "id": "show_arrows", "label": "Show arrows", "default": true },
+    { "type": "checkbox", "id": "show_dots", "label": "Show dots", "default": true },
+    { "type": "image_picker", "id": "custom_media", "label": "Custom image/video (overrides product image if slider is off)" },
 
     { "type": "header", "content": "Content" },
     { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Editor’s pick" },
@@ -385,10 +516,7 @@
     { "type": "header", "content": "Spacing & radius" },
     { "type": "range", "id": "pad_top", "label": "Padding top (rem ×100)", "min": 0, "max": 96, "step": 2, "default": 32 },
     { "type": "range", "id": "pad_bottom", "label": "Padding bottom (rem ×100)", "min": 0, "max": 96, "step": 2, "default": 32 },
-    { "type": "range", "id": "card_radius", "label": "Card radius (px)", "min": 0, "max": 40, "step": 1, "default": 16 },
-
-    { "type": "header", "content": "Anchor" },
-    { "type": "text", "id": "anchor_id", "label": "Anchor ID" }
+    { "type": "range", "id": "card_radius", "label": "Card radius (px)", "min": 0, "max": 40, "step": 1, "default": 16 }
   ],
   "presets": [
     { "name": "Featured Product — Compact", "category": "Call To Action", "settings": { "layout": "compact", "social_proof": true } },
