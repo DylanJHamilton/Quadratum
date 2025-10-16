@@ -1,7 +1,9 @@
 {% comment %}
-  Quadratum — CTA: Featured Product (stable form fix)
-  - Resolves product strictly to a ProductDrop before using `{% form 'product', product %}`
-  - If resolution fails, shows admin empty state and never opens a form
+  Quadratum — CTA: Featured Product (final)
+  • Reliable product resolution (picker, shopify://products/<handle>, dev handle)
+  • Styling controls: bg/text, button bg/fg, CTA alignment
+  • Media: size control + optional scroll-snap slideshow (no JS)
+  • Sticky CTA: mobile-only (≤ 749px), never renders on desktop
 {% endcomment %}
 
 {{ 'call-to-action-featured-product.css' | asset_url | stylesheet_tag }}
@@ -9,12 +11,7 @@
 {%- assign s = section.settings -%}
 
 {%- comment -%}
-  Product resolution (always end up with a ProductDrop or blank)
-  Accepts:
-    • Theme editor product picker (stringified to something we can parse)
-    • "shopify://products/<handle>"
-    • Plain "<handle>"
-    • Dev fallback handle
+  Product resolution → always end with ProductDrop or blank.
 {%- endcomment -%}
 {%- assign _raw = s.product | to_s -%}
 {%- assign _handle = '' -%}
@@ -30,14 +27,16 @@
   {%- assign product = all_products[s.dev_product_handle] -%}
 {%- endif -%}
 
-{%- comment %} Theme tokens {% endcomment -%}
+{%- comment %} Theme tokens (fallbacks) {% endcomment -%}
 {%- assign T_btn_radius = settings.button_radius | default: 12 -%}
 {%- assign T_btn_bw     = settings.button_border_width | default: 1 -%}
-{%- assign C_primary    = settings.color_primary | default: '#2563eb' -%}
-{%- assign C_text       = settings.text_base | default: '#111111' -%}
-{%- assign C_muted      = settings.text_muted | default: '#6b7280' -%}
-{%- assign C_surface    = settings.bg_contrast | default: '#f6f7f8' -%}
-{%- assign C_on_color   = settings.text_on_color | default: '#ffffff' -%}
+
+{%- comment %}
+  Map alignment to CSS var
+{%- endcomment -%}
+{%- assign _cta_justify = 'flex-start' -%}
+{%- if s.cta_align == 'center' -%}{%- assign _cta_justify = 'center' -%}{%- endif -%}
+{%- if s.cta_align == 'end' -%}{%- assign _cta_justify = 'flex-end' -%}{%- endif -%}
 
 {%- assign surface_class = '' -%}
 {%- if s.surface_style == 'elevated' -%}{%- assign surface_class = 'is-elevated' -%}{%- endif -%}
@@ -50,6 +49,48 @@
 {%- assign align_class = 'align-start' -%}
 {%- if s.align == 'center' -%}{%- assign align_class = 'align-center' -%}{%- endif -%}
 
+<style>
+  /* Section-scoped hardening + mobile-only sticky bar */
+  #{{ s.anchor_id | default: section.id }}{
+    --q-bg: {{ s.color_bg | default: '#ffffff' }};
+    --q-text: {{ s.color_text | default: '#111111' }};
+    --q-muted: {{ s.color_muted | default: '#6b7280' }};
+    --q-btn-bg: {{ s.color_btn_bg | default: '#2563eb' }};
+    --q-btn-fg: {{ s.color_btn_fg | default: '#ffffff' }};
+    --q-btn-br: {{ T_btn_radius }}px;
+    --q-btn-bw: {{ T_btn_bw }}px;
+    --q-card-br: {{ s.card_radius | default: 16 }}px;
+    --q-pad-top: {{ s.pad_top | default: 32 | divided_by: 100.0 }}rem;
+    --q-pad-bot: {{ s.pad_bottom | default: 32 | divided_by: 100.0 }}rem;
+    --q-cta-justify: {{ _cta_justify }};
+    --q-media-width: {{ s.media_width | default: 50 }}%;
+    background: var(--q-bg);
+    color: var(--q-text);
+  }
+  #{{ s.anchor_id | default: section.id }} .q-ctas{ display:flex; gap:.75rem; justify-content:var(--q-cta-justify); }
+  #{{ s.anchor_id | default: section.id }} .q-btn.q-btn--solid{
+    background:var(--q-btn-bg); color:var(--q-btn-fg); border:var(--q-btn-bw) solid transparent; border-radius:var(--q-btn-br);
+  }
+  #{{ s.anchor_id | default: section.id }} .q-btn.q-btn--ghost{
+    background:transparent; color:var(--q-btn-bg); border:var(--q-btn-bw) solid var(--q-btn-bg); border-radius:var(--q-btn-br);
+  }
+  /* split layout media sizing */
+  #{{ s.anchor_id | default: section.id }} .q-wrap.is-split{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:1.5rem; }
+  @media (min-width: 900px){
+    #{{ s.anchor_id | default: section.id }} .q-wrap.is-split .q-media{ width:var(--q-media-width); }
+  }
+  /* slideshow (no JS, scroll-snap) */
+  #{{ s.anchor_id | default: section.id }} .q-slider{ display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
+  #{{ s.anchor_id | default: section.id }} .q-slide{ flex:0 0 100%; scroll-snap-align:center; }
+  #{{ s.anchor_id | default: section.id }} .q-slide img{ width:100%; height:auto; display:block; border-radius:var(--q-card-br); }
+  /* sticky: mobile only */
+  #{{ s.anchor_id | default: section.id }} .q-sticky{ display:none; }
+  @media (max-width: 749px){
+    #{{ s.anchor_id | default: section.id }}[data-sticky-enabled="true"] .q-sticky{ display:block; position:sticky; bottom:0; left:0; right:0; background:var(--q-bg); padding:.75rem; box-shadow:0 -6px 16px rgba(0,0,0,.08); }
+    #{{ s.anchor_id | default: section.id }} .q-sticky-inner{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  }
+</style>
+
 <section
   id="{{ s.anchor_id | default: section.id }}"
   class="q-section cta-featured-product {{ layout_class }} {{ surface_class }} {{ align_class }}"
@@ -57,26 +98,10 @@
   aria-label="{{ s.aria_label | default: 'Featured product call to action' }}"
   data-section-id="{{ section.id }}"
   data-sticky-enabled="{{ s.sticky_mobile_cta }}"
-  data-primary-mode="{{ s.primary_cta_type }}"
   data-variant-style="{{ s.variant_style }}"
-  data-show-price="{{ s.show_price }}"
-  data-show-compare="{{ s.show_compare }}"
-  data-show-savings="{{ s.show_savings }}"
   data-page-handle="{{ request.page_handle | default: request.path }}"
-  style="
-    --q-pad-top: {{ s.pad_top | default: settings.section_padding_top | default: 48 | divided_by: 100.0 }}rem;
-    --q-pad-bot: {{ s.pad_bottom | default: settings.section_padding_bottom | default: 48 | divided_by: 100.0 }}rem;
-    --q-card-br: {{ s.card_radius | default: 16 }}px;
-    --q-btn-br:  {{ T_btn_radius }}px;
-    --q-btn-bw:  {{ T_btn_bw }}px;
-    --q-btn-bg:  {{ C_primary }};
-    --q-btn-fg:  {{ C_on_color }};
-    --q-text:    {{ C_text }};
-    --q-muted:   {{ C_muted }};
-    --q-surface: {{ C_surface }};
-  "
 >
-  <div class="container">
+  <div class="container" style="padding-top:var(--q-pad-top);padding-bottom:var(--q-pad-bot);">
     {%- if product == blank -%}
       <div class="q-admin-empty card">
         <h3 class="q-heading">Select a product to feature</h3>
@@ -95,34 +120,45 @@
       <div class="q-wrap card {{ layout_class }}">
         {%- unless layout_class == 'is-minimal' -%}
           <div class="q-media">
-            {%- if media and media.preview_image != blank -%}
-              {{ media.preview_image
-                | image_url: width: 1600
-                | image_tag:
-                  loading: 'lazy',
-                  decoding: 'async',
-                  widths: '640,960,1280,1600,1920',
-                  sizes: '(min-width: 1024px) 48vw, 100vw',
-                  class: 'q-img',
-                  alt: media.alt | default: product.title | escape }}
-            {%- elsif product.featured_image -%}
-              {{ product.featured_image
-                | image_url: width: 1600
-                | image_tag:
-                  loading: 'lazy',
-                  decoding: 'async',
-                  widths: '640,960,1280,1600,1920',
-                  sizes: '(min-width: 1024px) 48vw, 100vw',
-                  class: 'q-img',
-                  alt: product.title | escape }}
+            {%- if s.enable_slider and product.media.size > 0 -%}
+              <div class="q-slider" aria-label="Product gallery">
+                {%- for m in product.media -%}
+                  <div class="q-slide">
+                    {{ m | image_url: width: 1600
+                       | image_tag: loading: 'lazy', decoding: 'async', sizes: '100vw', widths: '640,960,1280,1600,1920', alt: m.alt | escape }}
+                  </div>
+                {%- endfor -%}
+              </div>
             {%- else -%}
-              <div class="q-media-ph" aria-hidden="true"></div>
+              {%- if media and media.preview_image != blank -%}
+                {{ media.preview_image
+                  | image_url: width: 1600
+                  | image_tag:
+                    loading: 'lazy',
+                    decoding: 'async',
+                    widths: '640,960,1280,1600,1920',
+                    sizes: '(min-width: 1024px) 48vw, 100vw',
+                    class: 'q-img',
+                    alt: media.alt | default: product.title | escape }}
+              {%- elsif product.featured_image -%}
+                {{ product.featured_image
+                  | image_url: width: 1600
+                  | image_tag:
+                    loading: 'lazy',
+                    decoding: 'async',
+                    widths: '640,960,1280,1600,1920',
+                    sizes: '(min-width: 1024px) 48vw, 100vw',
+                    class: 'q-img',
+                    alt: product.title | escape }}
+              {%- else -%}
+                <div class="q-media-ph" aria-hidden="true"></div>
+              {%- endif -%}
             {%- endif -%}
           </div>
         {%- endunless -%}
 
         <div class="q-content">
-          {%- if s.eyebrow != blank -%}<p class="q-eyebrow">{{ s.eyebrow }}</p>{%- endif -%}
+          {%- if s.eyebrow != blank -%}<p class="q-eyebrow" style="color:var(--q-muted)">{{ s.eyebrow }}</p>{%- endif -%}
 
           {%- if s.headline != blank -%}
             <h2 class="q-heading">{{ s.headline }}</h2>
@@ -131,14 +167,7 @@
           {%- endif -%}
 
           {%- if s.subheading != blank -%}
-            <p class="q-sub">{{ s.subheading | newline_to_br }}</p>
-          {%- endif -%}
-
-          {%- if s.social_proof -%}
-            <div class="q-rating" aria-label="Product rating placeholder">
-              <span class="q-stars" aria-hidden="true">★★★★★</span>
-              <a class="q-reviews-link" href="{{ product.url }}#reviews" data-hook="rating-count"><span class="q-count">0</span> reviews</a>
-            </div>
+            <p class="q-sub" style="color:var(--q-muted)">{{ s.subheading | newline_to_br }}</p>
           {%- endif -%}
 
           <div class="q-price" data-price-area aria-live="polite">
@@ -163,9 +192,9 @@
             <input type="hidden" name="id" value="{{ firstv.id }}" data-variant-input>
 
             {%- if s.show_vendor or s.show_sku -%}
-              <div class="q-meta">
+              <div class="q-meta" style="color:var(--q-muted)">
                 {%- if s.show_vendor and product.vendor != blank -%}<span class="q-vendor">{{ product.vendor }}</span>{%- endif -%}
-                {%- if s.show_sku and firstv.sku != blank -%}<span class="q-sku" data-sku>{{ firstv.sku }}</span>{%- endif -%}
+                {%- if s.show_sku and firstv.sku != blank -%}<span class="q-sku" data-sku> • {{ firstv.sku }}</span>{%- endif -%}
               </div>
             {%- endif -%}
 
@@ -227,25 +256,24 @@
             {%- endif -%}
 
             <div class="q-ctas">
-              {%- case s.primary_cta_type -%}
-                {%- when 'view' -%}
-                  <a class="btn q-btn q-btn--solid" href="{{ product.url }}">{{ _primary_label }}</a>
-                {%- else -%}
-                  <button class="btn q-btn q-btn--solid"
-                          type="submit"
-                          name="{% if s.primary_cta_type == 'buy' %}checkout{% else %}add{% endif %}"
-                          data-primary-cta
-                          data-available="{{ firstv.available }}">
-                    {{ _primary_label }}
-                  </button>
-              {%- endcase -%}
+              {%- if s.primary_cta_type == 'view' -%}
+                <a class="btn q-btn q-btn--solid" href="{{ product.url }}">{{ _primary_label }}</a>
+              {%- else -%}
+                <button class="btn q-btn q-btn--solid"
+                        type="submit"
+                        name="{% if s.primary_cta_type == 'buy' %}checkout{% else %}add{% endif %}"
+                        data-primary-cta
+                        data-available="{{ firstv.available }}">
+                  {{ _primary_label }}
+                </button>
+              {%- endif -%}
 
               {%- if s.secondary_label != blank and s.secondary_url != blank -%}
                 <a class="btn q-btn q-btn--ghost" href="{{ s.secondary_url }}" data-secondary-cta>{{ s.secondary_label }}</a>
               {%- endif -%}
             </div>
 
-            {%- if s.microcopy != blank -%}<p class="q-microcopy">{{ s.microcopy }}</p>{%- endif -%}
+            {%- if s.microcopy != blank -%}<p class="q-microcopy" style="color:var(--q-muted)">{{ s.microcopy }}</p>{%- endif -%}
           {%- endform -%}
 
           <div class="sr-only" aria-live="polite" data-live></div>
@@ -261,7 +289,7 @@
             {%- else -%}
               <button class="btn q-btn q-btn--solid"
                       type="submit"
-                      form="{{ _form_id }}"
+                      form="q-cta-form-{{ section.id }}"
                       name="{% if s.primary_cta_type == 'buy' %}checkout{% else %}add{% endif %}"
                       data-sticky-button
                       disabled>{{ _primary_label }}</button>
@@ -271,7 +299,6 @@
       {%- endif -%}
 
       <script type="application/json" data-product-json>{{ product | json }}</script>
-      {{ 'call-to-action-featured-product.js' | asset_url | script_tag | replace: '<script', '<script defer' }}
     {%- endif -%}
   </div>
 </section>
@@ -282,11 +309,18 @@
   "tag": "section",
   "class": "cta-featured-product",
   "settings": [
-    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Featured product" },
+    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Featured product call to action" },
 
     { "type": "header", "content": "Product (prod & dev)" },
-    { "type": "product", "id": "product", "label": "Product", "info": "Pick a product or pass \"shopify://products/<handle>\" / \"<handle>\" via JSON." },
+    { "type": "product", "id": "product", "label": "Product", "info": "Pick in Theme Editor or pass \"shopify://products/<handle>\" / \"<handle>\" via JSON." },
     { "type": "text", "id": "dev_product_handle", "label": "DEV ONLY: Product handle (fallback)", "info": "Used only when Product is empty. Example: cotton-tee" },
+
+    { "type": "header", "content": "Appearance" },
+    { "type": "color", "id": "color_bg", "label": "Background", "default": "#ffffff" },
+    { "type": "color", "id": "color_text", "label": "Text", "default": "#111111" },
+    { "type": "color", "id": "color_muted", "label": "Muted text", "default": "#6b7280" },
+    { "type": "color", "id": "color_btn_bg", "label": "Primary button background", "default": "#2563eb" },
+    { "type": "color", "id": "color_btn_fg", "label": "Primary button text", "default": "#ffffff" },
 
     { "type": "header", "content": "Layout" },
     { "type": "select", "id": "layout", "label": "Layout", "default": "compact", "options": [
@@ -294,7 +328,7 @@
       { "value": "split", "label": "Wide split" },
       { "value": "minimal", "label": "Spotlight minimal (no image)" }
     ]},
-    { "type": "select", "id": "align", "label": "Alignment", "default": "start", "options": [
+    { "type": "select", "id": "align", "label": "Text alignment", "default": "start", "options": [
       { "value": "start", "label": "Start" },
       { "value": "center", "label": "Center" }
     ]},
@@ -303,6 +337,8 @@
       { "value": "elevated", "label": "Elevated (shadow)" },
       { "value": "outlined", "label": "Outlined" }
     ]},
+    { "type": "range", "id": "media_width", "label": "Media width (split layout, %)", "min": 30, "max": 70, "step": 5, "default": 50 },
+    { "type": "checkbox", "id": "enable_slider", "label": "Use slideshow (all product media)", "default": false },
     { "type": "image_picker", "id": "custom_media", "label": "Custom image/video (overrides product image)" },
 
     { "type": "header", "content": "Content" },
@@ -337,9 +373,14 @@
     { "type": "text", "id": "primary_label", "label": "Primary label (optional override)" },
     { "type": "text", "id": "secondary_label", "label": "Secondary CTA label", "default": "Learn more" },
     { "type": "url",  "id": "secondary_url", "label": "Secondary CTA link" },
+    { "type": "select", "id": "cta_align", "label": "CTA alignment", "default": "start", "options": [
+      { "value": "start", "label": "Left" },
+      { "value": "center", "label": "Center" },
+      { "value": "end", "label": "Right" }
+    ]},
 
     { "type": "header", "content": "Sticky CTA (mobile)" },
-    { "type": "checkbox", "id": "sticky_mobile_cta", "label": "Enable sticky CTA bar on mobile", "default": true },
+    { "type": "checkbox", "id": "sticky_mobile_cta", "label": "Enable sticky CTA bar on mobile (≤ 749px)", "default": true },
 
     { "type": "header", "content": "Spacing & radius" },
     { "type": "range", "id": "pad_top", "label": "Padding top (rem ×100)", "min": 0, "max": 96, "step": 2, "default": 32 },
@@ -350,11 +391,9 @@
     { "type": "text", "id": "anchor_id", "label": "Anchor ID" }
   ],
   "presets": [
-    {
-      "name": "Featured Product — Compact",
-      "category": "Call To Action",
-      "settings": { "layout": "compact", "social_proof": true }
-    }
+    { "name": "Featured Product — Compact", "category": "Call To Action", "settings": { "layout": "compact", "social_proof": true } },
+    { "name": "Featured Product — Split", "category": "Call To Action", "settings": { "layout": "split", "social_proof": true } },
+    { "name": "Featured Product — Minimal", "category": "Call To Action", "settings": { "layout": "minimal", "social_proof": false, "show_compare": false, "show_savings": false } }
   ]
 }
 {% endschema %}
