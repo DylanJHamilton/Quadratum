@@ -1,16 +1,19 @@
 {% comment %}
-  Quadratum — CTA: Featured Product (v2)
+  Quadratum — CTA: Featured Product
   • Frictionless “buy / learn” CTA spotlighting a single SKU
-  • Variants: compact-card | wide-split | minimal | slideshow
-  • A11y: aria-live stock/price, focus traps on slideshow
-  • Perf: lazy media, minimal JS (<2KB), CLS-safe
+  • Variants: compact-card, wide-split, spotlight-minimal
+  • A11y: keyboard options, aria-live price/stock
+  • Perf: lazy media, scoped JS (<2KB), CLS-safe
 {% endcomment %}
 
 {{ 'call-to-action-featured-product.css' | asset_url | stylesheet_tag }}
 {%- assign s = section.settings -%}
 
 {%- comment -%}
-  Product resolution logic
+  Dev/Prod product resolution (supports three sources in order):
+  1) Product picker (editor/runtime passes object)
+  2) JSON string "shopify://products/<handle>" or bare "<handle>"
+  3) Dev handle fallback text input (all_products[handle])
 {%- endcomment -%}
 {%- assign product = nil -%}
 {%- if s.product != blank -%}
@@ -18,6 +21,7 @@
     {%- assign _handle = s.product | replace: 'shopify://products/', '' -%}
     {%- assign product = all_products[_handle] -%}
   {%- else -%}
+    {%- comment -%} If Theme Editor passed a ProductDrop, s.product will behave like an object; Liquid will stringify to handle here {%- endcomment -%}
     {%- assign product = all_products[s.product] | default: s.product -%}
   {%- endif -%}
 {%- endif -%}
@@ -26,109 +30,268 @@
 {%- endif -%}
 
 {%- comment %} Theme tokens {% endcomment -%}
-{%- assign C_primary = settings.color_primary | default: '#2563eb' -%}
-{%- assign C_text = settings.text_base | default: '#111111' -%}
-{%- assign C_muted = settings.text_muted | default: '#6b7280' -%}
-{%- assign C_surface = settings.bg_contrast | default: '#f6f7f8' -%}
-{%- assign C_on_color = settings.text_on_color | default: '#ffffff' -%}
-{%- assign R_btn = settings.button_radius | default: 8 -%}
+{%- assign T_btn_radius = settings.button_radius | default: 12 -%}
+{%- assign T_btn_bw     = settings.button_border_width | default: 1 -%}
+{%- assign C_primary    = settings.color_primary | default: '#2563eb' -%}
+{%- assign C_text       = settings.text_base | default: '#111111' -%}
+{%- assign C_muted      = settings.text_muted | default: '#6b7280' -%}
+{%- assign C_surface    = settings.bg_contrast | default: '#f6f7f8' -%}
+{%- assign C_on_color   = settings.text_on_color | default: '#ffffff' -%}
+
+{%- assign surface_class = '' -%}
+{%- if s.surface_style == 'elevated' -%}{%- assign surface_class = 'is-elevated' -%}{%- endif -%}
+{%- if s.surface_style == 'outlined' -%}{%- assign surface_class = 'is-outlined' -%}{%- endif -%}
 
 {%- assign layout_class = 'is-compact' -%}
 {%- if s.layout == 'split' -%}{%- assign layout_class = 'is-split' -%}{%- endif -%}
 {%- if s.layout == 'minimal' -%}{%- assign layout_class = 'is-minimal' -%}{%- endif -%}
-{%- if s.layout == 'slideshow' -%}{%- assign layout_class = 'is-slideshow' -%}{%- endif -%}
+
+{%- assign align_class = 'align-start' -%}
+{%- if s.align == 'center' -%}{%- assign align_class = 'align-center' -%}{%- endif -%}
 
 <section
   id="{{ s.anchor_id | default: section.id }}"
-  class="q-section cta-featured-product {{ layout_class }}{% if s.full_bleed %} is-fullbleed{% endif %}"
+  class="q-section cta-featured-product {{ layout_class }} {{ surface_class }} {{ align_class }}"
   role="region"
   aria-label="{{ s.aria_label | default: 'Featured product call to action' }}"
   data-section-id="{{ section.id }}"
+  data-sticky-enabled="{{ s.sticky_mobile_cta }}"
+  data-primary-mode="{{ s.primary_cta_type }}"
+  data-variant-style="{{ s.variant_style }}"
+  data-show-price="{{ s.show_price }}"
+  data-show-compare="{{ s.show_compare }}"
+  data-show-savings="{{ s.show_savings }}"
+  data-page-handle="{{ request.page_handle | default: request.path }}"
   style="
-    --q-btn-br: {{ R_btn }}px;
-    --q-btn-bg: {{ C_primary }};
-    --q-btn-fg: {{ C_on_color }};
-    --q-text: {{ C_text }};
-    --q-muted: {{ C_muted }};
+    --q-pad-top: {{ s.pad_top | default: settings.section_padding_top | default: 48 | divided_by: 100.0 }}rem;
+    --q-pad-bot: {{ s.pad_bottom | default: settings.section_padding_bottom | default: 48 | divided_by: 100.0 }}rem;
+    --q-card-br: {{ s.card_radius | default: 16 }}px;
+    --q-btn-br:  {{ T_btn_radius }}px;
+    --q-btn-bw:  {{ T_btn_bw }}px;
+    --q-btn-bg:  {{ C_primary }};
+    --q-btn-fg:  {{ C_on_color }};
+    --q-text:    {{ C_text }};
+    --q-muted:   {{ C_muted }};
     --q-surface: {{ C_surface }};
-    --q-media-ratio: {{ s.media_ratio | default: 0.67 }};
-    padding-top: {{ s.pad_top | divided_by: 100.0 }}rem;
-    padding-bottom: {{ s.pad_bottom | divided_by: 100.0 }}rem;
   "
 >
-  <div class="{% unless s.full_bleed %}container{% endunless %}">
+  <div class="container">
+    {%- comment -%} Optional debug helper: append ?debug=1 to URL {%- endcomment -%}
+    {%- if request.params.debug == '1' -%}
+      <pre style="background:#0b0b0b;color:#a8ff60;padding:10px;font:12px/1.4 ui-monospace,Menlo,monospace;border-radius:6px;overflow:auto">
+Raw s.product: {{ s.product | json }}
+Dev handle: {{ s.dev_product_handle | json }}
+Resolved: {{ product.title | default: 'none' | json }}
+      </pre>
+    {%- endif -%}
+
     {%- if product == blank -%}
       <div class="q-admin-empty card">
         <h3 class="q-heading">Select a product to feature</h3>
         <p class="q-sub">This CTA highlights a single product with live price, variants, and purchase actions.</p>
       </div>
     {%- else -%}
-      {%- assign v = product.selected_or_first_available_variant -%}
-      {%- assign _primary_label = s.primary_label | default: 'Shop Now' -%}
-      <div class="q-wrap {{ layout_class }}">
+      {%- assign firstv = product.selected_or_first_available_variant -%}
+
+      {%- assign _primary_label = s.primary_label -%}
+      {%- if _primary_label == blank -%}
+        {%- if s.primary_cta_type == 'buy' -%}{%- assign _primary_label = 'Buy now' -%}
+        {%- elsif s.primary_cta_type == 'view' -%}{%- assign _primary_label = 'View product' -%}
+        {%- else -%}{%- assign _primary_label = 'Add to cart' -%}{%- endif -%}
+      {%- endif -%}
+
+      {%- assign media = s.custom_media | default: product.featured_media -%}
+      <div class="q-wrap card {{ layout_class }}">
         {%- unless layout_class == 'is-minimal' -%}
-          <div class="q-media">
-            {%- if s.layout == 'slideshow' and product.media.size > 1 -%}
-              <div class="swiper" data-cta-slider>
-                <div class="swiper-wrapper">
-                  {%- for m in product.media -%}
-                    <div class="swiper-slide">
-                      {{ m | image_url: width: 1600 | image_tag: loading: 'lazy', class: 'q-img', alt: m.alt | default: product.title }}
-                    </div>
-                  {%- endfor -%}
-                </div>
-                <div class="swiper-pagination"></div>
-                <div class="swiper-button-prev"></div>
-                <div class="swiper-button-next"></div>
-              </div>
-            {%- else -%}
-              {%- assign media = s.custom_media | default: product.featured_media -%}
-              {%- if media and media.preview_image != blank -%}
-                {{ media.preview_image | image_url: width: 1600 | image_tag: loading: 'lazy', class: 'q-img', alt: media.alt | default: product.title }}
-              {%- elsif product.featured_image -%}
-                {{ product.featured_image | image_url: width: 1600 | image_tag: loading: 'lazy', class: 'q-img', alt: product.title }}
-              {%- endif -%}
-            {%- endif -%}
-          </div>
+        <div class="q-media">
+          {%- if media and media.preview_image != blank -%}
+            {{ media.preview_image
+              | image_url: width: 1600
+              | image_tag:
+                loading: 'lazy',
+                decoding: 'async',
+                widths: '640,960,1280,1600,1920',
+                sizes: '(min-width: 1024px) 48vw, 100vw',
+                class: 'q-img',
+                alt: media.alt | default: product.title | escape }}
+          {%- elsif product.featured_image -%}
+            {{ product.featured_image
+              | image_url: width: 1600
+              | image_tag:
+                loading: 'lazy',
+                decoding: 'async',
+                widths: '640,960,1280,1600,1920',
+                sizes: '(min-width: 1024px) 48vw, 100vw',
+                class: 'q-img',
+                alt: product.title | escape }}
+          {%- else -%}
+            <div class="q-media-ph" aria-hidden="true"></div>
+          {%- endif -%}
+        </div>
         {%- endunless -%}
 
         <div class="q-content">
           {%- if s.eyebrow != blank -%}<p class="q-eyebrow">{{ s.eyebrow }}</p>{%- endif -%}
-          <h2 class="q-heading">{{ s.headline | default: product.title }}</h2>
-          {%- if s.subheading != blank -%}<p class="q-sub">{{ s.subheading }}</p>{%- endif -%}
 
-          <div class="q-price" aria-live="polite">
-            {%- if s.show_price -%}<span class="q-price-now">{{ v.price | money }}</span>{%- endif -%}
-            {%- if s.show_compare and v.compare_at_price > v.price -%}
-              <span class="q-price-compare">{{ v.compare_at_price | money }}</span>
+          {%- if s.headline != blank -%}
+            <h2 class="q-heading">{{ s.headline }}</h2>
+          {%- else -%}
+            <h2 class="q-heading">{{ product.title | escape }}</h2>
+          {%- endif -%}
+
+          {%- if s.subheading != blank -%}
+            <p class="q-sub">{{ s.subheading | newline_to_br }}</p>
+          {%- endif -%}
+
+          {%- if s.social_proof -%}
+            <div class="q-rating" aria-label="Product rating placeholder">
+              <span class="q-stars" aria-hidden="true">★★★★★</span>
+              <a class="q-reviews-link" href="{{ product.url }}#reviews" data-hook="rating-count"><span class="q-count">0</span> reviews</a>
+            </div>
+          {%- endif -%}
+
+          <div class="q-price" data-price-area aria-live="polite">
+            {%- if s.show_price -%}
+              <span class="q-price-now" data-price>{{ firstv.price | money }}</span>
             {%- endif -%}
+            {%- if s.show_compare and firstv.compare_at_price > firstv.price -%}
+              <span class="q-price-compare" data-compare>{{ firstv.compare_at_price | money }}</span>
+            {%- endif -%}
+            {%- if s.show_savings and firstv.compare_at_price > firstv.price -%}
+              {%- assign save_amt = firstv.compare_at_price | minus: firstv.price -%}
+              {%- assign save_pct = save_amt | times: 100 | divided_by: firstv.compare_at_price | round -%}
+              <span class="q-price-save" data-savings>Save {{ save_amt | money }} ({{ save_pct }}%)</span>
+            {%- endif -%}
+            <span class="q-stock" data-stock data-available="{{ firstv.available }}">
+              {% if firstv.available %}In stock{% else %}Sold out{% endif %}
+            </span>
           </div>
 
-          {%- form 'product', product, id: 'form-' | append: section.id, class: 'q-form' -%}
-            <input type="hidden" name="id" value="{{ v.id }}">
+          {%- assign _form_id = 'q-cta-form-' | append: section.id -%}
+          {%- form 'product', product, id: _form_id, class: 'q-form', novalidate: 'novalidate' -%}
+            <input type="hidden" name="id" value="{{ firstv.id }}" data-variant-input>
+
+            {%- if s.show_vendor or s.show_sku -%}
+              <div class="q-meta">
+                {%- if s.show_vendor and product.vendor != blank -%}<span class="q-vendor">{{ product.vendor }}</span>{%- endif -%}
+                {%- if s.show_sku and firstv.sku != blank -%}<span class="q-sku" data-sku>{{ firstv.sku }}</span>{%- endif -%}
+              </div>
+            {%- endif -%}
+
+            {%- if product.has_only_default_variant == false -%}
+              <div class="q-options" data-options>
+                {%- for option in product.options_with_values -%}
+                  <fieldset class="q-option" data-option-index="{{ forloop.index0 }}">
+                    <legend class="q-option-label">{{ option.name }}</legend>
+                    {%- case s.variant_style -%}
+                      {%- when 'buttons' -%}
+                        <div class="q-opt-buttons" role="radiogroup" aria-label="{{ option.name }}">
+                          {%- for val in option.values -%}
+                            <label class="q-opt-btn" data-opt-btn>
+                              <input
+                                type="radio"
+                                name="options[{{ option.name | escape }}]"
+                                value="{{ val | escape }}"
+                                {% if option.selected_value == val %}checked{% endif %}
+                                aria-checked="{% if option.selected_value == val %}true{% else %}false{% endif %}" />
+                              <span>{{ val }}</span>
+                            </label>
+                          {%- endfor -%}
+                        </div>
+                      {%- when 'swatches' -%}
+                        <div class="q-opt-swatches" role="radiogroup" aria-label="{{ option.name }}">
+                          {%- for val in option.values -%}
+                            <label class="q-swatch" data-opt-btn>
+                              <input
+                                type="radio"
+                                name="options[{{ option.name | escape }}]"
+                                value="{{ val | escape }}"
+                                {% if option.selected_value == val %}checked{% endif %}
+                                aria-checked="{% if option.selected_value == val %}true{% else %}false{% endif %}" />
+                              <span class="q-swatch-chip" aria-hidden="true"></span>
+                              <span class="q-swatch-label">{{ val }}</span>
+                            </label>
+                          {%- endfor -%}
+                        </div>
+                      {%- else -%}
+                        <div class="q-opt-select">
+                          <label class="sr-only" for="opt-{{ section.id }}-{{ forloop.index0 }}">{{ option.name }}</label>
+                          <select id="opt-{{ section.id }}-{{ forloop.index0 }}" name="options[{{ option.name | escape }}]">
+                            {%- for val in option.values -%}
+                              <option value="{{ val | escape }}"{% if option.selected_value == val %} selected{% endif %}>{{ val }}</option>
+                            {%- endfor -%}
+                          </select>
+                        </div>
+                    {%- endcase -%}
+                  </fieldset>
+                {%- endfor -%}
+              </div>
+            {%- endif -%}
+
+            {%- if s.show_qty -%}
+              <div class="q-qty">
+                <label for="qty-{{ section.id }}" class="sr-only">{{ 'products.product.quantity' | t }}</label>
+                <input id="qty-{{ section.id }}" class="q-input" min="1" step="1" type="number" name="quantity" value="1" inputmode="numeric" />
+              </div>
+            {%- endif -%}
+
             <div class="q-ctas">
-              {%- if s.primary_cta_type == 'view' -%}
-                <a class="btn q-btn q-btn--solid" href="{{ product.url }}">{{ _primary_label }}</a>
-              {%- else -%}
-                <button class="btn q-btn q-btn--solid" type="submit" name="{% if s.primary_cta_type == 'buy' %}checkout{% else %}add{% endif %}">
-                  {{ _primary_label }}
-                </button>
-              {%- endif -%}
-              {%- if s.secondary_label and s.secondary_url -%}
-                <a class="btn q-btn q-btn--ghost" href="{{ s.secondary_url }}">{{ s.secondary_label }}</a>
+              {%- case s.primary_cta_type -%}
+                {%- when 'view' -%}
+                  <a class="btn q-btn q-btn--solid" href="{{ product.url }}">{{ _primary_label }}</a>
+                {%- else -%}
+                  <button class="btn q-btn q-btn--solid"
+                          type="submit"
+                          name="{% if s.primary_cta_type == 'buy' %}checkout{% else %}add{% endif %}"
+                          data-primary-cta
+                          data-available="{{ firstv.available }}">
+                    {{ _primary_label }}
+                  </button>
+              {%- endcase -%}
+
+              {%- if s.secondary_label != blank and s.secondary_url != blank -%}
+                <a class="btn q-btn q-btn--ghost" href="{{ s.secondary_url }}" data-secondary-cta>{{ s.secondary_label }}</a>
               {%- endif -%}
             </div>
+
+            {%- if s.microcopy != blank -%}<p class="q-microcopy">{{ s.microcopy }}</p>{%- endif -%}
+
+            {%- if section.blocks.size > 0 -%}
+              <ul class="q-usps" role="list">
+                {%- for block in section.blocks -%}
+                  {%- if forloop.index0 < 5 -%}
+                    <li class="q-usp" {{ block.shopify_attributes }}>
+                      {%- if block.settings.icon != blank -%}<span class="q-usp-icon" aria-hidden="true">{{ block.settings.icon }}</span>{%- endif -%}
+                      <span class="q-usp-text">{{ block.settings.text }}</span>
+                    </li>
+                  {%- endif -%}
+                {%- endfor -%}
+              </ul>
+            {%- endif -%}
+
+            {%- if s.trust_badges != blank -%}
+              <div class="q-trust" aria-label="Trust badges">{{ s.trust_badges }}</div>
+            {%- endif -%}
           {%- endform -%}
 
-          {%- if s.microcopy != blank -%}<p class="q-microcopy">{{ s.microcopy }}</p>{%- endif -%}
+          <div class="sr-only" aria-live="polite" data-live></div>
         </div>
       </div>
 
-      {%- if s.sticky_mobile_cta and request.design_mode == false -%}
-        <div class="q-sticky" data-sticky>
+      {%- if s.sticky_mobile_cta -%}
+        <div class="q-sticky" data-sticky hidden>
           <div class="q-sticky-inner">
-            <div class="q-sticky-price">{{ v.price | money }}</div>
-            <button class="btn q-btn q-btn--solid" form="form-{{ section.id }}" type="submit">{{ _primary_label }}</button>
+            <div class="q-sticky-price" data-sticky-price>{{ firstv.price | money }}</div>
+            {%- if s.primary_cta_type == 'view' -%}
+              <a class="btn q-btn q-btn--solid" href="{{ product.url }}">{{ _primary_label }}</a>
+            {%- else -%}
+              <button class="btn q-btn q-btn--solid"
+                      type="submit"
+                      form="q-cta-form-{{ section.id }}"
+                      name="{% if s.primary_cta_type == 'buy' %}checkout{% else %}add{% endif %}"
+                      data-sticky-button
+                      disabled>{{ _primary_label }}</button>
+            {%- endif -%}
           </div>
         </div>
       {%- endif -%}
@@ -142,51 +305,109 @@
 {% schema %}
 {
   "name": "CTA — Featured Product",
+  "tag": "section",
+  "class": "cta-featured-product",
   "settings": [
-    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Featured product" },
-    { "type": "product", "id": "product", "label": "Product" },
-    { "type": "text", "id": "dev_product_handle", "label": "DEV ONLY: Product handle" },
+    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Featured product call to action" },
+
+    { "type": "header", "content": "Product (prod & dev)" },
+    { "type": "product", "id": "product", "label": "Product", "info": "Choose the product in Theme Editor, or pass \"shopify://products/<handle>\" / \"<handle>\" via JSON." },
+    { "type": "text", "id": "dev_product_handle", "label": "DEV ONLY: Product handle (fallback)", "info": "Used only when Product is empty. Example: cotton-tee" },
 
     { "type": "header", "content": "Layout" },
-    { "type": "select", "id": "layout", "label": "Layout style", "default": "split", "options": [
-      { "value": "compact", "label": "Compact" },
-      { "value": "split", "label": "Split wide" },
-      { "value": "minimal", "label": "Minimal (no image)" },
-      { "value": "slideshow", "label": "Slideshow (product media)" }
+    { "type": "select", "id": "layout", "label": "Layout", "default": "compact", "options": [
+      { "value": "compact", "label": "Compact card" },
+      { "value": "split", "label": "Wide split" },
+      { "value": "minimal", "label": "Spotlight minimal (no image)" }
     ]},
-    { "type": "checkbox", "id": "full_bleed", "label": "Full-bleed section", "default": false },
-    { "type": "range", "id": "media_ratio", "label": "Image ratio (height / width)", "min": 0.4, "max": 1.4, "step": 0.1, "default": 0.7 },
+    { "type": "select", "id": "align", "label": "Alignment", "default": "start", "options": [
+      { "value": "start", "label": "Start" },
+      { "value": "center", "label": "Center" }
+    ]},
+    { "type": "select", "id": "surface_style", "label": "Surface style", "default": "default", "options": [
+      { "value": "default", "label": "Default" },
+      { "value": "elevated", "label": "Elevated (shadow)" },
+      { "value": "outlined", "label": "Outlined" }
+    ]},
+    { "type": "image_picker", "id": "custom_media", "label": "Custom image/video (overrides product image)" },
 
     { "type": "header", "content": "Content" },
-    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Editor's Pick" },
-    { "type": "text", "id": "headline", "label": "Headline", "default": "Sleep better tonight" },
-    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Clinically proven cooling foam keeps you comfortable." },
-    { "type": "text", "id": "microcopy", "label": "Microcopy", "default": "Free 30-day returns. Fast shipping." },
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Editor’s pick" },
+    { "type": "text", "id": "headline", "label": "Headline (≤ 8 words)", "default": "Sleep better tonight" },
+    { "type": "textarea", "id": "subheading", "label": "Subheading (1–2 sentences)", "default": "Clinically proven cooling foam keeps you comfortable." },
+    { "type": "checkbox", "id": "social_proof", "label": "Show rating placeholder", "default": true },
+    { "type": "richtext", "id": "trust_badges", "label": "Trust badges row (icons/text)" },
+    { "type": "text", "id": "microcopy", "label": "Microcopy / shipping line", "default": "Free 30-day returns. Fast shipping." },
 
-    { "type": "header", "content": "Pricing" },
+    { "type": "header", "content": "Pricing visibility" },
     { "type": "checkbox", "id": "show_price", "label": "Show price", "default": true },
-    { "type": "checkbox", "id": "show_compare", "label": "Show compare price", "default": true },
+    { "type": "checkbox", "id": "show_compare", "label": "Show compare-at price", "default": true },
+    { "type": "checkbox", "id": "show_savings", "label": "Show savings badge", "default": true },
 
-    { "type": "header", "content": "Actions" },
-    { "type": "select", "id": "primary_cta_type", "label": "Primary action", "default": "add", "options": [
+    { "type": "header", "content": "Variants & quantity" },
+    { "type": "select", "id": "variant_style", "label": "Variant control style", "default": "dropdowns", "options": [
+      { "value": "dropdowns", "label": "Dropdowns" },
+      { "value": "buttons",  "label": "Buttons" },
+      { "value": "swatches", "label": "Swatches" }
+    ]},
+    { "type": "checkbox", "id": "show_qty", "label": "Show quantity field", "default": false },
+    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": false },
+    { "type": "checkbox", "id": "show_sku", "label": "Show SKU", "default": false },
+
+    { "type": "header", "content": "Primary action" },
+    { "type": "select", "id": "primary_cta_type", "label": "Primary CTA", "default": "add", "options": [
       { "value": "add", "label": "Add to cart" },
       { "value": "buy", "label": "Buy now" },
       { "value": "view", "label": "View product" }
     ]},
-    { "type": "text", "id": "primary_label", "label": "Primary label", "default": "Shop Now" },
-    { "type": "text", "id": "secondary_label", "label": "Secondary label" },
-    { "type": "url", "id": "secondary_url", "label": "Secondary link" },
+    { "type": "text", "id": "primary_label", "label": "Primary label (optional override)" },
+    { "type": "text", "id": "secondary_label", "label": "Secondary CTA label", "default": "Learn more" },
+    { "type": "url",  "id": "secondary_url", "label": "Secondary CTA link" },
 
-    { "type": "header", "content": "Mobile Sticky CTA" },
-    { "type": "checkbox", "id": "sticky_mobile_cta", "label": "Enable sticky CTA", "default": true },
+    { "type": "header", "content": "Sticky CTA (mobile)" },
+    { "type": "checkbox", "id": "sticky_mobile_cta", "label": "Enable sticky CTA bar on mobile", "default": true },
 
-    { "type": "header", "content": "Spacing" },
-    { "type": "range", "id": "pad_top", "label": "Padding top (×100rem)", "min": 0, "max": 96, "step": 2, "default": 32 },
-    { "type": "range", "id": "pad_bottom", "label": "Padding bottom (×100rem)", "min": 0, "max": 96, "step": 2, "default": 32 },
+    { "type": "header", "content": "Spacing & radius" },
+    { "type": "range", "id": "pad_top", "label": "Padding top (rem ×100)", "min": 0, "max": 96, "step": 2, "default": 32 },
+    { "type": "range", "id": "pad_bottom", "label": "Padding bottom (rem ×100)", "min": 0, "max": 96, "step": 2, "default": 32 },
+    { "type": "range", "id": "card_radius", "label": "Card radius (px)", "min": 0, "max": 40, "step": 1, "default": 16 },
+
+    { "type": "header", "content": "Anchor" },
     { "type": "text", "id": "anchor_id", "label": "Anchor ID" }
   ],
+  "blocks": [
+    {
+      "type": "usp",
+      "name": "USP / Benefit",
+      "limit": 5,
+      "settings": [
+        { "type": "text", "id": "icon", "label": "Icon (emoji or SVG snippet)", "default": "🚚" },
+        { "type": "text", "id": "text", "label": "Benefit text", "default": "Fast, free shipping" }
+      ]
+    }
+  ],
+  "max_blocks": 5,
   "presets": [
-    { "name": "Featured Product (Slideshow)", "category": "Call to Action", "settings": { "layout": "slideshow" } }
+    {
+      "name": "Featured Product — Compact",
+      "category": "Call To Action",
+      "settings": { "layout": "compact", "social_proof": true },
+      "blocks": [
+        { "type": "usp", "settings": { "icon": "✅", "text": "30-day returns" } },
+        { "type": "usp", "settings": { "icon": "⚡", "text": "Ships in 24h" } },
+        { "type": "usp", "settings": { "icon": "🔒", "text": "Secure checkout" } }
+      ]
+    },
+    {
+      "name": "Featured Product — Split",
+      "category": "Call To Action",
+      "settings": { "layout": "split", "social_proof": true }
+    },
+    {
+      "name": "Featured Product — Minimal",
+      "category": "Call To Action",
+      "settings": { "layout": "minimal", "social_proof": false, "show_compare": false, "show_savings": false }
+    }
   ]
 }
 {% endschema %}
