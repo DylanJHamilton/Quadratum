@@ -1,30 +1,31 @@
 {% comment %}
-  Quadratum — CTA: Featured Product
-  • Frictionless “buy / learn” CTA spotlighting a single SKU
-  • Variants: compact-card, wide-split, spotlight-minimal
-  • A11y: keyboard options, aria-live price/stock
-  • Perf: lazy media, scoped JS (<2KB), CLS-safe
+  Quadratum — CTA: Featured Product (stable form fix)
+  - Resolves product strictly to a ProductDrop before using `{% form 'product', product %}`
+  - If resolution fails, shows admin empty state and never opens a form
 {% endcomment %}
 
 {{ 'call-to-action-featured-product.css' | asset_url | stylesheet_tag }}
+
 {%- assign s = section.settings -%}
 
 {%- comment -%}
-  Dev/Prod product resolution (supports three sources in order):
-  1) Product picker (editor/runtime passes object)
-  2) JSON string "shopify://products/<handle>" or bare "<handle>"
-  3) Dev handle fallback text input (all_products[handle])
+  Product resolution (always end up with a ProductDrop or blank)
+  Accepts:
+    • Theme editor product picker (stringified to something we can parse)
+    • "shopify://products/<handle>"
+    • Plain "<handle>"
+    • Dev fallback handle
 {%- endcomment -%}
-{%- assign product = nil -%}
-{%- if s.product != blank -%}
-  {%- if s.product contains 'shopify://products/' -%}
-    {%- assign _handle = s.product | replace: 'shopify://products/', '' -%}
-    {%- assign product = all_products[_handle] -%}
-  {%- else -%}
-    {%- comment -%} If Theme Editor passed a ProductDrop, s.product will behave like an object; Liquid will stringify to handle here {%- endcomment -%}
-    {%- assign product = all_products[s.product] | default: s.product -%}
-  {%- endif -%}
+{%- assign _raw = s.product | to_s -%}
+{%- assign _handle = '' -%}
+{%- if _raw contains 'shopify://products/' -%}
+  {%- assign _handle = _raw | replace: 'shopify://products/', '' -%}
+{%- elsif _raw contains '/' -%}
+  {%- assign _handle = _raw | split: '/' | last -%}
+{%- else -%}
+  {%- assign _handle = _raw -%}
 {%- endif -%}
+{%- assign product = all_products[_handle] -%}
 {%- if product == blank and s.dev_product_handle != blank -%}
   {%- assign product = all_products[s.dev_product_handle] -%}
 {%- endif -%}
@@ -76,15 +77,6 @@
   "
 >
   <div class="container">
-    {%- comment -%} Optional debug helper: append ?debug=1 to URL {%- endcomment -%}
-    {%- if request.params.debug == '1' -%}
-      <pre style="background:#0b0b0b;color:#a8ff60;padding:10px;font:12px/1.4 ui-monospace,Menlo,monospace;border-radius:6px;overflow:auto">
-Raw s.product: {{ s.product | json }}
-Dev handle: {{ s.dev_product_handle | json }}
-Resolved: {{ product.title | default: 'none' | json }}
-      </pre>
-    {%- endif -%}
-
     {%- if product == blank -%}
       <div class="q-admin-empty card">
         <h3 class="q-heading">Select a product to feature</h3>
@@ -92,7 +84,6 @@ Resolved: {{ product.title | default: 'none' | json }}
       </div>
     {%- else -%}
       {%- assign firstv = product.selected_or_first_available_variant -%}
-
       {%- assign _primary_label = s.primary_label -%}
       {%- if _primary_label == blank -%}
         {%- if s.primary_cta_type == 'buy' -%}{%- assign _primary_label = 'Buy now' -%}
@@ -103,31 +94,31 @@ Resolved: {{ product.title | default: 'none' | json }}
       {%- assign media = s.custom_media | default: product.featured_media -%}
       <div class="q-wrap card {{ layout_class }}">
         {%- unless layout_class == 'is-minimal' -%}
-        <div class="q-media">
-          {%- if media and media.preview_image != blank -%}
-            {{ media.preview_image
-              | image_url: width: 1600
-              | image_tag:
-                loading: 'lazy',
-                decoding: 'async',
-                widths: '640,960,1280,1600,1920',
-                sizes: '(min-width: 1024px) 48vw, 100vw',
-                class: 'q-img',
-                alt: media.alt | default: product.title | escape }}
-          {%- elsif product.featured_image -%}
-            {{ product.featured_image
-              | image_url: width: 1600
-              | image_tag:
-                loading: 'lazy',
-                decoding: 'async',
-                widths: '640,960,1280,1600,1920',
-                sizes: '(min-width: 1024px) 48vw, 100vw',
-                class: 'q-img',
-                alt: product.title | escape }}
-          {%- else -%}
-            <div class="q-media-ph" aria-hidden="true"></div>
-          {%- endif -%}
-        </div>
+          <div class="q-media">
+            {%- if media and media.preview_image != blank -%}
+              {{ media.preview_image
+                | image_url: width: 1600
+                | image_tag:
+                  loading: 'lazy',
+                  decoding: 'async',
+                  widths: '640,960,1280,1600,1920',
+                  sizes: '(min-width: 1024px) 48vw, 100vw',
+                  class: 'q-img',
+                  alt: media.alt | default: product.title | escape }}
+            {%- elsif product.featured_image -%}
+              {{ product.featured_image
+                | image_url: width: 1600
+                | image_tag:
+                  loading: 'lazy',
+                  decoding: 'async',
+                  widths: '640,960,1280,1600,1920',
+                  sizes: '(min-width: 1024px) 48vw, 100vw',
+                  class: 'q-img',
+                  alt: product.title | escape }}
+            {%- else -%}
+              <div class="q-media-ph" aria-hidden="true"></div>
+            {%- endif -%}
+          </div>
         {%- endunless -%}
 
         <div class="q-content">
@@ -255,23 +246,6 @@ Resolved: {{ product.title | default: 'none' | json }}
             </div>
 
             {%- if s.microcopy != blank -%}<p class="q-microcopy">{{ s.microcopy }}</p>{%- endif -%}
-
-            {%- if section.blocks.size > 0 -%}
-              <ul class="q-usps" role="list">
-                {%- for block in section.blocks -%}
-                  {%- if forloop.index0 < 5 -%}
-                    <li class="q-usp" {{ block.shopify_attributes }}>
-                      {%- if block.settings.icon != blank -%}<span class="q-usp-icon" aria-hidden="true">{{ block.settings.icon }}</span>{%- endif -%}
-                      <span class="q-usp-text">{{ block.settings.text }}</span>
-                    </li>
-                  {%- endif -%}
-                {%- endfor -%}
-              </ul>
-            {%- endif -%}
-
-            {%- if s.trust_badges != blank -%}
-              <div class="q-trust" aria-label="Trust badges">{{ s.trust_badges }}</div>
-            {%- endif -%}
           {%- endform -%}
 
           <div class="sr-only" aria-live="polite" data-live></div>
@@ -287,7 +261,7 @@ Resolved: {{ product.title | default: 'none' | json }}
             {%- else -%}
               <button class="btn q-btn q-btn--solid"
                       type="submit"
-                      form="q-cta-form-{{ section.id }}"
+                      form="{{ _form_id }}"
                       name="{% if s.primary_cta_type == 'buy' %}checkout{% else %}add{% endif %}"
                       data-sticky-button
                       disabled>{{ _primary_label }}</button>
@@ -308,10 +282,10 @@ Resolved: {{ product.title | default: 'none' | json }}
   "tag": "section",
   "class": "cta-featured-product",
   "settings": [
-    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Featured product call to action" },
+    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Featured product" },
 
     { "type": "header", "content": "Product (prod & dev)" },
-    { "type": "product", "id": "product", "label": "Product", "info": "Choose the product in Theme Editor, or pass \"shopify://products/<handle>\" / \"<handle>\" via JSON." },
+    { "type": "product", "id": "product", "label": "Product", "info": "Pick a product or pass \"shopify://products/<handle>\" / \"<handle>\" via JSON." },
     { "type": "text", "id": "dev_product_handle", "label": "DEV ONLY: Product handle (fallback)", "info": "Used only when Product is empty. Example: cotton-tee" },
 
     { "type": "header", "content": "Layout" },
@@ -375,38 +349,11 @@ Resolved: {{ product.title | default: 'none' | json }}
     { "type": "header", "content": "Anchor" },
     { "type": "text", "id": "anchor_id", "label": "Anchor ID" }
   ],
-  "blocks": [
-    {
-      "type": "usp",
-      "name": "USP / Benefit",
-      "limit": 5,
-      "settings": [
-        { "type": "text", "id": "icon", "label": "Icon (emoji or SVG snippet)", "default": "🚚" },
-        { "type": "text", "id": "text", "label": "Benefit text", "default": "Fast, free shipping" }
-      ]
-    }
-  ],
-  "max_blocks": 5,
   "presets": [
     {
       "name": "Featured Product — Compact",
       "category": "Call To Action",
-      "settings": { "layout": "compact", "social_proof": true },
-      "blocks": [
-        { "type": "usp", "settings": { "icon": "✅", "text": "30-day returns" } },
-        { "type": "usp", "settings": { "icon": "⚡", "text": "Ships in 24h" } },
-        { "type": "usp", "settings": { "icon": "🔒", "text": "Secure checkout" } }
-      ]
-    },
-    {
-      "name": "Featured Product — Split",
-      "category": "Call To Action",
-      "settings": { "layout": "split", "social_proof": true }
-    },
-    {
-      "name": "Featured Product — Minimal",
-      "category": "Call To Action",
-      "settings": { "layout": "minimal", "social_proof": false, "show_compare": false, "show_savings": false }
+      "settings": { "layout": "compact", "social_proof": true }
     }
   ]
 }
