@@ -1,7 +1,10 @@
 {% comment %}
-  Quadratum — CTA: Web3 (HOTFIX • self-contained CSS + background image)
-  • Adds optional background image on the root <section> (decorative), per Quadratum rulebook.
-  • Background media on root; content and overlays are siblings. Fully tokenized with safe fallbacks.
+  Quadratum — CTA: Web3
+  • Tokenized CTA card; optional background image on ROOT <section>
+  • Split layout only when media exists; accessible, keyboard-focusable CTAs
+  • Gradient surface, layered shadows, reveal on view, hover lift
+  • Icon support (limitless): inline SVG (block) → /assets/icons/<filename>.svg → text badge fallback
+  • FIX: Right-side illustration now requests only 320–800px responsive variants and fits 4:3 box
 {% endcomment %}
 
 {% liquid
@@ -45,7 +48,7 @@
   {% endif %}
 
   <div class="qw3-container">
-    <div class="qw3-card">
+    <div class="qw3-card{% if s.image != blank %} has-media{% endif %}">
       <div class="qw3-content {{ align_class }}">
         {% if s.eyebrow != blank %}<p class="qw3-eyebrow">{{ s.eyebrow }}</p>{% endif %}
         {% if s.headline != blank %}<h2 class="qw3-title">{{ s.headline }}</h2>{% endif %}
@@ -60,7 +63,14 @@
                     {% if block.settings.icon_svg != blank %}
                       {{ block.settings.icon_svg }}
                     {% else %}
-                      <span class="qw3-badge">{{ block.settings.alt_text | default: 'Wallet' }}</span>
+                      {% assign icon_key = block.settings.icon_slug | default: block.settings.alt_text | default: '' | downcase | strip | replace: ' ', '-' %}
+                      {% if icon_key != blank %}
+                        <img src="{{ 'icons/' | append: icon_key | append: '.svg' | asset_url }}"
+                             alt="{{ block.settings.alt_text | default: icon_key | replace: '-', ' ' | capitalize }}"
+                             width="32" height="32" loading="lazy" decoding="async">
+                      {% else %}
+                        <span class="qw3-badge">{{ block.settings.alt_text | default: 'Wallet' }}</span>
+                      {% endif %}
                     {% endif %}
                   </li>
                 {% endif %}
@@ -83,7 +93,6 @@
               <button class="btn btn-primary js-connect" type="button" aria-pressed="false">{{ primary_label }}</button>
             {% endif %}
           {% endif %}
-
           {% if s.secondary_label != blank and s.secondary_url != blank %}
             <a class="btn btn-secondary" href="{{ s.secondary_url }}">{{ s.secondary_label }}</a>
           {% endif %}
@@ -93,7 +102,16 @@
       <div class="qw3-media">
         {% if s.image != blank %}
           <div class="qw3-media-wrap">
-            {{ s.image | image_url: width: 1600 | image_tag: loading: 'lazy', alt: s.headline, sizes: "(min-width: 990px) 560px, 100vw", widths: "560,840,1120,1600" }}
+            {{ s.image
+              | image_url: width: 800, format: 'webp'
+              | image_tag:
+                loading: 'lazy',
+                fetchpriority: 'low',
+                alt: s.headline,
+                class: 'qw3-img',
+                sizes: "(min-width: 1200px) 520px, (min-width: 990px) 440px, 92vw",
+                widths: "320,360,420,480,560,640,720,800"
+            }}
           </div>
         {% endif %}
       </div>
@@ -101,124 +119,93 @@
   </div>
 
   <style>
-    /* Decorative background on root section (behind content) */
-    #cta-web3-{{ section.id }} .qw3-bg{
-      position:absolute; inset:0;
-      background-repeat:no-repeat; background-position:center; background-size:cover;
-      opacity: var(--qw3-bg-opacity, 0.12);
-      filter: var(--qw3-bg-filter, none);
-      pointer-events:none;
-      z-index:0;
-    }
+    /* Root decorative background (behind content) */
+    #cta-web3-{{ section.id }} .qw3-bg{ position:absolute; inset:0; background-repeat:no-repeat; background-position:center; background-size:cover; opacity: var(--qw3-bg-opacity, 0.12); filter: var(--qw3-bg-filter, none); pointer-events:none; z-index:0; }
     #cta-web3-{{ section.id }} .qw3-container{ position:relative; z-index:1; }
 
     /* Container lane */
-    #cta-web3-{{ section.id }} .qw3-container{
-      margin-inline:auto;
-      width:min(100%, var(--container-xl, 1200px));
-      padding-block: var(--space-xl, 4rem);
-      padding-inline: var(--space-lg, 1.5rem);
-    }
+    #cta-web3-{{ section.id }} .qw3-container{ margin-inline:auto; width:min(100%, var(--container-xl, 1200px)); padding-block: var(--space-xl, 4rem); padding-inline: var(--space-lg, 1.5rem); }
 
-    /* Card */
+    /* Card: grid, gradient, depth, reveal */
     #cta-web3-{{ section.id }} .qw3-card{
-      display:grid;
-      gap: var(--space-lg, 1.5rem);
-      grid-template-columns: 1fr;
-      align-items:center;
-      background: var(--surface, #fff);
-      border-radius: var(--radius-2xl, 24px);
-      box-shadow: var(--shadow-lg, 0 10px 30px rgba(0,0,0,.05));
-      padding: var(--space-2xl, 3rem);
+      display:grid; gap: var(--space-lg, 1.5rem); grid-template-columns: 1fr; align-items:center;
+      padding: var(--space-2xl, 3rem); border-radius: var(--radius-2xl, 24px);
+      background: linear-gradient(180deg, color-mix(in oklab, var(--surface, #fff) 85%, var(--surface-accent, #eef) 15%), var(--surface, #fff));
+      box-shadow: 0 8px 24px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04);
+      opacity: 0; transform: translateY(6%); will-change: opacity, transform;
     }
+    #cta-web3-{{ section.id }} .qw3-card:hover{ box-shadow: 0 16px 40px rgba(0,0,0,.12); }
+    @keyframes qw3-reveal{ from{opacity:0;transform:translateY(6%)} to{opacity:1;transform:translateY(0)} }
+    #cta-web3-{{ section.id }} .qw3-card.is-visible{ animation: qw3-reveal 360ms ease forwards; }
 
-    /* Content */
+    /* Content alignment */
     #cta-web3-{{ section.id }} .qw3-content.align-center{ text-align:center; }
     #cta-web3-{{ section.id }} .qw3-content.align-start{ text-align:start; }
 
-    #cta-web3-{{ section.id }} .qw3-eyebrow{
-      color: var(--text-secondary, #666);
-      letter-spacing: var(--tracking-wide, .02em);
-      margin: 0 0 var(--space-lg, 1.5rem) 0;
-      font-size: var(--type-sm, .875rem);
-    }
-    #cta-web3-{{ section.id }} .qw3-title{
-      color: var(--text-primary, #111);
-      font-family: var(--font-heading, inherit);
-      font-size: var(--type-3xl, 2rem);
-      line-height: var(--leading-tight, 1.2);
-      margin: 0 0 var(--space-lg, 1.5rem) 0;
-    }
-    #cta-web3-{{ section.id }} .qw3-sub{
-      color: var(--text-secondary, #555);
-      font-family: var(--font-body, inherit);
-      font-size: var(--type-base, 1rem);
-      line-height: var(--leading-relaxed, 1.7);
-      margin: 0 0 var(--space-lg, 1.5rem) 0;
-    }
+    /* Type scale */
+    #cta-web3-{{ section.id }} .qw3-eyebrow{ color: var(--text-secondary, #666); letter-spacing: var(--tracking-wide, .02em); margin: 0 0 var(--space-lg, 1.5rem) 0; font-size: var(--type-sm, .875rem); }
+    #cta-web3-{{ section.id }} .qw3-title{ color: var(--text-primary, #111); font-family: var(--font-heading, inherit); font-size: var(--type-3xl, 2rem); line-height: var(--leading-tight, 1.2); margin: 0 0 var(--space-lg, 1.5rem) 0; }
+    #cta-web3-{{ section.id }} .qw3-sub{ color: var(--text-secondary, #555); font-family: var(--font-body, inherit); font-size: var(--type-base, 1rem); line-height: var(--leading-relaxed, 1.7); margin: 0 0 var(--space-lg, 1.5rem) 0; }
 
-    /* Icons */
-    #cta-web3-{{ section.id }} .qw3-icons{
-      display:flex; flex-wrap:wrap; align-items:center;
-      gap: var(--space-lg, 1.5rem); margin:0 0 var(--space-lg, 1.5rem) 0; padding:0; list-style:none;
-    }
+    /* Icons + actions alignment (follows content alignment) */
+    #cta-web3-{{ section.id }} .qw3-icons, #cta-web3-{{ section.id }} .qw3-actions{ display:flex; flex-wrap:wrap; gap: var(--space-md, 1rem); }
+    #cta-web3-{{ section.id }} .qw3-content.align-center .qw3-icons, #cta-web3-{{ section.id }} .qw3-content.align-center .qw3-actions{ justify-content:center; }
+    #cta-web3-{{ section.id }} .qw3-content.align-start .qw3-icons, #cta-web3-{{ section.id }} .qw3-content.align-start .qw3-actions{ justify-content:flex-start; }
     #cta-web3-{{ section.id }} .qw3-icons li{ line-height:0; }
-    #cta-web3-{{ section.id }} .qw3-icons svg{
-      width: var(--size-8, 2rem); height: var(--size-8, 2rem);
-      color: var(--text-primary, #111);
-      display:inline-block;
-    }
-    #cta-web3-{{ section.id }} .qw3-badge{
-      display:inline-flex; align-items:center; justify-content:center;
-      padding-inline: var(--space-md, 1rem);
-      height: var(--control-lg, 2.75rem);
-      border-radius: var(--radius-sm, 10px);
-      background: var(--surface-muted, #f0f0f0);
-      color: var(--text-secondary, #555);
-      font: inherit;
-    }
-
-    /* Actions */
-    #cta-web3-{{ section.id }} .qw3-actions{ display:flex; gap: var(--space-lg, 1.5rem); flex-wrap:wrap; }
+    #cta-web3-{{ section.id }} .qw3-icons svg, #cta-web3-{{ section.id }} .qw3-icons img{ width: var(--size-8, 2rem); height: var(--size-8, 2rem); display:inline-block; }
+    #cta-web3-{{ section.id }} .qw3-badge{ display:inline-flex; align-items:center; justify-content:center; padding-inline: var(--space-md, 1rem); height: var(--control-lg, 2.75rem); border-radius: var(--radius-sm, 10px); background: var(--surface-muted, #f0f0f0); color: var(--text-secondary, #555); font: inherit; }
     #cta-web3-{{ section.id }} .btn.is-connected{ opacity:.7; pointer-events:none; }
 
-    /* Media */
+    /* Media column sizing + fit */
+    #cta-web3-{{ section.id }} .qw3-media{ max-width: clamp(280px, 42vw, 560px); justify-self: center; }
     #cta-web3-{{ section.id }} .qw3-media-wrap{
       aspect-ratio: 4/3;
       overflow: clip;
       border-radius: var(--radius-xl, 18px);
       box-shadow: var(--shadow-md, 0 6px 20px rgba(0,0,0,.06));
+      transition: transform 240ms ease, box-shadow 240ms ease;
     }
+    #cta-web3-{{ section.id }} .qw3-media-wrap:hover{ transform: translateY(-2px); box-shadow: var(--shadow-lg, 0 12px 34px rgba(0,0,0,.12)); }
+    #cta-web3-{{ section.id }} .qw3-img{ width: 100%; height: 100%; object-fit: cover; display: block; }
 
-    /* Split at desktop */
+    /* Split only when image exists */
     @media (min-width: 48rem){
-      #cta-web3-{{ section.id }} .qw3-card{ grid-template-columns: 1.1fr 0.9fr; }
+      #cta-web3-{{ section.id }} .qw3-card{ grid-template-columns: 1fr; }
+      #cta-web3-{{ section.id }} .qw3-card.has-media{ grid-template-columns: 1.1fr minmax(280px, 0.9fr); }
     }
 
-    /* Optional compact knobs (example) */
-    #cta-web3-{{ section.id }}{ --qw3-maxw: var(--container-md); --qw3-pad: var(--space-lg); }
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce){ #cta-web3-{{ section.id }} *{ animation:none !important; transition:none !important; } }
   </style>
 
-  {% if s.primary_url == blank and connected == false %}
   <script>
     (function(){
-      var root=document.getElementById('cta-web3-{{ section.id }}');
-      if(!root) return;
+      var root=document.getElementById('cta-web3-{{ section.id }}'); if(!root) return;
+
+      /* Demo connect toggle (only when no primary_url) */
+      {% if s.primary_url == blank and connected == false %}
       var btn=root.querySelector('.js-connect');
-      if(!btn) return;
-      btn.addEventListener('click',function(){
-        btn.classList.add('is-connected');
-        btn.setAttribute('aria-disabled','true');
-        btn.setAttribute('aria-pressed','true');
-        btn.textContent='Connected ✅';
-        root.style.transition='opacity 160ms ease';
-        root.style.opacity='0.98';
-        setTimeout(function(){root.style.opacity='';},200);
-        try{window.dispatchEvent(new CustomEvent('quadratum:cta-web3:connected',{detail:{sectionId:'{{ section.id }}'}}));}catch(e){}
-      },{passive:true});
+      if(btn){
+        btn.addEventListener('click',function(){
+          btn.classList.add('is-connected');
+          btn.setAttribute('aria-disabled','true');
+          btn.setAttribute('aria-pressed','true');
+          btn.textContent='Connected ✅';
+          root.style.transition='opacity 160ms ease'; root.style.opacity='0.98';
+          setTimeout(function(){root.style.opacity='';},200);
+          try{window.dispatchEvent(new CustomEvent('quadratum:cta-web3:connected',{detail:{sectionId:'{{ section.id }}'}}));}catch(e){}
+        },{passive:true});
+      }
+      {% endif %}
+
+      /* Reveal on view */
+      var card=root.querySelector('.qw3-card');
+      if(!card) return;
+      if(!('IntersectionObserver'in window)){ card.classList.add('is-visible'); return; }
+      var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ card.classList.add('is-visible'); io.disconnect(); } });},{threshold:.2});
+      io.observe(card);
     })();
   </script>
-  {% endif %}
 </section>
 
 {% schema %}
@@ -266,16 +253,79 @@
       "name": "Wallet icon",
       "limit": 6,
       "settings": [
-        { "type": "html", "id": "icon_svg", "label": "Icon SVG" },
+        { "type": "text", "id": "icon_slug", "label": "Icon filename from assets/icons/ (no .svg)", "info": "Example: arrow-up, lucide-wallet, chevron-right" },
+        { "type": "html", "id": "icon_svg", "label": "Custom inline SVG (overrides file)" },
         { "type": "text", "id": "alt_text", "label": "Alt text / name" }
       ]
     }
   ],
   "presets": [
-
-    { "name": "Connect Wallet" },
-    { "name": "Join the Network" },
-    { "name": "Build Onchain" }
+    {
+      "name": "CTA — Web3: Connect (Accent)",
+      "category": "Call to Action",
+      "settings": {
+        "eyebrow": "WEB3 ENABLED",
+        "headline": "Connect Your Wallet",
+        "subheading": "Verify your wallet to unlock on-chain rewards and gated drops.",
+        "primary_label": "Connect Wallet",
+        "primary_url": "",
+        "secondary_label": "How it works",
+        "secondary_url": "/pages/web3-onboarding",
+        "image": "shopify://shop_images/web3-illustration.png",
+        "bg_image": "shopify://shop_images/web3-bg-grid.png",
+        "show_icons": true,
+        "simulate_connected": false,
+        "background_style": "accent",
+        "alignment": "start"
+      },
+      "blocks": [
+        { "type": "wallet_icon", "settings": { "icon_slug": "metamask", "icon_svg": "", "alt_text": "MetaMask" } },
+        { "type": "wallet_icon", "settings": { "icon_slug": "walletconnect", "icon_svg": "", "alt_text": "WalletConnect" } },
+        { "type": "wallet_icon", "settings": { "icon_slug": "coinbase", "icon_svg": "", "alt_text": "Coinbase Wallet" } }
+      ]
+    },
+    {
+      "name": "CTA — Web3: Connected (Demo State)",
+      "category": "Call to Action",
+      "settings": {
+        "eyebrow": "CONNECTED",
+        "headline": "Wallet Connected",
+        "subheading": "You’re ready to mint, stake, and shop on-chain.",
+        "primary_label": "Connect Wallet",
+        "primary_url": "",
+        "secondary_label": "Manage wallet",
+        "secondary_url": "/account",
+        "image": "shopify://shop_images/web3-illustration-connected.png",
+        "bg_image": "",
+        "show_icons": true,
+        "simulate_connected": true,
+        "background_style": "accent",
+        "alignment": "center"
+      },
+      "blocks": [
+        { "type": "wallet_icon", "settings": { "icon_slug": "arrow-up", "icon_svg": "", "alt_text": "Verified" } }
+      ]
+    },
+    {
+      "name": "CTA — Web3: Learn (Default)",
+      "category": "Call to Action",
+      "settings": {
+        "eyebrow": "BUILD ONCHAIN",
+        "headline": "What is WalletConnect?",
+        "subheading": "Learn how WalletConnect powers secure, multi-chain wallet experiences.",
+        "primary_label": "Learn more",
+        "primary_url": "/pages/about-walletconnect",
+        "secondary_label": "Docs",
+        "secondary_url": "https://docs.walletconnect.com/",
+        "image": "",
+        "bg_image": "",
+        "show_icons": false,
+        "simulate_connected": false,
+        "background_style": "default",
+        "alignment": "start"
+      },
+      "blocks": []
+    }
   ]
 }
 {% endschema %}
