@@ -1,0 +1,686 @@
+{% comment %}
+  CTA — Current Sale (Unified Blocks, Shopify-safe)
+  - One section with 3 layouts (split/grid/strip)
+  - Same blocks (Text/Badge/Countdown/Image/Progress/Buttons/Spacer) usable in each layout via a "slot" select
+  - Grid also supports Promo Card blocks
+{% endcomment %}
+
+{{ 'call-to-action-current-sale.css' | asset_url | stylesheet_tag }}
+{{ 'call-to-action-current-sale.js'  | asset_url | script_tag }}
+
+{%- assign s = section.settings -%}
+
+{%- comment %} Theme tokens for discount pill colors {% endcomment -%}
+{%- assign C_sale_badge_bg = settings.badge_sale_bg   | default: '#dc2626' -%}
+{%- assign C_sale_badge_fg = settings.badge_sale_text | default: '#ffffff' -%}
+
+{%- comment %} Classes {% endcomment -%}
+{%- assign layout_choice = s.layout | default: 'split' -%}
+{%- assign surface_style = s.surface_style | default: 'default' -%}
+{%- assign align_choice  = s.alignment | default: 'start' -%}
+
+{%- assign surface_class = 'q-surface-default' -%}
+{%- if surface_style == 'elevated' -%}{%- assign surface_class = 'q-surface-elevated' -%}{%- endif -%}
+{%- if surface_style == 'outlined' -%}{%- assign surface_class = 'q-surface-outlined' -%}{%- endif -%}
+{%- if surface_style == 'accent'   -%}{%- assign surface_class = 'q-surface-accent'   -%}{%- endif -%}
+
+{%- assign align_class = 'q-align-start' -%}
+{%- if align_choice == 'center' -%}{%- assign align_class = 'q-align-center' -%}{%- endif -%}
+
+{%- comment %} Width & background (safe flags) {% endcomment -%}
+{%- assign container_class = 'container' -%}
+{%- if s.container_mode == 'full' -%}{%- assign container_class = 'container-full' -%}{%- endif -%}
+
+{%- assign has_bg = false -%}
+{%- if s.section_bg_image != blank -%}{%- assign has_bg = true -%}{%- endif -%}
+
+{%- comment %} Primary URL and auto-append ?discount= {% endcomment -%}
+{%- assign primary_url = s.sale_destination_url | default: '#' -%}
+{%- if s.auto_apply_discount and s.discount_code_badge != blank and primary_url != '#' -%}
+  {%- assign delimiter = '?' -%}
+  {%- if primary_url contains '?' -%}{%- assign delimiter = '&' -%}{%- endif -%}
+  {%- unless primary_url contains 'discount=' -%}
+    {%- assign primary_url = primary_url | append: delimiter | append: 'discount=' | append: s.discount_code_badge | replace: ' ', '' -%}
+  {%- endunless -%}
+{%- endif -%}
+
+<section
+  id="cta-sale-{{ section.id }}"
+  class="q-section q-cta-sale {{ surface_class }} {{ align_class }}{% if has_bg %} q-has-bg{% endif %}"
+  role="region"
+  aria-label="{{ s.headline | default: 'Sale promotion' | escape }}"
+  data-section-id="{{ section.id }}"
+  data-layout="{{ layout_choice }}"
+>
+  {%- if has_bg -%}
+    <div class="q-bg" aria-hidden="true">
+      {{ s.section_bg_image
+        | image_url: width: 2880
+        | image_tag:
+          widths: '960,1440,1920,2560,2880',
+          sizes: '100vw',
+          loading: 'lazy',
+          decoding: 'async',
+          class: 'q-bg-img',
+          alt: '' }}
+      <div class="q-bg-overlay" style="opacity: {{ s.section_bg_overlay | default: 0 | divided_by: 100.0 }};"></div>
+    </div>
+  {%- endif -%}
+
+  <div class="{{ container_class }}">
+
+    {%- comment %} ===== SPLIT LAYOUT ===== {% endcomment -%}
+    {%- if layout_choice == 'split' -%}
+      <div class="cta-sale-split card">
+        <div class="cta-sale-left">
+          {%- comment %} any blocks assigned to "left" {% endcomment -%}
+          {%- for block in section.blocks -%}
+            {%- if block.settings.slot == 'left' -%}
+              {%- assign b = block.settings -%}
+              {%- case block.type -%}
+                {%- when 'g_text' -%}
+                  <div class="g-text" {{ block.shopify_attributes }} style="text-align: {{ b.text_align | default: 'left' }};">
+                    {%- if b.eyebrow != blank -%}<p class="eyebrow">{{ b.eyebrow }}</p>{%- endif -%}
+                    {%- if b.headline != blank -%}<h2 class="headline">{{ b.headline }}</h2>{%- endif -%}
+                    {%- if s.discount_code_badge != blank and b.show_discount_code -%}
+                      <div class="discount-pill" style="--pill-bg: {{ C_sale_badge_bg }}; --pill-fg: {{ C_sale_badge_fg }};">Use code {{ s.discount_code_badge | escape }}</div>
+                    {%- endif -%}
+                    {%- if b.subheading != blank -%}<p class="subheading">{{ b.subheading }}</p>{%- endif -%}
+                  </div>
+
+                {%- when 'g_badge' -%}
+                  <div class="discount-pill{% if b.inline %} inline{% endif %}" {{ block.shopify_attributes }}
+                       style="--pill-bg: {{ b.bg | default: C_sale_badge_bg }}; --pill-fg: {{ b.fg | default: C_sale_badge_fg }};">
+                    {{ b.text | default: 'SALE' }}
+                  </div>
+
+                {%- when 'g_countdown' -%}
+                  <div class="countdown{% if b.variant == 'stacked' %} countdown--compact{% endif %}" {{ block.shopify_attributes }} aria-live="polite" data-cd-end="{{ b.end_datetime | escape }}">
+                    {%- if b.show_days -%}<span class="cd-item" data-cd-days>00</span>{% if b.show_labels %}<span class="cd-label">d</span>{% endif %}{%- endif -%}
+                    <span class="cd-item" data-cd-hours>00</span>{% if b.show_labels %}<span class="cd-label">h</span>{% endif %}
+                    <span class="cd-item" data-cd-minutes>00</span>{% if b.show_labels %}<span class="cd-label">m</span>{% endif %}
+                    <span class="cd-item" data-cd-seconds>00</span>{% if b.show_labels %}<span class="cd-label">s</span>{% endif %}
+                  </div>
+
+                {%- when 'g_image' -%}
+                  <div class="media-tile {{ b.ratio | default: 'ratio-1-1' }}{% if b.overlay %} has-overlay{% endif %}" {{ block.shopify_attributes }} style="--media-w: {{ b.width | default: 240 }}px;">
+                    {%- if b.image != blank -%}
+                      {{ b.image
+                        | image_url: width: 1200
+                        | image_tag:
+                          widths: '360,480,640,800,960,1200',
+                          sizes: 'min( var(--media-w,240px), 50vw )',
+                          loading: 'lazy',
+                          decoding: 'async',
+                          class: 'media-img',
+                          alt: b.alt | escape }}
+                      {%- if b.overlay -%}<div class="media-overlay"></div>{%- endif -%}
+                    {%- else -%}
+                      <div class="media-fallback" aria-hidden="true"></div>
+                    {%- endif -%}
+                  </div>
+
+                {%- when 'g_progress' -%}
+                  {%- assign aria_label = b.label -%}
+                  {%- if aria_label == blank -%}
+                    {%- if b.mode == 'stock' -%}
+                      {%- assign aria_label = '% stock remaining' -%}
+                    {%- else -%}
+                      {%- assign aria_label = '% claimed' -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                  <div class="progress-wrap" {{ block.shopify_attributes }}>
+                    <div class="progressbar{% if b.thin %} progressbar--thin{% endif %}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ b.value | default: 0 }}" aria-label="{{ aria_label }}">
+                      <div class="progressbar-fill" style="width: {{ b.value | default: 0 }}%;"></div>
+                    </div>
+                    {%- if b.show_value -%}<span class="progress-text">{{ b.value | default: 0 }}%</span>{%- endif -%}
+                  </div>
+
+                {%- when 'g_buttons' -%}
+                  <div class="cta-row" {{ block.shopify_attributes }}>
+                    {%- if b.primary_label != blank -%}<a href="{{ b.primary_url | default: primary_url }}" class="btn" data-cta="primary">{{ b.primary_label }}</a>{%- endif -%}
+                    {%- if b.secondary_label != blank and b.secondary_url != blank -%}<a href="{{ b.secondary_url }}" class="btn btn--secondary" data-cta="secondary">{{ b.secondary_label }}</a>{%- endif -%}
+                  </div>
+
+                {%- when 'g_spacer' -%}
+                  <div class="g-spacer" style="width: {{ b.width | default: 16 }}px; height: 1px;"></div>
+              {%- endcase -%}
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+
+        <div class="cta-sale-right">
+          {%- comment %} any blocks assigned to "right" {% endcomment -%}
+          {%- for block in section.blocks -%}
+            {%- if block.settings.slot == 'right' -%}
+              {%- assign b = block.settings -%}
+              {%- case block.type -%}
+                {%- when 'g_text' -%}
+                  <div class="g-text" {{ block.shopify_attributes }} style="text-align: {{ b.text_align | default: 'left' }};">
+                    {%- if b.eyebrow != blank -%}<p class="eyebrow">{{ b.eyebrow }}</p>{%- endif -%}
+                    {%- if b.headline != blank -%}<h2 class="headline">{{ b.headline }}</h2>{%- endif -%}
+                    {%- if s.discount_code_badge != blank and b.show_discount_code -%}
+                      <div class="discount-pill" style="--pill-bg: {{ C_sale_badge_bg }}; --pill-fg: {{ C_sale_badge_fg }};">Use code {{ s.discount_code_badge | escape }}</div>
+                    {%- endif -%}
+                    {%- if b.subheading != blank -%}<p class="subheading">{{ b.subheading }}</p>{%- endif -%}
+                  </div>
+
+                {%- when 'g_badge' -%}
+                  <div class="discount-pill{% if b.inline %} inline{% endif %}" {{ block.shopify_attributes }}
+                       style="--pill-bg: {{ b.bg | default: C_sale_badge_bg }}; --pill-fg: {{ b.fg | default: C_sale_badge_fg }};">
+                    {{ b.text | default: 'SALE' }}
+                  </div>
+
+                {%- when 'g_countdown' -%}
+                  <div class="countdown{% if b.variant == 'stacked' %} countdown--compact{% endif %}" {{ block.shopify_attributes }} aria-live="polite" data-cd-end="{{ b.end_datetime | escape }}">
+                    {%- if b.show_days -%}<span class="cd-item" data-cd-days>00</span>{% if b.show_labels %}<span class="cd-label">d</span>{% endif %}{%- endif -%}
+                    <span class="cd-item" data-cd-hours>00</span>{% if b.show_labels %}<span class="cd-label">h</span>{% endif %}
+                    <span class="cd-item" data-cd-minutes>00</span>{% if b.show_labels %}<span class="cd-label">m</span>{% endif %}
+                    <span class="cd-item" data-cd-seconds>00</span>{% if b.show_labels %}<span class="cd-label">s</span>{% endif %}
+                  </div>
+
+                {%- when 'g_image' -%}
+                  <div class="media-tile {{ b.ratio | default: 'ratio-1-1' }}{% if b.overlay %} has-overlay{% endif %}" {{ block.shopify_attributes }} style="--media-w: {{ b.width | default: 240 }}px;">
+                    {%- if b.image != blank -%}
+                      {{ b.image
+                        | image_url: width: 1200
+                        | image_tag:
+                          widths: '360,480,640,800,960,1200',
+                          sizes: 'min( var(--media-w,240px), 50vw )',
+                          loading: 'lazy',
+                          decoding: 'async',
+                          class: 'media-img',
+                          alt: b.alt | escape }}
+                      {%- if b.overlay -%}<div class="media-overlay"></div>{%- endif -%}
+                    {%- else -%}
+                      <div class="media-fallback" aria-hidden="true"></div>
+                    {%- endif -%}
+                  </div>
+
+                {%- when 'g_progress' -%}
+                  {%- assign aria_label = b.label -%}
+                  {%- if aria_label == blank -%}
+                    {%- if b.mode == 'stock' -%}
+                      {%- assign aria_label = '% stock remaining' -%}
+                    {%- else -%}
+                      {%- assign aria_label = '% claimed' -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                  <div class="progress-wrap" {{ block.shopify_attributes }}>
+                    <div class="progressbar{% if b.thin %} progressbar--thin{% endif %}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ b.value | default: 0 }}" aria-label="{{ aria_label }}">
+                      <div class="progressbar-fill" style="width: {{ b.value | default: 0 }}%;"></div>
+                    </div>
+                    {%- if b.show_value -%}<span class="progress-text">{{ b.value | default: 0 }}%</span>{%- endif -%}
+                  </div>
+
+                {%- when 'g_buttons' -%}
+                  <div class="cta-row" {{ block.shopify_attributes }}>
+                    {%- if b.primary_label != blank -%}<a href="{{ b.primary_url | default: primary_url }}" class="btn" data-cta="primary">{{ b.primary_label }}</a>{%- endif -%}
+                    {%- if b.secondary_label != blank and b.secondary_url != blank -%}<a href="{{ b.secondary_url }}" class="btn btn--secondary" data-cta="secondary">{{ b.secondary_label }}</a>{%- endif -%}
+                  </div>
+
+                {%- when 'g_spacer' -%}
+                  <div class="g-spacer" style="width: {{ b.width | default: 16 }}px; height: 1px;"></div>
+              {%- endcase -%}
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+      </div>
+
+    {%- comment %} ===== GRID LAYOUT ===== {% endcomment -%}
+    {%- elsif layout_choice == 'grid' -%}
+      <div class="cta-sale-grid">
+
+        {%- assign grid_head_present = false -%}
+        {%- for block in section.blocks -%}
+          {%- if block.settings.slot == 'grid_head' -%}{%- assign grid_head_present = true -%}{%- endif -%}
+        {%- endfor -%}
+
+        {%- if grid_head_present -%}
+          <div class="grid-head">
+            {%- for block in section.blocks -%}
+              {%- if block.settings.slot == 'grid_head' -%}
+                {%- assign b = block.settings -%}
+                {%- case block.type -%}
+                  {%- when 'g_text' -%}
+                    <div class="g-text" {{ block.shopify_attributes }} style="text-align: {{ b.text_align | default: 'left' }};">
+                      {%- if b.eyebrow != blank -%}<p class="eyebrow">{{ b.eyebrow }}</p>{%- endif -%}
+                      {%- if b.headline != blank -%}<h2 class="headline">{{ b.headline }}</h2>{%- endif -%}
+                      {%- if s.discount_code_badge != blank and b.show_discount_code -%}
+                        <div class="discount-pill" style="--pill-bg: {{ C_sale_badge_bg }}; --pill-fg: {{ C_sale_badge_fg }};">Use code {{ s.discount_code_badge | escape }}</div>
+                      {%- endif -%}
+                      {%- if b.subheading != blank -%}<p class="subheading">{{ b.subheading }}</p>{%- endif -%}
+                    </div>
+
+                  {%- when 'g_badge' -%}
+                    <div class="discount-pill{% if b.inline %} inline{% endif %}" {{ block.shopify_attributes }}
+                         style="--pill-bg: {{ b.bg | default: C_sale_badge_bg }}; --pill-fg: {{ b.fg | default: C_sale_badge_fg }};">
+                      {{ b.text | default: 'SALE' }}
+                    </div>
+
+                  {%- when 'g_countdown' -%}
+                    <div class="countdown{% if b.variant == 'stacked' %} countdown--compact{% endif %}" {{ block.shopify_attributes }} aria-live="polite" data-cd-end="{{ b.end_datetime | escape }}">
+                      {%- if b.show_days -%}<span class="cd-item" data-cd-days>00</span>{% if b.show_labels %}<span class="cd-label">d</span>{% endif %}{%- endif -%}
+                      <span class="cd-item" data-cd-hours>00</span>{% if b.show_labels %}<span class="cd-label">h</span>{% endif %}
+                      <span class="cd-item" data-cd-minutes>00</span>{% if b.show_labels %}<span class="cd-label">m</span>{% endif %}
+                      <span class="cd-item" data-cd-seconds>00</span>{% if b.show_labels %}<span class="cd-label">s</span>{% endif %}
+                    </div>
+
+                  {%- when 'g_image' -%}
+                    <div class="media-tile {{ b.ratio | default: 'ratio-1-1' }}{% if b.overlay %} has-overlay{% endif %}" {{ block.shopify_attributes }} style="--media-w: {{ b.width | default: 240 }}px;">
+                      {%- if b.image != blank -%}
+                        {{ b.image
+                          | image_url: width: 1200
+                          | image_tag:
+                            widths: '360,480,640,800,960,1200',
+                            sizes: 'min( var(--media-w,240px), 50vw )',
+                            loading: 'lazy',
+                            decoding: 'async',
+                            class: 'media-img',
+                            alt: b.alt | escape }}
+                        {%- if b.overlay -%}<div class="media-overlay"></div>{%- endif -%}
+                      {%- else -%}
+                        <div class="media-fallback" aria-hidden="true"></div>
+                      {%- endif -%}
+                    </div>
+
+                  {%- when 'g_progress' -%}
+                    {%- assign aria_label = b.label -%}
+                    {%- if aria_label == blank -%}
+                      {%- if b.mode == 'stock' -%}
+                        {%- assign aria_label = '% stock remaining' -%}
+                      {%- else -%}
+                        {%- assign aria_label = '% claimed' -%}
+                      {%- endif -%}
+                    {%- endif -%}
+                    <div class="progress-wrap" {{ block.shopify_attributes }}>
+                      <div class="progressbar{% if b.thin %} progressbar--thin{% endif %}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ b.value | default: 0 }}" aria-label="{{ aria_label }}">
+                        <div class="progressbar-fill" style="width: {{ b.value | default: 0 }}%;"></div>
+                      </div>
+                      {%- if b.show_value -%}<span class="progress-text">{{ b.value | default: 0 }}%</span>{%- endif -%}
+                    </div>
+
+                  {%- when 'g_buttons' -%}
+                    <div class="cta-row" {{ block.shopify_attributes }}>
+                      {%- if b.primary_label != blank -%}<a href="{{ b.primary_url | default: primary_url }}" class="btn" data-cta="primary">{{ b.primary_label }}</a>{%- endif -%}
+                      {%- if b.secondary_label != blank and b.secondary_url != blank -%}<a href="{{ b.secondary_url }}" class="btn btn--secondary" data-cta="secondary">{{ b.secondary_label }}</a>{%- endif -%}
+                    </div>
+
+                  {%- when 'g_spacer' -%}
+                    <div class="g-spacer" style="width: {{ b.width | default: 16 }}px; height: 1px;"></div>
+                {%- endcase -%}
+              {%- endif -%}
+            {%- endfor -%}
+          </div>
+        {%- endif -%}
+
+        <div class="grid-cards">
+          {%- for block in section.blocks -%}
+            {%- if block.type == 'promo_card' -%}
+              {%- assign b = block.settings -%}
+              <a href="{{ b.cta_url | default: '#' }}" class="card promo-card" {{ block.shopify_attributes }}>
+                <div class="promo-media {% if b.image == blank %}promo-media--empty{% endif %} ratio-4-3">
+                  {%- if b.image != blank -%}
+                    {{ b.image
+                      | image_url: width: 960
+                      | image_tag:
+                        widths: '480,640,800,960',
+                        sizes: '(max-width: 768px) 50vw, 25vw',
+                        loading: 'lazy',
+                        decoding: 'async',
+                        class: 'media-img',
+                        alt: b.title | default: 'Promotion' | escape }}
+                    <div class="media-overlay"></div>
+                  {%- else -%}
+                    <div class="media-fallback" aria-hidden="true"></div>
+                  {%- endif -%}
+                  {%- if b.percent_off != blank -%}
+                    <div class="percent-badge">{{ b.percent_off }}</div>
+                  {%- endif -%}
+                </div>
+                <div class="promo-content">
+                  <h3 class="promo-title">{{ b.title | default: 'Sale' }}</h3>
+                  {%- if b.subtitle != blank -%}<p class="promo-sub">{{ b.subtitle }}</p>{%- endif -%}
+                  <span class="btn btn--small">{{ b.cta_label | default: 'Shop' }}</span>
+                </div>
+              </a>
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+      </div>
+
+    {%- comment %} ===== STRIP LAYOUT ===== {% endcomment -%}
+    {%- else -%}
+      <div class="cta-sale-strip card">
+
+        <div class="strip-media-wrap">
+          {%- for block in section.blocks -%}
+            {%- if block.settings.slot == 'strip_left' -%}
+              {%- assign b = block.settings -%}
+              {%- case block.type -%}
+                {%- when 'g_image' -%}
+                  <div class="media-tile {{ b.ratio | default: 'ratio-1-1' }}{% if b.overlay %} has-overlay{% endif %}" {{ block.shopify_attributes }} style="--media-w: {{ b.width | default: 64 }}px;">
+                    {%- if b.image != blank -%}
+                      {{ b.image
+                        | image_url: width: 640
+                        | image_tag:
+                          widths: '160,240,320,480,640',
+                          sizes: 'min( var(--media-w,64px), 30vw )',
+                          loading: 'lazy',
+                          decoding: 'async',
+                          class: 'media-img',
+                          alt: b.alt | escape }}
+                      {%- if b.overlay -%}<div class="media-overlay"></div>{%- endif -%}
+                    {%- else -%}
+                      <div class="media-fallback" aria-hidden="true"></div>
+                    {%- endif -%}
+                  </div>
+                {%- else -%}
+                  {% comment %} left strip typically image only {% endcomment %}
+              {%- endcase -%}
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+
+        <div class="strip-content">
+          <div class="strip-copy">
+            {%- for block in section.blocks -%}
+              {%- if block.settings.slot == 'strip_center' -%}
+                {%- assign b = block.settings -%}
+                {%- case block.type -%}
+                  {%- when 'g_text' -%}
+                    <div class="g-text" {{ block.shopify_attributes }} style="text-align: {{ b.text_align | default: 'left' }};">
+                      {%- if b.eyebrow != blank -%}<span class="eyebrow">{{ b.eyebrow }}</span>{%- endif -%}
+                      {%- if b.headline != blank -%}<h2 class="headline">{{ b.headline }}</h2>{%- endif -%}
+                      {%- if s.discount_code_badge != blank and b.show_discount_code -%}
+                        <span class="discount-pill inline" style="--pill-bg: {{ C_sale_badge_bg }}; --pill-fg: {{ C_sale_badge_fg }};">Use code {{ s.discount_code_badge | escape }}</span>
+                      {%- endif -%}
+                      {%- if b.subheading != blank -%}<span class="subheading">{{ b.subheading }}</span>{%- endif -%}
+                    </div>
+                  {%- when 'g_badge' -%}
+                    <div class="discount-pill{% if b.inline %} inline{% endif %}" {{ block.shopify_attributes }}
+                         style="--pill-bg: {{ b.bg | default: C_sale_badge_bg }}; --pill-fg: {{ b.fg | default: C_sale_badge_fg }};">
+                      {{ b.text | default: 'SALE' }}
+                    </div>
+                {%- endcase -%}
+              {%- endif -%}
+            {%- endfor -%}
+          </div>
+
+          <div class="strip-urgency-cta">
+            {%- for block in section.blocks -%}
+              {%- if block.settings.slot == 'strip_right' -%}
+                {%- assign b = block.settings -%}
+                {%- case block.type -%}
+                  {%- when 'g_countdown' -%}
+                    <div class="countdown{% if b.variant == 'stacked' %} countdown--compact{% endif %}" {{ block.shopify_attributes }} aria-live="polite" data-cd-end="{{ b.end_datetime | escape }}">
+                      {%- if b.show_days -%}<span class="cd-item" data-cd-days>00</span>{% if b.show_labels %}<span class="cd-label">d</span>{% endif %}{%- endif -%}
+                      <span class="cd-item" data-cd-hours>00</span>{% if b.show_labels %}<span class="cd-label">h</span>{% endif %}
+                      <span class="cd-item" data-cd-minutes>00</span>{% if b.show_labels %}<span class="cd-label">m</span>{% endif %}
+                      <span class="cd-item" data-cd-seconds>00</span>{% if b.show_labels %}<span class="cd-label">s</span>{% endif %}
+                    </div>
+                  {%- when 'g_progress' -%}
+                    {%- assign aria_label = b.label -%}
+                    {%- if aria_label == blank -%}
+                      {%- if b.mode == 'stock' -%}
+                        {%- assign aria_label = '% stock remaining' -%}
+                      {%- else -%}
+                        {%- assign aria_label = '% claimed' -%}
+                      {%- endif -%}
+                    {%- endif -%}
+                    <div class="progressbar progressbar--thin" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ b.value | default: 0 }}" aria-label="{{ aria_label }}">
+                      <div class="progressbar-fill" style="width: {{ b.value | default: 0 }}%;"></div>
+                    </div>
+                  {%- when 'g_buttons' -%}
+                    <div class="strip-cta" {{ block.shopify_attributes }}>
+                      {%- if b.primary_label != blank -%}<a href="{{ b.primary_url | default: primary_url }}" class="btn" data-cta="primary">{{ b.primary_label }}</a>{%- endif -%}
+                      {%- if b.secondary_label != blank and b.secondary_url != blank -%}<a href="{{ b.secondary_url }}" class="btn btn--secondary" data-cta="secondary">{{ b.secondary_label }}</a>{%- endif -%}
+                    </div>
+                {%- endcase -%}
+              {%- endif -%}
+            {%- endfor -%}
+          </div>
+        </div>
+      </div>
+    {%- endif -%}
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "CTA — Current Sale",
+  "tag": "section",
+  "class": "q-cta-sale",
+  "settings": [
+    { "type": "select", "id": "layout", "label": "Layout", "options": [
+      { "value": "split", "label": "Split" },
+      { "value": "grid", "label": "Grid" },
+      { "value": "strip", "label": "Strip" }
+    ], "default": "split" },
+
+    { "type": "url", "id": "sale_destination_url", "label": "Default destination URL" },
+    { "type": "text", "id": "discount_code_badge", "label": "Discount code (optional)", "default": "SUMMER25" },
+    { "type": "checkbox", "id": "auto_apply_discount", "label": "Auto-append ?discount=", "default": true },
+
+    { "type": "select", "id": "surface_style", "label": "Surface", "options": [
+      { "value": "default",  "label": "Default" },
+      { "value": "elevated", "label": "Elevated card" },
+      { "value": "outlined", "label": "Outlined" },
+      { "value": "accent",   "label": "Accent" }
+    ], "default": "elevated" },
+
+    { "type": "select", "id": "alignment", "label": "Content alignment", "options": [
+      { "value": "start", "label": "Start" },
+      { "value": "center", "label": "Center" }
+    ], "default": "start" },
+
+    { "type": "select", "id": "container_mode", "label": "Section width", "default": "contained", "options": [
+      { "value": "contained", "label": "Contained" },
+      { "value": "full",      "label": "Full width" }
+    ]},
+
+    { "type": "image_picker", "id": "section_bg_image", "label": "Background image (optional)" },
+    { "type": "range", "id": "section_bg_overlay", "label": "Background overlay opacity", "min": 0, "max": 90, "step": 5, "default": 0, "unit": "%" }
+  ],
+  "blocks": [
+    {
+      "type": "g_text",
+      "name": "Text",
+      "settings": [
+        { "type": "select", "id": "slot", "label": "Slot", "default": "right",
+          "options": [
+            { "value": "left", "label": "Split — Left" },
+            { "value": "right", "label": "Split — Right" },
+            { "value": "grid_head", "label": "Grid — Header" },
+            { "value": "strip_left", "label": "Strip — Left" },
+            { "value": "strip_center", "label": "Strip — Center" },
+            { "value": "strip_right", "label": "Strip — Right" }
+          ]},
+        { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "New Markdowns" },
+        { "type": "text", "id": "headline", "label": "Headline", "default": "Up to 40% OFF" },
+        { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Ends Sunday. Online only." },
+        { "type": "checkbox", "id": "show_discount_code", "label": "Show discount code pill from section", "default": true },
+        { "type": "select", "id": "text_align", "label": "Text align", "default": "left", "options": [
+          { "value": "left", "label": "Left" },
+          { "value": "center", "label": "Center" },
+          { "value": "right", "label": "Right" }
+        ]}
+      ]
+    },
+    {
+      "type": "g_badge",
+      "name": "Badge",
+      "settings": [
+        { "type": "select", "id": "slot", "label": "Slot", "default": "left",
+          "options": [
+            { "value": "left", "label": "Split — Left" },
+            { "value": "right", "label": "Split — Right" },
+            { "value": "grid_head", "label": "Grid — Header" },
+            { "value": "strip_left", "label": "Strip — Left" },
+            { "value": "strip_center", "label": "Strip — Center" },
+            { "value": "strip_right", "label": "Strip — Right" }
+          ]},
+        { "type": "text", "id": "text", "label": "Text", "default": "SALE" },
+        { "type": "text", "id": "bg", "label": "Background color", "default": "#dc2626" },
+        { "type": "text", "id": "fg", "label": "Text color", "default": "#ffffff" },
+        { "type": "checkbox", "id": "inline", "label": "Inline style", "default": false }
+      ]
+    },
+    {
+      "type": "g_countdown",
+      "name": "Countdown",
+      "settings": [
+        { "type": "select", "id": "slot", "label": "Slot", "default": "left",
+          "options": [
+            { "value": "left", "label": "Split — Left" },
+            { "value": "right", "label": "Split — Right" },
+            { "value": "grid_head", "label": "Grid — Header" },
+            { "value": "strip_left", "label": "Strip — Left" },
+            { "value": "strip_center", "label": "Strip — Center" },
+            { "value": "strip_right", "label": "Strip — Right" }
+          ]},
+        { "type": "text", "id": "end_datetime", "label": "End (ISO 8601)", "default": "2025-12-31T23:59:59Z" },
+        { "type": "select", "id": "variant", "label": "Style", "default": "inline", "options": [
+          { "value": "inline", "label": "Inline" },
+          { "value": "stacked", "label": "Stacked blocks" }
+        ]},
+        { "type": "checkbox", "id": "show_days", "label": "Show days", "default": true },
+        { "type": "checkbox", "id": "show_labels", "label": "Show labels (d/h/m/s)", "default": true }
+      ]
+    },
+    {
+      "type": "g_image",
+      "name": "Image",
+      "settings": [
+        { "type": "select", "id": "slot", "label": "Slot", "default": "left",
+          "options": [
+            { "value": "left", "label": "Split — Left" },
+            { "value": "right", "label": "Split — Right" },
+            { "value": "grid_head", "label": "Grid — Header" },
+            { "value": "strip_left", "label": "Strip — Left" },
+            { "value": "strip_center", "label": "Strip — Center" },
+            { "value": "strip_right", "label": "Strip — Right" }
+          ]},
+        { "type": "image_picker", "id": "image", "label": "Image" },
+        { "type": "text", "id": "alt", "label": "Alt text" },
+        { "type": "select", "id": "ratio", "label": "Aspect ratio", "default": "ratio-1-1", "options": [
+          { "value": "ratio-1-1", "label": "1:1" },
+          { "value": "ratio-4-3", "label": "4:3" },
+          { "value": "ratio-3-2", "label": "3:2" },
+          { "value": "ratio-16-9", "label": "16:9" }
+        ]},
+        { "type": "range", "id": "width", "label": "Width (px)", "min": 96, "max": 640, "step": 8, "default": 240 },
+        { "type": "checkbox", "id": "overlay", "label": "Add dark overlay", "default": false }
+      ]
+    },
+    {
+      "type": "g_progress",
+      "name": "Progress",
+      "settings": [
+        { "type": "select", "id": "slot", "label": "Slot", "default": "right",
+          "options": [
+            { "value": "left", "label": "Split — Left" },
+            { "value": "right", "label": "Split — Right" },
+            { "value": "grid_head", "label": "Grid — Header" },
+            { "value": "strip_left", "label": "Strip — Left" },
+            { "value": "strip_center", "label": "Strip — Center" },
+            { "value": "strip_right", "label": "Strip — Right" }
+          ]},
+        { "type": "text", "id": "label", "label": "Aria label", "default": "% claimed" },
+        { "type": "select", "id": "mode", "label": "Mode", "default": "claimed", "options": [
+          { "value": "claimed", "label": "% claimed" },
+          { "value": "stock",   "label": "% stock remaining" }
+        ]},
+        { "type": "range", "id": "value", "label": "Value %", "min": 0, "max": 100, "step": 1, "default": 60 },
+        { "type": "checkbox", "id": "show_value", "label": "Show numeric value", "default": true },
+        { "type": "checkbox", "id": "thin", "label": "Thin bar (strip)", "default": false }
+      ]
+    },
+    {
+      "type": "g_buttons",
+      "name": "Buttons",
+      "settings": [
+        { "type": "select", "id": "slot", "label": "Slot", "default": "right",
+          "options": [
+            { "value": "left", "label": "Split — Left" },
+            { "value": "right", "label": "Split — Right" },
+            { "value": "grid_head", "label": "Grid — Header" },
+            { "value": "strip_left", "label": "Strip — Left" },
+            { "value": "strip_center", "label": "Strip — Center" },
+            { "value": "strip_right", "label": "Strip — Right" }
+          ]},
+        { "type": "text", "id": "primary_label", "label": "Primary label", "default": "Shop Sale" },
+        { "type": "url",  "id": "primary_url", "label": "Primary URL" },
+        { "type": "text", "id": "secondary_label", "label": "Secondary label" },
+        { "type": "url",  "id": "secondary_url", "label": "Secondary URL" }
+      ]
+    },
+    {
+      "type": "g_spacer",
+      "name": "Spacer",
+      "settings": [
+        { "type": "select", "id": "slot", "label": "Slot", "default": "right",
+          "options": [
+            { "value": "left", "label": "Split — Left" },
+            { "value": "right", "label": "Split — Right" },
+            { "value": "grid_head", "label": "Grid — Header" },
+            { "value": "strip_left", "label": "Strip — Left" },
+            { "value": "strip_center", "label": "Strip — Center" },
+            { "value": "strip_right", "label": "Strip — Right" }
+          ]},
+        { "type": "range", "id": "width", "label": "Width (px)", "min": 8, "max": 120, "step": 4, "default": 16 }
+      ]
+    },
+
+    {
+      "type": "promo_card",
+      "name": "Promo Card (Grid only)",
+      "limit": 8,
+      "settings": [
+        { "type": "text", "id": "title", "label": "Title", "default": "Category Sale" },
+        { "type": "text", "id": "subtitle", "label": "Subtitle" },
+        { "type": "text", "id": "percent_off", "label": "Percent label", "default": "Up to 30% off" },
+        { "type": "image_picker", "id": "image", "label": "Image" },
+        { "type": "text", "id": "cta_label", "label": "CTA label", "default": "Shop" },
+        { "type": "url",  "id": "cta_url", "label": "CTA URL" }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Call To Action - Sale Split Layout",
+      "category": "Call to Action",
+      "settings": { "layout": "split", "surface_style": "elevated" },
+      "blocks": [
+        { "type": "g_image", "settings": { "slot": "left", "image": "shopify://shop_images/coquette_banner.webp", "ratio": "ratio-1-1", "width": 160 } },
+        { "type": "g_countdown", "settings": { "slot": "left", "end_datetime": "2026-01-01T00:00:00Z" } },
+        { "type": "g_text", "settings": { "slot": "right", "eyebrow": "New Markdowns", "headline": "Up to 40% OFF", "subheading": "Ends Sunday. Online only." } },
+        { "type": "g_progress", "settings": { "slot": "right", "value": 62 } },
+        { "type": "g_buttons", "settings": { "slot": "right", "primary_label": "Shop Sale", "primary_url": "/collections/sale" } }
+      ]
+    },
+    {
+      "name": "Call To Action - Sale Grid Layout",
+      "category": "Call to Action",
+      "settings": { "layout": "grid", "surface_style": "default" },
+      "blocks": [
+        { "type": "g_text", "settings": { "slot": "grid_head", "eyebrow": "Just this week", "headline": "Category markdowns", "subheading": "Save across best-sellers." } },
+        { "type": "promo_card", "settings": { "title": "Desks", "percent_off": "Up to 20% off", "cta_label": "Shop", "cta_url": "/collections/desks", "image": "shopify://shop_images/gaming_banner.webp" } },
+        { "type": "promo_card", "settings": { "title": "Chairs", "percent_off": "25% off", "cta_label": "Shop", "cta_url": "/collections/chairs", "image": "shopify://shop_images/furniture_banner.webp" } }
+      ]
+    },
+    {
+      "name": "Call To Action - Sale Strip Layout",
+      "category": "Call to Action",
+      "settings": { "layout": "strip", "surface_style": "accent" },
+      "blocks": [
+        { "type": "g_image", "settings": { "slot": "strip_left", "image": "shopify://shop_images/coquette_banner.webp", "ratio": "ratio-1-1", "width": 96 } },
+        { "type": "g_text", "settings": { "slot": "strip_center", "eyebrow": "Hurry", "headline": "Extra 10% at checkout", "subheading": "Applied at cart" } },
+        { "type": "g_countdown", "settings": { "slot": "strip_right", "end_datetime": "2026-01-01T00:00:00Z", "variant": "inline", "show_days": false } },
+        { "type": "g_progress", "settings": { "slot": "strip_right", "value": 45, "thin": true } },
+        { "type": "g_buttons", "settings": { "slot": "strip_right", "primary_label": "Shop Sale", "primary_url": "/collections/sale" } }
+      ]
+    }
+  ]
+}
+{% endschema %}
