@@ -1,0 +1,565 @@
+{% comment %}
+  Section: Call To Action — Collections (Quadratum)
+  • Layouts: grid, masonry, grid_overlay, masonry_overlay
+  • Overlay/text-below are mutually exclusive (single if/else)
+  • Mobile: masonry_overlay stacks to single column
+  • Robust image fallback; accessible anchors; full-card click support
+{% endcomment %}
+
+{%- assign s = section.settings -%}
+
+{%- assign is_overlay = false -%}
+{%- if s.layout == 'grid_overlay' or s.layout == 'masonry_overlay' -%}{%- assign is_overlay = true -%}{%- endif -%}
+{%- assign is_masonry = false -%}
+{%- if s.layout == 'masonry' or s.layout == 'masonry_overlay' -%}{%- assign is_masonry = true -%}{%- endif -%}
+
+{%- capture ratio_css -%}
+  {%- case s.image_ratio -%}
+    {%- when 'auto' -%}auto
+    {%- when '4:3' -%}4 / 3
+    {%- when '3:4' -%}3 / 4
+    {%- when '16:9' -%}16 / 9
+    {%- else -%}1 / 1
+  {%- endcase -%}
+{%- endcapture -%}
+
+{%- assign gap_css = 'var(--space-md)' -%}
+{%- if s.gap_scale == 'xs' -%}{%- assign gap_css = 'var(--space-sm)' -%}{%- endif -%}
+{%- if s.gap_scale == 'sm' -%}{%- assign gap_css = 'var(--space-md)' -%}{%- endif -%}
+{%- if s.gap_scale == 'lg' -%}{%- assign gap_css = 'var(--space-lg)' -%}{%- endif -%}
+
+{%- assign header_align = s.alignment | default: 'center' -%}
+{%- assign content_align = s.content_align | default: 'center' -%}
+
+<section
+  id="{{ 'section-' | append: section.id }}"
+  class="q-section q-cta-collection"
+  role="region"
+  aria-label="{{ s.aria_label | default: 'Shop by collection' | escape }}"
+  data-layout="{{ s.layout }}"
+  style="
+    --q-gap: {{ gap_css }};
+    --q-cols-m: {{ s.columns_mobile }};
+    --q-cols-t: {{ s.columns_tablet }};
+    --q-cols-d: {{ s.columns_desktop }};
+    --q-overlay-op: {{ s.overlay_opacity | default: 40 }}%;
+  "
+>
+  <div class="q-bg" aria-hidden="true">
+    {%- if s.section_bg_mode == 'image' and s.section_bg_image != blank -%}
+      {{ s.section_bg_image
+        | image_url: width: 2880
+        | image_tag: widths: '960,1440,1920,2560,2880', sizes: '100vw', loading: 'lazy', class: 'q-bg-media', alt: '' }}
+    {%- elsif s.section_bg_mode == 'token' -%}
+      <div class="q-bg-color token-{{ s.section_bg_token }}"></div>
+    {%- endif -%}
+  </div>
+  {%- if s.section_overlay_style != 'none' -%}
+    <div class="q-bg-overlay{% if s.section_overlay_style == 'soft' %} is-soft{% elsif s.section_overlay_style == 'solid' %} is-solid{% endif %}"
+         style="opacity: {{ s.section_overlay_opacity | default: 20 | divided_by: 100.0 }};"></div>
+  {%- endif -%}
+
+  <div class="q-layer">
+    <div class="q-container">
+      <div class="q-head" style="text-align: {{ header_align }};">
+        {%- if s.eyebrow != blank -%}<span class="q-eyebrow">{{ s.eyebrow }}</span>{%- endif -%}
+        {%- if s.heading != blank -%}<h2 class="q-h2">{{ s.heading }}</h2>{%- endif -%}
+        {%- if s.subheading != blank -%}<p class="q-sub">{{ s.subheading }}</p>{%- endif -%}
+      </div>
+
+      <div class="q-grid{% if is_masonry %} is-masonry{% endif %}{% if is_overlay %} is-overlay{% endif %}">
+        {%- for block in section.blocks -%}
+          {%- assign b = block.settings -%}
+          {%- assign col = b.collection -%}
+          {%- if col == blank -%}{% continue %}{%- endif -%}
+
+          {%- capture card_id -%}card-{{ section.id }}-{{ block.id }}{%- endcapture -%}
+          {%- assign title_text = b.title_override | default: col.title -%}
+
+          {%- assign media = nil -%}
+          {%- assign needs_custom = false -%}
+          {%- if b.custom_image != blank -%}
+            {%- assign media = b.custom_image -%}
+          {%- elsif col.image != blank -%}
+            {%- assign media = col.image -%}
+          {%- else -%}
+            {%- if s.image_source == 'first_product' -%}{%- assign needs_custom = true -%}{%- endif -%}
+          {%- endif -%}
+
+          {%- assign count_label = '' -%}
+          {%- if s.show_product_count -%}
+            {%- assign qty = col.all_products_count | default: 0 -%}
+            {%- if qty == 1 -%}
+              {%- assign count_label = s.count_label_singular | default: '1 item' -%}
+            {%- else -%}
+              {%- assign label_tpl = s.count_label_plural | default: '{count} items' -%}
+              {%- assign count_label = label_tpl | replace: '{count}', qty -%}
+            {%- endif -%}
+          {%- endif -%}
+
+          {%- assign h_class = 'mh-M' -%}
+          {%- if is_masonry -%}
+            {%- if b.masonry_height == 'S' -%}{%- assign h_class = 'mh-S' -%}{%- endif -%}
+            {%- if b.masonry_height == 'L' -%}{%- assign h_class = 'mh-L' -%}{%- endif -%}
+          {%- endif -%}
+
+          <article class="q-card {{ h_class }}{% if needs_custom %} needs-custom{% endif %}{% if s.card_surface == 'elevated' %} is-elevated{% endif %}{% if s.card_surface == 'outlined' %} is-outlined{% endif %}" {{ block.shopify_attributes }}>
+            <div class="q-cover" role="link" tabindex="0" data-url="{{ col.url }}" aria-label="{{ title_text | escape }}">
+
+              <div class="q-media" style="{% unless is_masonry %}aspect-ratio: {{ ratio_css | strip }};{% endunless %}">
+                {%- if media -%}
+                  {{ media | image_url: width: 1440 | image_tag: loading: 'lazy', widths: '640,960,1200,1440', sizes: '(min-width:1024px) 25vw, 50vw', alt: '' }}
+                {%- else -%}
+                  <div class="q-media--placeholder"><span class="q-ph-title">{{ title_text }}</span></div>
+                {%- endif -%}
+
+                {%- if is_overlay -%}
+                  <span class="q-onimg ov-{{ s.overlay_style }}" style="opacity: calc(var(--q-overlay-op)/100);" aria-hidden="true"></span>
+
+                  <div class="q-onimg-wrap" data-align="{{ content_align }}">
+                    <div class="q-onimg-text">
+                      <h3 id="{{ card_id }}" class="q-title" title="{{ title_text | escape }}">{{ title_text }}</h3>
+                      {%- if count_label != blank -%}<span class="q-count">{{ count_label }}</span>{%- endif -%}
+                      {%- unless s.card_cta_style == 'none' -%}
+                        {%- assign label = b.cta_label | default: 'Shop Collection' -%}
+                        <a class="q-cta {% if s.card_cta_style == 'button' %}q-btn q-btn--{{ s.button_style }} q-btn--{{ s.button_tone }}{% else %}q-link{% endif %}"
+                           href="{{ col.url }}" aria-describedby="{{ card_id }}">{{ label }}</a>
+                      {%- endunless -%}
+                    </div>
+                  </div>
+                {%- endif -%}
+              </div>
+
+              {%- if is_overlay == false -%}
+                <div class="q-text">
+                  <h3 id="{{ card_id }}" class="q-title" title="{{ title_text | escape }}">{{ title_text }}</h3>
+                  {%- if count_label != blank -%}<span class="q-count">{{ count_label }}</span>{%- endif -%}
+                </div>
+                {%- unless s.card_cta_style == 'none' -%}
+                  {%- assign label = b.cta_label | default: 'Shop Collection' -%}
+                  <a class="q-cta {% if s.card_cta_style == 'button' %}q-btn q-btn--{{ s.button_style }} q-btn--{{ s.button_tone }}{% else %}q-link{% endif %}"
+                     href="{{ col.url }}" aria-describedby="{{ card_id }}">{{ label }}</a>
+                {%- endunless -%}
+              {%- endif -%}
+
+            </div>
+          </article>
+        {%- endfor -%}
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+/* ---------- Section-scoped defaults ---------- */
+#section-{{ section.id }}{
+  --font-heading: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
+  --font-body: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans";
+  --color-text: #0b0f19;
+  --color-text-muted: #667085;
+  --bg-base: #ffffff;
+  --bg-contrast: #f6f7f9;
+  --border-soft: rgba(16,24,40,.08);
+  --elev-1: 0 1px 3px rgba(16,24,40,.08), 0 1px 2px rgba(16,24,40,.06);
+  --elev-2: 0 8px 24px rgba(16,24,40,.14);
+  --color-primary: #2563eb;
+  --color-secondary: #111827;
+  --color-accent: #10b981;
+  --button_radius: 14px;
+  --space-xs: .375rem;
+  --space-sm: .75rem;
+  --space-md: 1rem;
+  --space-lg: 2rem;
+  --container-lg: 1180px;
+  --q-stack: clamp(2rem, 1.2rem + 2vw, 3.5rem);
+}
+#section-{{ section.id }}{position:relative; font-family:var(--font-body);}
+#section-{{ section.id }} .q-bg, #section-{{ section.id }} .q-bg-overlay{position:absolute; inset:0; z-index:0; pointer-events:none;}
+#section-{{ section.id }} .q-bg-media{width:100%; height:100%; object-fit:cover; display:block;}
+#section-{{ section.id }} .q-bg-color{width:100%; height:100%;}
+#section-{{ section.id }} .q-bg-color.token-bg-base{background:var(--bg-base);}
+#section-{{ section.id }} .q-bg-color.token-bg-contrast{background:var(--bg-contrast);}
+#section-{{ section.id }} .q-bg-color.token-primary{background:var(--color-primary);}
+#section-{{ section.id }} .q-bg-color.token-secondary{background:var(--color-secondary);}
+#section-{{ section.id }} .q-bg-overlay.is-soft{background:linear-gradient(180deg, rgba(17,24,39,.30), rgba(17,24,39,0));}
+#section-{{ section.id }} .q-bg-overlay.is-solid{background:rgba(17,24,39,.6);}
+
+#section-{{ section.id }} .q-layer{position:relative; z-index:1;}
+#section-{{ section.id }} .q-container{inline-size:min(100%,var(--container-lg)); margin-inline:auto; padding:var(--space-lg) var(--space-md);}
+#section-{{ section.id }} .q-head{display:grid; gap:.35rem; margin-block:calc(var(--q-stack) * .6); text-align:center;}
+#section-{{ section.id }} .q-eyebrow{font-size:.75rem; letter-spacing:.12em; text-transform:uppercase; color:var(--color-text-muted);}
+#section-{{ section.id }} .q-h2{font-family:var(--font-heading); font-weight:700; font-size:clamp(1.5rem, 1.1rem + 1.5vw, 2rem); line-height:1.2; color:var(--color-text);}
+#section-{{ section.id }} .q-sub{color:var(--color-text-muted); max-inline-size:62ch; margin-inline:auto; font-size:.95rem;}
+
+/* ---------- Grid & Masonry ---------- */
+#section-{{ section.id }} .q-grid{
+  --q-gap: var(--q-gap, var(--space-md));
+  display:grid; gap:var(--q-gap);
+  grid-template-columns:repeat(var(--q-cols-m), minmax(0,1fr));
+  align-items:start;
+  margin-block-end: var(--q-stack) !important;
+}
+@media (min-width: {{ settings.bp_md | default: 768 }}px){
+  #section-{{ section.id }} .q-grid{grid-template-columns:repeat(var(--q-cols-t), minmax(0,1fr));}
+}
+@media (min-width: {{ settings.bp_lg | default: 1024 }}px){
+  #section-{{ section.id }} .q-grid{grid-template-columns:repeat(var(--q-cols-d), minmax(0,1fr));}
+}
+
+/* Masonry baseline */
+#section-{{ section.id }} .q-grid.is-masonry{grid-auto-rows:8px;}
+#section-{{ section.id }} .q-grid.is-masonry .q-card .q-media{aspect-ratio:auto;}
+#section-{{ section.id }} .mh-S{grid-row:span 22;} .mh-M{grid-row:span 30;} .mh-L{grid-row:span 40;}
+/* Media mins per span (stabilizes panel proportions) */
+#section-{{ section.id }} .mh-S .q-media{min-block-size:10.5rem;}
+#section-{{ section.id }} .mh-M .q-media{min-block-size:14rem;}
+#section-{{ section.id }} .mh-L .q-media{min-block-size:16.25rem;} /* slightly lower than before for optics */
+
+{% if s.masonry_variant == 'tall-first' %}#section-{{ section.id }} .q-grid.is-masonry .q-card:first-child{grid-row:span 40;}{% endif %}
+{% if s.masonry_variant == 'short-first' %}#section-{{ section.id }} .q-grid.is-masonry .q-card:first-child{grid-row:span 22;}{% endif %}
+
+/* ---------- Card ---------- */
+#section-{{ section.id }} .q-card{
+  display:flex; flex-direction:column; gap:.5rem; border-radius:16px; background:var(--bg-base); color:var(--color-text);
+  border:1px solid var(--border-soft); overflow:hidden; transition: box-shadow .18s ease, transform .18s ease;
+}
+#section-{{ section.id }} .q-grid.is-overlay .q-card{ gap:0; } /* overlay cards shouldn't reserve extra gap */
+#section-{{ section.id }} .q-card.is-elevated{box-shadow:var(--elev-1); padding-bottom: 20px;}
+#section-{{ section.id }} .q-card.is-outlined{border-color: rgba(16,24,40,.14);}
+#section-{{ section.id }} .q-card:hover{box-shadow:var(--elev-2); transform:translateY(-2px);}
+#section-{{ section.id }} .q-card:has(.q-cover:focus-visible){box-shadow:0 0 0 3px color-mix(in srgb, var(--color-primary), transparent 70%);}
+
+/* full-card clickable wrapper */
+#section-{{ section.id }} .q-cover{display:flex; flex-direction:column; gap:.5rem; cursor:pointer; text-decoration:none; color:inherit; position:relative;}
+#section-{{ section.id }} .q-cover:focus-visible{outline:2px solid color-mix(in srgb, var(--color-primary), transparent 35%); outline-offset:3px; border-radius:14px;}
+
+/* media */
+#section-{{ section.id }} .q-media{position:relative; overflow:hidden; background:var(--bg-contrast); border-radius:inherit;}
+#section-{{ section.id }} .q-media img{inline-size:100%; block-size:100%; object-fit:cover; object-position:center; display:block; transition: transform .35s ease;}
+#section-{{ section.id }} .q-card:hover .q-media img{transform:scale(1.03);}
+#section-{{ section.id }} .q-grid.is-masonry .q-card:hover .q-media img{transform:scale(1.0125);} /* smaller to avoid gaps in masonry */
+#section-{{ section.id }} .q-media--placeholder{display:grid; place-items:center; min-block-size:8rem; background:linear-gradient(135deg, #eef2ff, #e2e8f0);}
+#section-{{ section.id }} .q-ph-title{color:#475569; font-weight:600;}
+#section-{{ section.id }} .q-onimg{position:absolute; inset:0; border-radius:inherit;}
+#section-{{ section.id }} .ov-soft{background:linear-gradient(180deg, rgba(0,0,0,.28), rgba(0,0,0,.06));}
+#section-{{ section.id }} .ov-solid{background:rgba(0,0,0,.48);}
+
+/* overlay content */
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg-wrap{
+  position:absolute; inset:6px; display:grid; padding:.75rem 1rem; border-radius:inherit; pointer-events:none;
+}
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg-wrap[data-align="start"]{align-items:flex-start; justify-items:flex-start;}
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg-wrap[data-align="center"]{align-items:center; justify-items:center;}
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg-wrap[data-align="center"] .q-onimg-text{place-items:center; text-align:center;}
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg-wrap[data-align="end"]{align-items:flex-end; justify-items:flex-end;}
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg-text{
+  display:grid; gap:.55rem; max-inline-size:26ch; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.35); pointer-events:auto;
+}
+#section-{{ section.id }} .q-grid.is-overlay .q-title{
+  color:#fff; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-wrap:balance;
+}
+#section-{{ section.id }} .q-grid.is-overlay .q-count{color:rgba(255,255,255,.82)}
+
+/* text below layouts */
+#section-{{ section.id }} .q-text{
+  display:grid; gap:.5rem; padding:var(--space-sm); padding-bottom:.75rem; margin-block-end:.25rem;
+  min-block-size:6.75rem; /* ← was 6.25rem; this removes the last 2–4px wobble */
+  border-top:1px solid var(--border-soft);
+}
+#section-{{ section.id }} .q-title{
+  font-family:var(--font-heading); font-weight:700; letter-spacing:-.01em;
+  font-size:clamp(1rem, .95rem + .2vw, 1.125rem); line-height:1.25;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+#section-{{ section.id }} .q-count{font-size:.875rem; color:var(--color-text-muted);}
+#section-{{ section.id }} .q-cta{line-height:1.25;}
+
+/* ---------- Buttons & links ---------- */
+#section-{{ section.id }} .q-cta.q-link{
+  color:var(--color-primary); text-decoration:underline; text-underline-offset:2px; text-decoration-thickness:2px; font-weight:600; margin-left:15px; margin-right: 15px;
+}
+#section-{{ section.id }} .q-cta.q-link:hover{text-decoration-thickness:3px;}
+#section-{{ section.id }} .q-cta.q-link:focus-visible{outline:2px solid var(--color-primary); outline-offset:2px; border-radius:8px;}
+#section-{{ section.id }} .q-btn{
+  --btn-bg: var(--color-primary); --btn-fg: #fff; --btn-bdr: var(--color-primary);
+  display:inline-grid; place-items:center; min-height:44px; padding:0 18px;
+  border-radius:var(--button_radius); border:1px solid var(--btn-bdr); background:var(--btn-bg); color:var(--btn-fg);
+  font-weight:600; font-size:.95rem; letter-spacing:.01em;
+  transition: box-shadow .18s ease, transform .08s ease, opacity .18s ease;
+}
+#section-{{ section.id }} .q-btn:hover{opacity:.92; box-shadow:0 6px 18px rgba(37,99,235,.25);}
+#section-{{ section.id }} .q-btn:active{transform:translateY(1px);}
+#section-{{ section.id }} .q-btn--outline{background:transparent; color:var(--btn-bdr);}
+#section-{{ section.id }} .q-btn--ghost{background:transparent; border-color:transparent; color:var(--btn-bdr);}
+#section-{{ section.id }} .q-btn--primary{--btn-bg: var(--color-primary); --btn-bdr: var(--color-primary);}
+#section-{{ section.id }} .q-btn--secondary{--btn-bg: var(--color-secondary); --btn-bdr: var(--color-secondary);}
+#section-{{ section.id }} .q-btn--accent{--btn-bg: var(--color-accent); --btn-bdr: var(--color-accent);}
+
+/* Buttons on overlays: visibility */
+#section-{{ section.id }} .q-grid.is-overlay .q-btn--outline{border-color: rgba(255,255,255,.85); color:#fff;}
+#section-{{ section.id }} .q-grid.is-overlay .q-btn--outline:hover{background:rgba(255,255,255,.10);}
+#section-{{ section.id }} .q-grid.is-overlay .q-btn--ghost{color:#fff;}
+#section-{{ section.id }} .q-grid.is-overlay .q-btn--ghost:hover{background:rgba(255,255,255,.10);}
+
+/* ---------- Mobile: masonry_overlay stacks to one column ---------- */
+@media (max-width: {{ settings.bp_md | default: 768 }}px){
+  #section-{{ section.id }}[data-layout="masonry_overlay"] .q-grid{
+    grid-template-columns:1fr !important;
+    grid-auto-rows:auto !important;
+  }
+  #section-{{ section.id }}[data-layout="masonry_overlay"] .q-grid .q-card{
+    grid-row:auto !important;
+  }
+  #section-{{ section.id }} .q-card:hover .q-media img{transform:none;} /* calmer on mobile */
+}
+
+/* Force overlay mode to hide any text-below UI even if it accidentally renders */
+#section-{{ section.id }} .q-grid.is-overlay .q-text,
+#section-{{ section.id }} .q-grid.is-overlay .q-cover > .q-cta {
+  display: none !important;
+}
+@media (max-width: {{ settings.bp_md | default: 768 }}px){
+  #section-{{ section.id }}[data-layout="masonry_overlay"] .q-grid{
+    grid-template-columns:1fr !important;
+    grid-auto-rows:auto !important;
+  }
+  #section-{{ section.id }}[data-layout="masonry_overlay"] .q-grid .q-card{
+    grid-row:auto !important;
+  }
+  #section-{{ section.id }} .q-card:hover .q-media img{transform:none;}
+}
+/* --- Prevent double render of text/CTA under overlays --- */
+#section-{{ section.id }} .q-grid.is-overlay .q-text,
+#section-{{ section.id }} .q-grid.is-overlay .q-cover > .q-cta {
+  display: none !important;
+}
+
+/* === HARD PATCH: Masonry should grow the image, not a white spacer =================== */
+
+/* Make masonry cards a small grid so the media can take all available height */
+#section-{{ section.id }} .q-grid.is-masonry .q-card{
+  display:grid;
+  grid-template-rows: 1fr auto; /* image grows (1fr), then text/CTA auto */
+}
+
+/* In masonry-overlay there is no text panel; image should fill entire card */
+#section-{{ section.id }}[data-layout="masonry_overlay"] .q-grid.is-masonry .q-card{
+  grid-template-rows: 1fr; /* media only */
+}
+
+/* The media should stretch to fill the card’s span height */
+#section-{{ section.id }} .q-grid.is-masonry .q-card .q-media{
+  height: 100%;
+  min-block-size: 0;       /* override earlier min-heights so it can truly stretch */
+  aspect-ratio: auto;      /* image shape is driven by span height, not ratio */
+}
+
+/* Kill any leftover “white footer” under overlay cards (belt & suspenders) */
+#section-{{ section.id }} .q-grid.is-overlay .q-text,
+#section-{{ section.id }} .q-grid.is-overlay .q-cover > .q-cta{
+  display:none !important;
+}
+
+/* For optics: reduce the big-panel feel on L spans without creating gaps */
+#section-{{ section.id }} .mh-L .q-media{ min-block-size: 0 !important; } /* let the span decide */
+/* ===================== Overlay CTA placement & readability ===================== */
+
+/* 1) Structure: let the CTA drop to the bottom of the text stack cleanly */
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg-text{
+  display:grid;
+  grid-auto-flow: row;
+  /* 3 rows effectively: [ title + meta ] [ flexible space ] [ CTA ] */
+}
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg-text .q-cta{
+  margin-top:auto;         /* push CTA to the bottom of the overlay text area */
+  min-height:42px;         /* solid/outline buttons look consistent */
+  padding-inline:16px;
+}
+
+/* 2) CTA alignment follows content_align but stays low */
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg-wrap[data-align="start"] .q-onimg-text .q-cta{ justify-self:start; }
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg-wrap[data-align="center"] .q-onimg-text .q-cta{ justify-self:center; }
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg-wrap[data-align="end"]   .q-onimg-text .q-cta{ justify-self:end; }
+
+/* 3) Add a soft bottom gradient *behind* the CTA area for legibility */
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg::after{
+  content:"";
+  position:absolute; left:0; right:0; bottom:0; height:38%;
+  pointer-events:none; border-radius:inherit;
+  background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.38) 65%, rgba(0,0,0,.55) 100%);
+  /* Only show when CTA is present to avoid over-darkening simple titles */
+  opacity: 0; transition: opacity .18s ease;
+}
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg-text .q-cta{ position:relative; z-index:1; }
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg-text:has(.q-cta) ~ .q-onimg{ opacity:1; } /* Fallback no-op */
+#section-{{ section.id }} .q-grid.is-overlay .q-onimg + .q-onimg-wrap .q-onimg-text .q-cta::before{
+  /* subtle backdrop halo behind the button only (helps on busy images) */
+  content:""; position:absolute; inset:-4px; border-radius:999px; z-index:-1;
+  background:linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.15));
+  filter: blur(6px);
+}
+
+/* 4) Outline/Ghost tweaks on dark media (crisper affordance) */
+#section-{{ section.id }} .q-grid.is-overlay .q-btn--outline{
+  border-color:rgba(255,255,255,.9); color:#fff;
+}
+#section-{{ section.id }} .q-grid.is-overlay .q-btn--outline:hover{
+  background:rgba(255,255,255,.10);
+}
+#section-{{ section.id }} .q-grid.is-overlay .q-btn--ghost{
+  color:#fff; border-color:transparent;
+}
+#section-{{ section.id }} .q-grid.is-overlay .q-btn--ghost:hover{
+  background:rgba(255,255,255,.10);
+}
+
+/* 5) Mobile comfort — avoid crowding at the bottom edge */
+@media (max-width: {{ settings.bp_md | default: 768 }}px){
+  #section-{{ section.id }} .q-grid.is-overlay .q-onimg-wrap{ padding: .75rem .9rem 1rem; }
+  #section-{{ section.id }} .q-grid.is-overlay .q-onimg-text .q-cta{ min-height:40px; }
+}
+
+</style>
+
+<script>
+(function(){
+  const root = document.getElementById('section-{{ section.id }}');
+  if(!root) return;
+
+  function go(target){
+    const url = target && target.getAttribute('data-url');
+    if(url) window.location.href = url;
+  }
+
+  // Full-card click (ignore real anchors)
+  root.addEventListener('click', function(e){
+    const anchor = e.target.closest('a');
+    if(anchor) return;
+    const el = e.target.closest('.q-cover,[data-url]');
+    if(!el || !root.contains(el)) return;
+    go(el);
+  });
+
+  // Keyboard: activate full-card when focus is on .q-cover, not inside <a>
+  root.addEventListener('keydown', function(e){
+    if(e.key !== 'Enter' && e.key !== ' ') return;
+    const active = document.activeElement;
+    if(active && active.tagName === 'A') return;
+    const el = active && active.closest('.q-cover,[data-url]');
+    if(!el || !root.contains(el)) return;
+    e.preventDefault();
+    go(el);
+  });
+})();
+</script>
+
+{% schema %}
+{
+  "name": "CTA Collections",
+  "tag": "section",
+  "class": "q-section q-cta-collection",
+  "settings": [
+    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Shop by collection" },
+
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Shop by Category" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Discover our collections" },
+    { "type": "textarea", "id": "subheading", "label": "Subheading" },
+
+    { "type": "select", "id": "layout", "label": "Layout", "default": "grid", "options": [
+      { "value": "grid", "label": "Grid (text below image)" },
+      { "value": "masonry", "label": "Masonry (text below image)" },
+      { "value": "grid_overlay", "label": "Grid — On-image overlay" },
+      { "value": "masonry_overlay", "label": "Masonry — On-image overlay" }
+    ]},
+
+    { "type": "range", "id": "columns_desktop", "label": "Columns (desktop)", "min": 2, "max": 6, "step": 1, "default": 3 },
+    { "type": "range", "id": "columns_tablet", "label": "Columns (tablet)", "min": 2, "max": 4, "step": 1, "default": 2 },
+    { "type": "select", "id": "columns_mobile", "label": "Columns (mobile)", "default": "1", "options": [
+      { "value": "1", "label": "1" }, { "value": "2", "label": "2" }
+    ]},
+
+    { "type": "select", "id": "gap_scale", "label": "Grid gap", "default": "md", "options": [
+      { "value": "xs", "label": "XS" }, { "value": "sm", "label": "SM" }, { "value": "md", "label": "MD" }, { "value": "lg", "label": "LG" }
+    ]},
+
+    { "type": "select", "id": "image_source", "label": "Card image source", "default": "collection", "options": [
+      { "value": "collection", "label": "Collection image" },
+      { "value": "first_product", "label": "First product image (collection page only)" }
+    ]},
+
+    { "type": "select", "id": "image_ratio", "label": "Card image ratio (grid layouts)", "default": "1:1", "options": [
+      { "value": "auto", "label": "Auto" }, { "value": "1:1", "label": "1:1" }, { "value": "4:3", "label": "4:3" }, { "value": "3:4", "label": "3:4" }, { "value": "16:9", "label": "16:9" }
+    ]},
+
+    { "type": "select", "id": "masonry_variant", "label": "Masonry variant", "default": "balanced", "options": [
+      { "value": "balanced", "label": "Balanced" }, { "value": "tall-first", "label": "Tall first" }, { "value": "short-first", "label": "Short first" }
+    ]},
+
+    { "type": "checkbox", "id": "show_product_count", "label": "Show item count", "default": true },
+    { "type": "text", "id": "count_label_singular", "label": "Count (singular)", "default": "1 item" },
+    { "type": "text", "id": "count_label_plural", "label": "Count (plural, use {count})", "default": "{count} items" },
+
+    { "type": "select", "id": "card_surface", "label": "Card surface", "default": "default", "options": [
+      { "value": "default", "label": "Default" }, { "value": "elevated", "label": "Elevated" }, { "value": "outlined", "label": "Outlined" }
+    ]},
+
+    { "type": "select", "id": "overlay_style", "label": "Card overlay style (on-image modes)", "default": "soft", "options": [
+      { "value": "none", "label": "None" }, { "value": "soft", "label": "Soft" }, { "value": "solid", "label": "Solid" }
+    ]},
+    { "type": "range", "id": "overlay_opacity", "label": "Card overlay opacity", "min": 0, "max": 90, "step": 5, "default": 40, "unit": "%" },
+
+    { "type": "select", "id": "alignment", "label": "Header alignment", "default": "center", "options": [
+      { "value": "start", "label": "Start" }, { "value": "center", "label": "Center" }
+    ]},
+    { "type": "select", "id": "content_align", "label": "On-image content alignment", "default": "center", "options": [
+      { "value": "start", "label": "Start" }, { "value": "center", "label": "Center" }, { "value": "end", "label": "End" }
+    ]},
+
+    { "type": "select", "id": "card_cta_style", "label": "CTA style", "default": "button", "options": [
+      { "value": "button", "label": "Button" }, { "value": "text-link", "label": "Text link" }, { "value": "none", "label": "None" }
+    ]},
+    { "type": "select", "id": "button_style", "label": "Button variant", "default": "solid", "options": [
+      { "value": "solid", "label": "Solid" }, { "value": "outline", "label": "Outline" }, { "value": "ghost", "label": "Ghost" }
+    ]},
+    { "type": "select", "id": "button_tone", "label": "Button tone", "default": "primary", "options": [
+      { "value": "primary", "label": "Primary" }, { "value": "secondary", "label": "Secondary" }, { "value": "accent", "label": "Accent" }
+    ]},
+
+    { "type": "header", "content": "Section background" },
+    { "type": "select", "id": "section_bg_mode", "label": "Background mode", "default": "none", "options": [
+      { "value": "none", "label": "None" }, { "value": "image", "label": "Image" }, { "value": "token", "label": "Theme token color" }
+    ]},
+    { "type": "image_picker", "id": "section_bg_image", "label": "Background image (when mode = image)" },
+    { "type": "select", "id": "section_bg_token", "label": "Background token (when mode = token)", "default": "bg-base", "options": [
+      { "value": "bg-base", "label": "Background base" }, { "value": "bg-contrast", "label": "Background contrast" }, { "value": "primary", "label": "Primary" }, { "value": "secondary", "label": "Secondary" }
+    ]},
+    { "type": "select", "id": "section_overlay_style", "label": "Background overlay", "default": "none", "options": [
+      { "value": "none", "label": "None" }, { "value": "soft", "label": "Soft" }, { "value": "solid", "label": "Solid" }
+    ]},
+    { "type": "range", "id": "section_overlay_opacity", "label": "Background overlay opacity", "min": 0, "max": 90, "step": 5, "default": 20, "unit": "%" }
+  ],
+  "blocks": [
+    {
+      "type": "collection_card",
+      "name": "Collection card",
+      "limit": 12,
+      "settings": [
+        { "type": "collection", "id": "collection", "label": "Collection" },
+        { "type": "image_picker", "id": "custom_image", "label": "Custom image (overrides source)" },
+        { "type": "text", "id": "title_override", "label": "Title override" },
+        { "type": "text", "id": "cta_label", "label": "CTA label", "default": "Shop Collection" },
+        { "type": "select", "id": "masonry_height", "label": "Masonry height", "default": "M", "options": [
+          { "value": "S", "label": "Small" }, { "value": "M", "label": "Medium" }, { "value": "L", "label": "Large" }
+        ] }
+      ]
+    }
+  ],
+  "max_blocks": 12,
+  "presets": [
+    { "name": "Call To Action - Collection Grid", "category": "Call To Action", "settings": { "layout": "grid" }, "blocks": [ { "type": "collection_card" }, { "type": "collection_card" }, { "type": "collection_card" } ] },
+    { "name": "Call To Action - Collection Masonry", "category": "Call To Action", "settings": { "layout": "masonry" }, "blocks": [ { "type": "collection_card" }, { "type": "collection_card" }, { "type": "collection_card" }, { "type": "collection_card" } ] },
+    { "name": "Call To Action - Grid Overlay", "category": "Call To Action", "settings": { "layout": "grid_overlay" }, "blocks": [ { "type": "collection_card" }, { "type": "collection_card" }, { "type": "collection_card" } ] },
+    { "name": "Call To Action - Masonry Overlay", "category": "Call To Action", "settings": { "layout": "masonry_overlay" }, "blocks": [ { "type": "collection_card" }, { "type": "collection_card" }, { "type": "collection_card" }, { "type": "collection_card" } ] }
+  ]
+}
+{% endschema %}
