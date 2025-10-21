@@ -1,0 +1,536 @@
+{% comment %}
+  Quadratum — Call To Action – Card Stack
+  • Stacked feature/CTA cards (2–6) with icons, title, body, badge, and per-card CTA
+  • Layout modes: stacked (default) or responsive columns (desktop)
+  • Layout engines: CSS Grid (default) or Flex (optional)
+  • Root-only background (image/video/color) + solid/gradient overlay
+  • Optional global CTA row
+  • Per-section button & text color overrides
+  • Tokenized spacing/typography/colors; accessible and keyboard-friendly
+  • Visual queue extras: desktop columns selector, icon size selector, global CTA alignment, shadow depth selector, subtle hover
+{% endcomment %}
+
+{%- assign s = section.settings -%}
+
+{%- comment %} THEME TOKENS {% endcomment -%}
+{%- assign T_font_heading  = settings.font_heading -%}
+{%- assign T_font_body     = settings.font_body -%}
+{%- assign T_body_size     = settings.type_body_size | default: 100 -%}
+{%- assign T_head_letter   = settings.headings_letterspacing | default: 0 -%}
+{%- assign T_head_upper    = settings.headings_uppercase -%}
+
+{%- assign C_primary       = settings.color_primary  | default: '#2563eb' -%}
+{%- assign C_text_base     = settings.text_base      | default: '#111111' -%}
+{%- assign C_text_muted    = settings.text_muted     | default: '#6b7280' -%}
+{%- assign C_bg_base       = settings.bg_base        | default: '#ffffff' -%}
+{%- assign C_bg_contrast   = settings.bg_contrast    | default: '#f6f7f8' -%}
+{%- assign C_on_color      = settings.text_on_color  | default: '#ffffff' -%}
+
+{%- comment %} Button tokens (theme) {% endcomment -%}
+{%- assign T_btn_variant_default = settings.button_variant_default | default: 'solid' -%}
+{%- assign T_btn_radius          = settings.button_radius | default: 12 -%}
+{%- assign T_btn_bw              = settings.button_border_width | default: 1 -%}
+{%- assign T_btn_hover_op        = settings.button_hover_opacity | default: 92 -%}
+{%- assign T_btn_active_scale    = settings.button_active_scale | default: 98 -%}
+
+{%- comment %} Visibility helpers {% endcomment -%}
+{%- assign visibility_classes = '' -%}
+{%- if s.hide_on_mobile -%}{%- assign visibility_classes = visibility_classes | append: ' hidden md:block q-hide-mobile' -%}{%- endif -%}
+{%- if s.hide_on_desktop -%}{%- assign visibility_classes = visibility_classes | append: ' md:hidden q-hide-desktop' -%}{%- endif -%}
+
+{%- comment %} Derived controls {% endcomment -%}
+{%- assign cols_d = s.columns_desktop | default: '3' -%}
+{%- assign cta_align_val = s.cta_align | default: 'center' -%}
+{%- assign icon_px = s.icon_size | default: '40' -%}
+{%- assign depth = s.shadow_depth | default: 'soft' -%}
+{%- assign engine = s.layout_engine | default: 'grid' -%}
+
+{%- comment %} Text & button overrides (safe fallbacks) {% endcomment -%}
+{%- assign _accent_color = s.accent_color    | default: C_primary -%}
+{%- assign _heading_color = s.heading_color  | default: C_text_base -%}
+{%- assign _sub_color     = s.subheading_color | default: C_text_muted -%}
+
+{%- assign _btn_bg   = s.button_bg_color     | default: C_primary -%}
+{%- assign _btn_fg   = s.button_text_color   | default: C_on_color -%}
+{%- assign _btn_bdr  = s.button_border_color | default: _btn_bg -%}
+{%- assign _btn_bw   = s.button_border_width | default: T_btn_bw -%}
+{%- assign _btn_rad  = s.button_radius       | default: T_btn_radius -%}
+{%- assign _btn_px   = s.button_padding_horizontal | default: 20 -%}
+{%- assign _btn_py   = s.button_padding_vertical   | default: 10 -%}
+
+<style>
+  /* ===== Local styles: Card Stack ===== */
+  #{{ section.id }}.q-cta-card-stack{
+    position:relative;
+    --q-pad-top: {{ s.padding_top | default: 64 }}px;
+    --q-pad-bot: {{ s.padding_bottom | default: 64 }}px;
+    --q-mar-top: {{ s.margin_top | default: 0 }}px;
+    --q-mar-bot: {{ s.margin_bottom | default: 0 }}px;
+
+    --q-head-fs: calc({{ settings.type_h2_size | default: 200 }} * 0.01rem);
+    --q-sub-fs: 1.125rem;
+    --q-body-fs: calc({{ T_body_size }} * 0.01rem);
+
+    --q-card-gap: 1rem;
+    --q-card-pad: 1.25rem;
+    --q-card-br: 16px;
+    --q-card-bd: 1px solid rgba(17,17,17,0.06);
+    --q-shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06);
+
+    margin-top: var(--q-mar-top);
+    margin-bottom: var(--q-mar-bot);
+    padding-top: var(--q-pad-top);
+    padding-bottom: var(--q-pad-bot);
+  }
+  #{{ section.id }} .q-bleed{ position:relative; }
+  #{{ section.id }} .q-bg{ position:absolute; inset:0; z-index:0; overflow:hidden; }
+  #{{ section.id }} .q-media{ width:100%; height:100%; object-fit:cover; display:block; }
+  #{{ section.id }} .q-overlay{ position:absolute; inset:0; pointer-events:none; }
+
+  #{{ section.id }} .q-layer{ position:relative; z-index:1; }
+  #{{ section.id }} .q-wrap{
+    width:100%;
+    max-width: {{ settings.container_lg | default: 1152 }}px;
+    margin-left:auto; margin-right:auto;
+    padding-left: calc({{ settings.space_md | default: 16 }} * 0.01rem);
+    padding-right: calc({{ settings.space_md | default: 16 }} * 0.01rem);
+  }
+
+  #{{ section.id }} .q-head{
+    margin-bottom: 1.25rem;
+    text-align: {{ s.text_alignment | default: 'center' }};
+  }
+  #{{ section.id }} .q-accent{
+    color: {{ _accent_color }};
+    font-size: .875rem;
+    letter-spacing: .04em;
+    font-weight: 600;
+    margin: 0 0 .5rem 0;
+  }
+  #{{ section.id }} .q-heading{
+    margin: 0 0 .5rem 0;
+    color: {{ _heading_color }};
+    font-size: var(--q-head-fs);
+    line-height: 1.2;
+    {% if T_font_heading %}font-family: {{ T_font_heading.family }}, {{ T_font_heading.fallback_families }};{% endif %}
+    {% if T_head_upper %}text-transform: uppercase;{% endif %}
+    {% if T_head_letter != 0 %}letter-spacing: {{ T_head_letter | divided_by: 1000.0 }}em;{% endif %}
+  }
+  #{{ section.id }} .q-sub{
+    margin: 0;
+    color: {{ _sub_color }};
+    font-size: var(--q-sub-fs);
+    max-width: 60ch;
+    margin-left:auto; margin-right:auto;
+  }
+
+  /* ===== Layout engines ===== */
+  #{{ section.id }} .q-grid{ gap: var(--q-card-gap); }
+
+  /* Grid engine */
+  #{{ section.id }} .q-grid.is-grid{ display:grid; }
+  @media (min-width: {{ settings.bp_md | default: 768 }}px){
+    #{{ section.id }} .q-grid.is-grid.is-columns{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+  }
+  @media (min-width: {{ settings.bp_lg | default: 1024 }}px){
+    #{{ section.id }} .q-grid.is-grid.is-columns.cols-2{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+    #{{ section.id }} .q-grid.is-grid.is-columns.cols-3{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+  }
+
+  /* Flex engine */
+  #{{ section.id }} .q-grid.is-flex{ display:flex; flex-wrap:wrap; }
+  #{{ section.id }} .q-grid.is-flex > .q-card{ width:100%; }
+  @media (min-width: {{ settings.bp_md | default: 768 }}px){
+    #{{ section.id }} .q-grid.is-flex.is-columns > .q-card{ width:calc(50% - (var(--q-card-gap) * 0.5)); }
+  }
+  @media (min-width: {{ settings.bp_lg | default: 1024 }}px){
+    #{{ section.id }} .q-grid.is-flex.is-columns.cols-2 > .q-card{ width:calc(50% - (var(--q-card-gap) * 0.5)); }
+    #{{ section.id }} .q-grid.is-flex.is-columns.cols-3 > .q-card{ width:calc(33.333% - (var(--q-card-gap) * (2/3))); }
+  }
+
+  /* ===== Card ===== */
+  #{{ section.id }} .q-card{
+    background: var(--card-bg, {{ C_bg_base }});
+    border: var(--q-card-bd);
+    border-radius: var(--q-card-br);
+    padding: var(--q-card-pad);
+    box-shadow: var(--q-shadow);
+    display:flex; flex-direction:column; gap:.75rem;
+    will-change: transform, box-shadow;
+  }
+  /* Shadow depth variants */
+  #{{ section.id }}[data-depth="none"] .q-card{ --q-shadow: none; }
+  #{{ section.id }}[data-depth="strong"] .q-card{ --q-shadow: 0 6px 18px rgba(0,0,0,.10), 0 18px 38px rgba(0,0,0,.12); }
+
+  #{{ section.id }} .q-card-head{ display:flex; align-items:center; gap:.75rem; }
+  #{{ section.id }} .q-icon{
+    --q-icon: {{ icon_px }}px;
+    width: var(--q-icon); height: var(--q-icon); flex:0 0 auto;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+  #{{ section.id }} .q-icon img{ width: 100%; height: 100%; object-fit: contain; display:block; }
+
+  #{{ section.id }} .q-badge{
+    display:inline-block;
+    font-size:.75rem; line-height:1;
+    padding:.375rem .6rem;
+    border-radius: 9999px;
+    background: {{ settings.badge_new_bg | default: C_primary }};
+    color: {{ settings.badge_new_text | default: C_on_color }};
+  }
+
+  #{{ section.id }} .q-card-title{
+    margin: 0;
+    font-size: 1.125rem;
+    color: {{ _heading_color }};
+    {% if T_font_heading %}font-family: {{ T_font_heading.family }}, {{ T_font_heading.fallback_families }};{% endif %}
+  }
+  #{{ section.id }} .q-card-body{
+    margin: 0;
+    color: {{ _sub_color }};
+    font-size: var(--q-body-fs);
+  }
+  #{{ section.id }} .q-card-cta{ margin-top: .25rem; }
+
+  /* Buttons (local, section overrides) */
+  #{{ section.id }} .q-btn{
+    --q-btn-bg: {{ _btn_bg }};
+    --q-btn-fg: {{ _btn_fg }};
+    --q-btn-bdr: {{ _btn_bdr }};
+    --q-btn-bw: {{ _btn_bw }}px;
+    --q-btn-br: {{ _btn_rad }}px;
+    --q-btn-px: {{ _btn_px }}px;
+    --q-btn-py: {{ _btn_py }}px;
+
+    display:inline-flex; align-items:center; justify-content:center;
+    gap:.5rem; text-decoration:none; cursor:pointer; user-select:none;
+    background: var(--q-btn-bg); color: var(--q-btn-fg);
+    border: var(--q-btn-bw) solid var(--q-btn-bdr);
+    border-radius: var(--q-btn-br);
+    padding: var(--q-btn-py) var(--q-btn-px);
+    font-weight: 600;
+    transition: opacity .2s ease, transform .08s ease;
+  }
+  #{{ section.id }} .q-btn:hover{ opacity: {{ T_btn_hover_op | default: 92 }}%; }
+  #{{ section.id }} .q-btn:active{ transform: scale({{ T_btn_active_scale | default: 98 | divided_by: 100.0 }}); }
+
+  #{{ section.id }} .q-ctas{
+    display:flex; gap:.75rem; margin-top: 1rem;
+  }
+
+  /* Subtle hover affordance (desktop, unless reduced motion) */
+  @media (hover:hover){
+    #{{ section.id }} .q-card{
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+    #{{ section.id }}[data-depth="none"] .q-card:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 4px 10px rgba(0,0,0,.06), 0 16px 30px rgba(0,0,0,.08);
+    }
+    #{{ section.id }}[data-depth="soft"] .q-card:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,.06), 0 18px 34px rgba(0,0,0,.10);
+    }
+    #{{ section.id }}[data-depth="strong"] .q-card:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 8px 18px rgba(0,0,0,.12), 0 22px 44px rgba(0,0,0,.16);
+    }
+  }
+  @media (prefers-reduced-motion: reduce){
+    #{{ section.id }} .q-card{ transition: none; }
+    #{{ section.id }} .q-card:hover{ transform:none; }
+  }
+
+  /* visibility helpers */
+  .q-hide-mobile{ display:none; }
+  @media (min-width: {{ settings.bp_md | default: 768 }}px){ .q-hide-mobile{ display:block; } }
+  @media (max-width: {{ settings.bp_md | default: 768 | minus: 1 }}px){ .q-hide-desktop{ display:none; } }
+</style>
+
+<section
+  id="{{ section.id }}"
+  class="q-cta-card-stack{{ visibility_classes }}"
+  role="region"
+  aria-label="{{ s.aria_label | default: 'Card stack section' }}"
+  data-anchor="{{ s.anchor_id | default: 'card-stack' }}"
+  data-depth="{{ depth }}"
+>
+  {%- if s.anchor_id != blank -%}
+    <span id="{{ s.anchor_id }}" class="q-anchor" aria-hidden="true"></span>
+  {%- endif -%}
+
+  <div class="q-bleed" aria-hidden="true">
+    <div class="q-bg">
+      {%- assign bg_video = s.background_video | strip -%}
+      {%- if bg_video != blank and bg_video != 'none' -%}
+        {%- assign is_youtube = false -%}
+        {%- assign is_vimeo = false -%}
+        {%- if bg_video contains 'youtube.com' or bg_video contains 'youtu.be' -%}{%- assign is_youtube = true -%}{%- endif -%}
+        {%- if bg_video contains 'vimeo.com' -%}{%- assign is_vimeo = true -%}{%- endif -%}
+
+        {%- if is_youtube -%}
+          {%- assign yid = bg_video
+            | replace: 'https://youtu.be/',''
+            | replace: 'http://youtu.be/',''
+            | replace: 'https://www.youtube.com/watch?v=',''
+            | replace: 'http://www.youtube.com/watch?v=',''
+            | replace: 'https://youtube.com/watch?v=',''
+            | replace: 'http://youtube.com/watch?v=',''
+            | split:'?' | first -%}
+          <iframe class="q-media"
+                  src="https://www.youtube.com/embed/{{ yid }}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&playlist={{ yid }}&modestbranding=1&rel=0"
+                  title="Background video" tabindex="-1" allow="autoplay; encrypted-media"></iframe>
+        {%- elsif is_vimeo -%}
+          {%- assign vid = bg_video | split:'/' | last | split:'?' | first -%}
+          <iframe class="q-media"
+                  src="https://player.vimeo.com/video/{{ vid }}?background=1&autoplay=1&muted=1&loop=1&autopause=0&controls=0"
+                  title="Background video" tabindex="-1" allow="autoplay; fullscreen; picture-in-picture"></iframe>
+        {%- else -%}
+          <video class="q-media" autoplay loop muted playsinline preload="none">
+            <source src="{{ bg_video | escape }}" type="video/mp4">
+          </video>
+        {%- endif -%}
+    {%- elsif s.background_image != blank -%}
+        {{ s.background_image
+          | image_url: width: 2880
+          | image_tag:
+            widths: '960,1440,1920,2560,2880',
+            sizes: '100vw',
+            loading: 'lazy',
+            class: 'q-media',
+            decoding: 'async',
+            alt: '' }}
+      {%- else -%}
+        <div class="q-media" style="background: {{ s.background_color | default: C_bg_contrast }};"></div>
+      {%- endif -%}
+
+      {%- if s.overlay_type == 'gradient' -%}
+        {%- assign g1 = s.grad_start | default: '#000000' -%}
+        {%- assign g2 = s.grad_end   | default: '#000000' -%}
+        {%- assign g1o = s.grad_start_opacity | default: 20 | divided_by: 100.0 -%}
+        {%- assign g2o = s.grad_end_opacity   | default: 0  | divided_by: 100.0 -%}
+        {%- assign ang = s.grad_angle | default: 180 -%}
+        {%- assign g1c = g1 | color_modify: 'alpha', g1o -%}
+        {%- assign g2c = g2 | color_modify: 'alpha', g2o -%}
+        <div class="q-overlay" style="background: linear-gradient({{ ang }}deg, {{ g1c }}, {{ g2c }});"></div>
+      {%- else -%}
+        <div class="q-overlay" style="background-color: {{ s.overlay_color | default: '#000000' }}; opacity: {{ s.overlay_opacity | default: 20 | divided_by: 100.0 }};"></div>
+      {%- endif -%}
+    </div>
+  </div>
+
+  <div class="q-layer">
+    <div class="q-wrap">
+      <header class="q-head">
+        {%- if s.accent_heading != blank -%}
+          <p class="q-accent">{{ s.accent_heading }}</p>
+        {%- endif -%}
+        {%- if s.heading != blank -%}
+          <h2 class="q-heading">{{ s.heading }}</h2>
+        {%- endif -%}
+        {%- if s.subheading != blank -%}
+          <p class="q-sub">{{ s.subheading }}</p>
+        {%- endif -%}
+      </header>
+
+      {%- assign grid_class = '' -%}
+      {%- if s.display_mode == 'columns' -%}{%- assign grid_class = grid_class | append: ' is-columns' -%}{%- endif -%}
+      {%- if engine == 'grid' -%}{%- assign grid_class = grid_class | append: ' is-grid' -%}{%- else -%}{%- assign grid_class = grid_class | append: ' is-flex' -%}{%- endif -%}
+      {%- assign grid_class = grid_class | append: ' cols-' | append: cols_d -%}
+
+      <div class="q-grid{{ grid_class }}">
+        {%- for block in section.blocks -%}
+          {%- if block.type == 'card_item' -%}
+            {%- assign b = block.settings -%}
+            {%- assign card_bg = b.bg_color | default: C_bg_base -%}
+            <article class="q-card" style="--card-bg: {{ card_bg }};" {{ block.shopify_attributes }}>
+              <div class="q-card-head">
+                <span class="q-icon" aria-hidden="true">
+                  {%- if b.icon_image != blank -%}
+                    {{ b.icon_image | image_url: width: 96 | image_tag: widths: '64,96', sizes: '64px', loading: 'lazy', decoding: 'async', alt: '' }}
+                  {%- elsif b.icon_filename != blank -%}
+                    <img src="{{ b.icon_filename | asset_url }}" alt="" loading="lazy" decoding="async">
+                  {%- else -%}
+                    <span style="width:var(--q-icon);height:var(--q-icon);border-radius:8px;background:{{ C_bg_contrast }};display:block;"></span>
+                  {%- endif -%}
+                </span>
+
+                <div class="q-card-head-text" style="display:flex; flex-direction:column; gap:.375rem;">
+                  <h3 class="q-card-title">{{ b.title | default: 'Feature' }}</h3>
+                  {%- if b.badge_text != blank -%}
+                    <span class="q-badge">{{ b.badge_text }}</span>
+                  {%- endif -%}
+                </div>
+              </div>
+
+              {%- if b.body != blank -%}
+                <p class="q-card-body">{{ b.body }}</p>
+              {%- endif -%}
+
+              {%- if b.cta_text != blank -%}
+                <div class="q-card-cta">
+                  <a class="q-btn" href="{{ b.cta_link | default: '/' }}" rel="noopener" aria-label="{{ b.cta_text | escape }}">{{ b.cta_text }}</a>
+                </div>
+              {%- endif -%}
+            </article>
+          {%- endif -%}
+        {%- endfor -%}
+      </div>
+
+      {%- if s.cta_global_text != blank -%}
+        <div class="q-ctas" style="justify-content:{% if cta_align_val == 'left' %}flex-start{% elsif cta_align_val == 'right' %}flex-end{% else %}center{% endif %};">
+          <a class="q-btn" href="{{ s.cta_global_link | default: '/pages/benefits' }}" rel="noopener" aria-label="{{ s.cta_global_text | escape }}">{{ s.cta_global_text }}</a>
+        </div>
+      {%- endif -%}
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "CTA – Card Stack",
+  "tag": "section",
+  "class": "q-cta-card-stack",
+  "settings": [
+    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Card stack section" },
+
+    { "type": "header", "content": "Background media" },
+    { "type": "image_picker", "id": "background_image", "label": "Background image" },
+    { "type": "text", "id": "background_video", "label": "Background video URL (MP4 / YouTube / Vimeo)", "default": "none" },
+    { "type": "color", "id": "background_color", "label": "Background color", "default": "#f6f7f8" },
+
+    { "type": "header", "content": "Overlay" },
+    { "type": "select", "id": "overlay_type", "label": "Overlay type", "default": "solid", "options": [
+      { "value": "solid", "label": "Solid" },
+      { "value": "gradient", "label": "Gradient" }
+    ]},
+    { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
+    { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 20, "unit": "%" },
+    { "type": "color", "id": "grad_start", "label": "Gradient start", "default": "#000000" },
+    { "type": "range", "id": "grad_start_opacity", "label": "Start opacity", "min": 0, "max": 100, "step": 5, "default": 20, "unit": "%" },
+    { "type": "color", "id": "grad_end", "label": "Gradient end", "default": "#000000" },
+    { "type": "range", "id": "grad_end_opacity", "label": "End opacity", "min": 0, "max": 100, "step": 5, "default": 0, "unit": "%" },
+    { "type": "range", "id": "grad_angle", "label": "Gradient angle", "min": 0, "max": 360, "step": 5, "default": 180, "unit": "deg" },
+
+    { "type": "header", "content": "Heading content" },
+    { "type": "text", "id": "accent_heading", "label": "Accent (kicker)", "default": "Why Customers Love Us" },
+    { "type": "color", "id": "accent_color", "label": "Accent color", "default": "#2563eb" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Why Customers Love Us" },
+    { "type": "color", "id": "heading_color", "label": "Heading color", "default": "#111111" },
+    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Every Quadratum layout is built for speed, flexibility, and visual balance." },
+    { "type": "color", "id": "subheading_color", "label": "Subheading color", "default": "#6b7280" },
+    { "type": "select", "id": "text_alignment", "label": "Text alignment", "default": "center", "options": [
+      { "value": "left", "label": "Left" },
+      { "value": "center", "label": "Center" },
+      { "value": "right", "label": "Right" }
+    ]},
+
+    { "type": "header", "content": "Layout" },
+    { "type": "select", "id": "display_mode", "label": "Display mode", "default": "stacked", "options": [
+      { "value": "stacked", "label": "Stacked" },
+      { "value": "columns", "label": "Columns" }
+    ]},
+    { "type": "select", "id": "columns_desktop", "label": "Desktop columns", "default": "3", "options": [
+      { "value": "2", "label": "2 columns" },
+      { "value": "3", "label": "3 columns" }
+    ]},
+    { "type": "select", "id": "layout_engine", "label": "Layout engine", "default": "grid", "options": [
+      { "value": "grid", "label": "CSS Grid" },
+      { "value": "flex", "label": "Flex (wrap)" }
+    ]},
+    { "type": "select", "id": "icon_size", "label": "Icon size", "default": "40", "options": [
+      { "value": "32", "label": "32 px" },
+      { "value": "40", "label": "40 px" },
+      { "value": "48", "label": "48 px" }
+    ]},
+    { "type": "select", "id": "shadow_depth", "label": "Card shadow depth", "default": "soft", "options": [
+      { "value": "none", "label": "None" },
+      { "value": "soft", "label": "Soft" },
+      { "value": "strong", "label": "Strong" }
+    ]},
+
+    { "type": "header", "content": "Buttons (overrides)" },
+    { "type": "color", "id": "button_bg_color", "label": "Button background", "default": "#2563eb" },
+    { "type": "color", "id": "button_text_color", "label": "Button text color", "default": "#ffffff" },
+    { "type": "color", "id": "button_border_color", "label": "Button border color", "default": "#2563eb" },
+    { "type": "range", "id": "button_border_width", "label": "Button border width", "min": 0, "max": 6, "step": 1, "default": 1 },
+    { "type": "range", "id": "button_radius", "label": "Button radius", "min": 0, "max": 32, "step": 1, "default": 12 },
+    { "type": "range", "id": "button_padding_vertical", "label": "Button padding vertical", "min": 6, "max": 32, "step": 1, "default": 10 },
+    { "type": "range", "id": "button_padding_horizontal", "label": "Button padding horizontal", "min": 10, "max": 36, "step": 1, "default": 20 },
+
+    { "type": "header", "content": "Global CTA" },
+    { "type": "text", "id": "cta_global_text", "label": "Global CTA text", "default": "See All Benefits" },
+    { "type": "url", "id": "cta_global_link", "label": "Global CTA link" },
+    { "type": "select", "id": "cta_align", "label": "Global CTA alignment", "default": "center", "options": [
+      { "value": "left", "label": "Left" },
+      { "value": "center", "label": "Center" },
+      { "value": "right", "label": "Right" }
+    ]},
+
+    { "type": "header", "content": "Spacing" },
+    { "type": "range", "id": "padding_top", "label": "Padding top", "min": 0, "max": 200, "step": 4, "default": 64 },
+    { "type": "range", "id": "padding_bottom", "label": "Padding bottom", "min": 0, "max": 200, "step": 4, "default": 64 },
+    { "type": "range", "id": "margin_top", "label": "Margin top", "min": 0, "max": 120, "step": 4, "default": 0 },
+    { "type": "range", "id": "margin_bottom", "label": "Margin bottom", "min": 0, "max": 120, "step": 4, "default": 0 },
+
+    { "type": "header", "content": "Visibility & anchor" },
+    { "type": "text", "id": "anchor_id", "label": "Anchor ID", "default": "card-stack" },
+    { "type": "checkbox", "id": "hide_on_mobile", "label": "Hide on mobile", "default": false },
+    { "type": "checkbox", "id": "hide_on_desktop", "label": "Hide on desktop", "default": false }
+  ],
+  "blocks": [
+    {
+      "type": "card_item",
+      "name": "Card",
+      "settings": [
+        { "type": "text", "id": "icon_filename", "label": "Icon filename (e.g. lucide/clock.svg)", "default": "lucide/clock.svg" },
+        { "type": "image_picker", "id": "icon_image", "label": "Icon image (optional)" },
+        { "type": "text", "id": "title", "label": "Title", "default": "Fast Results" },
+        { "type": "textarea", "id": "body", "label": "Body", "default": "Launch in days, not weeks." },
+        { "type": "text", "id": "cta_text", "label": "Button label", "default": "Get Started" },
+        { "type": "url", "id": "cta_link", "label": "Button link" },
+        { "type": "text", "id": "badge_text", "label": "Badge (optional)", "default": "Popular" },
+        { "type": "color", "id": "bg_color", "label": "Card background (optional)", "default": "#ffffff" }
+      ]
+    }
+  ],
+  "max_blocks": 6,
+  "presets": [
+    {
+      "name": "CTA – Card Stack",
+      "category": "Call To Action",
+      "blocks": [
+        { "type": "card_item", "settings": {
+          "icon_filename": "lucide/clock.svg",
+          "title": "Fast Results",
+          "body": "Launch in days, not weeks.",
+          "cta_text": "Get Started",
+          "cta_link": "/"
+        }},
+        { "type": "card_item", "settings": {
+          "icon_filename": "tabler/layout.svg",
+          "title": "Modular Design",
+          "body": "Adapt every layout to your brand.",
+          "cta_text": "Explore Layouts",
+          "cta_link": "/"
+        }},
+        { "type": "card_item", "settings": {
+          "icon_filename": "tabler/shield.svg",
+          "title": "Built for Trust",
+          "body": "Performance and reliability at scale.",
+          "cta_text": "Learn More",
+          "cta_link": "/"
+        }}
+      ]
+    }
+  ]
+}
+{% endschema %}
+
+{% stylesheet %}
+/* Reserved for theme-pipeline extraction if desired */
+{% endstylesheet %}
+
+{% javascript %}
+/* No JS required for baseline functionality */
+{% endjavascript %}

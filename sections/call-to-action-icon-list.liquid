@@ -1,0 +1,346 @@
+{% comment %} 
+Quadratum — Icon List (Flex Row)
+Purpose: Display up to 4 icons with labels in a single row (stacks on mobile) plus heading, subheading, and a button.
+Fix: Build absolute icon URLs like <HOST>/<BASE><filename> (e.g., http://127.0.0.1:9292/assets/icons/worm.svg),
+     while normalizing inputs and falling back to asset_url if needed.
+Additions: Per-section text alignment + header colors; button bg/text (and hover) colors.
+          NEW: Button hover scale, transition, easing. Icon hover effects (lift/tilt/pulse/spin-slow) with motion safety.
+{% endcomment %}
+
+{% liquid
+  assign s = section.settings
+
+  assign icon_fx_class = ''
+  if s.icon_hover_effect == 'lift'
+    assign icon_fx_class = 'fx-lift'
+  elsif s.icon_hover_effect == 'tilt'
+    assign icon_fx_class = 'fx-tilt'
+  elsif s.icon_hover_effect == 'pulse'
+    assign icon_fx_class = 'fx-pulse'
+  elsif s.icon_hover_effect == 'spin'
+    assign icon_fx_class = 'fx-spin'
+  endif
+%}
+
+<section
+  id="q-icon-list-{{ section.id }}"
+  class="q-icon-list-root {{ icon_fx_class }}"
+  aria-label="{{ s.aria_label | escape }}"
+>
+  <div class="q-icon-list-overlay" aria-hidden="true"></div>
+
+  <div class="q-icon-list-inner">
+    {% if s.kicker != blank %}
+      <p class="q-kicker">{{ s.kicker }}</p>
+    {% endif %}
+    {% if s.heading != blank %}
+      <h2 class="q-heading">{{ s.heading }}</h2>
+    {% endif %}
+    {% if s.subheading != blank %}
+      <p class="q-subheading">{{ s.subheading }}</p>
+    {% endif %}
+
+    <ul class="q-icon-list" role="list">
+      {%- for block in section.blocks -%}
+        {%- assign b = block.settings -%}
+        <li class="q-icon-item" {{ block.shopify_attributes }}>
+          <div class="q-icon-media" aria-hidden="true">
+            {%- if b.icon_filename != blank -%}
+              {%- comment -%} Normalize filename and build absolute icon URL {%- endcomment -%}
+              {%- assign _fname = b.icon_filename | remove_first: 'assets/' | remove_first: 'icons/' | remove: '/' | strip -%}
+              {%- assign _host_clean = s.icon_host | default: 'http://127.0.0.1:9292' -%}
+              {%- assign _base_clean = s.icon_base | default: '/assets/icons/' | strip -%}
+              {%- if _base_clean == blank -%}{% assign _base_clean = '/assets/icons/' %}{%- endif -%}
+              {%- assign _first = _base_clean | slice: 0, 1 -%}
+              {%- unless _first == '/' -%}{% assign _base_clean = '/' | append: _base_clean %}{%- endunless -%}
+              {%- assign _abs = _host_clean | append: _base_clean | append: _fname -%}
+              {%- assign _abs = _abs | replace: '://', '__PROTOCOL__' | replace: '//', '/' | replace: '__PROTOCOL__', '://' -%}
+              <img
+                src="{{ _abs }}"
+                onerror="this.onerror=null;this.src='{{ _fname | asset_url }}';"
+                alt=""
+                width="64" height="64"
+                loading="lazy"
+              >
+            {%- else -%}
+              <div class="q-icon-ph" aria-hidden="true"></div>
+            {%- endif -%}
+          </div>
+          {% if b.title != blank %}
+            <h3 class="q-icon-title">{{ b.title }}</h3>
+          {% endif %}
+          {% if b.caption != blank %}
+            <p class="q-icon-caption">{{ b.caption }}</p>
+          {% endif %}
+        </li>
+      {%- endfor -%}
+
+      {%- if section.blocks.size == 0 -%}
+        {%- for i in (1..3) -%}
+          <li class="q-icon-item">
+            <div class="q-icon-media"><div class="q-icon-ph"></div></div>
+            <h3 class="q-icon-title">Sample item {{ i }}</h3>
+            <p class="q-icon-caption">Add icon blocks to replace samples.</p>
+          </li>
+        {%- endfor -%}
+      {%- endif -%}
+    </ul>
+
+    {% if s.btn_label != blank and s.btn_link != blank %}
+      <div class="q-actions">
+        <a class="q-btn" href="{{ s.btn_link }}">{{ s.btn_label }}</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <style>
+    /* Root tokens + motion variables */
+    #q-icon-list-{{ section.id }} {
+      --q-pad-y: {{ s.pad_y | default: 48 }}px;
+      --q-pad-x: {{ s.pad_x | default: 16 }}px;
+      --q-gap: {{ s.gap | default: 16 }}px;
+      --q-item-gap: {{ s.item_gap | default: 8 }}px;
+      --q-card-bg: var(--color-surface, transparent);
+
+      /* Button hover tuning */
+      --btn-scale: {{ s.btn_hover_scale | default: '1.02' }};
+      --btn-trans-ms: {{ s.btn_transition_ms | default: 160 }}ms;
+      --btn-ease: {{ s.btn_ease | default: 'ease' }};
+
+      /* Icon hover tuning */
+      --icon-lift: {{ s.icon_lift_px | default: 4 }}px;
+      --icon-trans-ms: {{ s.icon_transition_ms | default: 160 }}ms;
+      --icon-ease: {{ s.icon_ease | default: 'ease' }};
+
+      background: {{ s.bg_color | default: 'transparent' }};
+      {% if s.bg_image != blank %}
+        background-image: url({{ s.bg_image | image_url: width: 2000 }});
+        background-size: cover; background-position: center;
+      {% endif %}
+      padding: var(--q-pad-y) var(--q-pad-x);
+    }
+
+    /* Header group alignment + colors */
+    #q-icon-list-{{ section.id }} .q-icon-list-inner { 
+      max-width: {{ s.max_width | default: 1200 }}px; 
+      margin: 0 auto;
+      text-align: {{ s.text_align | default: 'center' }};
+    }
+    #q-icon-list-{{ section.id }} .q-kicker { 
+      margin: 0 0 4px; 
+      opacity: .95; 
+      color: {{ s.kicker_color | default: 'var(--text-muted, currentColor)' }};
+    }
+    #q-icon-list-{{ section.id }} .q-heading { 
+      margin: 0 0 6px; 
+      color: {{ s.heading_color | default: 'var(--text, currentColor)' }};
+    }
+    #q-icon-list-{{ section.id }} .q-subheading { 
+      margin: 0 0 16px; 
+      color: {{ s.subheading_color | default: 'var(--text-muted, currentColor)' }};
+    }
+
+    /* Flex row → stack on small screens */
+    #q-icon-list-{{ section.id }} .q-icon-list {
+      list-style: none; padding: 0; margin: 0;
+      display: flex; flex-wrap: wrap;
+      gap: var(--q-gap);
+      justify-content: {{ s.justify | default: 'center' }};
+    }
+    #q-icon-list-{{ section.id }} .q-icon-item {
+      flex: 1 1 calc((100% - (var(--q-gap) * 3)) / 4);
+      max-width: calc((100% - (var(--q-gap) * 3)) / 4);
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      gap: var(--q-item-gap);
+      background: var(--q-card-bg);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    @media (max-width: 900px) {
+      #q-icon-list-{{ section.id }} .q-icon-item {
+        flex: 1 1 calc((100% - var(--q-gap)) / 2);
+        max-width: calc((100% - var(--q-gap)) / 2);
+      }
+    }
+    @media (max-width: 600px) {
+      #q-icon-list-{{ section.id }} .q-icon-item {
+        flex: 1 1 100%;
+        max-width: 100%;
+      }
+    }
+
+    /* Icon image + transitions */
+    #q-icon-list-{{ section.id }} .q-icon-media img { display:block; width:64px; height:64px; }
+    #q-icon-list-{{ section.id }} .q-icon-media { 
+      transition: transform var(--icon-trans-ms) var(--icon-ease), filter var(--icon-trans-ms) var(--icon-ease);
+      transform: translateZ(0); /* helps compositing */
+    }
+    #q-icon-list-{{ section.id }} .q-icon-ph { width:64px; height:64px; background: rgba(125,125,125,.12); border-radius: 8px; }
+
+    #q-icon-list-{{ section.id }} .q-icon-title { margin: 0; font-weight: 600; }
+    #q-icon-list-{{ section.id }} .q-icon-caption { margin: 0; opacity: .85; }
+
+    /* Button alignment + colors + transitions */
+    #q-icon-list-{{ section.id }} .q-actions { 
+      margin-top: 20px; 
+      display: flex; 
+      justify-content: {{ s.cta_align | default: 'center' }}; 
+    }
+    #q-icon-list-{{ section.id }} .q-btn {
+      display:inline-flex; align-items:center; justify-content:center;
+      min-height: 44px; padding: 0 16px; border-radius: 10px; text-decoration: none;
+      background: {{ s.btn_bg | default: 'var(--btn-bg, var(--accent))' }};
+      color: {{ s.btn_text | default: 'var(--btn-text, #fff)' }};
+      transition: transform var(--btn-trans-ms) var(--btn-ease), background var(--btn-trans-ms) var(--btn-ease), color var(--btn-trans-ms) var(--btn-ease);
+      transform: translateZ(0);
+    }
+    #q-icon-list-{{ section.id }} .q-btn:hover,
+    #q-icon-list-{{ section.id }} .q-btn:focus-visible {
+      background: {{ s.btn_bg_hover | default: s.btn_bg | default: 'var(--btn-bg-hover, var(--accent-strong))' }};
+      color: {{ s.btn_text_hover | default: s.btn_text | default: 'var(--btn-text, #fff)' }};
+      transform: scale(var(--btn-scale));
+      outline: var(--focus-ring, 2px solid currentColor);
+      outline-offset: 2px;
+    }
+
+    /* Icon hover effects (section-scoped by class) */
+    /* Lift */
+    #q-icon-list-{{ section.id }}.fx-lift .q-icon-item:hover .q-icon-media,
+    #q-icon-list-{{ section.id }}.fx-lift .q-icon-item:focus-within .q-icon-media {
+      transform: translateY(calc(-1 * var(--icon-lift)));
+    }
+
+    /* Tilt */
+    #q-icon-list-{{ section.id }}.fx-tilt .q-icon-item:hover .q-icon-media,
+    #q-icon-list-{{ section.id }}.fx-tilt .q-icon-item:focus-within .q-icon-media {
+      transform: translateY(calc(-0.5 * var(--icon-lift))) rotate(-3deg);
+    }
+
+    /* Pulse */
+    #q-icon-list-{{ section.id }}.fx-pulse .q-icon-item:hover .q-icon-media,
+    #q-icon-list-{{ section.id }}.fx-pulse .q-icon-item:focus-within .q-icon-media {
+      transform: scale(1.05);
+    }
+
+    /* Spin slow (on hover only) */
+    @keyframes q_spin_slow_{{ section.id }} { 
+      to { transform: rotate(360deg); } 
+    }
+    #q-icon-list-{{ section.id }}.fx-spin .q-icon-item:hover .q-icon-media,
+    #q-icon-list-{{ section.id }}.fx-spin .q-icon-item:focus-within .q-icon-media {
+      animation: q_spin_slow_{{ section.id }} 3s linear infinite;
+    }
+
+    /* Motion safety */
+    @media (prefers-reduced-motion: reduce) {
+      #q-icon-list-{{ section.id }} .q-btn,
+      #q-icon-list-{{ section.id }} .q-icon-media {
+        transition: none !important;
+        animation: none !important;
+        transform: none !important;
+      }
+    }
+  </style>
+</section>
+
+{% schema %}
+{
+  "name": "CTA - Icon List",
+  "class": "q-icon-list",
+  "settings": [
+    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Icon features" },
+    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Why choose us" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Four simple reasons" },
+    { "type": "text", "id": "subheading", "label": "Subheading", "default": "Short supportive text about these benefits." },
+
+    { "type": "image_picker", "id": "bg_image", "label": "Background image (root)" },
+    { "type": "color", "id": "bg_color", "label": "Background color", "default": "#00000000" },
+
+    { "type": "range", "id": "max_width", "label": "Max content width (px)", "min": 720, "max": 1600, "step": 40, "default": 1200 },
+    { "type": "range", "id": "pad_y", "label": "Padding Y (px)", "min": 0, "max": 120, "step": 4, "default": 48 },
+    { "type": "range", "id": "pad_x", "label": "Padding X (px)", "min": 0, "max": 80, "step": 4, "default": 16 },
+    { "type": "range", "id": "gap", "label": "Item gap (px)", "min": 0, "max": 48, "step": 2, "default": 16 },
+    { "type": "range", "id": "item_gap", "label": "Icon/text gap (px)", "min": 0, "max": 24, "step": 2, "default": 8 },
+
+    { "type": "select", "id": "text_align", "label": "Header text alignment", "default": "center", "options": [
+      { "value": "left", "label": "Left" },
+      { "value": "center", "label": "Center" },
+      { "value": "right", "label": "Right" }
+    ]},
+    { "type": "color", "id": "kicker_color", "label": "Kicker color" },
+    { "type": "color", "id": "heading_color", "label": "Heading color" },
+    { "type": "color", "id": "subheading_color", "label": "Subheading color" },
+
+    { "type": "text", "id": "btn_label", "label": "Button label", "default": "Learn more" },
+    { "type": "url", "id": "btn_link", "label": "Button link" },
+    { "type": "select", "id": "cta_align", "label": "Button alignment", "default": "center", "options": [
+      { "value": "left", "label": "Left" },
+      { "value": "center", "label": "Center" },
+      { "value": "right", "label": "Right" }
+    ]},
+    { "type": "color", "id": "btn_bg", "label": "Button background color" },
+    { "type": "color", "id": "btn_text", "label": "Button text color" },
+    { "type": "color", "id": "btn_bg_hover", "label": "Button background (hover/focus)" },
+    { "type": "color", "id": "btn_text_hover", "label": "Button text (hover/focus)" },
+
+    { "type": "range", "id": "btn_transition_ms", "label": "Button transition (ms)", "min": 0, "max": 500, "step": 10, "default": 160 },
+    { "type": "select", "id": "btn_hover_scale", "label": "Button hover scale", "default": "1.02", "options": [
+      { "value": "1", "label": "100%" },
+      { "value": "1.02", "label": "102%" },
+      { "value": "1.05", "label": "105%" }
+    ]},
+    { "type": "select", "id": "btn_ease", "label": "Button easing", "default": "ease", "options": [
+      { "value": "ease", "label": "Ease" },
+      { "value": "ease-in-out", "label": "Ease In-Out" },
+      { "value": "cubic-bezier(0.2, 0.8, 0.2, 1)", "label": "Snappy (CB)" }
+    ]},
+
+    { "type": "select", "id": "justify", "label": "Row alignment", "default": "center", "options": [
+      { "value": "flex-start", "label": "Left" },
+      { "value": "center", "label": "Center" },
+      { "value": "space-between", "label": "Space between" }
+    ]},
+
+    { "type": "text", "id": "icon_host", "label": "Icon host (e.g., http://127.0.0.1:9292 or https://website.com)", "default": "http://127.0.0.1:9292" },
+    { "type": "text", "id": "icon_base", "label": "Icon base path (e.g., /assets/icons/)", "default": "/assets/icons/" },
+
+    { "type": "select", "id": "icon_hover_effect", "label": "Icon hover effect", "default": "lift", "options": [
+      { "value": "none", "label": "None" },
+      { "value": "lift", "label": "Lift" },
+      { "value": "tilt", "label": "Tilt" },
+      { "value": "pulse", "label": "Pulse" },
+      { "value": "spin", "label": "Spin (slow)" }
+    ]},
+    { "type": "range", "id": "icon_lift_px", "label": "Icon lift amount (px)", "min": 0, "max": 12, "step": 1, "default": 4 },
+    { "type": "range", "id": "icon_transition_ms", "label": "Icon transition (ms)", "min": 0, "max": 500, "step": 10, "default": 160 },
+    { "type": "select", "id": "icon_ease", "label": "Icon easing", "default": "ease", "options": [
+      { "value": "ease", "label": "Ease" },
+      { "value": "ease-in-out", "label": "Ease In-Out" },
+      { "value": "cubic-bezier(0.2, 0.8, 0.2, 1)", "label": "Snappy (CB)" }
+    ]}
+  ],
+  "blocks": [
+    {
+      "type": "icon",
+      "name": "Icon item",
+      "limit": 4,
+      "settings": [
+        { "type": "text", "id": "icon_filename", "label": "Icon filename (e.g., worm.svg)", "default": "worm.svg", "info": "Final URL = <icon_host><icon_base><filename>. Example local: http://127.0.0.1:9292/assets/icons/worm.svg" },
+        { "type": "text", "id": "title", "label": "Title", "default": "Fast & reliable" },
+        { "type": "text", "id": "caption", "label": "Caption", "default": "Clear benefit or feature description." }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Call To Action - Icon List",
+      "category": "Call To Action",
+      "blocks": [
+        { "type": "icon" },
+        { "type": "icon" },
+        { "type": "icon" }
+      ]
+    }
+  ]
+}
+{% endschema %}
