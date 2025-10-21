@@ -1,0 +1,479 @@
+{% comment %}
+  Quadratum — CTA • Audience Source
+  • Grid of audience-targeted CTA cards (Google/Facebook/TikTok/etc.)
+  • Optional UTM/source match to highlight or filter matching card(s)
+  • Visual fixes only: proper grid + card styling, typography tokens, icon fallbacks, active highlight.
+  • Schema fix: default_active_key = "none".
+  • IMPORTANT: No 'elif' anywhere; Liquid uses 'elsif'.
+{% endcomment %}
+
+{%- assign s = section.settings -%}
+{%- assign T_btn_variant_default = settings.button_variant_default | default: 'solid' -%}
+{%- assign C_bg_contrast = settings.bg_contrast | default: '#f6f7f8' -%}
+{%- assign C_text_base = settings.text_base | default: '#111111' -%}
+{%- assign C_text_muted = settings.text_muted | default: '#6b7280' -%}
+{%- assign C_primary = settings.color_primary | default: '#2563eb' -%}
+{%- assign txt_align = s.text_alignment | default: 'center' -%}
+{%- assign grid_align = s.grid_align | default: 'center' -%}
+
+{%- assign _btn_mode = s.button_mode | default: 'inherit' -%}
+{%- assign _btn_variant = _btn_mode -%}
+{%- if _btn_mode == 'inherit' or _btn_mode == blank -%}{%- assign _btn_variant = T_btn_variant_default -%}{%- endif -%}
+{%- assign btn_mode_class = 'q-btn--solid' -%}
+{%- if _btn_variant == 'outline' -%}{%- assign btn_mode_class = 'q-btn--outline' -%}{%- endif -%}
+{%- if _btn_variant == 'ghost' -%}{%- assign btn_mode_class = 'q-btn--ghost' -%}{%- endif -%}
+
+{%- assign cols_m = s.columns_mobile | default: 1 -%}
+{%- assign cols_t = s.columns_tablet | default: 2 -%}
+{%- assign cols_d = s.columns_desktop | default: 4 -%}
+
+{%- assign card_gap = s.card_gap | default: 16 -%}
+{%- assign card_pad = s.card_padding | default: 20 -%}
+
+{%- assign justify_css = 'center' -%}
+{%- if grid_align == 'left' -%}{%- assign justify_css = 'flex-start' -%}{%- endif -%}
+{%- if grid_align == 'right' -%}{%- assign justify_css = 'flex-end' -%}{%- endif -%}
+
+<style>
+  [data-q-section="{{ section.id }}"]{
+    --q-pad-top: {{ s.padding_top | default: 60 }}px;
+    --q-pad-bottom: {{ s.padding_bottom | default: 60 }}px;
+    --q-mar-top: {{ s.margin_top | default: 0 }}px;
+    --q-mar-bottom: {{ s.margin_bottom | default: 0 }}px;
+    --q-card-gap: {{ card_gap }}px;
+    --q-card-pad: {{ card_pad }}px;
+    --q-head-color: {{ s.heading_color | default: C_text_base }};
+    --q-sub-color: {{ s.subheading_color | default: C_text_muted }};
+    --q-accent-color: {{ s.accent_color | default: C_text_base }};
+    --q-container: {{ settings.container_lg | default: 1152 }}px;
+
+    /* Typography from theme tokens */
+    --q-heading-fs: {% if s.heading_level == 'h3' %}calc({{ settings.type_h3_size | default: 180 }} / 100 * 1rem){% else %}calc({{ settings.type_h2_size | default: 200 }} / 100 * 1rem){% endif %};
+    --q-body-fs: calc({{ settings.type_body_size | default: 100 }} / 100 * 1rem);
+    --q-body-lh: calc({{ settings.body_line_height | default: 160 }} / 100);
+    --q-head-ls: calc({{ settings.headings_letterspacing | default: 0 }} / 1000 * 1em);
+    --q-head-tt: {% if settings.headings_uppercase %}uppercase{% else %}none{% endif %};
+  }
+
+  [data-q-section="{{ section.id }}"] .q-bg{ position:absolute; inset:0; z-index:0; }
+  [data-q-section="{{ section.id }}"] .q-layer{ position:relative; z-index:1; }
+  [data-q-section="{{ section.id }}"] .q-wrap{ max-width: var(--q-container); margin:0 auto; padding:0 24px; }
+
+  /* Headings */
+  [data-q-section="{{ section.id }}"] .q-accent{
+    color: var(--q-accent-color); margin-bottom: .5rem; text-align: {{ txt_align }};
+  }
+  [data-q-section="{{ section.id }}"] .q-heading{
+    color: var(--q-head-color); margin: 0 0 .5rem 0;
+    font-size: var(--q-heading-fs);
+    letter-spacing: var(--q-head-ls);
+    text-transform: var(--q-head-tt);
+    text-align: {{ txt_align }};
+  }
+  [data-q-section="{{ section.id }}"] .q-sub{
+    color: var(--q-sub-color); max-width: 65ch; margin: 0 auto 1.25rem auto;
+    font-size: var(--q-body-fs); line-height: var(--q-body-lh);
+    text-align: {{ txt_align }};
+  }
+
+  /* Grid wrapper so alignment works */
+  [data-q-section="{{ section.id }}"] .q-grid-outer{
+    display:flex; justify-content: {{ justify_css }}; width:100%;
+  }
+  [data-q-section="{{ section.id }}"] .q-grid{
+    display: inline-grid;
+    gap: max(var(--q-card-gap), 24px);
+    grid-template-columns: repeat({{ cols_m }}, minmax(0, 1fr));
+    align-items: stretch;
+  }
+  @media (min-width:768px){
+    [data-q-section="{{ section.id }}"] .q-grid{ grid-template-columns: repeat({{ cols_t }}, minmax(0, 1fr)); }
+  }
+  @media (min-width:1024px){
+    [data-q-section="{{ section.id }}"] .q-grid{ grid-template-columns: repeat({{ cols_d }}, minmax(0, 1fr)); }
+  }
+
+  /* Cards */
+  [data-q-section="{{ section.id }}"] .q-grid > .q-card{ height: 100%; }
+  [data-q-section="{{ section.id }}"] .q-card{
+    background: #fff; border-radius: 12px; padding: var(--q-card-pad);
+    box-shadow: 0 1px 2px rgba(0,0,0,.06);
+    display:flex; flex-direction:column; gap:.5rem; position:relative;
+    transition: transform .2s ease, box-shadow .2s ease, outline-color .2s ease;
+    outline: 1px solid rgba(17,17,17,.06);
+  }
+  [data-q-section="{{ section.id }}"] .q-card[data-active="true"]{
+    outline: 2px solid rgba(37,99,235,.35);
+    box-shadow: 0 6px 18px rgba(0,0,0,.12);
+  }
+  [data-q-section="{{ section.id }}"] .q-card:focus-within{
+    outline: 2px solid {{ C_primary }}; outline-offset: 3px;
+  }
+  [data-q-section="{{ section.id }}"] .q-card:hover{
+    transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.10);
+  }
+
+  /* Badge + icon + text */
+  [data-q-section="{{ section.id }}"] .q-card .q-badge{
+    position:absolute; top:12px; right:12px; background: {{ C_primary }}; color:#fff;
+    font-size:.75rem; padding:.2rem .5rem; border-radius:999px;
+  }
+  [data-q-section="{{ section.id }}"] .q-icon{
+    width: 24px; height:24px; display:inline-block; margin-bottom:.25rem;
+  }
+  [data-q-section="{{ section.id }}"] .q-card h3{
+    margin:0; color: {{ C_text_base }}; font-size: 1.125rem; line-height: 1.3;
+  }
+  [data-q-section="{{ section.id }}"] .q-card p{ margin:0; color: {{ C_text_muted }}; }
+  [data-q-section="{{ section.id }}"] .q-card .q-cta{ margin-top:.75rem; }
+
+  /* CTA row */
+  [data-q-section="{{ section.id }}"] .q-ctas{
+    display:flex; gap:.75rem;
+    justify-content: {% if s.cta_group_align == 'left' %}flex-start{% elsif s.cta_group_align == 'right' %}flex-end{% else %}center{% endif %};
+    margin-top: 1.25rem;
+  }
+
+  /* Background media */
+  [data-q-section="{{ section.id }}"] .q-media{ width:100%; height:100%; object-fit:cover; display:block; }
+  [data-q-section="{{ section.id }}"] .q-overlay{ position:absolute; inset:0; pointer-events:none; }
+
+  @media (prefers-reduced-motion: reduce){
+    [data-q-section="{{ section.id }}"] .q-card{ transition: none; }
+  }
+
+  /* CTA – Audience Source: spacing + icon size */
+    #audience-source .q-grid { gap: 28px; }
+    #audience-source .q-card { padding: 24px; }
+    #audience-source .q-icon { width: 32px; height: 32px; }
+    #audience-source .q-heading { margin-bottom: 0.75rem; }
+    #audience-source .q-sub { margin-bottom: 1.5rem; }
+
+</style>
+
+<section
+  id="{{ s.anchor_id | default: 'section-' | append: section.id }}"
+  data-q-section="{{ section.id }}"
+  class="q-cta-audience-source{% if s.hide_on_mobile %} hidden md:block q-hide-mobile{% endif %}{% if s.hide_on_desktop %} md:hidden q-hide-desktop{% endif %}"
+  role="region"
+  aria-label="{{ s.aria_label | default: 'Audience source call to action' }}"
+  style="
+    padding-top: var(--q-pad-top);
+    padding-bottom: var(--q-pad-bottom);
+    margin-top: var(--q-mar-top);
+    margin-bottom: var(--q-mar-bottom);
+    position: relative;
+    isolation: isolate;
+  "
+>
+  <div class="q-bleed" style="position:relative;">
+    <div class="q-bg" aria-hidden="true">
+      {%- assign vurl = s.background_video | strip -%}
+      {%- if vurl != blank -%}
+        {%- assign is_youtube = false -%}{%- assign is_vimeo = false -%}
+        {%- if vurl contains 'youtube.com' or vurl contains 'youtu.be' -%}{%- assign is_youtube = true -%}{%- endif -%}
+        {%- if vurl contains 'vimeo.com' -%}{%- assign is_vimeo = true -%}{%- endif -%}
+        {%- if is_youtube -%}
+          {%- assign yid = vurl
+            | replace: 'https://youtu.be/',''
+            | replace: 'http://youtu.be/',''
+            | replace: 'https://www.youtube.com/watch?v=',''
+            | replace: 'http://www.youtube.com/watch?v=',''
+            | replace: 'https://youtube.com/watch?v=',''
+            | replace: 'http://youtube.com/watch?v=',''
+            | split:'?' | first -%}
+          <div class="q-media-wrap" style="position:absolute; inset:0; overflow:hidden;">
+            <iframe class="q-media"
+              src="https://www.youtube.com/embed/{{ yid }}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&playlist={{ yid }}&modestbranding=1&rel=0"
+              title="Background video" tabindex="-1" allow="autoplay; encrypted-media"></iframe>
+          </div>
+        {%- elsif is_vimeo -%}
+          {%- assign vid = vurl | split:'/' | last | split:'?' | first -%}
+          <div class="q-media-wrap" style="position:absolute; inset:0; overflow:hidden;">
+            <iframe class="q-media"
+              src="https://player.vimeo.com/video/{{ vid }}?background=1&autoplay=1&muted=1&loop=1&autopause=0&controls=0"
+              title="Background video" tabindex="-1" allow="autoplay; fullscreen; picture-in-picture"></iframe>
+          </div>
+        {%- else -%}
+          <video class="q-media" autoplay loop muted playsinline preload="none"
+            {% if s.background_image != blank %}poster="{{ s.background_image | image_url: width: 1600 }}"{% endif %}>
+            <source src="{{ vurl | escape }}" type="video/mp4">
+          </video>
+        {%- endif -%}
+      {%- elsif s.background_image != blank -%}
+        {{ s.background_image
+          | image_url: width: 2880
+          | image_tag:
+            widths: '960,1440,1920,2560,2880',
+            sizes: '100vw',
+            loading: 'lazy',
+            class: 'q-media',
+            decoding: 'async',
+            alt: '' }}
+      {%- else -%}
+        <div class="q-media" style="background: {{ s.background_color | default: C_bg_contrast }};"></div>
+      {%- endif -%}
+
+      {%- if s.overlay_type == 'gradient' -%}
+        {%- assign g1 = s.grad_start | default: '#000000' -%}
+        {%- assign g2 = s.grad_end   | default: '#000000' -%}
+        {%- assign g1o = s.grad_start_opacity | default: 20 | divided_by: 100.0 -%}
+        {%- assign g2o = s.grad_end_opacity   | default: 0 | divided_by: 100.0 -%}
+        {%- assign ang = s.grad_angle | default: 180 -%}
+        {%- assign g1c = g1 | color_modify: 'alpha', g1o -%}
+        {%- assign g2c = g2 | color_modify: 'alpha', g2o -%}
+        <div class="q-overlay" style="background: linear-gradient({{ ang }}deg, {{ g1c }}, {{ g2c }});"></div>
+      {%- elsif s.overlay_type == 'solid' -%}
+        <div class="q-overlay" style="background-color: {{ s.overlay_color | default: '#000000' }}; opacity: {{ s.overlay_opacity | default: 20 | divided_by: 100.0 }};"></div>
+      {%- endif -%}
+    </div>
+
+    <div class="q-layer">
+      <div class="q-wrap">
+        {% if s.accent_heading != blank %}<p class="q-accent">{{ s.accent_heading }}</p>{% endif %}
+
+        {% if s.heading != blank %}
+          {% case s.heading_level | default: 'h2' %}
+            {% when 'h3' %}<h3 class="q-heading">{{ s.heading }}</h3>
+            {% else %}<h2 class="q-heading">{{ s.heading }}</h2>
+          {% endcase %}
+        {% endif %}
+
+        {% if s.subheading != blank %}<p class="q-sub">{{ s.subheading }}</p>{% endif %}
+
+        <div class="q-grid-outer">
+          <div class="q-grid" data-q-audience-grid>
+            {%- for block in section.blocks -%}
+              {%- if block.type == 'audience_card' -%}
+                {%- assign b = block.settings -%}
+                <article class="q-card" data-source-key="{{ b.source_key | strip | downcase }}" {{ block.shopify_attributes }}>
+                  {% if b.badge_text != blank %}<span class="q-badge">{{ b.badge_text }}</span>{% endif %}
+
+                  {% if b.image_icon != blank %}
+                    {{ b.image_icon | image_url: width: 64 | image_tag: loading: 'lazy', class: 'q-icon', alt: '' }}
+                  {% elsif b.icon_filename != blank %}
+                    <img class="q-icon" src="{{ b.icon_filename | asset_url }}" alt="" width="24" height="24" loading="lazy" decoding="async" onerror="this.style.display='none'">
+                  {% endif %}
+
+                  <h3>{{ b.title }}</h3>
+                  {% if b.body != blank %}<p>{{ b.body }}</p>{% endif %}
+
+                  {% if b.cta_text != blank %}
+                    <div class="q-cta">
+                      <a class="q-btn {{ btn_mode_class }}" href="{{ b.cta_link | default: '#' }}" rel="noopener" aria-label="{{ b.cta_text | escape }}">{{ b.cta_text }}</a>
+                    </div>
+                  {% endif %}
+                </article>
+              {%- endif -%}
+            {%- endfor -%}
+          </div>
+        </div>
+
+        {% if s.cta_global_text != blank %}
+          <div class="q-ctas">
+            <a href="{{ s.cta_global_link | default: '/' }}" class="q-btn {{ btn_mode_class }}" rel="noopener" aria-label="{{ s.cta_global_text | escape }}">{{ s.cta_global_text }}</a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  const root = document.getElementById('{{ s.anchor_id | default: 'section-' | append: section.id }}');
+  if(!root) return;
+
+  const enableMatch = {{ s.enable_utm_match | json }};
+  const hideOthers  = {{ s.hide_non_matching | json }};
+  const defaultKey  = {{ s.default_active_key | json }};
+
+  if(!enableMatch) return;
+
+  function getParam(name){
+    try {
+      const url = new URL(window.location.href);
+      return (url.searchParams.get(name) || '').toLowerCase();
+    } catch(e){ return ''; }
+  }
+
+  let key = getParam('utm_source') || getParam('source');
+  if(!key && defaultKey) key = String(defaultKey).toLowerCase();
+  if(!key) return;
+
+  const cards = root.querySelectorAll('[data-source-key]');
+  let anyMatch = false;
+  cards.forEach(card => {
+    const ck = (card.getAttribute('data-source-key') || '').toLowerCase();
+    const match = ck === key;
+    if(match) {
+      anyMatch = true;
+      card.style.outline = '2px solid rgba(37,99,235,.35)';
+      card.style.boxShadow = '0 6px 18px rgba(0,0,0,.12)';
+      card.setAttribute('data-active','true');
+    } else if(hideOthers){
+      card.style.display = 'none';
+    }
+  });
+
+  if(!anyMatch && hideOthers){
+    cards.forEach(c => c.style.display = '');
+  }
+})();
+</script>
+
+{% schema %}
+{
+  "name": "CTA – Audience Source",
+  "tag": "section",
+  "class": "q-cta-audience-source",
+  "settings": [
+    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Audience source call to action" },
+
+    { "type": "header", "content": "Background (root only)" },
+    { "type": "image_picker", "id": "background_image", "label": "Background image" },
+    { "type": "text", "id": "background_video", "label": "Background video URL (MP4, YouTube, Vimeo)" },
+    { "type": "color", "id": "background_color", "label": "Background color (used when no image/video)", "default": "#f6f7f8" },
+
+    { "type": "header", "content": "Overlay" },
+    { "type": "select", "id": "overlay_type", "label": "Overlay type", "default": "solid", "options": [
+      { "value": "solid", "label": "Solid color" },
+      { "value": "gradient", "label": "Gradient" },
+      { "value": "none", "label": "None" }
+    ]},
+    { "type": "color", "id": "overlay_color", "label": "Overlay color (solid)", "default": "#000000" },
+    { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 20, "unit": "%" },
+    { "type": "color", "id": "grad_start", "label": "Gradient start", "default": "#000000" },
+    { "type": "range", "id": "grad_start_opacity", "label": "Start opacity", "min": 0, "max": 100, "step": 5, "default": 20, "unit": "%" },
+    { "type": "color", "id": "grad_end", "label": "Gradient end", "default": "#000000" },
+    { "type": "range", "id": "grad_end_opacity", "label": "End opacity", "min": 0, "max": 100, "step": 5, "default": 0, "unit": "%" },
+    { "type": "range", "id": "grad_angle", "label": "Gradient angle", "min": 0, "max": 360, "step": 5, "default": 180, "unit": "deg" },
+
+    { "type": "header", "content": "Content" },
+    { "type": "text", "id": "accent_heading", "label": "Accent heading (kicker)", "default": "Personalized for you" },
+    { "type": "color", "id": "accent_color", "label": "Accent color", "default": "#111111" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Pick your path" },
+    { "type": "select", "id": "heading_level", "label": "Heading level", "default": "h2", "options": [
+      { "value": "h2", "label": "H2" },
+      { "value": "h3", "label": "H3" }
+    ]},
+    { "type": "color", "id": "heading_color", "label": "Heading color", "default": "#111111" },
+    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Choose the experience tailored to where you discovered us." },
+    { "type": "color", "id": "subheading_color", "label": "Subheading color", "default": "#6b7280" },
+
+    { "type": "header", "content": "Audience logic" },
+    { "type": "checkbox", "id": "enable_utm_match", "label": "Highlight by UTM/source", "default": true, "info": "Reads ?utm_source= or ?source= and matches block 'source_key' (case-insensitive)." },
+    { "type": "checkbox", "id": "hide_non_matching", "label": "Hide non-matching when UTM present", "default": false },
+    { "type": "text", "id": "default_active_key", "label": "Default active source key (fallback)", "default": "none" },
+
+    { "type": "header", "content": "Layout & alignment" },
+    { "type": "select", "id": "text_alignment", "label": "Heading/subheading alignment", "default": "center", "options": [
+      { "value": "left", "label": "Left" },
+      { "value": "center", "label": "Center" },
+      { "value": "right", "label": "Right" }
+    ]},
+    { "type": "select", "id": "grid_align", "label": "Cards alignment", "default": "center", "options": [
+      { "value": "left", "label": "Left" },
+      { "value": "center", "label": "Center" },
+      { "value": "right", "label": "Right" }
+    ]},
+    { "type": "select", "id": "columns_mobile", "label": "Columns (mobile)", "default": "1", "options": [
+      { "value": "1", "label": "1" },
+      { "value": "2", "label": "2" }
+    ]},
+    { "type": "range", "id": "columns_tablet", "label": "Columns (tablet)", "min": 1, "max": 3, "step": 1, "default": 2 },
+    { "type": "range", "id": "columns_desktop", "label": "Columns (desktop)", "min": 2, "max": 4, "step": 1, "default": 4 },
+    { "type": "range", "id": "card_gap", "label": "Card gap (px)", "min": 8, "max": 40, "step": 2, "default": 16 },
+    { "type": "range", "id": "card_padding", "label": "Card padding (px)", "min": 8, "max": 40, "step": 2, "default": 20 },
+
+    { "type": "header", "content": "CTA row" },
+    { "type": "text", "id": "cta_global_text", "label": "Global CTA text (optional)", "default": "Continue" },
+    { "type": "url", "id": "cta_global_link", "label": "Global CTA link (optional)", "default": "/" },
+    { "type": "select", "id": "cta_group_align", "label": "CTA alignment", "default": "center", "options": [
+      { "value": "left", "label": "Left" },
+      { "value": "center", "label": "Center" },
+      { "value": "right", "label": "Right" }
+    ]},
+
+    { "type": "header", "content": "Buttons (style override)" },
+    { "type": "select", "id": "button_mode", "label": "Button style", "default": "inherit", "options": [
+      { "value": "inherit", "label": "— Theme default —" },
+      { "value": "solid", "label": "Solid" },
+      { "value": "outline", "label": "Outline" },
+      { "value": "ghost", "label": "Ghost" }
+    ]},
+
+    { "type": "header", "content": "Spacing" },
+    { "type": "range", "id": "padding_top", "label": "Padding top", "min": 0, "max": 200, "step": 10, "default": 60 },
+    { "type": "range", "id": "padding_bottom", "label": "Padding bottom", "min": 0, "max": 200, "step": 10, "default": 60 },
+    { "type": "range", "id": "margin_top", "label": "Margin top", "min": 0, "max": 100, "step": 10, "default": 0 },
+    { "type": "range", "id": "margin_bottom", "label": "Margin bottom", "min": 0, "max": 100, "step": 10, "default": 0 },
+
+    { "type": "header", "content": "Visibility & anchors" },
+    { "type": "text", "id": "anchor_id", "label": "Optional anchor ID" },
+    { "type": "checkbox", "id": "hide_on_mobile", "label": "Hide on mobile", "default": false },
+    { "type": "checkbox", "id": "hide_on_desktop", "label": "Hide on desktop", "default": false }
+  ],
+  "blocks": [
+    {
+      "type": "audience_card",
+      "name": "Audience card",
+      "settings": [
+        { "type": "text", "id": "source_key", "label": "Source key (match UTM: google, facebook, tiktok)", "default": "google" },
+        { "type": "text", "id": "icon_filename", "label": "Icon filename (lucide/* or tabler/* .svg)", "default": "tabler/brand-google.svg" },
+        { "type": "image_picker", "id": "image_icon", "label": "Icon image (overrides filename, optional)" },
+        { "type": "text", "id": "title", "label": "Title", "default": "Found us on Google?" },
+        { "type": "textarea", "id": "body", "label": "Body", "default": "Start with our most popular picks curated for search shoppers." },
+        { "type": "text", "id": "cta_text", "label": "CTA text", "default": "Explore picks" },
+        { "type": "url", "id": "cta_link", "label": "CTA link", "default": "/collections/all" },
+        { "type": "text", "id": "badge_text", "label": "Badge text (optional)", "default": "Yep, we're here!" }
+      ]
+    }
+  ],
+  "max_blocks": 8,
+  "presets": [
+    {
+      "name": "CTA – Audience Source",
+      "category": "Call To Action",
+      "blocks": [
+        { "type": "audience_card", "settings": {
+          "source_key": "google",
+          "icon_filename": "tabler/brand-google.svg",
+          "title": "Found us on Google?",
+          "body": "Discover bestsellers that rank high with search shoppers.",
+          "cta_text": "Explore picks",
+          "cta_link": "/collections/all",
+          "badge_text": "Popular"
+        }},
+        { "type": "audience_card", "settings": {
+          "source_key": "facebook",
+          "icon_filename": "tabler/brand-facebook.svg",
+          "title": "From Facebook?",
+          "body": "Shop the looks you saw in our latest posts.",
+          "cta_text": "Shop the look",
+          "cta_link": "/collections/new",
+          "badge_text": "Yep, we’re here"
+        }},
+        { "type": "audience_card", "settings": {
+          "source_key": "tiktok",
+          "icon_filename": "tabler/brand-tiktok.svg",
+          "title": "Came via TikTok?",
+          "body": "Trending products with fast shipping and easy returns.",
+          "cta_text": "See what’s trending",
+          "cta_link": "/collections/trending",
+          "badge_text": "Trending"
+        }},
+        { "type": "audience_card", "settings": {
+          "source_key": "youtube",
+          "icon_filename": "tabler/brand-youtube.svg",
+          "title": "From YouTube?",
+          "body": "Everything featured in our videos — all in one place.",
+          "cta_text": "Shop video picks",
+          "cta_link": "/collections/video",
+          "badge_text": ""
+        }}
+      ]
+    }
+  ]
+}
+{% endschema %}
