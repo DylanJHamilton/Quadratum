@@ -1,0 +1,180 @@
+{% comment %} 
+  Quadratum — Form Core Renderer
+  • Renders fields (and step wrappers) from blocks
+  • A11y: labels, aria-invalid, aria-describedby, inline errors
+  • No comparisons inside {{ }} — only values
+  Inputs:
+    - id            : unique base for element ids
+    - settings      : section.settings
+    - blocks        : section.blocks
+    - shopify_form? : optional (when invoked inside {% form 'contact' %})
+{% endcomment %}
+
+{%- assign s = settings -%}
+{%- assign is_steps = false -%}
+{%- if s.template_style == 'steps' -%}{%- assign is_steps = true -%}{%- endif -%}
+
+<div class="q-fields" {% if is_steps %}data-steps="true"{% endif %}>
+  {%- assign indexer = 0 -%}
+  {%- for block in blocks -%}
+    {%- assign b = block.settings -%}
+
+    {%- if block.type == 'step' -%}
+      <div class="q-step" {{ block.shopify_attributes }}>
+        {%- if b.step_title != blank -%}<h3 class="q-label">{{ b.step_title }}</h3>{%- endif -%}
+        {%- if b.step_desc != blank -%}<p class="q-help">{{ b.step_desc }}</p>{%- endif -%}
+      </div>
+      {%- assign indexer = indexer | plus: 0 -%}
+      {%- continue -%}
+    {%- endif -%}
+
+    {%- if block.type == 'field' -%}
+      {%- assign indexer = indexer | plus: 1 -%}
+      {%- assign input_id = 'qf-' | append: id | append: '-' | append: indexer -%}
+      {%- assign name_attr = b.name_attr | default: 'contact[field]' -%}
+      {%- assign label_txt = b.label | default: 'Field' -%}
+      {%- assign placeholder = b.placeholder | default: '' -%}
+      {%- assign help_txt = b.help_text | default: '' -%}
+
+      {%- assign wrapper_class = 'q-field' -%}
+      {%- if b.width == 'half' -%}{%- assign wrapper_class = wrapper_class | append: ' half' -%}{%- endif -%}
+
+      {%- assign cond_attrs = '' -%}
+      {%- if b.condition_enable -%}
+        {%- assign cond_attrs = ' data-cond="1"' -%}
+        {%- assign cond_attrs = cond_attrs | append: ' data-cond-field="' | append: b.condition_field | append: '"' -%}
+        {%- assign cond_attrs = cond_attrs | append: ' data-cond-operator="' | append: b.condition_operator | append: '"' -%}
+        {%- assign cond_attrs = cond_attrs | append: ' data-cond-value="' | append: b.condition_value | append: '"' -%}
+      {%- endif -%}
+
+      <div class="{{ wrapper_class }}" data-q-field data-required="{% if b.required %}true{% else %}false{% endif %}"{{ cond_attrs }} {{ block.shopify_attributes }}>
+        {%- case b.field_type -%}
+
+          {%- when 'hidden' -%}
+            <input id="{{ input_id }}" type="hidden" name="{{ name_attr }}" value="{{ b.default_value | default: '' | escape }}">
+
+          {%- when 'html' -%}
+            <div id="{{ input_id }}" class="q-html">{{ b.html_content }}</div>
+
+          {%- when 'textarea' -%}
+            <label class="q-label" for="{{ input_id }}">{{ label_txt }}{% if b.required %} *{% endif %}</label>
+            <textarea id="{{ input_id }}" class="q-textarea" name="{{ name_attr }}" placeholder="{{ placeholder | escape }}" aria-describedby="{{ input_id }}-help {{ input_id }}-err" {% if b.required %}required aria-required="true"{% endif %}></textarea>
+            {%- if help_txt != blank -%}<p id="{{ input_id }}-help" class="q-help">{{ help_txt }}</p>{%- endif -%}
+            <p id="{{ input_id }}-err" class="q-error"></p>
+
+          {%- when 'select' -%}
+            <label class="q-label" for="{{ input_id }}">{{ label_txt }}{% if b.required %} *{% endif %}</label>
+            <select id="{{ input_id }}" class="q-select" name="{{ name_attr }}" aria-describedby="{{ input_id }}-help {{ input_id }}-err" {% if b.required %}required aria-required="true"{% endif %}>
+              {%- assign lines = b.options | default: '' | split: '\n' -%}
+              {%- for line in lines -%}
+                {%- assign opt_line = line | strip -%}
+                {%- if opt_line != blank -%}
+                  {%- assign parts = opt_line | split: '|' -%}
+                  {%- assign opt_val = parts | first | strip -%}
+                  {%- assign opt_lab = parts[1] | default: opt_val | strip -%}
+                  <option value="{{ opt_val | escape }}"{% if b.default_value and b.default_value == opt_val %} selected{% endif %}>{{ opt_lab }}</option>
+                {%- endif -%}
+              {%- endfor -%}
+            </select>
+            {%- if help_txt != blank -%}<p id="{{ input_id }}-help" class="q-help">{{ help_txt }}</p>{%- endif -%}
+            <p id="{{ input_id }}-err" class="q-error"></p>
+
+          {%- when 'radio' -%}
+            <span class="q-label">{{ label_txt }}{% if b.required %} *{% endif %}</span>
+            {%- assign lines = b.options | default: '' | split: '\n' -%}
+            {%- assign rindex = 0 -%}
+            {%- for line in lines -%}
+              {%- assign opt_line = line | strip -%}
+              {%- if opt_line != blank -%}
+                {%- assign parts = opt_line | split: '|' -%}
+                {%- assign opt_val = parts | first | strip -%}
+                {%- assign opt_lab = parts[1] | default: opt_val | strip -%}
+                {%- assign rindex = rindex | plus: 1 -%}
+                {%- assign rid = input_id | append: '-' | append: rindex -%}
+                <label class="q-radio" for="{{ rid }}">
+                  <input id="{{ rid }}" type="radio" class="q-input" name="{{ name_attr }}" value="{{ opt_val | escape }}" {% if b.required %}required aria-required="true"{% endif %}{% if b.default_value and b.default_value == opt_val %} checked{% endif %}>
+                  <span>{{ opt_lab }}</span>
+                </label>
+              {%- endif -%}
+            {%- endfor -%}
+            {%- if help_txt != blank -%}<p id="{{ input_id }}-help" class="q-help">{{ help_txt }}</p>{%- endif -%}
+            <p id="{{ input_id }}-err" class="q-error"></p>
+
+          {%- when 'checkbox' -%}
+            <label class="q-radio" for="{{ input_id }}">
+              <input id="{{ input_id }}" type="checkbox" class="q-input" name="{{ name_attr }}"{% if b.default_value != blank %} value="{{ b.default_value | escape }}"{% else %} value="on"{% endif %}{% if b.required %} required aria-required="true"{% endif %}>
+              <span>{{ label_txt }}</span>
+            </label>
+            {%- if help_txt != blank -%}<p id="{{ input_id }}-help" class="q-help">{{ help_txt }}</p>{%- endif -%}
+            <p id="{{ input_id }}-err" class="q-error"></p>
+
+          {%- when 'consent' -%}
+            <label class="q-radio" for="{{ input_id }}">
+              <input id="{{ input_id }}" type="checkbox" class="q-input" name="{{ name_attr }}" value="yes"{% if b.required %} required aria-required="true"{% endif %}>
+              <span>{{ label_txt }}</span>
+            </label>
+            <p id="{{ input_id }}-err" class="q-error"></p>
+
+          {%- when 'file' -%}
+            <label class="q-label" for="{{ input_id }}">{{ label_txt }}{% if b.required %} *{% endif %}</label>
+            <input id="{{ input_id }}" type="file" class="q-input" name="{{ name_attr }}"{% if b.accept != blank %} accept="{{ b.accept | escape }}"{% endif %} aria-describedby="{{ input_id }}-help {{ input_id }}-err"{% if b.required %} required aria-required="true"{% endif %}>
+            {%- if help_txt != blank -%}<p id="{{ input_id }}-help" class="q-help">{{ help_txt }}</p>{%- endif -%}
+            <p id="{{ input_id }}-err" class="q-error"></p>
+
+          {%- when 'password' -%}
+            <label class="q-label" for="{{ input_id }}">{{ label_txt }}{% if b.required %} *{% endif %}</label>
+            <input id="{{ input_id }}" type="password" class="q-input" name="{{ name_attr }}" placeholder="{{ placeholder | escape }}" aria-describedby="{{ input_id }}-help {{ input_id }}-err"{% if b.required %} required aria-required="true"{% endif %}>
+            {%- if help_txt != blank -%}<p id="{{ input_id }}-help" class="q-help">{{ help_txt }}</p>{%- endif -%}
+            <p id="{{ input_id }}-err" class="q-error"></p>
+
+          {%- when 'email' -%}
+            <label class="q-label" for="{{ input_id }}">{{ label_txt }}{% if b.required %} *{% endif %}</label>
+            <input id="{{ input_id }}" type="email" class="q-input" name="{{ name_attr }}" placeholder="{{ placeholder | escape }}" aria-describedby="{{ input_id }}-help {{ input_id }}-err"{% if b.required %} required aria-required="true"{% endif %} inputmode="email" autocomplete="email">
+            {%- if help_txt != blank -%}<p id="{{ input_id }}-help" class="q-help">{{ help_txt }}</p>{%- endif -%}
+            <p id="{{ input_id }}-err" class="q-error"></p>
+
+          {%- when 'tel' -%}
+            <label class="q-label" for="{{ input_id }}">{{ label_txt }}{% if b.required %} *{% endif %}</label>
+            <input id="{{ input_id }}" type="tel" class="q-input" name="{{ name_attr }}" placeholder="{{ placeholder | escape }}" aria-describedby="{{ input_id }}-help {{ input_id }}-err"{% if b.required %} required aria-required="true"{% endif %} inputmode="tel" autocomplete="tel">
+            {%- if help_txt != blank -%}<p id="{{ input_id }}-help" class="q-help">{{ help_txt }}</p>{%- endif -%}
+            <p id="{{ input_id }}-err" class="q-error"></p>
+
+          {%- when 'number' -%}
+            <label class="q-label" for="{{ input_id }}">{{ label_txt }}{% if b.required %} *{% endif %}</label>
+            <input id="{{ input_id }}" type="number" class="q-input" name="{{ name_attr }}" placeholder="{{ placeholder | escape }}" aria-describedby="{{ input_id }}-help {{ input_id }}-err"{% if b.required %} required aria-required="true"{% endif %} inputmode="decimal" step="any">
+            {%- if help_txt != blank -%}<p id="{{ input_id }}-help" class="q-help">{{ help_txt }}</p>{%- endif -%}
+            <p id="{{ input_id }}-err" class="q-error"></p>
+
+          {%- when 'url' -%}
+            <label class="q-label" for="{{ input_id }}">{{ label_txt }}{% if b.required %} *{% endif %}</label>
+            <input id="{{ input_id }}" type="url" class="q-input" name="{{ name_attr }}" placeholder="{{ placeholder | escape }}" aria-describedby="{{ input_id }}-help {{ input_id }}-err"{% if b.required %} required aria-required="true"{% endif %} inputmode="url">
+            {%- if help_txt != blank -%}<p id="{{ input_id }}-help" class="q-help">{{ help_txt }}</p>{%- endif -%}
+            <p id="{{ input_id }}-err" class="q-error"></p>
+
+          {%- when 'date' -%}
+            <label class="q-label" for="{{ input_id }}">{{ label_txt }}{% if b.required %} *{% endif %}</label>
+            <input id="{{ input_id }}" type="date" class="q-input" name="{{ name_attr }}" aria-describedby="{{ input_id }}-help {{ input_id }}-err"{% if b.required %} required aria-required="true"{% endif %}>
+            {%- if help_txt != blank -%}<p id="{{ input_id }}-help" class="q-help">{{ help_txt }}</p>{%- endif -%}
+            <p id="{{ input_id }}-err" class="q-error"></p>
+
+          {%- when 'time' -%}
+            <label class="q-label" for="{{ input_id }}">{{ label_txt }}{% if b.required %} *{% endif %}</label>
+            <input id="{{ input_id }}" type="time" class="q-input" name="{{ name_attr }}" aria-describedby="{{ input_id }}-help {{ input_id }}-err"{% if b.required %} required aria-required="true"{% endif %}>
+            {%- if help_txt != blank -%}<p id="{{ input_id }}-help" class="q-help">{{ help_txt }}</p>{%- endif -%}
+            <p id="{{ input_id }}-err" class="q-error"></p>
+
+          {%- else -%}{%- comment -%} text fallback {%- endcomment -%}
+            <label class="q-label" for="{{ input_id }}">{{ label_txt }}{% if b.required %} *{% endif %}</label>
+            <input id="{{ input_id }}" type="text" class="q-input" name="{{ name_attr }}" placeholder="{{ placeholder | escape }}" aria-describedby="{{ input_id }}-help {{ input_id }}-err"{% if b.required %} required aria-required="true"{% endif %}>
+            {%- if help_txt != blank -%}<p id="{{ input_id }}-help" class="q-help">{{ help_txt }}</p>{%- endif -%}
+            <p id="{{ input_id }}-err" class="q-error"></p>
+
+        {%- endcase -%}
+      </div>
+    {%- endif -%}
+  {%- endfor -%}
+
+  <div>
+    <button type="submit" class="q-btn {% if s.button_variant == 'outline' %}q-btn--outline{% elsif s.button_variant == 'ghost' %}q-btn--ghost{% else %}q-btn--solid{% endif %}">{{ s.button_label | default: 'Submit' }}</button>
+  </div>
+</div>

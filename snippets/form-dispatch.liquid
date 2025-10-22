@@ -1,0 +1,45 @@
+{% comment %}
+  Quadratum — Form Dispatch (patched)
+{% endcomment %}
+
+{%- assign s = settings -%}
+
+{%- assign has_file = false -%}
+{%- for b in blocks -%}
+  {%- if b.type == 'field' and b.settings.field_type == 'file' -%}{%- assign has_file = true -%}{%- endif -%}
+{%- endfor -%}
+
+{%- assign tags_str = s.hidden_tags | default: '' | strip -%}
+{%- assign now_unix = 'now' | date: '%s' -%}
+
+{%- if s.destination == 'custom_endpoint' and s.endpoint_url != blank -%}
+  <form class="q-form" id="q-form-{{ id }}" method="post" action="{{ s.endpoint_url | escape }}"
+        {% if has_file %}enctype="multipart/form-data"{% endif %} novalidate>
+    {%- if tags_str != blank -%}<input type="hidden" name="tags" value="{{ tags_str | escape }}">{%- endif -%}
+    <input type="hidden" name="source" value="quote_form">
+    <input type="hidden" name="section_id" value="{{ id }}">
+    <input type="text" name="hp_field" tabindex="-1" autocomplete="off" class="q-hp" aria-hidden="true" style="position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;">
+    <input type="hidden" name="submitted_at" value="{{ now_unix }}">
+    {%- if s.captcha_mode == 'turnstile' -%}<input type="hidden" name="cf-turnstile-response" value="">{%- elsif s.captcha_mode == 'recaptcha_v3' -%}<input type="hidden" name="g-recaptcha-response" value="">{%- endif -%}
+    {%- render 'form-core', id: id, settings: s, blocks: blocks -%}
+  </form>
+{%- else -%}
+  {%- comment %} Shopify Contact form pathway (patched) {% endcomment -%}
+  {%- assign form_dom_id = 'q-form-' | append: id -%}
+  {% form 'contact', id: form_dom_id, class: 'q-form', novalidate: 'novalidate' %}
+    {%- if tags_str != blank -%}<input type="hidden" name="contact[tags]" value="{{ tags_str | escape }}">{%- endif -%}
+    <input type="text" name="contact[hp_field]" tabindex="-1" autocomplete="off" class="q-hp" aria-hidden="true" style="position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;">
+    <input type="hidden" name="contact[submitted_at]" value="{{ now_unix }}">
+    {%- if s.captcha_mode == 'turnstile' -%}<input type="hidden" name="cf-turnstile-response" value="">{%- elsif s.captcha_mode == 'recaptcha_v3' -%}<input type="hidden" name="g-recaptcha-response" value="">{%- endif -%}
+
+    {%- if form.posted_successfully? -%}
+      <div class="q-live"><span class="ok">{{ s.success_text | default: 'Thanks! Your request has been sent.' }}</span></div>
+    {%- elsif form.errors -%}
+      <div class="q-live"><span class="bad">{{ s.error_text | default: 'Please fix the highlighted fields and try again.' }}</span></div>
+    {%- else -%}
+      <div class="q-live" aria-live="polite" role="status"></div>
+    {%- endif -%}
+
+    {%- render 'form-core', id: id, settings: s, blocks: blocks, shopify_form: form -%}
+  {% endform %}
+{%- endif -%}
