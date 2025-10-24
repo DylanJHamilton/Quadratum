@@ -1,0 +1,581 @@
+{% comment %}
+  Quadratum — Form: Product Waitlist / Back in Stock
+  File: sections/form-waitlist.liquid
+  Root: .q-form.q-form--waitlist
+  Purpose: Capture demand on OOS variants; notify on restock.
+
+  Features
+  • Layouts: inline / card / split
+  • Routing: Shopify Customer or Custom Endpoint (App Proxy)
+  • PDP-aware variant binding; fallback picker if no context
+  • Consent + UTM + tags + product/variant meta
+  • A11y: labels, aria-invalid, aria-live
+  • Captcha: Turnstile / reCAPTCHA v3 (if keys present)
+{% endcomment %}
+
+{{ 'forms-sections.css' | asset_url | stylesheet_tag }}
+
+{%- assign s = section.settings -%}
+{%- assign g = settings -%}
+
+{%- comment %} Effective integrations/config {% endcomment -%}
+{%- assign eff_captcha_mode = s.captcha_mode | default: g.forms_captcha_provider | default: 'none' -%}
+{%- assign eff_captcha_key  = s.captcha_site_key | default: g.captcha_turnstile_site_key | default: g.captcha_recaptcha_site_key | default: '' -%}
+
+{%- assign tags_theme   = g.forms_default_tags | default: 'form, web' -%}
+{%- assign tags_section = s.hidden_tags | default: 'waitlist, web' -%}
+{%- assign eff_tags = tags_theme -%}
+{%- if tags_section != blank -%}{%- assign eff_tags = tags_theme | append: ', ' | append: tags_section -%}{%- endif -%}
+
+{%- assign eff_endpoint = s.endpoint_url -%}
+{%- if eff_endpoint == blank and s.destination == 'custom_endpoint' -%}
+  {%- assign eff_endpoint = g.forms_global_endpoint | default: '' -%}
+{%- endif -%}
+
+{%- comment %} Button variant resolution {% endcomment -%}
+{%- assign BTN_default = settings.button_variant_default | default: 'solid' -%}
+{%- assign _btn_choice = s.button_variant | default: 'inherit' -%}
+{%- assign _btn_variant = BTN_default -%}
+{%- if _btn_choice != 'inherit' and _btn_choice != blank -%}{%- assign _btn_variant = _btn_choice -%}{%- endif -%}
+{%- assign btn_mode_class = 'q-btn--solid' -%}
+{%- if _btn_variant == 'outline' -%}{%- assign btn_mode_class = 'q-btn--outline' -%}{%- endif -%}
+{%- if _btn_variant == 'ghost' -%}{%- assign btn_mode_class = 'q-btn--ghost' -%}{%- endif -%}
+
+{%- comment %} Visibility helpers + anchor {% endcomment -%}
+{%- assign visibility_classes = '' -%}
+{%- if s.hide_on_mobile -%}{%- assign visibility_classes = visibility_classes | append: ' hidden md:block q-hide-mobile' -%}{%- endif -%}
+{%- if s.hide_on_desktop -%}{%- assign visibility_classes = visibility_classes | append: ' md:hidden q-hide-desktop' -%}{%- endif -%}
+{%- assign anchor = s.anchor_id -%}
+{%- if anchor == blank -%}{%- assign anchor = 'section-' | append: section.id -%}{%- endif -%}
+
+{%- assign C_primary     = settings.color_primary | default: '#2563eb' -%}
+{%- assign C_bg_base     = settings.bg_base       | default: '#ffffff' -%}
+{%- assign C_bg_contrast = settings.bg_contrast   | default: '#f6f7f8' -%}
+{%- assign C_text_base   = settings.text_base     | default: '#111111' -%}
+{%- assign C_text_muted  = settings.text_muted    | default: '#6b7280' -%}
+{%- assign C_error       = settings.color_error   | default: '#dc2626' -%}
+{%- assign C_success     = settings.color_success | default: '#16a34a' -%}
+{%- assign BTN_radius    = settings.button_radius | default: 12 -%}
+{%- assign BTN_bw        = settings.button_border_width | default: 1 -%}
+{%- assign BTN_hover_op  = settings.button_hover_opacity | default: 92 -%}
+{%- assign BTN_active    = settings.button_active_scale  | default: 98 -%}
+
+<style>
+  #{{ section.id }}{
+    --q-pad-y: {{ s.padding_y | default: 40 }}px;
+    --q-pad-x: {{ s.padding_x | default: 24 }}px;
+    --q-card-br: {{ s.card_radius | default: 14 }}px;
+    --q-card-shadow: {{ s.card_shadow | default: 2 }};
+    --q-text: {{ C_text_base }};
+    --q-muted: {{ C_text_muted }};
+    --q-bg: {{ s.bg_color | default: C_bg_contrast }};
+    --q-btn-bg: {{ C_primary }};
+    --q-btn-fg: {{ settings.text_on_color | default: '#ffffff' }};
+    --q-btn-bdr: {{ C_text_base }};
+    --q-btn-bw: {{ BTN_bw }}px;
+    --q-btn-br: {{ BTN_radius }}px;
+    --q-btn-hover-op: {{ BTN_hover_op }}%;
+    --q-btn-active-scale: {{ BTN_active | divided_by: 100.0 }};
+
+    --q-form-bg: {{ s.form_bg | default: C_bg_base }};
+    --q-input-br: {{ s.input_radius | default: 10 }}px;
+    --q-input-bdr: {{ s.input_border | default: '#e5e7eb' }};
+  }
+
+  /* Inline (PDP) compaction */
+  #{{ section.id }}[data-template="inline"] .q-card{ padding: 0; background: transparent; box-shadow: none; }
+  #{{ section.id }}[data-template="inline"] .q-head{ margin: 0 0 8px; }
+  #{{ section.id }}[data-template="inline"] .q-fields{ display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
+  #{{ section.id }}[data-template="inline"] .q-field{ margin:0; min-width: 220px; }
+  #{{ section.id }}[data-template="inline"] .q-actions .q-btn{ height:44px; }
+
+  /* Frameless surface toggle (remove card chrome) */
+  #{{ section.id }}[data-surface="frameless"] .q-card{ background: transparent !important; box-shadow:none !important; padding:0 !important; border-radius:0 !important; }
+
+  /* Variant picker visibility (only when needed) */
+  #{{ section.id }} .q-variant-picker{ display:none; }
+  #{{ section.id }}.no-variant .q-variant-picker{ display:block; }
+</style>
+
+<section
+  id="{{ anchor }}"
+  class="q-form q-form--waitlist{{ visibility_classes }}"
+  role="region"
+  aria-label="{{ s.aria_label | default: 'Product waitlist form' }}"
+  data-template="{{ s.template_style | default: 'inline' }}"
+  data-surface="{{ s.surface_style | default: 'card' }}"
+  data-msg-error="{{ s.error_text | escape }}"
+  data-msg-success="{{ s.success_text | escape }}"
+  data-captcha="{{ eff_captcha_mode }}"
+  data-captcha-key="{{ eff_captcha_key | escape }}"
+  data-btn-variant="{{ btn_mode_class }}"
+  data-bind-mode="{{ s.bind_mode | default: 'auto' }}"
+  data-product-handle="{{ s.product_handle | default: product.handle | default: '' | escape }}"
+>
+  <div class="q-bleed">
+    <div class="q-bg" aria-hidden="true">
+      {%- if s.bg_image != blank -%}
+        {{ s.bg_image | image_url: width: 2560 | image_tag: widths: '960,1440,1920,2560', sizes: '100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
+      {%- else -%}
+        <div class="q-media" style="background: var(--q-bg);"></div>
+      {%- endif -%}
+      {%- if s.overlay_type == 'gradient' -%}
+        {%- assign g1c = s.grad_start | default: '#000000' -%}
+        {%- assign g2c = s.grad_end   | default: '#000000' -%}
+        {%- assign g1o = s.grad_start_opacity | default: 35 | divided_by: 100.0 -%}
+        {%- assign g2o = s.grad_end_opacity   | default: 0  | divided_by: 100.0 -%}
+        <div class="q-overlay" style="background: linear-gradient({{ s.grad_angle | default: 180 }}deg, {{ g1c | color_modify: 'alpha', g1o }}, {{ g2c | color_modify: 'alpha', g2o }});"></div>
+      {%- elsif s.overlay_type == 'solid' -%}
+        <div class="q-overlay" style="background-color: {{ s.overlay_color | default: '#000000' }}; opacity: {{ s.overlay_opacity | default: 30 | divided_by: 100.0 }};"></div>
+      {%- endif -%}
+    </div>
+
+    <div class="q-layer">
+      <div class="q-wrap">
+        <div class="q-grid{% if s.template_style == 'split' and s.split_media_side == 'left' %} split-left{% elsif s.template_style == 'split' and s.split_media_side == 'right' %} split-right{% endif %}">
+          {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'left' -%}
+            <div class="q-media-card">
+              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
+            </div>
+          {%- endif -%}
+
+          <div class="q-card" data-q-form-card>
+            <header class="q-head">
+              {%- if s.kicker != blank -%}<p class="q-kicker">{{ s.kicker }}</p>{%- endif -%}
+              {%- assign htag = s.heading_level | default: 'h3' -%}
+              {%- if s.heading != blank -%}{% if htag == 'h2' %}<h2 class="q-heading">{{ s.heading }}</h2>{% else %}<h3 class="q-heading">{{ s.heading }}</h3>{% endif %}{%- endif -%}
+              {%- if s.subheading != blank -%}<p class="q-sub">{{ s.subheading }}</p>{%- endif -%}
+            </header>
+
+            {%- comment -%}
+              Routing:
+              • Shopify Customer → {% form 'customer' %} (tags + accepts_marketing)
+              • Custom Endpoint → <form action="{{ eff_endpoint }}">
+            {%- endcomment -%}
+            {%- assign use_shopify_customer = false -%}
+            {%- if s.destination == 'shopify_customer' -%}{%- assign use_shopify_customer = true -%}{%- endif -%}
+
+            {%- if use_shopify_customer -%}
+              {%- assign f_id = 'waitlist-' | append: section.id -%}
+              {% form 'customer', id: f_id, class: 'q-form', novalidate: 'novalidate' %}
+                <input type="hidden" name="contact[tags]" value="{{ eff_tags | escape }}">
+                <input type="hidden" name="form_name" value="Product Waitlist">
+                <input type="hidden" name="shop" value="{{ shop.permanent_domain | escape }}">
+                <input type="hidden" name="product_handle" value="{{ s.product_handle | default: product.handle | default: '' | escape }}">
+                <input type="hidden" name="variant_id" value="">
+                <input type="hidden" name="variant_label" value="">
+                <input type="hidden" name="utm_source" value="">
+                <input type="hidden" name="utm_medium" value="">
+                <input type="hidden" name="utm_campaign" value="">
+                <input type="hidden" name="referrer" value="">
+
+                <div class="q-fields">
+                  <div class="q-field" style="min-width:240px;">
+                    <label class="q-label" for="{{ section.id }}-email">Email</label>
+                    <input id="{{ section.id }}-email" class="q-input" type="email" name="contact[email]" placeholder="you@example.com" required>
+                    <p class="q-error" aria-live="polite"></p>
+                  </div>
+
+                  {%- if s.show_first_name -%}
+                  <div class="q-field">
+                    <label class="q-label" for="{{ section.id }}-first">First name (optional)</label>
+                    <input id="{{ section.id }}-first" class="q-input" type="text" name="customer[first_name]" placeholder="Jane">
+                    <p class="q-error" aria-live="polite"></p>
+                  </div>
+                  {%- endif -%}
+
+                  <div class="q-field q-variant-picker">
+                    <label class="q-label" for="{{ section.id }}-variant">Variant</label>
+                    <select id="{{ section.id }}-variant" class="q-select" data-variant-picker>
+                      <option value="">{{ s.variant_placeholder | default: 'Select a variant…' }}</option>
+                    </select>
+                    <p class="q-help">{{ s.variant_help | default: 'Choose size/color to join the waitlist.' }}</p>
+                    <p class="q-error" aria-live="polite"></p>
+                  </div>
+
+                  <div class="q-field">
+                    <label class="q-radio">
+                      <input class="q-input q-check" type="checkbox" name="customer[accepts_marketing]" value="true" required>
+                      <span class="q-help">{{ s.consent_label | default: 'I agree to receive an email when this item is back in stock.' }}</span>
+                    </label>
+                    {%- if s.privacy_link != blank -%}
+                      <p class="q-help"><a href="{{ s.privacy_link }}" target="_blank" rel="noopener">{{ s.privacy_text | default: 'Privacy Policy' }}</a></p>
+                    {%- endif -%}
+                  </div>
+                </div>
+
+                <div class="q-actions" style="margin-top:8px;">
+                  <button type="submit" class="q-btn {{ btn_mode_class }}">{{ s.button_label | default: 'Notify Me' }}</button>
+                  <div class="q-live" aria-live="polite"></div>
+                </div>
+              {% endform %}
+            {%- else -%}
+              <form class="q-form" method="post" action="{{ eff_endpoint | escape }}" novalidate>
+                <input type="hidden" name="form_name" value="Product Waitlist">
+                <input type="hidden" name="source" value="waitlist">
+                <input type="hidden" name="tags" value="{{ eff_tags | escape }}">
+                <input type="hidden" name="shop" value="{{ shop.permanent_domain | escape }}">
+                <input type="hidden" name="product_handle" value="{{ s.product_handle | default: product.handle | default: '' | escape }}">
+                <input type="hidden" name="variant_id" value="">
+                <input type="hidden" name="variant_label" value="">
+                <input type="hidden" name="utm_source" value="">
+                <input type="hidden" name="utm_medium" value="">
+                <input type="hidden" name="utm_campaign" value="">
+                <input type="hidden" name="referrer" value="">
+                <input type="hidden" name="consent" value="false">
+
+                <div class="q-fields">
+                  <div class="q-field" style="min-width:240px;">
+                    <label class="q-label" for="{{ section.id }}-email">Email</label>
+                    <input id="{{ section.id }}-email" class="q-input" type="email" name="email" placeholder="you@example.com" required>
+                    <p class="q-error" aria-live="polite"></p>
+                  </div>
+
+                  {%- if s.show_first_name -%}
+                  <div class="q-field">
+                    <label class="q-label" for="{{ section.id }}-first">First name (optional)</label>
+                    <input id="{{ section.id }}-first" class="q-input" type="text" name="first_name" placeholder="Jane">
+                    <p class="q-error" aria-live="polite"></p>
+                  </div>
+                  {%- endif -%}
+
+                  <div class="q-field q-variant-picker">
+                    <label class="q-label" for="{{ section.id }}-variant">Variant</label>
+                    <select id="{{ section.id }}-variant" class="q-select" data-variant-picker>
+                      <option value="">{{ s.variant_placeholder | default: 'Select a variant…' }}</option>
+                    </select>
+                    <p class="q-help">{{ s.variant_help | default: 'Choose size/color to join the waitlist.' }}</p>
+                    <p class="q-error" aria-live="polite"></p>
+                  </div>
+
+                  <div class="q-field">
+                    <label class="q-radio">
+                      <input class="q-input q-check" type="checkbox" data-consent value="true" required>
+                      <span class="q-help">{{ s.consent_label | default: 'I agree to receive an email when this item is back in stock.' }}</span>
+                    </label>
+                    {%- if s.privacy_link != blank -%}
+                      <p class="q-help"><a href="{{ s.privacy_link }}" target="_blank" rel="noopener">{{ s.privacy_text | default: 'Privacy Policy' }}</a></p>
+                    {%- endif -%}
+                  </div>
+                </div>
+
+                <div class="q-actions" style="margin-top:8px;">
+                  <button type="submit" class="q-btn {{ btn_mode_class }}">{{ s.button_label | default: 'Notify Me' }}</button>
+                  <div class="q-live" aria-live="polite"></div>
+                </div>
+              </form>
+            {%- endif -%}
+          </div>
+
+          {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'right' -%}
+            <div class="q-media-card">
+              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
+            </div>
+          {%- endif -%}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {%- if eff_captcha_mode == 'turnstile' and eff_captcha_key != blank -%}
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
+  {%- endif -%}
+  {%- if eff_captcha_mode == 'recaptcha_v3' and eff_captcha_key != blank -%}
+    <script src="https://www.google.com/recaptcha/api.js?render={{ eff_captcha_key | escape }}"></script>
+  {%- endif -%}
+
+  {{ 'frontend-form-logic-form-sections.js' | asset_url | script_tag }}
+
+  <script>
+  (function(){
+    const sectionRoot = document.getElementById('{{ anchor }}');
+    if (!sectionRoot) return;
+
+    const activeForm = sectionRoot.querySelector('.q-form');
+    if (!activeForm) return;
+
+    // UTM + referrer capture
+    const queryParams = new URLSearchParams(location.search);
+    const setHidden = (name, value) => {
+      const input = activeForm.querySelector('[name="'+ name +'"]');
+      if (input) input.value = value || '';
+    };
+    setHidden('utm_source', queryParams.get('utm_source') || '');
+    setHidden('utm_medium', queryParams.get('utm_medium') || '');
+    setHidden('utm_campaign', queryParams.get('utm_campaign') || '');
+    setHidden('referrer', document.referrer || '');
+
+    // Variant binding helpers
+    const variantPickerWrap = sectionRoot.querySelector('.q-variant-picker');
+    const variantPicker = sectionRoot.querySelector('[data-variant-picker]');
+    const bindMode = sectionRoot.getAttribute('data-bind-mode') || 'auto';
+    const variantIdInput = activeForm.querySelector('[name="variant_id"]');
+    const variantLabelInput = activeForm.querySelector('[name="variant_label"]');
+
+    const bindVariantFromDOM = () => {
+      // Common PDP patterns
+      let id = '';
+      let label = '';
+
+      const selectId = document.querySelector('select[name="id"]');
+      if (selectId && selectId.value) {
+        id = selectId.value;
+        label = selectId.options[selectId.selectedIndex]?.text || '';
+      }
+
+      if (!id) {
+        const hiddenId = document.querySelector('input[name="id"]');
+        if (hiddenId && hiddenId.value) id = hiddenId.value;
+      }
+
+      if (!id) {
+        const chosen = document.querySelector('[data-variant-id].is-selected,[data-variant-id][aria-checked="true"]');
+        if (chosen) {
+          id = chosen.getAttribute('data-variant-id') || '';
+          label = chosen.getAttribute('data-variant-label') || chosen.textContent.trim();
+        }
+      }
+
+      // Fallback: parse product JSON for label
+      if (!label && id){
+        try{
+          const jsonEl = document.querySelector('script[type="application/json"][data-product]') || document.querySelector('script.product-json');
+          const productJson = jsonEl ? JSON.parse(jsonEl.textContent) : (window.meta && window.meta.product) || null;
+          if (productJson?.variants) {
+            const match = productJson.variants.find(v => String(v.id) === String(id));
+            if (match) label = (match.title || '').trim();
+          }
+        }catch(_e){}
+      }
+
+      return { id, label };
+    };
+
+    const populatePickerFromJSON = () => {
+      try{
+        const jsonEl = document.querySelector('script[type="application/json"][data-product]') || document.querySelector('script.product-json');
+        const productJson = jsonEl ? JSON.parse(jsonEl.textContent) : (window.meta && window.meta.product) || null;
+        if (!productJson?.variants) return false;
+        if (!variantPicker) return false;
+
+        // Clear (keep placeholder at index 0)
+        for (let i = variantPicker.options.length - 1; i > 0; i--) variantPicker.remove(i);
+
+        productJson.variants.forEach(v => {
+          const opt = document.createElement('option');
+          opt.value = v.id;
+          opt.textContent = v.title + (v.available ? '' : ' — Sold out');
+          variantPicker.appendChild(opt);
+        });
+        return true;
+      }catch(_e){}
+      return false;
+    };
+
+    const applyVariant = (v) => {
+      if (!variantIdInput || !variantLabelInput) return;
+      variantIdInput.value = v.id || '';
+      variantLabelInput.value = v.label || '';
+    };
+
+    const toggleVariantPicker = (show) => {
+      if (!variantPickerWrap) return;
+      if (show) {
+        sectionRoot.classList.add('no-variant');
+        variantPickerWrap.style.display = '';
+      } else {
+        sectionRoot.classList.remove('no-variant');
+        variantPickerWrap.style.display = 'none';
+      }
+    };
+
+    // Initial bind
+    let initialVariant = { id:'', label:'' };
+    if (bindMode === 'auto') initialVariant = bindVariantFromDOM();
+
+    if (initialVariant.id) {
+      applyVariant(initialVariant);
+      toggleVariantPicker(false);
+    } else {
+      const populated = populatePickerFromJSON();
+      toggleVariantPicker(true);
+      if (populated && variantPicker) {
+        variantPicker.addEventListener('change', () => {
+          const v = {
+            id: variantPicker.value || '',
+            label: variantPicker.options[variantPicker.selectedIndex]?.text || ''
+          };
+          applyVariant(v);
+        }, { passive: true });
+      }
+    }
+
+    // For custom endpoint mode, mirror consent into hidden field
+    const consentToggle = activeForm.querySelector('[data-consent]');
+    if (consentToggle) {
+      consentToggle.addEventListener('change', () => {
+        setHidden('consent', consentToggle.checked ? 'true' : 'false');
+      }, { passive: true });
+    }
+
+    // Analytics hook (frontend-form-logic handles actual submit/validation)
+    activeForm.addEventListener('q:submit:success', () => {
+      try{
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: 'waitlist_signup',
+          method: '{{ s.destination }}',
+          product_handle: activeForm.querySelector('[name="product_handle"]')?.value || '',
+          variant_id: activeForm.querySelector('[name="variant_id"]')?.value || '',
+          location: '{{ s.template_style }}'
+        });
+      }catch(_e){}
+    }, { passive: true });
+  })();
+  </script>
+</section>
+
+{% schema %}
+{
+  "name": "Form – Waitlist ",
+  "tag": "section",
+  "class": "q-form q-form--waitlist",
+  "settings": [
+    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Product waitlist form" },
+
+    { "type": "header", "content": "Layout" },
+    { "type": "select", "id": "template_style", "label": "Template", "default": "inline", "options": [
+      { "value": "inline", "label": "Inline (PDP minimal)" },
+      { "value": "card", "label": "Card (landing)" },
+      { "value": "split", "label": "Split (image + form)" }
+    ]},
+    { "type": "select", "id": "surface_style", "label": "Surface chrome", "default": "card", "options": [
+      { "value": "card", "label": "Card" },
+      { "value": "frameless", "label": "Frameless (no card)" }
+    ]},
+    { "type": "select", "id": "split_media_side", "label": "Split: media side", "default": "right", "options": [
+      { "value": "left", "label": "Left" },
+      { "value": "right", "label": "Right" }
+    ]},
+    { "type": "image_picker", "id": "split_image", "label": "Split image" },
+
+    { "type": "header", "content": "Content" },
+    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Back in stock" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Get notified when it’s back" },
+    { "type": "select", "id": "heading_level", "label": "Heading level", "default": "h3", "options": [
+      { "value": "h2", "label": "H2" },
+      { "value": "h3", "label": "H3" }
+    ]},
+    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "We’ll email you as soon as this variant is restocked." },
+    { "type": "text", "id": "button_label", "label": "Button", "default": "Notify Me" },
+    { "type": "checkbox", "id": "show_first_name", "label": "Show first name field", "default": false },
+
+    { "type": "header", "content": "Variant Binding" },
+    { "type": "select", "id": "bind_mode", "label": "Bind mode", "default": "auto", "options": [
+      { "value": "auto", "label": "Auto-detect from PDP (recommended)" },
+      { "value": "manual", "label": "Manual only (show picker)" }
+    ]},
+    { "type": "text", "id": "product_handle", "label": "Product handle (optional override)", "info": "Defaults to current product when on a product template." },
+    { "type": "text", "id": "variant_placeholder", "label": "Variant placeholder", "default": "Select a variant…" },
+    { "type": "text", "id": "variant_help", "label": "Variant help text", "default": "Choose size/color to join the waitlist." },
+
+    { "type": "header", "content": "Consent & Privacy" },
+    { "type": "text", "id": "consent_label", "label": "Consent label", "default": "I agree to receive an email when this item is back in stock." },
+    { "type": "url", "id": "privacy_link", "label": "Privacy link (URL)" },
+    { "type": "text", "id": "privacy_text", "label": "Privacy link label", "default": "Privacy Policy" },
+
+    { "type": "header", "content": "Routing" },
+    { "type": "select", "id": "destination", "label": "Destination", "default": "shopify_customer", "options": [
+      { "value": "shopify_customer", "label": "Shopify Customer (tags + marketing consent)" },
+      { "value": "custom_endpoint", "label": "Custom endpoint (POST)" }
+    ]},
+    { "type": "url", "id": "endpoint_url", "label": "Custom endpoint URL (HTTPS)" },
+    { "type": "text", "id": "hidden_tags", "label": "Hidden tags (comma-separated)", "default": "waitlist, web" },
+
+    { "type": "header", "content": "Captcha" },
+    { "type": "select", "id": "captcha_mode", "label": "Captcha", "default": "none", "options": [
+      { "value": "none", "label": "None" },
+      { "value": "turnstile", "label": "Cloudflare Turnstile" },
+      { "value": "recaptcha_v3", "label": "reCAPTCHA v3" }
+    ]},
+    { "type": "text", "id": "captcha_site_key", "label": "Captcha site key" },
+
+    { "type": "header", "content": "Button & Inputs" },
+    { "type": "select", "id": "button_variant", "label": "Button variant", "default": "inherit", "options": [
+      { "value": "inherit", "label": "— Theme default —" },
+      { "value": "solid", "label": "Solid" },
+      { "value": "outline", "label": "Outline" },
+      { "value": "ghost", "label": "Ghost" }
+    ]},
+    { "type": "color", "id": "form_bg", "label": "Form background", "default": "#ffffff" },
+    { "type": "range", "id": "input_radius", "label": "Input radius", "min": 0, "max": 20, "step": 1, "default": 10 },
+    { "type": "color", "id": "input_border", "label": "Input border color", "default": "#e5e7eb" },
+
+    { "type": "header", "content": "Sizing & Background" },
+    { "type": "select", "id": "container_mode", "label": "Container", "default": "contained", "options": [
+      { "value": "contained", "label": "Contained" },
+      { "value": "full", "label": "Full-bleed" }
+    ]},
+    { "type": "range", "id": "padding_y", "label": "Padding Y", "min": 0, "max": 160, "step": 8, "default": 40 },
+    { "type": "range", "id": "padding_x", "label": "Padding X", "min": 0, "max": 120, "step": 8, "default": 24 },
+    { "type": "range", "id": "card_radius", "label": "Card radius", "min": 0, "max": 28, "step": 1, "default": 14 },
+    { "type": "range", "id": "card_shadow", "label": "Card elevation", "min": 0, "max": 3, "step": 1, "default": 2 },
+
+    { "type": "header", "content": "Overlay (optional)" },
+    { "type": "image_picker", "id": "bg_image", "label": "Background image" },
+    { "type": "color", "id": "bg_color", "label": "Background color", "default": "#f6f7f8" },
+    { "type": "select", "id": "overlay_type", "label": "Overlay", "default": "none", "options": [
+      { "value": "none", "label": "None" },
+      { "value": "solid", "label": "Solid" },
+      { "value": "gradient", "label": "Gradient" }
+    ]},
+    { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
+    { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 30, "unit": "%" },
+    { "type": "color", "id": "grad_start", "label": "Gradient start", "default": "#000000" },
+    { "type": "range", "id": "grad_start_opacity", "label": "Start opacity", "min": 0, "max": 100, "step": 5, "default": 35, "unit": "%" },
+    { "type": "color", "id": "grad_end", "label": "Gradient end", "default": "#000000" },
+    { "type": "range", "id": "grad_end_opacity", "label": "End opacity", "min": 0, "max": 100, "step": 5, "default": 0, "unit": "%" },
+    { "type": "range", "id": "grad_angle", "label": "Gradient angle", "min": 0, "max": 360, "step": 5, "default": 180, "unit": "deg" },
+
+    { "type": "header", "content": "Visibility" },
+    { "type": "text", "id": "anchor_id", "label": "Anchor ID" },
+    { "type": "checkbox", "id": "hide_on_mobile", "label": "Hide on mobile", "default": false },
+    { "type": "checkbox", "id": "hide_on_desktop", "label": "Hide on desktop", "default": false },
+
+    { "type": "header", "content": "Messages" },
+    { "type": "text", "id": "success_text", "label": "Success message", "default": "All set — we’ll email you the moment it’s available." },
+    { "type": "text", "id": "error_text", "label": "Error message", "default": "Please fix the highlighted fields and try again." }
+  ],
+  "blocks": [],
+  "presets": [
+    {
+      "name": "Forms – Waitlist (Inline PDP)",
+      "category": "Forms",
+      "settings": {
+        "template_style": "inline",
+        "surface_style": "frameless",
+        "kicker": "",
+        "heading": "Get notified when it’s back",
+        "subheading": "",
+        "destination": "shopify_customer",
+        "button_label": "Notify Me"
+      }
+    },
+    {
+      "name": "Forms – Waitlist (Card Landing)",
+      "category": "Forms",
+      "settings": {
+        "template_style": "card",
+        "surface_style": "card",
+        "kicker": "Coming soon",
+        "heading": "Join the waitlist",
+        "subheading": "Be first to hear when stock lands.",
+        "destination": "custom_endpoint",
+        "button_label": "Notify Me"
+      }
+    }
+  ]
+}
+{% endschema %}
+
+{% javascript %}{% endjavascript %}

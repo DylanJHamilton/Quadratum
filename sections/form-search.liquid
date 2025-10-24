@@ -1,0 +1,614 @@
+{% comment %}
+  Quadratum — Form: Site Search / Finder (with optional Predictive Search)
+  File: sections/form-site-search.liquid
+  Root: .q-form.q-form--site-search
+{% endcomment %}
+
+{{ 'forms-sections.css' | asset_url | stylesheet_tag }}
+
+{%- assign s = section.settings -%}
+{%- assign g = settings -%}
+
+{%- assign BTN_default   = g.button_variant_default | default: 'solid' -%}
+{%- assign _btn_choice   = s.button_variant | default: 'inherit' -%}
+{%- assign _btn_variant  = BTN_default -%}
+{%- if _btn_choice != 'inherit' and _btn_choice != blank -%}{% assign _btn_variant = _btn_choice %}{% endif %}
+{%- assign btn_mode_class = 'q-btn--solid' -%}
+{%- if _btn_variant == 'outline' -%}{% assign btn_mode_class = 'q-btn--outline' %}{% endif -%}
+{%- if _btn_variant == 'ghost' -%}{% assign btn_mode_class = 'q-btn--ghost' %}{% endif -%}
+
+{%- assign visibility_classes = '' -%}
+{%- if s.hide_on_mobile -%}{% assign visibility_classes = visibility_classes | append: ' hidden md:block q-hide-mobile' %}{% endif -%}
+{%- if s.hide_on_desktop -%}{% assign visibility_classes = visibility_classes | append: ' md:hidden q-hide-desktop' %}{% endif -%}
+{%- assign anchor = s.anchor_id | default: 'section-' | append: section.id -%}
+
+{%- assign C_primary     = g.color_primary | default: '#2563eb' -%}
+{%- assign C_bg_base     = g.bg_base       | default: '#ffffff' -%}
+{%- assign C_bg_contrast = g.bg_contrast   | default: '#f6f7f8' -%}
+{%- assign C_text_base   = g.text_base     | default: '#111111' -%}
+{%- assign C_text_muted  = g.text_muted    | default: '#6b7280' -%}
+{%- assign BTN_radius    = g.button_radius | default: 12 -%}
+{%- assign BTN_bw        = g.button_border_width | default: 1 -%}
+{%- assign BTN_hover_op  = g.button_hover_opacity | default: 92 -%}
+{%- assign BTN_active    = g.button_active_scale  | default: 98 -%}
+
+{%- capture empty_links_json -%}
+[
+{%- assign first=true -%}
+{%- for block in section.blocks -%}
+  {%- if block.type == 'quick_link' -%}
+    {%- unless first -%},{%- endunless -%}
+    {%- assign first = false -%}
+    {"label": {{ block.settings.label | default: '' | json }}, "url": {{ block.settings.url | default: '#' | json }}}
+  {%- endif -%}
+{%- endfor -%}
+]
+{%- endcapture -%}
+
+<style>
+  #{{ section.id }}{
+    --q-pad-y: {{ s.padding_y | default: 40 }}px;
+    --q-pad-x: {{ s.padding_x | default: 24 }}px;
+    --q-card-br: {{ s.card_radius | default: 14 }}px;
+    --q-card-shadow: {{ s.card_shadow | default: 2 }};
+    --q-text: {{ C_text_base }};
+    --q-muted: {{ C_text_muted }};
+    --q-bg: {{ s.bg_color | default: C_bg_contrast }};
+    --q-btn-bg: {{ C_primary }};
+    --q-btn-fg: {{ g.text_on_color | default: '#ffffff' }};
+    --q-btn-bdr: {{ C_text_base }};
+    --q-btn-bw: {{ BTN_bw }}px;
+    --q-btn-br: {{ BTN_radius }}px;
+    --q-btn-hover-op: {{ BTN_hover_op }}%;
+    --q-btn-active-scale: {{ BTN_active | divided_by: 100.0 }};
+    --q-form-bg: {{ s.form_bg | default: C_bg_base }};
+    --q-input-br: {{ s.input_radius | default: 10 }}px;
+    --q-input-bdr: {{ s.input_border | default: '#e5e7eb' }};
+    --q-panel-bg: #fff;
+    --q-panel-bdr: #e5e7eb;
+  }
+  #{{ section.id }}[data-surface="frameless"] .q-card{ background:transparent!important; box-shadow:none!important; padding:0!important; border-radius:0!important; }
+  #{{ section.id }}[data-template="inline"] .q-card{ padding:0; background:transparent; box-shadow:none; }
+  #{{ section.id }}[data-template="inline"] .q-fields{ display:flex; gap:8px; align-items:stretch; flex-wrap:wrap; }
+  #{{ section.id }}[data-template="inline"] .q-field{ margin:0; min-width: 220px; }
+
+  #{{ section.id }} .q-grid{ display:grid; gap:24px; }
+  @media (min-width: 768px){
+    #{{ section.id }} .q-grid.split-left  { grid-template-columns: 1.1fr 1fr; }
+    #{{ section.id }} .q-grid.split-right { grid-template-columns: 1fr 1.1fr; }
+  }
+
+  #{{ section.id }} .q-predictive{ position:relative; }
+  #{{ section.id }} .q-panel{
+    position:absolute; left:0; right:0; top:100%; margin-top:6px; z-index:50;
+    background: var(--q-panel-bg); border:1px solid var(--q-panel-bdr); border-radius: 12px;
+    box-shadow: 0 8px 22px rgba(0,0,0,.1);
+    display:none; max-height: 420px; overflow:auto;
+  }
+  #{{ section.id }} .q-panel.is-open{ display:block; }
+  #{{ section.id }} .q-group{ padding:8px 0; }
+  #{{ section.id }} .q-group-title{ font-size:.825rem; color: var(--q-muted); padding:6px 12px; }
+  #{{ section.id }} .q-item{ display:flex; gap:10px; align-items:center; padding:10px 12px; cursor:pointer; }
+  #{{ section.id }} .q-item[aria-selected="true"]{ background: rgba(0,0,0,.04); }
+  #{{ section.id }} .q-item-thumb{ width:40px; height:40px; border-radius:8px; object-fit:cover; flex:0 0 auto; background:#f3f4f6; }
+  #{{ section.id }} .q-item-content{ min-width:0; }
+  #{{ section.id }} .q-item-title{ font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #{{ section.id }} .q-item-sub{ font-size:.85rem; color: var(--q-muted); }
+  #{{ section.id }} .is-hidden{ display:none!important; }
+</style>
+
+<section
+  id="{{ anchor }}"
+  class="q-form q-form--site-search{{ visibility_classes }}"
+  role="region"
+  aria-label="{{ s.aria_label | default: 'Site search' }}"
+  data-template="{{ s.template_style | default: 'inline' }}"
+  data-surface="{{ s.surface_style | default: 'card' }}"
+  data-mode="{{ s.mode | default: 'basic' }}"
+  data-scope-default="{{ s.scope_default | default: 'all' }}"
+  data-target="{{ s.nav_target | default: '/search' }}"
+  data-predictive-sources="{{ s.predictive_sources | default: 'products,collections,articles,pages' | escape }}"
+  data-predictive-limit="{{ s.predictive_limit | default: 5 }}"
+  data-predictive-minchars="{{ s.predictive_minchars | default: 2 }}"
+  data-predictive-debounce="{{ s.predictive_debounce | default: 160 }}"
+  data-empty-links='{{ empty_links_json | strip | escape }}'
+>
+  <div class="q-bleed">
+    <div class="q-bg" aria-hidden="true">
+      {%- if s.bg_image != blank -%}
+        {{ s.bg_image | image_url: width: 2400 | image_tag: widths: '960,1440,1920,2400', sizes: '100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
+      {%- else -%}
+        <div class="q-media" style="background: var(--q-bg);"></div>
+      {%- endif -%}
+      {%- if s.overlay_type == 'gradient' -%}
+        {%- assign g1c = s.grad_start | default: '#000000' -%}
+        {%- assign g2c = s.grad_end   | default: '#000000' -%}
+        {%- assign g1o = s.grad_start_opacity | default: 35 | divided_by: 100.0 -%}
+        {%- assign g2o = s.grad_end_opacity   | default: 0  | divided_by: 100.0 -%}
+        <div class="q-overlay" style="background: linear-gradient({{ s.grad_angle | default: 180 }}deg, {{ g1c | color_modify: 'alpha', g1o }}, {{ g2c | color_modify: 'alpha', g2o }});"></div>
+      {%- elsif s.overlay_type == 'solid' -%}
+        <div class="q-overlay" style="background-color: {{ s.overlay_color | default: '#000000' }}; opacity: {{ s.overlay_opacity | default: 30 | divided_by: 100.0 }};"></div>
+      {%- endif -%}
+    </div>
+
+    <div class="q-layer">
+      <div class="q-wrap" style="max-width: {% if s.container_mode == 'full' %}100%{% else %}var(--q-cont-lg, 1152px){% endif %}; padding: 0 var(--q-pad-x);">
+
+        <div class="q-grid{% if s.template_style == 'split' and s.split_media_side == 'left' %} split-left{% elsif s.template_style == 'split' and s.split_media_side == 'right' %} split-right{% endif %}">
+          {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'left' -%}
+            <div class="q-media-card">
+              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
+            </div>
+          {%- endif -%}
+
+          <div class="q-card" data-q-form-card>
+            <header class="q-head">
+              {%- if s.kicker != blank -%}<p class="q-kicker">{{ s.kicker }}</p>{%- endif -%}
+              {%- assign H = s.heading_level | default: 'h3' -%}
+              {%- if s.heading != blank -%}
+                {%- if H == 'h2' -%}<h2 class="q-heading">{{ s.heading }}</h2>{%- else -%}<h3 class="q-heading">{{ s.heading }}</h3>{%- endif -%}
+              {%- endif -%}
+              {%- if s.subheading != blank -%}<p class="q-sub">{{ s.subheading }}</p>{%- endif -%}
+            </header>
+
+            <form class="q-form q-predictive" role="search" novalidate>
+              <div class="q-fields">
+                <div class="q-field" style="min-width:260px; flex:1 1 320px;">
+                  <label class="q-label" for="{{ section.id }}-q">{{ s.query_label | default: 'Search' }}</label>
+                  <input
+                    id="{{ section.id }}-q"
+                    class="q-input"
+                    type="search"
+                    name="q"
+                    placeholder="{{ s.query_placeholder | default: 'Search products, articles, and more' }}"
+                    autocomplete="off"
+                    aria-expanded="false"
+                    aria-controls="{{ section.id }}-panel"
+                    aria-autocomplete="list"
+                    role="combobox"
+                  />
+                  {%- if s.help_text != blank -%}<p class="q-help">{{ s.help_text }}</p>{%- endif -%}
+                </div>
+
+                {%- if s.show_scope -%}
+                <div class="q-field" style="min-width:160px; flex:0 0 200px;">
+                  <label class="q-label" for="{{ section.id }}-scope">{{ s.scope_label | default: 'Scope' }}</label>
+                  <select id="{{ section.id }}-scope" class="q-select" name="type">
+                    <option value="all" {% if s.scope_default == 'all' %}selected{% endif %}>All</option>
+                    <option value="product" {% if s.scope_default == 'product' %}selected{% endif %}>Products</option>
+                    <option value="collection" {% if s.scope_default == 'collection' %}selected{% endif %}>Collections</option>
+                    <option value="article" {% if s.scope_default == 'article' %}selected{% endif %}>Articles</option>
+                    <option value="page" {% if s.scope_default == 'page' %}selected{% endif %}>Pages</option>
+                  </select>
+                </div>
+                {%- endif -%}
+
+                {%- if s.mode == 'finder' and s.enable_category -%}
+                <div class="q-field" style="min-width:160px; flex:0 0 200px;">
+                  <label class="q-label" for="{{ section.id }}-cat">{{ s.category_label | default: 'Category' }}</label>
+                  {%- assign cat_opts = s.category_options | default: "all|All\nmens|Men\nwomens|Women\naccessories|Accessories" | newline_to_br | split: '<br />' -%}
+                  <select id="{{ section.id }}-cat" class="q-select" name="cat">
+                    <option value="">{{ s.category_placeholder | default: 'Any' }}</option>
+                    {%- for opt in cat_opts -%}
+                      {%- assign p = opt | split: '|' -%}
+                      <option value="{{ p.first | strip | escape }}">{{ p.last | default: p.first | strip }}</option>
+                    {%- endfor -%}
+                  </select>
+                </div>
+                {%- endif -%}
+
+                {%- if s.mode == 'finder' and s.enable_price -%}
+                <div class="q-field" style="min-width:160px; flex:0 0 200px;">
+                  <label class="q-label" for="{{ section.id }}-price">{{ s.price_label | default: 'Price' }}</label>
+                  {%- assign price_opts = s.price_options | default: "<50|Under $50\n50-150|$50–$150\n150+|$150+" | newline_to_br | split: '<br />' -%}
+                  <select id="{{ section.id }}-price" class="q-select" name="price">
+                    <option value="">{{ s.price_placeholder | default: 'Any' }}</option>
+                    {%- for opt in price_opts -%}
+                      {%- assign p = opt | split: '|' -%}
+                      <option value="{{ p.first | strip | escape }}">{{ p.last | default: p.first | strip }}</option>
+                    {%- endfor -%}
+                  </select>
+                </div>
+                {%- endif -%}
+
+                {%- if s.mode == 'finder' and s.enable_tag -%}
+                <div class="q-field" style="min-width:160px; flex:0 0 200px;">
+                  <label class="q-label" for="{{ section.id }}-tag">{{ s.tag_label | default: 'Tag' }}</label>
+                  {%- assign tag_opts = s.tag_options | default: "bestseller|Best sellers\nnew|New arrivals\ngift|Gifts" | newline_to_br | split: '<br />' -%}
+                  <select id="{{ section.id }}-tag" class="q-select" name="tag">
+                    <option value="">{{ s.tag_placeholder | default: 'Any' }}</option>
+                    {%- for opt in tag_opts -%}
+                      {%- assign p = opt | split: '|' -%}
+                      <option value="{{ p.first | strip | escape }}">{{ p.last | default: p.first | strip }}</option>
+                    {%- endfor -%}
+                  </select>
+                </div>
+                {%- endif -%}
+
+                <div class="q-field" style="align-self:end;">
+                  <label class="q-label is-hidden" for="{{ section.id }}-submit">Submit</label>
+                  <button id="{{ section.id }}-submit" type="submit" class="q-btn {{ btn_mode_class }}">{{ s.button_label | default: 'Search' }}</button>
+                </div>
+              </div>
+
+              <div id="{{ section.id }}-panel" class="q-panel" role="listbox" aria-label="Search suggestions"></div>
+              <div class="q-live" aria-live="polite"></div>
+            </form>
+          </div>
+
+          {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'right' -%}
+            <div class="q-media-card">
+              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
+            </div>
+          {%- endif -%}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    const rootEl = document.getElementById('{{ anchor }}');
+    if (!rootEl) return;
+
+    const mode = rootEl.getAttribute('data-mode') || 'basic';
+    const defaultScope = rootEl.getAttribute('data-scope-default') || 'all';
+    const navTarget = rootEl.getAttribute('data-target') || '/search';
+
+    const formEl = rootEl.querySelector('form.q-form');
+    if (!formEl) return;
+
+    const queryInput = formEl.querySelector('input[name="q"]');
+    const scopeSelect = formEl.querySelector('select[name="type"]');
+    const panelEl = formEl.querySelector('.q-panel');
+    const emptyLinks = JSON.parse(rootEl.getAttribute('data-empty-links') || '[]');
+
+    const categorySelect = formEl.querySelector('select[name="cat"]');
+    const priceSelect = formEl.querySelector('select[name="price"]');
+    const tagSelect = formEl.querySelector('select[name="tag"]');
+
+    const sourcesCsv = (rootEl.getAttribute('data-predictive-sources') || '').toLowerCase();
+    const allowedSources = sourcesCsv.split(',').map(s => s.trim()).filter(Boolean);
+    const limitPerSource = parseInt(rootEl.getAttribute('data-predictive-limit') || '5', 10);
+    const minChars = parseInt(rootEl.getAttribute('data-predictive-minchars') || '2', 10);
+    const debounceMs = parseInt(rootEl.getAttribute('data-predictive-debounce') || '160', 10);
+
+    function buildSearchUrl() {
+      const q = (queryInput?.value || '').trim();
+      const url = new URL(navTarget, window.location.origin);
+      if (q) url.searchParams.set('q', q);
+      const scopeVal = scopeSelect ? (scopeSelect.value || defaultScope) : defaultScope;
+      if (scopeVal && scopeVal !== 'all') url.searchParams.set('type', scopeVal);
+
+      if (categorySelect && categorySelect.value) url.searchParams.set('cat', categorySelect.value);
+
+      if (priceSelect && priceSelect.value) {
+        const val = priceSelect.value;
+        if (val.includes('-')) {
+          const [lo, hi] = val.split('-');
+          url.searchParams.set('filter.v.price.gte', lo);
+          url.searchParams.set('filter.v.price.lte', hi.replace('+',''));
+        } else if (val.endsWith('+')) {
+          url.searchParams.set('filter.v.price.gte', val.replace('+',''));
+        } else if (val.startsWith('<')) {
+          url.searchParams.set('filter.v.price.lte', val.replace('<',''));
+        }
+      }
+
+      if (tagSelect && tagSelect.value) url.searchParams.set('tag', tagSelect.value);
+      return url.toString();
+    }
+
+    formEl.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      try {
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: 'search_submit',
+          mode,
+          scope: scopeSelect ? scopeSelect.value : defaultScope,
+          location: '{{ s.template_style | default: "inline" }}',
+          query_length: (queryInput?.value || '').trim().length
+        });
+      } catch(e){}
+      window.location.href = buildSearchUrl();
+    });
+
+    if (mode === 'predictive' && queryInput && panelEl) {
+      let activeIndex = -1;
+      let flatItems = [];
+      const controllerState = { currentAbort: null, lastQuery: '' };
+
+      const closePanel = () => {
+        panelEl.classList.remove('is-open'); panelEl.innerHTML = '';
+        queryInput.setAttribute('aria-expanded', 'false');
+        activeIndex = -1; flatItems = [];
+      };
+      const openPanel = () => {
+        panelEl.classList.add('is-open');
+        queryInput.setAttribute('aria-expanded', 'true');
+      };
+      let debounceTimer = null;
+      const debounced = (fn, wait) => (...args) => { clearTimeout(debounceTimer); debounceTimer = setTimeout(() => fn(...args), wait); };
+
+      const buildEndpoint = (q) => {
+        const url = new URL('/search/suggest.json', window.location.origin);
+        url.searchParams.set('q', q);
+        const resTypes = [];
+        if (allowedSources.includes('products')) resTypes.push('product');
+        if (allowedSources.includes('collections')) resTypes.push('collection');
+        if (allowedSources.includes('articles')) resTypes.push('article');
+        if (allowedSources.includes('pages')) resTypes.push('page');
+        url.searchParams.set('resources[type]', resTypes.join(',') || 'product');
+        url.searchParams.set('resources[limit]', String(limitPerSource));
+        url.searchParams.set('section_id', 'predictive-search');
+        return url.toString();
+      };
+
+      const renderPanel = (payload) => {
+        const groups = []; flatItems = [];
+        const pushGroup = (title, items, mapFn) => {
+          if (!items || !items.length) return;
+          const mapped = items.map(mapFn);
+          flatItems.push(...mapped);
+          groups.push({ title, items: mapped });
+        };
+
+        pushGroup('Products', payload?.resources?.results?.products, (p) => ({ type:'product', id:p.id, url:p.url, title:p.title, sub:p.price||'', image:p.image }));
+        pushGroup('Collections', payload?.resources?.results?.collections, (c)=>({ type:'collection', id:c.id, url:c.url, title:c.title, sub:(c.products_count||0)+' items', image:c.image }));
+        pushGroup('Articles', payload?.resources?.results?.articles, (a)=>({ type:'article', id:a.id, url:a.url, title:a.title, sub:a.author||'', image:a.image }));
+        pushGroup('Pages', payload?.resources?.results?.pages, (p)=>({ type:'page', id:p.id, url:p.url, title:p.title, sub:'', image:p.image }));
+
+        if (!groups.length) {
+          panelEl.innerHTML = `
+            <div class="q-group">
+              <div class="q-group-title">No matches</div>
+              ${emptyLinks.map(l => `<a class="q-item" role="option" href="${l.url || '#'}"><div class="q-item-content"><div class="q-item-title">${l.label || ''}</div></div></a>`).join('')}
+            </div>`;
+          openPanel();
+          return;
+        }
+
+        panelEl.innerHTML = groups.map((g) => `
+          <div class="q-group">
+            <div class="q-group-title">${g.title}</div>
+            ${g.items.map((it, idx) => `
+              <a class="q-item" role="option" data-flat-index="${flatItems.indexOf(it)}" href="${it.url}">
+                ${it.image ? `<img class="q-item-thumb" src="${it.image}" alt="" loading="lazy">` : `<div class="q-item-thumb" aria-hidden="true"></div>`}
+                <div class="q-item-content">
+                  <div class="q-item-title">${it.title}</div>
+                  ${it.sub ? `<div class="q-item-sub">${it.sub}</div>` : ``}
+                </div>
+              </a>
+            `).join('')}
+          </div>
+        `).join('');
+        try {
+          const counts = {
+            products: payload?.resources?.results?.products?.length || 0,
+            collections: payload?.resources?.results?.collections?.length || 0,
+            articles: payload?.resources?.results?.articles?.length || 0,
+            pages: payload?.resources?.results?.pages?.length || 0
+          };
+          window.dataLayer = window.dataLayer || [];
+          window.dataLayer.push({ event: 'search_predictive_impression', counts, query: controllerState.lastQuery });
+        } catch(e){}
+        openPanel();
+      };
+
+      const fetchSuggestions = async (q) => {
+        if (controllerState.currentAbort) controllerState.currentAbort.abort();
+        const aborter = new AbortController(); controllerState.currentAbort = aborter; controllerState.lastQuery = q;
+        try {
+          const res = await fetch(buildEndpoint(q), { signal: aborter.signal, headers: { 'Accept': 'application/json' }});
+          if (!res.ok) throw new Error('Network error');
+          const data = await res.json();
+          renderPanel(data);
+        } catch (err) { closePanel(); } finally { controllerState.currentAbort = null; }
+      };
+
+      const handleInput = debounced(() => {
+        const q = (queryInput.value || '').trim();
+        if (q.length < minChars) { closePanel(); return; }
+        fetchSuggestions(encodeURIComponent(q));
+      }, debounceMs);
+
+      queryInput.addEventListener('input', () => { if (mode === 'predictive') handleInput(); });
+
+      queryInput.addEventListener('keydown', (e) => {
+        if (!panelEl.classList.contains('is-open')) return;
+        const total = flatItems.length; if (!total) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = (activeIndex + 1 + total) % total; }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = (activeIndex - 1 + total) % total; }
+        else if (e.key === 'Escape') { e.preventDefault(); closePanel(); return; }
+        else if (e.key === 'Enter') {
+          if (activeIndex >= 0 && flatItems[activeIndex]) {
+            e.preventDefault();
+            const item = flatItems[activeIndex];
+            try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event:'search_predictive_select', type:item.type, id:item.id }); } catch(e){}
+            window.location.href = item.url; return;
+          }
+        }
+        panelEl.querySelectorAll('.q-item').forEach(a => a.setAttribute('aria-selected', 'false'));
+        if (activeIndex >= 0) {
+          const activeEl = panelEl.querySelector(`.q-item[data-flat-index="${activeIndex}"]`);
+          if (activeEl) { activeEl.setAttribute('aria-selected', 'true'); activeEl.scrollIntoView({ block: 'nearest' }); }
+        }
+      });
+
+      panelEl.addEventListener('click', (e) => {
+        const link = e.target.closest('.q-item'); if (!link) return;
+        const idx = parseInt(link.getAttribute('data-flat-index') || '-1', 10);
+        if (idx >= 0 && flatItems[idx]) {
+          try{ window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event:'search_predictive_select', type: flatItems[idx].type, id: flatItems[idx].id }); }catch(e){}
+        }
+      });
+
+      document.addEventListener('click', (e) => { if (!rootEl.contains(e.target)) closePanel(); });
+      queryInput.addEventListener('blur', () => { setTimeout(() => { if (!rootEl.contains(document.activeElement)) closePanel(); }, 120); });
+    }
+  })();
+  </script>
+</section>
+
+{% schema %}
+{
+  "name": "Form – Site Search",
+  "tag": "section",
+  "class": "q-form q-form--site-search",
+  "settings": [
+    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Site search" },
+
+    { "type": "header", "content": "Mode & Sources" },
+    { "type": "select", "id": "mode", "label": "Mode", "default": "basic", "options": [
+      { "value": "basic", "label": "Submit (basic)" },
+      { "value": "predictive", "label": "Predictive search (typeahead)" },
+      { "value": "finder", "label": "Finder (guided filters)" }
+    ]},
+    { "type": "checkbox", "id": "show_scope", "label": "Show scope select (basic/finder)", "default": true },
+    { "type": "select", "id": "scope_default", "label": "Default scope", "default": "all", "options": [
+      { "value": "all", "label": "All" },
+      { "value": "product", "label": "Products" },
+      { "value": "collection", "label": "Collections" },
+      { "value": "article", "label": "Articles" },
+      { "value": "page", "label": "Pages" }
+    ]},
+
+    { "type": "header", "content": "Predictive Settings" },
+    { "type": "text", "id": "predictive_sources", "label": "Sources (csv)", "default": "products,collections,articles,pages" },
+    { "type": "range", "id": "predictive_limit", "label": "Max per source", "min": 1, "max": 10, "step": 1, "default": 5 },
+    { "type": "range", "id": "predictive_minchars", "label": "Min characters to trigger", "min": 1, "max": 5, "step": 1, "default": 2 },
+    { "type": "range", "id": "predictive_debounce", "label": "Debounce (ms)", "min": 80, "max": 600, "step": 20, "default": 160 },
+
+    { "type": "header", "content": "Finder Filters" },
+    { "type": "checkbox", "id": "enable_category", "label": "Enable Category", "default": false },
+    { "type": "text", "id": "category_label", "label": "Category label", "default": "Category" },
+    { "type": "text", "id": "category_placeholder", "label": "Category placeholder", "default": "Any" },
+    { "type": "textarea", "id": "category_options", "label": "Category options (value|label per line)" },
+
+    { "type": "checkbox", "id": "enable_price", "label": "Enable Price band", "default": false },
+    { "type": "text", "id": "price_label", "label": "Price label", "default": "Price" },
+    { "type": "text", "id": "price_placeholder", "label": "Price placeholder", "default": "Any" },
+    { "type": "textarea", "id": "price_options", "label": "Price options (value|label per line)", "default": "<50|Under $50\n50-150|$50–$150\n150+|$150+" },
+
+    { "type": "checkbox", "id": "enable_tag", "label": "Enable Tag filter", "default": false },
+    { "type": "text", "id": "tag_label", "label": "Tag label", "default": "Tag" },
+    { "type": "text", "id": "tag_placeholder", "label": "Tag placeholder", "default": "Any" },
+    { "type": "textarea", "id": "tag_options", "label": "Tag options (value|label per line)" },
+
+    { "type": "header", "content": "Content" },
+    { "type": "text", "id": "kicker", "label": "Kicker" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Find what you need" },
+    { "type": "select", "id": "heading_level", "label": "Heading level", "default": "h3", "options": [ { "value": "h2", "label": "H2" }, { "value": "h3", "label": "H3" } ] },
+    { "type": "textarea", "id": "subheading", "label": "Subheading" },
+    { "type": "text", "id": "query_label", "label": "Query label", "default": "Search" },
+    { "type": "text", "id": "query_placeholder", "label": "Query placeholder", "default": "Search products, articles, and more" },
+    { "type": "textarea", "id": "help_text", "label": "Help text" },
+    { "type": "text", "id": "button_label", "label": "Button label", "default": "Search" },
+
+    { "type": "header", "content": "Navigation" },
+    { "type": "text", "id": "nav_target", "label": "Target path", "default": "/search" },
+
+    { "type": "header", "content": "Styling" },
+    { "type": "select", "id": "template_style", "label": "Template", "default": "inline", "options": [
+      { "value": "inline", "label": "Inline" },
+      { "value": "card", "label": "Card" },
+      { "value": "split", "label": "Split (media + form)" }
+    ]},
+    { "type": "select", "id": "surface_style", "label": "Surface chrome", "default": "card", "options": [
+      { "value": "card", "label": "Card" },
+      { "value": "frameless", "label": "Frameless (no card)" }
+    ]},
+    { "type": "select", "id": "split_media_side", "label": "Split media side", "default": "right", "options": [ { "value": "left", "label": "Left" }, { "value": "right", "label": "Right" } ] },
+    { "type": "image_picker", "id": "split_image", "label": "Split image" },
+
+    { "type": "color", "id": "form_bg", "label": "Form background", "default": "#ffffff" },
+    { "type": "range", "id": "input_radius", "label": "Input radius", "min": 0, "max": 20, "step": 1, "default": 10 },
+    { "type": "color", "id": "input_border", "label": "Input border color", "default": "#e5e7eb" },
+
+    { "type": "header", "content": "Section Spacing & BG" },
+    { "type": "select", "id": "container_mode", "label": "Container width", "default": "contained", "options": [
+      { "value": "contained", "label": "Contained" },
+      { "value": "full", "label": "Full width" }
+    ]},
+    { "type": "range", "id": "padding_y", "label": "Padding Y (px)", "min": 0, "max": 200, "step": 4, "default": 40 },
+    { "type": "range", "id": "padding_x", "label": "Padding X (px)", "min": 0, "max": 120, "step": 4, "default": 24 },
+    { "type": "range", "id": "card_radius", "label": "Card radius (px)", "min": 0, "max": 28, "step": 1, "default": 14 },
+    { "type": "range", "id": "card_shadow", "label": "Card elevation", "min": 0, "max": 3, "step": 1, "default": 2 },
+
+    { "type": "header", "content": "Overlay (optional)" },
+    { "type": "image_picker", "id": "bg_image", "label": "Background image" },
+    { "type": "color", "id": "bg_color", "label": "Background color", "default": "#f6f7f8" },
+    { "type": "select", "id": "overlay_type", "label": "Overlay", "default": "none", "options": [
+      { "value": "none", "label": "None" },
+      { "value": "solid", "label": "Solid" },
+      { "value": "gradient", "label": "Gradient" }
+    ]},
+    { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
+    { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity", "min": 0, "max": 100, "step": 5, "default": 30 },
+    { "type": "color", "id": "grad_start", "label": "Gradient start", "default": "#000000" },
+    { "type": "range", "id": "grad_start_opacity", "label": "Start opacity", "min": 0, "max": 100, "step": 5, "default": 35 },
+    { "type": "color", "id": "grad_end", "label": "Gradient end", "default": "#000000" },
+    { "type": "range", "id": "grad_end_opacity", "label": "End opacity", "min": 0, "max": 100, "step": 5, "default": 0 },
+    { "type": "range", "id": "grad_angle", "label": "Gradient angle", "min": 0, "max": 360, "step": 5, "default": 180 },
+
+    { "type": "header", "content": "Visibility" },
+    { "type": "text", "id": "anchor_id", "label": "Anchor ID" },
+    { "type": "checkbox", "id": "hide_on_mobile", "label": "Hide on mobile", "default": false },
+    { "type": "checkbox", "id": "hide_on_desktop", "label": "Hide on desktop", "default": false }
+  ],
+  "blocks": [
+    {
+        "type": "quick_link",
+        "name": "Quick link",
+        "limit": 4,
+        "settings": [
+            { "type": "text", "id": "label", "label": "Label", "default": "Best Sellers" },
+            { "type": "url",  "id": "url",   "label": "URL" }  // ← no default
+        ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Form – Site Search (Predictive Card)",
+      "category": "Forms",
+      "settings": {
+        "mode": "predictive",
+        "template_style": "card",
+        "surface_style": "card",
+        "button_label": "Search"
+      },
+      "blocks": [
+        { "type": "quick_link", "settings": { "label": "New Arrivals", "url": "/collections/new" } },
+        { "type": "quick_link", "settings": { "label": "Best Sellers", "url": "/collections/best-sellers" } }
+      ]
+    },
+    {
+      "name": "Form – Site Search (Inline)",
+      "category": "Forms",
+      "settings": {
+        "mode": "basic",
+        "template_style": "inline",
+        "surface_style": "frameless",
+        "button_label": "Search"
+      }
+    },
+    {
+      "name": "Form – Finder (Split)",
+      "category": "Forms",
+      "settings": {
+        "mode": "finder",
+        "template_style": "split",
+        "surface_style": "card",
+        "enable_category": true,
+        "enable_price": true,
+        "enable_tag": true,
+        "button_label": "Find"
+      }
+    }
+  ]
+}
+{% endschema %}
+
+{% javascript %}{% endjavascript %}
+
