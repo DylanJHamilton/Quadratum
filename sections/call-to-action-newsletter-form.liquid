@@ -11,6 +11,19 @@
 
 {%- assign s = section.settings -%}
 
+{%- comment %} INTEGRATIONS (globals → effective values; minimal add) {% endcomment -%}
+{%- assign g = settings -%}
+{%- assign eff_captcha_mode = s.captcha_mode | default: g.forms_captcha_provider | default: 'none' -%}
+{%- assign eff_captcha_key  = s.captcha_site_key | default: g.captcha_turnstile_site_key | default: g.captcha_recaptcha_site_key | default: '' -%}
+{%- assign tags_theme   = g.forms_default_tags | default: 'form, web' -%}
+{%- assign tags_section = s.hidden_tags | default: 'newsletter, web' -%}
+{%- assign eff_tags = tags_theme -%}
+{%- if tags_section != blank -%}{%- assign eff_tags = tags_theme | append: ', ' | append: tags_section -%}{%- endif -%}
+{%- assign eff_endpoint = s.endpoint_url -%}
+{%- if eff_endpoint == blank and s.destination == 'custom_endpoint' -%}
+  {%- assign eff_endpoint = g.forms_global_endpoint | default: '' -%}
+{%- endif -%}
+
 {%- comment %} THEME TOKENS (mirror CTA–Quote) {% endcomment -%}
 {%- assign T_font_heading = settings.font_heading -%}
 {%- assign C_primary      = settings.color_primary        | default: '#2563eb' -%}
@@ -161,8 +174,8 @@
   aria-label="{{ s.aria_label | default: 'Newsletter signup' }}"
   data-template="{{ s.template_style }}"
   data-msg-error="{{ s.error_text | escape }}"
-  data-captcha="{{ s.captcha_mode | default: 'none' }}"
-  data-captcha-key="{{ s.captcha_site_key | escape }}"
+  data-captcha="{{ eff_captcha_mode }}"
+  data-captcha-key="{{ eff_captcha_key | escape }}"
   data-btn-variant="{{ btn_mode_class }}"
 >
   <div class="q-bleed">
@@ -241,7 +254,7 @@
             {%- if _use_shopify -%}
               {%- assign nl_form_id = 'newsletter-' | append: section.id -%}
               {% form 'customer', id: nl_form_id, class: 'q-form', novalidate: 'novalidate' %}
-                <input type="hidden" name="contact[tags]" value="{{ s.hidden_tags | default: 'newsletter, web' | escape }}">
+                <input type="hidden" name="contact[tags]" value="{{ eff_tags | escape }}">
                 <input type="hidden" name="customer[accepts_marketing]" value="true">
 
                 <div class="q-fields">
@@ -312,9 +325,9 @@
                 </div>
               {% endform %}
             {%- else -%}
-              <form class="q-form" method="post" action="{{ s.endpoint_url | escape }}" novalidate>
+              <form class="q-form" method="post" action="{{ eff_endpoint | escape }}" novalidate>
                 <input type="hidden" name="source" value="newsletter">
-                <input type="hidden" name="tags" value="{{ s.hidden_tags | default: 'newsletter, web' | escape }}">
+                <input type="hidden" name="tags" value="{{ eff_tags | escape }}">
 
                 <div class="q-fields">
                   {%- for block in section.blocks -%}
@@ -401,11 +414,15 @@
     </div>
   </div>
 
-  {%- if s.captcha_mode == 'turnstile' and s.captcha_site_key != blank -%}
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
+    {%- assign eff_captcha_key = '' -%}
+  {%- if eff_captcha_mode == 'turnstile' -%}
+    {%- assign eff_captcha_key = s.captcha_site_key | default: g.captcha_turnstile_site_key | default: '' -%}
+  {%- elsif eff_captcha_mode == 'recaptcha_v3' -%}
+    {%- assign eff_captcha_key = s.captcha_site_key | default: g.captcha_recaptcha_site_key | default: '' -%}
   {%- endif -%}
-  {%- if s.captcha_mode == 'recaptcha_v3' and s.captcha_site_key != blank -%}
-    <script src="https://www.google.com/recaptcha/api.js?render={{ s.captcha_site_key | escape }}"></script>
+
+  {%- if eff_captcha_mode == 'recaptcha_v3' and eff_captcha_key != blank -%}
+    <script src="https://www.google.com/recaptcha/api.js?render={{ eff_captcha_key | escape }}"></script>
   {%- endif -%}
   {{ 'frontend-form-logic.js' | asset_url | script_tag }}
 </section>
