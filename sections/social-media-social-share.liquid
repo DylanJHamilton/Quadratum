@@ -1,0 +1,548 @@
+{% comment %}
+  Quadratum — Social Media: Social Share
+
+  Goals:
+  • Standalone "share this page" bar
+  • Optional eyebrow/heading/body (no <header> tag)
+  • Glyph-based icons (no external snippet dependency)
+  • Configurable icon color, icon background, and label color
+{% endcomment %}
+
+{%- liquid
+  assign s = section.settings
+
+  comment
+    Determine share URL (override → canonical_url → shop.url)
+  endcomment
+  assign share_url_raw = s.share_url_override
+  if share_url_raw == blank
+    if canonical_url != blank
+      assign share_url_raw = canonical_url
+    else
+      assign share_url_raw = shop.url
+    endif
+  endif
+
+  assign share_url_encoded = share_url_raw | url_encode
+
+  comment
+    Determine share title (override → page_title → shop.name)
+  endcomment
+  assign share_title = s.share_title_override
+  if share_title == blank
+    if page_title != blank
+      assign share_title = page_title
+    else
+      assign share_title = shop.name
+    endif
+  endif
+  assign share_title_encoded = share_title | url_encode
+
+  comment
+    Optional custom message (used mainly for X / email)
+  endcomment
+  assign share_message = s.share_message | default: ''
+  assign share_message_encoded = share_message | url_encode
+-%}
+
+{%- style -%}
+  #{{ section.id }} {
+    --q-share-icon-color: {{ s.icon_color | default: '#ffffff' }};
+    --q-share-icon-bg: {{ s.icon_bg_color | default: '#111827' }};
+    --q-share-label-color: {{ s.label_color | default: '#111827' }};
+    --q-share-gap: {{ s.gap | default: 12 }}px;
+    --q-share-icon-size: {{ s.icon_size | default: 20 }}px;
+  }
+
+  .q-social-share {
+    padding: var(--q-section-pad-y, 48px) 0;
+  }
+
+  .q-social-share__container {
+    max-width: var(--q-container-md, 960px);
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  .q-social-share__inner {
+    text-align: center;
+  }
+
+  .q-social-share--align-left .q-social-share__inner {
+    text-align: left;
+  }
+  .q-social-share--align-right .q-social-share__inner {
+    text-align: right;
+  }
+
+  .q-social-share__header {
+    margin-bottom: 1rem;
+  }
+
+  .q-social-share__eyebrow {
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin-bottom: 0.25rem;
+  }
+
+  .q-social-share__heading {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0 0 0.25rem;
+  }
+
+  .q-social-share__body {
+    margin: 0;
+    color: #4b5563;
+  }
+
+  .q-social-share__nav {
+    margin-top: 0.75rem;
+  }
+
+  .q-social-share__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--q-share-gap);
+    justify-content: center;
+  }
+
+  .q-social-share--justify-left .q-social-share__list {
+    justify-content: flex-start;
+  }
+  .q-social-share--justify-right .q-social-share__list {
+    justify-content: flex-end;
+  }
+  .q-social-share--justify-between .q-social-share__list {
+    justify-content: space-between;
+  }
+
+  .q-social-share__item {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    gap: 0.5rem;
+    padding: 0.45rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.12s ease, box-shadow 0.12s ease;
+    color: var(--q-share-label-color);
+  }
+
+  .q-social-share--style-pill .q-social-share__item {
+    background-color: rgba(0, 0, 0, 0.04);
+  }
+
+  .q-social-share--style-soft .q-social-share__item {
+    background-color: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.06);
+  }
+
+  .q-social-share--style-bare .q-social-share__item {
+    background: transparent;
+    border-color: transparent;
+    padding-inline: 0.35rem;
+  }
+
+  .q-social-share__item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+  }
+
+  .q-social-share--style-bare .q-social-share__item:hover {
+    box-shadow: none;
+    transform: translateY(-1px);
+  }
+
+  .q-social-share__item:focus-visible {
+    outline: 2px solid var(--color_primary, #2563eb);
+    outline-offset: 2px;
+  }
+
+  .q-social-share__icon {
+    width: var(--q-share-icon-size);
+    height: var(--q-share-icon-size);
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(var(--q-share-icon-size) * 0.55);
+    background-color: var(--q-share-icon-bg);
+    color: var(--q-share-icon-color);
+    flex-shrink: 0;
+  }
+
+  .q-social-share--style-bare .q-social-share__icon {
+    background-color: transparent;
+  }
+
+  .q-social-share__label {
+    white-space: nowrap;
+    color: var(--q-share-label-color);
+    font-size: 0.875rem;
+  }
+
+  .q-social-share--labels-hidden .q-social-share__label {
+    display: none;
+  }
+
+  .q-visually-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+  }
+
+  @media (max-width: 640px) {
+    .q-social-share__container {
+      padding: 0 1.25rem;
+    }
+  }
+{%- endstyle -%}
+
+<section
+  id="{{ section.id }}"
+  class="
+    q-social-share
+    q-social-share--align-{{ s.align }}
+    q-social-share--justify-{{ s.justify }}
+    q-social-share--style-{{ s.style }}
+    {% unless s.show_labels %}q-social-share--labels-hidden{% endunless %}
+  "
+  aria-label="{{ s.aria_label | escape }}"
+>
+  <div class="q-social-share__container">
+    <div class="q-social-share__inner">
+      {%- unless s.hide_text -%}
+        {%- if s.eyebrow != blank or s.heading != blank or s.body != blank -%}
+          <div class="q-social-share__header">
+            {%- if s.eyebrow != blank -%}
+              <p class="q-social-share__eyebrow">
+                {{ s.eyebrow | escape }}
+              </p>
+            {%- endif -%}
+            {%- if s.heading != blank -%}
+              <p class="q-social-share__heading">
+                {{ s.heading | escape }}
+              </p>
+            {%- endif -%}
+            {%- if s.body != blank -%}
+              <p class="q-social-share__body">
+                {{ s.body }}
+              </p>
+            {%- endif -%}
+          </div>
+        {%- endif -%}
+      {%- endunless -%}
+
+      {%- if section.blocks.size > 0 -%}
+        <nav
+          class="q-social-share__nav"
+          role="navigation"
+          aria-label="{{ s.aria_label | escape }}"
+        >
+          <div class="q-social-share__list" role="list">
+            {%- for block in section.blocks -%}
+              {%- if block.type == 'share_button' -%}
+                {%- liquid
+                  assign b = block.settings
+                  assign network = b.network | default: 'facebook'
+                  assign href = '#'
+                  assign glyph = '●'
+                  assign default_label = 'Share'
+                  assign network_name = 'this platform'
+
+                  case network
+                    when 'facebook'
+                      assign href = 'https://www.facebook.com/sharer/sharer.php?u=' | append: share_url_encoded
+                      assign glyph = 'f'
+                      assign default_label = 'Facebook'
+                      assign network_name = 'Facebook'
+                    when 'x'
+                      if share_message_encoded != blank
+                        assign href = 'https://twitter.com/intent/tweet?url=' | append: share_url_encoded | append: '&text=' | append: share_message_encoded
+                      else
+                        assign href = 'https://twitter.com/intent/tweet?url=' | append: share_url_encoded | append: '&text=' | append: share_title_encoded
+                      endif
+                      assign glyph = 'X'
+                      assign default_label = 'X'
+                      assign network_name = 'X'
+                    when 'linkedin'
+                      assign href = 'https://www.linkedin.com/sharing/share-offsite/?url=' | append: share_url_encoded
+                      assign glyph = 'in'
+                      assign default_label = 'LinkedIn'
+                      assign network_name = 'LinkedIn'
+                    when 'pinterest'
+                      assign href = 'https://pinterest.com/pin/create/button/?url=' | append: share_url_encoded
+                      assign glyph = 'P'
+                      assign default_label = 'Pinterest'
+                      assign network_name = 'Pinterest'
+                    when 'email'
+                      if share_message_encoded != blank
+                        assign href = 'mailto:?subject=' | append: share_title_encoded | append: '&body=' | append: share_message_encoded | append: '%0A%0A' | append: share_url_encoded
+                      else
+                        assign href = 'mailto:?subject=' | append: share_title_encoded | append: '&body=' | append: share_url_encoded
+                      endif
+                      assign glyph = '@'
+                      assign default_label = 'Email'
+                      assign network_name = 'email'
+                  endcase
+
+                  assign label = b.label | default: default_label
+                  assign sr_label = b.sr_label
+                  if sr_label == blank
+                    assign sr_label = 'Share this page on ' | append: network_name
+                  endif
+                -%}
+
+                <a
+                  role="listitem"
+                  href="{{ href }}"
+                  class="q-social-share__item"
+                  {% if s.open_in_new_tab and network != 'email' %}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  {% endif %}
+                  {{ block.shopify_attributes }}
+                >
+                  <span class="q-social-share__icon" aria-hidden="true">
+                    {{ glyph }}
+                  </span>
+
+                  {%- if s.show_labels -%}
+                    <span class="q-social-share__label">
+                      {{ label }}
+                    </span>
+                  {%- else -%}
+                    <span class="q-visually-hidden">
+                      {{ sr_label }}
+                    </span>
+                  {%- endif -%}
+                </a>
+              {%- endif -%}
+            {%- endfor -%}
+          </div>
+        </nav>
+      {%- endif -%}
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Social Media - Share Link",
+  "tag": "section",
+  "class": "q-section q-section--social-share",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Content"
+    },
+    {
+      "type": "text",
+      "id": "eyebrow",
+      "label": "Eyebrow",
+      "default": "Share this"
+    },
+    {
+      "type": "checkbox",
+      "id": "hide_text",
+      "label": "Hide eyebrow and description",
+      "default": false
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Spread the word"
+    },
+    {
+      "type": "textarea",
+      "id": "body",
+      "label": "Description",
+      "default": "If you found this helpful, share it with your audience."
+    },
+    {
+      "type": "checkbox",
+      "id": "show_labels",
+      "label": "Show button labels",
+      "default": true
+    },
+
+    {
+      "type": "header",
+      "content": "Share data"
+    },
+    {
+      "type": "text",
+      "id": "share_title_override",
+      "label": "Share title override",
+      "default": "Share this page"
+    },
+    {
+      "type": "url",
+      "id": "share_url_override",
+      "label": "Share URL override",
+    },
+    {
+      "type": "textarea",
+      "id": "share_message",
+      "label": "Optional share message (used for X / email)",
+      "default": "I thought you might like this."
+    },
+
+    {
+      "type": "header",
+      "content": "Layout"
+    },
+    {
+      "type": "select",
+      "id": "align",
+      "label": "Text alignment",
+      "default": "center",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "justify",
+      "label": "Button row alignment",
+      "default": "center",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" },
+        { "value": "between", "label": "Spread / space-between" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "style",
+      "label": "Button style",
+      "default": "pill",
+      "options": [
+        { "value": "pill", "label": "Pill" },
+        { "value": "soft", "label": "Soft outline" },
+        { "value": "bare", "label": "Bare (icon only, minimal chrome)" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "icon_size",
+      "label": "Icon size (px)",
+      "min": 16,
+      "max": 40,
+      "step": 1,
+      "default": 20
+    },
+    {
+      "type": "range",
+      "id": "gap",
+      "label": "Gap between buttons (px)",
+      "min": 4,
+      "max": 40,
+      "step": 2,
+      "default": 12
+    },
+    {
+      "type": "checkbox",
+      "id": "open_in_new_tab",
+      "label": "Open social networks in a new tab (email always opens in client)",
+      "default": true
+    },
+
+    {
+      "type": "header",
+      "content": "Colors"
+    },
+    {
+      "type": "color",
+      "id": "icon_color",
+      "label": "Icon color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "icon_bg_color",
+      "label": "Icon background color",
+      "default": "#111827"
+    },
+    {
+      "type": "color",
+      "id": "label_color",
+      "label": "Label text color",
+      "default": "#111827"
+    },
+
+    {
+      "type": "header",
+      "content": "Accessibility"
+    },
+    {
+      "type": "text",
+      "id": "aria_label",
+      "label": "ARIA label for share navigation",
+      "default": "Share this page on social media"
+    }
+  ],
+  "blocks": [
+    {
+      "type": "share_button",
+      "name": "Share button",
+      "settings": [
+        {
+          "type": "select",
+          "id": "network",
+          "label": "Network",
+          "default": "facebook",
+          "options": [
+            { "value": "facebook", "label": "Facebook" },
+            { "value": "x", "label": "X (Twitter)" },
+            { "value": "linkedin", "label": "LinkedIn" },
+            { "value": "pinterest", "label": "Pinterest" },
+            { "value": "email", "label": "Email" }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "label",
+          "label": "Button label",
+          "default": "Share"
+        },
+        {
+          "type": "text",
+          "id": "sr_label",
+          "label": "Screen reader label (optional)",
+          "default": "Share this page"
+        }
+      ]
+    }
+  ],
+  "max_blocks": 10,
+  "presets": [
+    {
+      "name": "Social Media - Share Link",
+      "category": "Social Media",
+      "blocks": [
+        { "type": "share_button", "settings": { "network": "facebook" } },
+        { "type": "share_button", "settings": { "network": "x" } },
+        { "type": "share_button", "settings": { "network": "linkedin" } },
+        { "type": "share_button", "settings": { "network": "email" } }
+      ]
+    }
+  ]
+}
+{% endschema %}
+
+{% javascript %}
+{% endjavascript %}
