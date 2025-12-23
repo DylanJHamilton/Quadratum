@@ -14,11 +14,19 @@
 {%- comment %} INTEGRATIONS (globals → effective values; minimal add) {% endcomment -%}
 {%- assign g = settings -%}
 {%- assign eff_captcha_mode = s.captcha_mode | default: g.forms_captcha_provider | default: 'none' -%}
-{%- assign eff_captcha_key  = s.captcha_site_key | default: g.captcha_turnstile_site_key | default: g.captcha_recaptcha_site_key | default: '' -%}
+
+{%- assign eff_captcha_key = '' -%}
+{%- if eff_captcha_mode == 'turnstile' -%}
+  {%- assign eff_captcha_key = s.captcha_site_key | default: g.captcha_turnstile_site_key | default: '' -%}
+{%- elsif eff_captcha_mode == 'recaptcha_v3' -%}
+  {%- assign eff_captcha_key = s.captcha_site_key | default: g.captcha_recaptcha_site_key | default: '' -%}
+{%- endif -%}
+
 {%- assign tags_theme   = g.forms_default_tags | default: 'form, web' -%}
 {%- assign tags_section = s.hidden_tags | default: 'newsletter, web' -%}
 {%- assign eff_tags = tags_theme -%}
 {%- if tags_section != blank -%}{%- assign eff_tags = tags_theme | append: ', ' | append: tags_section -%}{%- endif -%}
+
 {%- assign eff_endpoint = s.endpoint_url -%}
 {%- if eff_endpoint == blank and s.destination == 'custom_endpoint' -%}
   {%- assign eff_endpoint = g.forms_global_endpoint | default: '' -%}
@@ -60,8 +68,16 @@
 {%- for block in section.blocks -%}{%- if block.type == 'step' -%}{%- assign steps_count = steps_count | plus: 1 -%}{%- endif -%}{%- endfor -%}
 {%- if steps_count == 0 and s.template_style == 'steps' -%}{%- assign steps_count = 1 -%}{%- endif -%}
 
+{%- comment %} Safety: detect if an Email field block exists (prevents missing email break) {% endcomment -%}
+{%- assign has_email_block = false -%}
+{%- for block in section.blocks -%}
+  {%- if block.type == 'field' and block.settings.field_type == 'email' -%}
+    {%- assign has_email_block = true -%}
+  {%- endif -%}
+{%- endfor -%}
+
 <style>
-  #{{ section.id }}{
+  #{{ anchor }}{
     --q-pad-y: {{ s.padding_y | default: 64 }}px;
     --q-pad-x: {{ s.padding_x | default: 24 }}px;
     --q-card-br: {{ s.card_radius | default: 16 }}px;
@@ -77,18 +93,18 @@
     --q-btn-hover-op: {{ BTN_hover_op }}%;
     --q-btn-active-scale: {{ BTN_active | divided_by: 100.0 }};
   }
-  #{{ section.id }} .q-wrap{max-width: {% if settings.style_kit == 'full' %}100%{% elsif settings.style_kit == 'wide' %}var(--q-cont-xl, 1440px){% else %}var(--q-cont-lg, 1152px){% endif %}; margin:0 auto; padding:0 var(--q-pad-x);}
-  #{{ section.id }} .q-bleed{position:relative;}
-  #{{ section.id }} .q-bg{position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none;}
-  #{{ section.id }} .q-media{width:100%; height:100%; object-fit:cover; display:block;}
-  #{{ section.id }} .q-overlay{position:absolute; inset:0; pointer-events:none;}
-  #{{ section.id }} .q-layer{position:relative; z-index:1; padding: var(--q-pad-y) 0;}
-  #{{ section.id }} .q-grid{display:grid; gap:24px; align-items:stretch;}
+  #{{ anchor }} .q-wrap{max-width: {% if settings.style_kit == 'full' %}100%{% elsif settings.style_kit == 'wide' %}var(--q-cont-xl, 1440px){% else %}var(--q-cont-lg, 1152px){% endif %}; margin:0 auto; padding:0 var(--q-pad-x);}
+  #{{ anchor }} .q-bleed{position:relative;}
+  #{{ anchor }} .q-bg{position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none;}
+  #{{ anchor }} .q-media{width:100%; height:100%; object-fit:cover; display:block;}
+  #{{ anchor }} .q-overlay{position:absolute; inset:0; pointer-events:none;}
+  #{{ anchor }} .q-layer{position:relative; z-index:1; padding: var(--q-pad-y) 0;}
+  #{{ anchor }} .q-grid{display:grid; gap:24px; align-items:stretch;}
   @media (min-width: 768px){
-    #{{ section.id }} .q-grid.split-left{grid-template-columns: 1.1fr 1fr;}
-    #{{ section.id }} .q-grid.split-right{grid-template-columns: 1fr 1.1fr;}
+    #{{ anchor }} .q-grid.split-left{grid-template-columns: 1.1fr 1fr;}
+    #{{ anchor }} .q-grid.split-right{grid-template-columns: 1fr 1.1fr;}
   }
-  #{{ section.id }} .q-card{
+  #{{ anchor }} .q-card{
     background: {{ s.form_bg | default: C_bg_base }};
     border-radius: var(--q-card-br);
     box-shadow:
@@ -96,75 +112,73 @@
       {% if s.card_shadow > 1 %}0 8px 24px rgba(0,0,0,.08){% else %}0 0 0 rgba(0,0,0,0){% endif %};
     padding: 28px;
   }
-  #{{ section.id }} .q-media-card{ border-radius: var(--q-card-br); overflow:hidden; background: #000; min-height: 240px; }
-  #{{ section.id }} .q-head .q-kicker{color: var(--q-muted); font-size: .95rem; margin:0 0 4px;}
-  #{{ section.id }} .q-head .q-heading{
+  #{{ anchor }} .q-media-card{ border-radius: var(--q-card-br); overflow:hidden; background: #000; min-height: 240px; }
+  #{{ anchor }} .q-head .q-kicker{color: var(--q-muted); font-size: .95rem; margin:0 0 4px;}
+  #{{ anchor }} .q-head .q-heading{
     margin:0 0 8px; color: var(--q-text);
     {% if T_font_heading %}font-family: {{ T_font_heading.family }}, {{ T_font_heading.fallback_families }};{% endif %}
   }
-  #{{ section.id }} .q-head .q-sub{color: var(--q-muted); margin:0 0 16px;}
+  #{{ anchor }} .q-head .q-sub{color: var(--q-muted); margin:0 0 16px;}
 
-  #{{ section.id }} .q-fields{display:flex; flex-wrap:wrap; gap:12px;}
-  #{{ section.id }} .q-field{width:100%;}
-  #{{ section.id }} .q-field.half{width: calc(50% - 6px);}
-  @media (max-width: 639.98px){ #{{ section.id }} .q-field.half{ width:100%; } }
+  #{{ anchor }} .q-fields{display:flex; flex-wrap:wrap; gap:12px;}
+  #{{ anchor }} .q-field{width:100%;}
+  #{{ anchor }} .q-field.half{width: calc(50% - 6px);}
+  @media (max-width: 639.98px){ #{{ anchor }} .q-field.half{ width:100%; } }
 
-  #{{ section.id }} .q-label{display:block; font-weight:600; margin:8px 0 6px; color: var(--q-text);}
-  #{{ section.id }} .q-help{font-size:.875rem; color: var(--q-muted); margin:4px 0 0;}
-  #{{ section.id }} .q-input, #{{ section.id }} .q-select, #{{ section.id }} .q-textarea{
+  #{{ anchor }} .q-label{display:block; font-weight:600; margin:8px 0 6px; color: var(--q-text);}
+  #{{ anchor }} .q-help{font-size:.875rem; color: var(--q-muted); margin:4px 0 0;}
+  #{{ anchor }} .q-input, #{{ anchor }} .q-select, #{{ anchor }} .q-textarea{
     width:100%; border:1px solid {{ s.input_border | default: '#e5e7eb' }}; border-radius: {{ s.input_radius | default: 10 }}px; padding: 12px 14px; background:#fff; color:var(--q-text);
   }
-  #{{ section.id }} .q-radio{ display:flex; gap:10px; align-items:center; margin: 4px 0; }
-  #{{ section.id }} .q-error{ color: {{ C_error }}; font-size:.85rem; margin-top:6px; }
-  #{{ section.id }} [aria-invalid="true"]{ border-color: {{ C_error }}; outline:1px solid {{ C_error }}; }
+  #{{ anchor }} .q-radio{ display:flex; gap:10px; align-items:center; margin: 4px 0; }
+  #{{ anchor }} .q-error{ color: {{ C_error }}; font-size:.85rem; margin-top:6px; }
+  #{{ anchor }} [aria-invalid="true"]{ border-color: {{ C_error }}; outline:1px solid {{ C_error }}; }
 
-  #{{ section.id }} .q-btn{
+  #{{ anchor }} .q-btn{
     display:inline-flex; align-items:center; justify-content:center;
     padding: 12px 20px; border-radius: var(--q-btn-br); border-width: var(--q-btn-bw); border-style: solid;
     transition: transform .12s ease, opacity .12s ease, background-color .12s ease, color .12s ease;
     text-decoration:none; cursor:pointer; user-select:none;
   }
-  #{{ section.id }} .q-btn.q-btn--solid{ background: var(--q-btn-bg); color: var(--q-btn-fg); border-color: var(--q-btn-bg); }
-  #{{ section.id }} .q-btn.q-btn--outline{ background: transparent; color: var(--q-btn-bg); border-color: var(--q-btn-bg); }
-  #{{ section.id }} .q-btn.q-btn--ghost{ background: transparent; color: var(--q-btn-bg); border-color: transparent; }
-  #{{ section.id }} .q-btn[disabled]{ opacity:.6; pointer-events:none; }
-  #{{ section.id }} .q-btn:not([disabled]):hover{ opacity: calc(var(--q-btn-hover-op) / 100); }
-  #{{ section.id }} .q-btn:not([disabled]):active{ transform: scale(var(--q-btn-active-scale)); }
+  #{{ anchor }} .q-btn.q-btn--solid{ background: var(--q-btn-bg); color: var(--q-btn-fg); border-color: var(--q-btn-bg); }
+  #{{ anchor }} .q-btn.q-btn--outline{ background: transparent; color: var(--q-btn-bg); border-color: var(--q-btn-bg); }
+  #{{ anchor }} .q-btn.q-btn--ghost{ background: transparent; color: var(--q-btn-bg); border-color: transparent; }
+  #{{ anchor }} .q-btn[disabled]{ opacity:.6; pointer-events:none; }
+  #{{ anchor }} .q-btn:not([disabled]):hover{ opacity: calc(var(--q-btn-hover-op) / 100); }
+  #{{ anchor }} .q-btn:not([disabled]):active{ transform: scale(var(--q-btn-active-scale)); }
 
-  #{{ section.id }} .q-live{ position:relative; margin:8px 0 0; min-height: 1.2em; }
-  #{{ section.id }} .q-live .ok{ color: {{ C_success }}; }
-  #{{ section.id }} .q-live .bad{ color: {{ C_error }}; }
+  #{{ anchor }} .q-live{ position:relative; margin:8px 0 0; min-height: 1.2em; }
+  #{{ anchor }} .q-live .ok{ color: {{ C_success }}; }
+  #{{ anchor }} .q-live .bad{ color: {{ C_error }}; }
 
   /* Steps */
-  #{{ section.id }} [data-q-steps]{ margin-top: 10px; }
-  #{{ section.id }} .q-steps-nav{ display:flex; align-items:center; gap:10px; margin:0 0 12px; }
-  #{{ section.id }} .q-steps-bar{ flex:1; height:6px; background: rgba(0,0,0,.08); border-radius:6px; overflow:hidden; }
-  #{{ section.id }} .q-steps-fill{ height:100%; background: var(--q-btn-bg); width:0%; }
-  #{{ section.id }} .q-steps-count{ font-size:.875rem; color: var(--q-muted); }
-  #{{ section.id }} .q-steps-actions{ display:flex; gap:8px; margin-top:16px; }
-  #{{ section.id }} .q-step{ display:none; }
-  #{{ section.id }} .q-step.is-active{ display:block; }
+  #{{ anchor }} [data-q-steps]{ margin-top: 10px; }
+  #{{ anchor }} .q-steps-nav{ display:flex; align-items:center; gap:10px; margin:0 0 12px; }
+  #{{ anchor }} .q-steps-bar{ flex:1; height:6px; background: rgba(0,0,0,.08); border-radius:6px; overflow:hidden; }
+  #{{ anchor }} .q-steps-fill{ height:100%; background: var(--q-btn-bg); width:0%; }
+  #{{ anchor }} .q-steps-count{ font-size:.875rem; color: var(--q-muted); }
+  #{{ anchor }} .q-steps-actions{ display:flex; gap:8px; margin-top:16px; }
+  #{{ anchor }} .q-step{ display:none; }
+  #{{ anchor }} .q-step.is-active{ display:block; }
 
   /* Conditional */
-  #{{ section.id }} .is-hidden{ display:none !important; }
+  #{{ anchor }} .is-hidden{ display:none !important; }
 
-  
-.q-cta-quote-form .q-radio{ display:flex; align-items:center; gap:10px; justify-content:flex-start; width:max-content; }
-.q-cta-quote-form .q-radio input.q-input{
-  width:auto; padding:0; border:1px solid rgba(0,0,0,.35); border-radius:3px; height:1.05rem; margin:0;
-}
-.q-cta-quote-form input.q-input[aria-invalid="true"]{
-  border-color: var(--q-error, #dc2626);
-  outline:2px solid var(--q-error, #dc2626);
-  outline-offset:2px;
-}
-.q-cta-quote-form input:not([type="checkbox"]):not([type="radio"]).q-input[aria-invalid="true"],
-.q-cta-quote-form select[aria-invalid="true"],
-.q-cta-quote-form textarea[aria-invalid="true"]{
-  outline:1px solid var(--q-error, #dc2626);
-}
-
-
+  /* checkbox/radio cosmetics (scoped to this section) */
+  #{{ anchor }} .q-radio{ display:flex; align-items:center; gap:10px; justify-content:flex-start; width:max-content; }
+  #{{ anchor }} .q-radio input.q-input{
+    width:auto; padding:0; border:1px solid rgba(0,0,0,.35); border-radius:3px; height:1.05rem; margin:0;
+  }
+  #{{ anchor }} input.q-input[aria-invalid="true"]{
+    border-color: var(--q-error, #dc2626);
+    outline:2px solid var(--q-error, #dc2626);
+    outline-offset:2px;
+  }
+  #{{ anchor }} input:not([type="checkbox"]):not([type="radio"]).q-input[aria-invalid="true"],
+  #{{ anchor }} select[aria-invalid="true"],
+  #{{ anchor }} textarea[aria-invalid="true"]{
+    outline:1px solid var(--q-error, #dc2626);
+  }
 </style>
 
 <section
@@ -174,9 +188,11 @@
   aria-label="{{ s.aria_label | default: 'Newsletter signup' }}"
   data-template="{{ s.template_style }}"
   data-msg-error="{{ s.error_text | escape }}"
+  data-msg-success="{{ s.success_text | escape }}"
   data-captcha="{{ eff_captcha_mode }}"
   data-captcha-key="{{ eff_captcha_key | escape }}"
   data-btn-variant="{{ btn_mode_class }}"
+  {% if s.destination == 'custom_endpoint' %}data-q-attrib-create="1"{% endif %}
 >
   <div class="q-bleed">
     <div class="q-bg" aria-hidden="true">
@@ -240,83 +256,198 @@
               {%- if s.subheading != blank -%}<p class="q-sub">{{ s.subheading }}</p>{%- endif -%}
             </header>
 
-            {%- comment -%}
-              === FORM ROUTER ===
-              • shopify_customer   → {% form 'customer' %} (accepts_marketing)
-              • custom_endpoint    → <form action="{{ endpoint_url }}">
-              Uses the same block system as CTA—Quote (field / step).
-            {%- endcomment -%}
-
             {%- comment -%} SAFE FLAG (no comparison inside assign) {%- endcomment -%}
             {%- assign _use_shopify = false -%}
             {%- if s.destination == 'shopify_customer' -%}{%- assign _use_shopify = true -%}{%- endif -%}
 
             {%- if _use_shopify -%}
               {%- assign nl_form_id = 'newsletter-' | append: section.id -%}
+              {%- assign email_fallback_id = 'qf-email-' | append: section.id -%}
               {% form 'customer', id: nl_form_id, class: 'q-form', novalidate: 'novalidate' %}
                 <input type="hidden" name="contact[tags]" value="{{ eff_tags | escape }}">
-                <input type="hidden" name="customer[accepts_marketing]" value="true">
+                <input type="hidden" name="contact[accepts_marketing]" value="true">
 
                 <div class="q-fields">
-                  {%- for block in section.blocks -%}
-                    {%- if block.type == 'step' and s.template_style == 'steps' -%}
-                      <div class="q-step">
-                        {%- if block.settings.step_title != blank -%}<p class="q-kicker">{{ block.settings.step_title }}</p>{%- endif -%}
-                        {%- if block.settings.step_desc != blank -%}<p class="q-sub">{{ block.settings.step_desc }}</p>{%- endif -%}
-                      </div>
-                    {%- elsif block.type == 'field' -%}
-                      {%- assign b = block.settings -%}
-                      {%- assign wcls = 'q-field' -%}{% if b.width == 'half' %}{% assign wcls = wcls | append: ' half' %}{% endif %}
-                      <div class="{{ wcls }}" data-q-field data-required="{{ b.required }}" {% if b.condition_enable %}data-cond="1" data-cond-field="{{ b.condition_field | escape }}" data-cond-operator="{{ b.condition_operator }}" data-cond-value="{{ b.condition_value | escape }}"{% endif %}>
-                        {%- if b.field_type == 'html' -%}
-                          <div class="rte">{{ b.html_content }}</div>
-                        {%- else -%}
-                          {%- assign input_id = section.id | append: '-' | append: forloop.index -%}
-                          {%- if b.label != blank -%}<label class="q-label" for="{{ input_id }}">{{ b.label }}</label>{%- endif -%}
+                  {%- if s.template_style == 'steps' -%}
+                    {%- assign step_open = false -%}
+                    {%- assign fallback_inserted = false -%}
 
-                          {%- case b.field_type -%}
-                            {%- when 'email' -%}
-                              <input id="{{ input_id }}" class="q-input" type="email" name="contact[email]" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                            {%- when 'text' -%}
-                              <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'contact[first_name]' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                            {%- when 'select' -%}
-                              {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
-                              <select id="{{ input_id }}" class="q-select" name="{{ b.name_attr | default: 'contact[topic]' }}" {% if b.required %}required{% endif %}>
-                                <option value="">{{ b.placeholder }}</option>
+                    {%- for block in section.blocks -%}
+                      {%- if block.type == 'step' -%}
+                        {%- if step_open -%}</div>{%- endif -%}
+                        <div class="q-step">
+                          {%- assign step_open = true -%}
+                          {%- if block.settings.step_title != blank -%}<p class="q-kicker">{{ block.settings.step_title }}</p>{%- endif -%}
+                          {%- if block.settings.step_desc != blank -%}<p class="q-sub">{{ block.settings.step_desc }}</p>{%- endif -%}
+
+                          {%- if fallback_inserted == false and has_email_block == false -%}
+                            <div class="q-field" data-q-field data-required="true">
+                              <label class="q-label" for="{{ email_fallback_id }}">Email</label>
+                              <input id="{{ email_fallback_id }}" class="q-input" type="email" name="contact[email]" placeholder="you@example.com" required>
+                              <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
+                            </div>
+                            {%- assign fallback_inserted = true -%}
+                          {%- endif -%}
+
+                      {%- elsif block.type == 'field' -%}
+                        {%- if step_open == false -%}
+                          <div class="q-step">
+                            {%- assign step_open = true -%}
+                            {%- if fallback_inserted == false and has_email_block == false -%}
+                              <div class="q-field" data-q-field data-required="true">
+                                <label class="q-label" for="{{ email_fallback_id }}">Email</label>
+                                <input id="{{ email_fallback_id }}" class="q-input" type="email" name="contact[email]" placeholder="you@example.com" required>
+                                <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
+                              </div>
+                              {%- assign fallback_inserted = true -%}
+                            {%- endif -%}
+                        {%- endif -%}
+
+                        {%- assign b = block.settings -%}
+                        {%- assign wcls = 'q-field' -%}{% if b.width == 'half' %}{% assign wcls = wcls | append: ' half' %}{% endif %}
+                        <div class="{{ wcls }}" data-q-field data-required="{{ b.required }}" {% if b.condition_enable %}data-cond="1" data-cond-field="{{ b.condition_field | escape }}" data-cond-operator="{{ b.condition_operator }}" data-cond-value="{{ b.condition_value | escape }}"{% endif %}>
+                          {%- if b.field_type == 'html' -%}
+                            <div class="rte">{{ b.html_content }}</div>
+                          {%- else -%}
+                            {%- assign input_id = section.id | append: '-' | append: forloop.index -%}
+                            {%- if b.label != blank and b.field_type != 'checkbox' and b.field_type != 'consent' -%}
+                              <label class="q-label" for="{{ input_id }}">{{ b.label }}</label>
+                            {%- endif -%}
+
+                            {%- case b.field_type -%}
+                              {%- when 'email' -%}
+                                <input id="{{ input_id }}" class="q-input" type="email" name="contact[email]" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
+                              {%- when 'text' -%}
+                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'contact[first_name]' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
+                              {%- when 'select' -%}
+                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
+                                <select id="{{ input_id }}" class="q-select" name="{{ b.name_attr | default: 'contact[topic]' }}" {% if b.required %}required{% endif %}>
+                                  <option value="">{{ b.placeholder }}</option>
+                                  {%- for opt in opts -%}
+                                    {%- assign pair = opt | split: '|' -%}
+                                    <option value="{{ pair.first | strip | escape }}" {% if b.default_value == pair.first %}selected{% endif %}>{{ pair.last | default: pair.first | strip }}</option>
+                                  {%- endfor -%}
+                                </select>
+                              {%- when 'checkbox' -%}
+                                <label class="q-radio">
+                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'contact[consent_gdpr]' }}" value="yes" {% if b.required %}required{% endif %}>
+                                  <span>{{ b.label | default: 'I agree to receive emails.' }}</span>
+                                </label>
+                              {%- when 'consent' -%}
+                                <label class="q-radio">
+                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'contact[consent]' }}" value="yes" {% if b.required %}required{% endif %}>
+                                  <span>{{ b.label | default: 'I agree to the privacy policy' }}</span>
+                                </label>
+                              {%- when 'radio' -%}
+                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
                                 {%- for opt in opts -%}
                                   {%- assign pair = opt | split: '|' -%}
-                                  <option value="{{ pair.first | strip | escape }}" {% if b.default_value == pair.first %}selected{% endif %}>{{ pair.last | default: pair.first | strip }}</option>
+                                  <label class="q-radio">
+                                    <input class="q-input" type="radio" name="{{ b.name_attr | default: 'contact[preference]' }}" value="{{ pair.first | strip | escape }}" {% if b.required and forloop.first %}required{% endif %}>
+                                    <span>{{ pair.last | default: pair.first | strip }}</span>
+                                  </label>
                                 {%- endfor -%}
-                              </select>
-                            {%- when 'checkbox' -%}
-                              <label class="q-radio">
-                                <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'contact[consent_gdpr]' }}" value="yes" {% if b.required %}required{% endif %}>
-                                <span>{{ b.label | default: 'I agree to receive emails.' }}</span>
-                              </label>
-                            {%- when 'consent' -%}
-                              <label class="q-radio">
-                                <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'contact[consent]' }}" value="yes" {% if b.required %}required{% endif %}>
-                                <span>{{ b.label | default: 'I agree to the privacy policy' }}</span>
-                              </label>
-                            {%- when 'radio' -%}
-                              {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
-                              {%- for opt in opts -%}
-                                {%- assign pair = opt | split: '|' -%}
-                                <label class="q-radio">
-                                  <input class="q-input" type="radio" name="{{ b.name_attr | default: 'contact[preference]' }}" value="{{ pair.first | strip | escape }}" {% if b.required and forloop.first %}required{% endif %}>
-                                  <span>{{ pair.last | default: pair.first | strip }}</span>
-                                </label>
-                              {%- endfor -%}
-                            {%- else -%}
-                              <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'contact[field]' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                          {%- endcase -%}
+                              {%- else -%}
+                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'contact[field]' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
+                            {%- endcase -%}
 
-                          <p id="{{ input_id }}-err" class="q-error" aria-live="polite"></p>
-                          {%- if b.help_text != blank -%}<p class="q-help">{{ b.help_text }}</p>{%- endif -%}
+                            <p id="{{ input_id }}-err" class="q-error" aria-live="polite"></p>
+                            {%- if b.help_text != blank -%}<p class="q-help">{{ b.help_text }}</p>{%- endif -%}
+                          {%- endif -%}
+                        </div>
+                      {%- endif -%}
+                    {%- endfor -%}
+
+                    {%- if step_open -%}</div>{%- endif -%}
+
+                    {%- if step_open == false -%}
+                      <div class="q-step">
+                        {%- if has_email_block == false -%}
+                          <div class="q-field" data-q-field data-required="true">
+                            <label class="q-label" for="{{ email_fallback_id }}">Email</label>
+                            <input id="{{ email_fallback_id }}" class="q-input" type="email" name="contact[email]" placeholder="you@example.com" required>
+                            <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
+                          </div>
                         {%- endif -%}
                       </div>
                     {%- endif -%}
-                  {%- endfor -%}
+
+                    {%- if fallback_inserted == false and has_email_block == false -%}
+                      <div class="q-step">
+                        <div class="q-field" data-q-field data-required="true">
+                          <label class="q-label" for="{{ email_fallback_id }}">Email</label>
+                          <input id="{{ email_fallback_id }}" class="q-input" type="email" name="contact[email]" placeholder="you@example.com" required>
+                          <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
+                        </div>
+                      </div>
+                    {%- endif -%}
+
+                  {%- else -%}
+                    {%- if has_email_block == false -%}
+                      <div class="q-field" data-q-field data-required="true">
+                        <label class="q-label" for="{{ email_fallback_id }}">Email</label>
+                        <input id="{{ email_fallback_id }}" class="q-input" type="email" name="contact[email]" placeholder="you@example.com" required>
+                        <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
+                      </div>
+                    {%- endif -%}
+
+                    {%- for block in section.blocks -%}
+                      {%- if block.type == 'field' -%}
+                        {%- assign b = block.settings -%}
+                        {%- assign wcls = 'q-field' -%}{% if b.width == 'half' %}{% assign wcls = wcls | append: ' half' %}{% endif %}
+                        <div class="{{ wcls }}" data-q-field data-required="{{ b.required }}" {% if b.condition_enable %}data-cond="1" data-cond-field="{{ b.condition_field | escape }}" data-cond-operator="{{ b.condition_operator }}" data-cond-value="{{ b.condition_value | escape }}"{% endif %}>
+                          {%- if b.field_type == 'html' -%}
+                            <div class="rte">{{ b.html_content }}</div>
+                          {%- else -%}
+                            {%- assign input_id = section.id | append: '-' | append: forloop.index -%}
+                            {%- if b.label != blank and b.field_type != 'checkbox' and b.field_type != 'consent' -%}
+                              <label class="q-label" for="{{ input_id }}">{{ b.label }}</label>
+                            {%- endif -%}
+
+                            {%- case b.field_type -%}
+                              {%- when 'email' -%}
+                                <input id="{{ input_id }}" class="q-input" type="email" name="contact[email]" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
+                              {%- when 'text' -%}
+                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'contact[first_name]' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
+                              {%- when 'select' -%}
+                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
+                                <select id="{{ input_id }}" class="q-select" name="{{ b.name_attr | default: 'contact[topic]' }}" {% if b.required %}required{% endif %}>
+                                  <option value="">{{ b.placeholder }}</option>
+                                  {%- for opt in opts -%}
+                                    {%- assign pair = opt | split: '|' -%}
+                                    <option value="{{ pair.first | strip | escape }}" {% if b.default_value == pair.first %}selected{% endif %}>{{ pair.last | default: pair.first | strip }}</option>
+                                  {%- endfor -%}
+                                </select>
+                              {%- when 'checkbox' -%}
+                                <label class="q-radio">
+                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'contact[consent_gdpr]' }}" value="yes" {% if b.required %}required{% endif %}>
+                                  <span>{{ b.label | default: 'I agree to receive emails.' }}</span>
+                                </label>
+                              {%- when 'consent' -%}
+                                <label class="q-radio">
+                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'contact[consent]' }}" value="yes" {% if b.required %}required{% endif %}>
+                                  <span>{{ b.label | default: 'I agree to the privacy policy' }}</span>
+                                </label>
+                              {%- when 'radio' -%}
+                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
+                                {%- for opt in opts -%}
+                                  {%- assign pair = opt | split: '|' -%}
+                                  <label class="q-radio">
+                                    <input class="q-input" type="radio" name="{{ b.name_attr | default: 'contact[preference]' }}" value="{{ pair.first | strip | escape }}" {% if b.required and forloop.first %}required{% endif %}>
+                                    <span>{{ pair.last | default: pair.first | strip }}</span>
+                                  </label>
+                                {%- endfor -%}
+                              {%- else -%}
+                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'contact[field]' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
+                            {%- endcase -%}
+
+                            <p id="{{ input_id }}-err" class="q-error" aria-live="polite"></p>
+                            {%- if b.help_text != blank -%}<p class="q-help">{{ b.help_text }}</p>{%- endif -%}
+                          {%- endif -%}
+                        </div>
+                      {%- endif -%}
+                    {%- endfor -%}
+                  {%- endif -%}
                 </div>
 
                 <div>
@@ -325,68 +456,192 @@
                 </div>
               {% endform %}
             {%- else -%}
+              {%- assign email_fallback_id = 'qf-email-' | append: section.id -%}
               <form class="q-form" method="post" action="{{ eff_endpoint | escape }}" novalidate>
                 <input type="hidden" name="source" value="newsletter">
                 <input type="hidden" name="tags" value="{{ eff_tags | escape }}">
 
                 <div class="q-fields">
-                  {%- for block in section.blocks -%}
-                    {%- if block.type == 'step' and s.template_style == 'steps' -%}
-                      <div class="q-step">
-                        {%- if block.settings.step_title != blank -%}<p class="q-kicker">{{ block.settings.step_title }}</p>{%- endif -%}
-                        {%- if block.settings.step_desc != blank -%}<p class="q-sub">{{ block.settings.step_desc }}</p>{%- endif -%}
-                      </div>
-                    {%- elsif block.type == 'field' -%}
-                      {%- assign b = block.settings -%}
-                      {%- assign wcls = 'q-field' -%}{% if b.width == 'half' %}{% assign wcls = wcls | append: ' half' %}{% endif %}
-                      <div class="{{ wcls }}" data-q-field data-required="{{ b.required }}" {% if b.condition_enable %}data-cond="1" data-cond-field="{{ b.condition_field | escape }}" data-cond-operator="{{ b.condition_operator }}" data-cond-value="{{ b.condition_value | escape }}"{% endif %}>
-                        {%- if b.field_type == 'html' -%}
-                          <div class="rte">{{ b.html_content }}</div>
-                        {%- else -%}
-                          {%- assign input_id = section.id | append: '-' | append: forloop.index -%}
-                          {%- if b.label != blank -%}<label class="q-label" for="{{ input_id }}">{{ b.label }}</label>{%- endif -%}
-                          {%- case b.field_type -%}
-                            {%- when 'email' -%}
-                              <input id="{{ input_id }}" class="q-input" type="email" name="email" placeholder="{{ b.placeholder | default: 'you@example.com' }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                            {%- when 'text' -%}
-                              <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'first_name' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                            {%- when 'select' -%}
-                              {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
-                              <select id="{{ input_id }}" class="q-select" name="{{ b.name_attr | default: 'topic' }}" {% if b.required %}required{% endif %}>
-                                <option value="">{{ b.placeholder }}</option>
+                  {%- if s.template_style == 'steps' -%}
+                    {%- assign step_open = false -%}
+                    {%- assign fallback_inserted = false -%}
+
+                    {%- for block in section.blocks -%}
+                      {%- if block.type == 'step' -%}
+                        {%- if step_open -%}</div>{%- endif -%}
+                        <div class="q-step">
+                          {%- assign step_open = true -%}
+                          {%- if block.settings.step_title != blank -%}<p class="q-kicker">{{ block.settings.step_title }}</p>{%- endif -%}
+                          {%- if block.settings.step_desc != blank -%}<p class="q-sub">{{ block.settings.step_desc }}</p>{%- endif -%}
+
+                          {%- if fallback_inserted == false and has_email_block == false -%}
+                            <div class="q-field" data-q-field data-required="true">
+                              <label class="q-label" for="{{ email_fallback_id }}">Email</label>
+                              <input id="{{ email_fallback_id }}" class="q-input" type="email" name="email" placeholder="you@example.com" required>
+                              <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
+                            </div>
+                            {%- assign fallback_inserted = true -%}
+                          {%- endif -%}
+
+                      {%- elsif block.type == 'field' -%}
+                        {%- if step_open == false -%}
+                          <div class="q-step">
+                            {%- assign step_open = true -%}
+                            {%- if fallback_inserted == false and has_email_block == false -%}
+                              <div class="q-field" data-q-field data-required="true">
+                                <label class="q-label" for="{{ email_fallback_id }}">Email</label>
+                                <input id="{{ email_fallback_id }}" class="q-input" type="email" name="email" placeholder="you@example.com" required>
+                                <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
+                              </div>
+                              {%- assign fallback_inserted = true -%}
+                            {%- endif -%}
+                        {%- endif -%}
+
+                        {%- assign b = block.settings -%}
+                        {%- assign wcls = 'q-field' -%}{% if b.width == 'half' %}{% assign wcls = wcls | append: ' half' %}{% endif %}
+                        <div class="{{ wcls }}" data-q-field data-required="{{ b.required }}" {% if b.condition_enable %}data-cond="1" data-cond-field="{{ b.condition_field | escape }}" data-cond-operator="{{ b.condition_operator }}" data-cond-value="{{ b.condition_value | escape }}"{% endif %}>
+                          {%- if b.field_type == 'html' -%}
+                            <div class="rte">{{ b.html_content }}</div>
+                          {%- else -%}
+                            {%- assign input_id = section.id | append: '-' | append: forloop.index -%}
+                            {%- if b.label != blank and b.field_type != 'checkbox' and b.field_type != 'consent' -%}
+                              <label class="q-label" for="{{ input_id }}">{{ b.label }}</label>
+                            {%- endif -%}
+
+                            {%- case b.field_type -%}
+                              {%- when 'email' -%}
+                                <input id="{{ input_id }}" class="q-input" type="email" name="email" placeholder="{{ b.placeholder | default: 'you@example.com' }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
+                              {%- when 'text' -%}
+                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'first_name' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
+                              {%- when 'select' -%}
+                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
+                                <select id="{{ input_id }}" class="q-select" name="{{ b.name_attr | default: 'topic' }}" {% if b.required %}required{% endif %}>
+                                  <option value="">{{ b.placeholder }}</option>
+                                  {%- for opt in opts -%}
+                                    {%- assign pair = opt | split: '|' -%}
+                                    <option value="{{ pair.first | strip | escape }}" {% if b.default_value == pair.first %}selected{% endif %}>{{ pair.last | default: pair.first | strip }}</option>
+                                  {%- endfor -%}
+                                </select>
+                              {%- when 'checkbox' -%}
+                                <label class="q-radio">
+                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'consent_gdpr' }}" value="yes" {% if b.required %}required{% endif %}>
+                                  <span>{{ b.label | default: 'I agree to receive emails.' }}</span>
+                                </label>
+                              {%- when 'consent' -%}
+                                <label class="q-radio">
+                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'consent' }}" value="yes" {% if b.required %}required{% endif %}>
+                                  <span>{{ b.label | default: 'I agree to the privacy policy' }}</span>
+                                </label>
+                              {%- when 'radio' -%}
+                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
                                 {%- for opt in opts -%}
                                   {%- assign pair = opt | split: '|' -%}
-                                  <option value="{{ pair.first | strip | escape }}" {% if b.default_value == pair.first %}selected{% endif %}>{{ pair.last | default: pair.first | strip }}</option>
+                                  <label class="q-radio">
+                                    <input class="q-input" type="radio" name="{{ b.name_attr | default: 'preference' }}" value="{{ pair.first | strip | escape }}" {% if b.required and forloop.first %}required{% endif %}>
+                                    <span>{{ pair.last | default: pair.first | strip }}</span>
+                                  </label>
                                 {%- endfor -%}
-                              </select>
-                            {%- when 'checkbox' -%}
-                              <label class="q-radio">
-                                <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'consent_gdpr' }}" value="yes" {% if b.required %}required{% endif %}>
-                                <span>{{ b.label | default: 'I agree to receive emails.' }}</span>
-                              </label>
-                            {%- when 'consent' -%}
-                              <label class="q-radio">
-                                <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'consent' }}" value="yes" {% if b.required %}required{% endif %}>
-                                <span>{{ b.label | default: 'I agree to the privacy policy' }}</span>
-                              </label>
-                            {%- when 'radio' -%}
-                              {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
-                              {%- for opt in opts -%}
-                                {%- assign pair = opt | split: '|' -%}
-                                <label class="q-radio">
-                                  <input class="q-input" type="radio" name="{{ b.name_attr | default: 'preference' }}" value="{{ pair.first | strip | escape }}" {% if b.required and forloop.first %}required{% endif %}>
-                                  <span>{{ pair.last | default: pair.first | strip }}</span>
-                                </label>
-                              {%- endfor -%}
-                            {%- else -%}
-                              <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'field' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                          {%- endcase -%}
-                          <p id="{{ input_id }}-err" class="q-error" aria-live="polite"></p>
-                          {%- if b.help_text != blank -%}<p class="q-help">{{ b.help_text }}</p>{%- endif -%}
+                              {%- else -%}
+                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'field' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
+                            {%- endcase -%}
+
+                            <p id="{{ input_id }}-err" class="q-error" aria-live="polite"></p>
+                            {%- if b.help_text != blank -%}<p class="q-help">{{ b.help_text }}</p>{%- endif -%}
+                          {%- endif -%}
+                        </div>
+                      {%- endif -%}
+                    {%- endfor -%}
+
+                    {%- if step_open -%}</div>{%- endif -%}
+
+                    {%- if step_open == false -%}
+                      <div class="q-step">
+                        {%- if has_email_block == false -%}
+                          <div class="q-field" data-q-field data-required="true">
+                            <label class="q-label" for="{{ email_fallback_id }}">Email</label>
+                            <input id="{{ email_fallback_id }}" class="q-input" type="email" name="email" placeholder="you@example.com" required>
+                            <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
+                          </div>
                         {%- endif -%}
                       </div>
                     {%- endif -%}
-                  {%- endfor -%}
+
+                    {%- if fallback_inserted == false and has_email_block == false -%}
+                      <div class="q-step">
+                        <div class="q-field" data-q-field data-required="true">
+                          <label class="q-label" for="{{ email_fallback_id }}">Email</label>
+                          <input id="{{ email_fallback_id }}" class="q-input" type="email" name="email" placeholder="you@example.com" required>
+                          <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
+                        </div>
+                      </div>
+                    {%- endif -%}
+
+                  {%- else -%}
+                    {%- if has_email_block == false -%}
+                      <div class="q-field" data-q-field data-required="true">
+                        <label class="q-label" for="{{ email_fallback_id }}">Email</label>
+                        <input id="{{ email_fallback_id }}" class="q-input" type="email" name="email" placeholder="you@example.com" required>
+                        <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
+                      </div>
+                    {%- endif -%}
+
+                    {%- for block in section.blocks -%}
+                      {%- if block.type == 'field' -%}
+                        {%- assign b = block.settings -%}
+                        {%- assign wcls = 'q-field' -%}{% if b.width == 'half' %}{% assign wcls = wcls | append: ' half' %}{% endif %}
+                        <div class="{{ wcls }}" data-q-field data-required="{{ b.required }}" {% if b.condition_enable %}data-cond="1" data-cond-field="{{ b.condition_field | escape }}" data-cond-operator="{{ b.condition_operator }}" data-cond-value="{{ b.condition_value | escape }}"{% endif %}>
+                          {%- if b.field_type == 'html' -%}
+                            <div class="rte">{{ b.html_content }}</div>
+                          {%- else -%}
+                            {%- assign input_id = section.id | append: '-' | append: forloop.index -%}
+                            {%- if b.label != blank and b.field_type != 'checkbox' and b.field_type != 'consent' -%}
+                              <label class="q-label" for="{{ input_id }}">{{ b.label }}</label>
+                            {%- endif -%}
+
+                            {%- case b.field_type -%}
+                              {%- when 'email' -%}
+                                <input id="{{ input_id }}" class="q-input" type="email" name="email" placeholder="{{ b.placeholder | default: 'you@example.com' }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
+                              {%- when 'text' -%}
+                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'first_name' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
+                              {%- when 'select' -%}
+                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
+                                <select id="{{ input_id }}" class="q-select" name="{{ b.name_attr | default: 'topic' }}" {% if b.required %}required{% endif %}>
+                                  <option value="">{{ b.placeholder }}</option>
+                                  {%- for opt in opts -%}
+                                    {%- assign pair = opt | split: '|' -%}
+                                    <option value="{{ pair.first | strip | escape }}" {% if b.default_value == pair.first %}selected{% endif %}>{{ pair.last | default: pair.first | strip }}</option>
+                                  {%- endfor -%}
+                                </select>
+                              {%- when 'checkbox' -%}
+                                <label class="q-radio">
+                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'consent_gdpr' }}" value="yes" {% if b.required %}required{% endif %}>
+                                  <span>{{ b.label | default: 'I agree to receive emails.' }}</span>
+                                </label>
+                              {%- when 'consent' -%}
+                                <label class="q-radio">
+                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'consent' }}" value="yes" {% if b.required %}required{% endif %}>
+                                  <span>{{ b.label | default: 'I agree to the privacy policy' }}</span>
+                                </label>
+                              {%- when 'radio' -%}
+                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
+                                {%- for opt in opts -%}
+                                  {%- assign pair = opt | split: '|' -%}
+                                  <label class="q-radio">
+                                    <input class="q-input" type="radio" name="{{ b.name_attr | default: 'preference' }}" value="{{ pair.first | strip | escape }}" {% if b.required and forloop.first %}required{% endif %}>
+                                    <span>{{ pair.last | default: pair.first | strip }}</span>
+                                  </label>
+                                {%- endfor -%}
+                              {%- else -%}
+                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'field' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
+                            {%- endcase -%}
+
+                            <p id="{{ input_id }}-err" class="q-error" aria-live="polite"></p>
+                            {%- if b.help_text != blank -%}<p class="q-help">{{ b.help_text }}</p>{%- endif -%}
+                          {%- endif -%}
+                        </div>
+                      {%- endif -%}
+                    {%- endfor -%}
+                  {%- endif -%}
                 </div>
 
                 <div>
@@ -414,16 +669,13 @@
     </div>
   </div>
 
-    {%- assign eff_captcha_key = '' -%}
-  {%- if eff_captcha_mode == 'turnstile' -%}
-    {%- assign eff_captcha_key = s.captcha_site_key | default: g.captcha_turnstile_site_key | default: '' -%}
-  {%- elsif eff_captcha_mode == 'recaptcha_v3' -%}
-    {%- assign eff_captcha_key = s.captcha_site_key | default: g.captcha_recaptcha_site_key | default: '' -%}
+  {%- if eff_captcha_mode == 'turnstile' and eff_captcha_key != blank -%}
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
   {%- endif -%}
-
   {%- if eff_captcha_mode == 'recaptcha_v3' and eff_captcha_key != blank -%}
     <script src="https://www.google.com/recaptcha/api.js?render={{ eff_captcha_key | escape }}"></script>
   {%- endif -%}
+
   {{ 'frontend-form-logic.js' | asset_url | script_tag }}
 </section>
 
