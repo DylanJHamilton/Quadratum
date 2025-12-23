@@ -1,24 +1,41 @@
 {% comment %}
-  Quadratum — Forms: Quote (Full)  (integrations-enabled)
+  Quadratum — Forms: Quote (Full) (integrations-enabled)
   • Layouts: Card / Split / Steps
   • Routing: Shopify Contact / Shopify Customer / Custom Endpoint
   • Engines: snippets/form-core.liquid + snippets/form-dispatch.liquid
-  • Validation/steps/captcha: assets/frontend-form-logic.js
+  • Validation/steps/captcha: assets/frontend-form-logic-form-sections.js
   • Auto-inherits global Integrations: captcha, default endpoint, tags, marketing meta
+
+  Minimal refactor (per our checkbox/radio + validator talk):
+  - Fix padding scale (schema ranges imply rem ×10, not ×100)
+  - Ensure checkbox/radio never inherit full-width text input styling
+  - Ensure invalid outline styles don’t “box” the entire row for checkbox/radio
+  - Hide steps UI unless template is steps (still present for JS)
 {% endcomment %}
 
-{%- assign s = section.settings -%}
-{%- assign g = settings -%} 
-{%- comment %}
-  Effective values (globals-first fallback):
-  • Captcha: from Theme → Integrations unless section overrides
-  • Tags: merge theme default + section tags (de-dup client-side OK)
-  • Endpoint: use section.endpoint_url; if blank and destination==custom_endpoint, fall back to g.forms_global_endpoint
-{%- endcomment -%}
-{%- assign eff_captcha_mode = s.captcha_mode | default: g.forms_captcha_provider | default: 'none' -%}
-{%- assign eff_captcha_key = s.captcha_site_key | default: g.captcha_site_key | default: 'none' -%}
+{{ 'forms-sections.css' | asset_url | stylesheet_tag }}
 
-{%- assign tags_theme = g.forms_default_tags | default: 'form, web' -%}
+{%- assign s = section.settings -%}
+{%- assign g = settings -%}
+
+{%- comment -%} Captcha: inherit-aware + provider-aware key selection {%- endcomment -%}
+{%- assign _captcha_choice = s.captcha_mode | default: 'inherit' -%}
+{%- assign eff_captcha_mode = _captcha_choice -%}
+{%- if eff_captcha_mode == blank or eff_captcha_mode == 'inherit' -%}
+  {%- assign eff_captcha_mode = g.forms_captcha_provider | default: 'none' -%}
+{%- endif -%}
+
+{%- assign eff_captcha_key = s.captcha_site_key | default: '' -%}
+{%- if eff_captcha_key == blank -%}
+  {%- if eff_captcha_mode == 'turnstile' -%}
+    {%- assign eff_captcha_key = g.captcha_turnstile_site_key | default: '' -%}
+  {%- elsif eff_captcha_mode == 'recaptcha_v3' -%}
+    {%- assign eff_captcha_key = g.captcha_recaptcha_site_key | default: '' -%}
+  {%- endif -%}
+{%- endif -%}
+
+{%- comment -%} Tags + endpoint {%- endcomment -%}
+{%- assign tags_theme   = g.forms_default_tags | default: 'form, web' -%}
 {%- assign tags_section = s.hidden_tags | default: '' -%}
 {%- assign eff_tags = tags_theme -%}
 {%- if tags_section != blank -%}{%- assign eff_tags = tags_theme | append: ', ' | append: tags_section -%}{%- endif -%}
@@ -28,13 +45,44 @@
   {%- assign eff_endpoint = g.forms_global_endpoint | default: '' -%}
 {%- endif -%}
 
+{%- comment -%} Button: inherit-aware, maps to q-btn class {%- endcomment -%}
+{%- assign _btn_choice = s.button_variant | default: 'inherit' -%}
+{%- assign _btn_variant = g.button_variant_default | default: 'solid' -%}
+{%- if _btn_choice != blank and _btn_choice != 'inherit' -%}{%- assign _btn_variant = _btn_choice -%}{%- endif -%}
+{%- assign btn_mode_class = 'q-btn--solid' -%}
+{%- if _btn_variant == 'outline' -%}{%- assign btn_mode_class = 'q-btn--outline' -%}{%- endif -%}
+{%- if _btn_variant == 'ghost' -%}{%- assign btn_mode_class = 'q-btn--ghost' -%}{%- endif -%}
+
 {%- assign hide_m = s.hide_on_mobile -%}
 {%- assign hide_d = s.hide_on_desktop -%}
-{%- assign anchor_attr = '' -%}{% if s.anchor_id != blank %}{% assign anchor_attr = ' id="' | append: s.anchor_id | append: '"' %}{% endif %}
+
+{%- assign anchor_id = s.anchor_id | strip -%}
+
+{%- comment -%} Overlay CSS (Shopify-safe; NO parentheses) {%- endcomment -%}
+{%- assign overlay_alpha = s.overlay_opacity | default: 24 | divided_by: 100.0 -%}
+{%- assign overlay_css = 'transparent' -%}
+{%- if s.overlay_type == 'solid' -%}
+  {%- assign _overlay_color = s.overlay_color | default: '#000000' -%}
+  {%- assign overlay_css = _overlay_color | color_modify: 'alpha', overlay_alpha -%}
+{%- elsif s.overlay_type == 'gradient' -%}
+  {%- assign a = s.gradient_angle | default: 0 -%}
+  {%- assign _gfrom = s.gradient_from | default: '#000000' -%}
+  {%- assign _gto   = s.gradient_to   | default: '#000000' -%}
+  {%- assign c1 = _gfrom | color_modify: 'alpha', overlay_alpha -%}
+  {%- assign c2 = _gto   | color_modify: 'alpha', overlay_alpha -%}
+  {%- assign overlay_css = 'linear-gradient(' | append: a | append: 'deg, ' | append: c1 | append: ', ' | append: c2 | append: ')' -%}
+{%- endif -%}
+
+{%- comment -%} Background image CSS (Shopify-safe) {%- endcomment -%}
+{%- assign bg_image_css = '' -%}
+{%- if s.bg_image != blank -%}
+  {%- assign bg_url = s.bg_image | image_url: width: 1920 -%}
+  {%- assign bg_image_css = 'background-image:url(' | append: bg_url | append: '); background-size:cover; background-position:center;' -%}
+{%- endif -%}
 
 {{ 'frontend-form-logic-form-sections.js' | asset_url | script_tag }}
 
-<section {{ anchor_attr }}
+<section
   id="{{ section.id }}"
   class="q-form q-form--quote-full{% if hide_m %} is-hidden-m{% endif %}{% if hide_d %} is-hidden-d{% endif %} q-cta-quote-form"
   role="region"
@@ -43,23 +91,9 @@
   data-surface="{{ s.surface_style | default: 'card' }}"
   data-captcha="{{ eff_captcha_mode }}"
   data-captcha-key="{{ eff_captcha_key | escape }}"
-  data-btn-variant="{% if s.button_variant == 'outline' %}q-btn--outline{% elsif s.button_variant == 'ghost' %}q-btn--ghost{% else %}q-btn--solid{% endif %}"
+  data-btn-variant="{{ btn_mode_class }}"
   data-msg-error="{{ s.error_text | escape }}"
   data-msg-success="{{ s.success_text | escape }}"
-  style="
-    --q-pad-y: {{ s.padding_y | default: 48 | divided_by: 100.0 }}rem;
-    --q-pad-x: {{ s.padding_x | default: 24 | divided_by: 100.0 }}rem;
-    --q-card-radius: {{ s.card_radius | default: 16 }}px;
-    --q-input-radius: {{ s.input_radius | default: 10 }}px;
-    --q-input-border: {{ s.input_border | default: 1 }}px;
-    --q-form-bg: {{ s.form_bg | default: '#ffffff' }};
-    --q-bg-color: {{ s.bg_color | default: '#ffffff' }};
-    --q-overlay: {% if s.overlay_type == 'solid' %}rgba({% assign oc = s.overlay_color | default: '#000000' %}{{ oc | color_to_rgb | join: ', ' }}, {{ s.overlay_opacity | default: 24 | times: 0.01 }})
-                 {% elsif s.overlay_type == 'gradient' %}linear-gradient({{ s.gradient_angle | default: 0 }}deg, {{ s.gradient_from | default: '#000000' }} {{ s.overlay_opacity | default: 24 | append: '%' }}, {{ s.gradient_to | default: '#000000' }} {{ s.overlay_opacity | default: 24 | append: '%' }})
-                 {% else %}transparent{% endif %};
-    background-color: var(--q-bg-color);
-    {% if s.bg_image != blank %}background-image: url({{ s.bg_image | image_url: width: 1920 }}); background-size: cover; background-position: center;{% endif %}
-  "
   data-marketing-app="{{ g.email_marketing_app | default: 'none' }}"
   data-marketing-consent="{{ g.marketing_consent_mode | default: 'optional' }}"
   data-marketing-double-opt-in="{{ g.marketing_double_opt_in | default: true }}"
@@ -69,14 +103,31 @@
   data-utm-source="{{ g.marketing_utm_source | default: 'quote_form' }}"
   data-utm-medium="{{ g.marketing_utm_medium | default: 'web' }}"
   data-utm-campaign="{{ g.marketing_utm_campaign | default: 'lead_gen' }}"
-  data-proxy-forms="{{ g.proxy_forms_endpoint | default: g.forms_global_endpoint | default: 'https://example.com/api/proxy/forms' }}"
-  data-proxy-marketing="{{ g.marketing_proxy_endpoint | default: 'https://example.com/api/proxy/marketing' }}"
+  data-proxy-forms="{{ g.proxy_forms_endpoint | default: g.forms_global_endpoint | default: '' }}"
+  data-proxy-marketing="{{ g.marketing_proxy_endpoint | default: '' }}"
+  style="
+    --q-pad-y: {{ s.padding_y | default: 48 | divided_by: 10.0 }}rem;
+    --q-pad-x: {{ s.padding_x | default: 24 | divided_by: 10.0 }}rem;
+    --q-card-radius: {{ s.card_radius | default: 16 }}px;
+    --q-input-radius: {{ s.input_radius | default: 10 }}px;
+    --q-input-border-w: {{ s.input_border | default: 1 }}px;
+    --q-form-bg: {{ s.form_bg | default: '#ffffff' }};
+    --q-bg-color: {{ s.bg_color | default: '#ffffff' }};
+    --q-overlay: {{ overlay_css }};
+    background-color: var(--q-bg-color);
+    {{ bg_image_css }}
+  "
 >
+  {%- if anchor_id != blank and anchor_id != section.id -%}
+    <span id="{{ anchor_id | escape }}" class="q-anchor" aria-hidden="true"></span>
+  {%- endif -%}
+
   {% if s.bg_video != blank %}
     <video class="q-bg-video" autoplay muted loop playsinline aria-hidden="true">
       <source src="{{ s.bg_video | escape }}">
     </video>
   {% endif %}
+
   {% if s.overlay_type != 'none' %}
     <div class="q-overlay" aria-hidden="true"></div>
   {% endif %}
@@ -96,14 +147,6 @@
     {%- capture form_surface_end -%}
       </div>
     {%- endcapture -%}
-
-    {%- comment -%}
-      We pass:
-        - id, blocks (as before)
-        - settings: s (section settings)
-        - theme_settings: g (global theme settings)
-        - eff_* overrides: captcha, endpoint, tags, and marketing meta so the snippet can inject hidden fields safely.
-    {%- endcomment -%}
 
     {%- if s.template_style == 'split' -%}
       <div class="q-split q-split--{{ s.split_media_side | default: 'right' }}">
@@ -128,11 +171,12 @@
             eff_utm_medium: g.marketing_utm_medium,
             eff_utm_campaign: g.marketing_utm_campaign
           -%}
-          <div data-q-steps class="q-steps-ui">
+          <div data-q-steps class="q-steps-ui" aria-hidden="true">
             <div class="q-steps-bar"><span class="q-steps-fill"></span></div>
             <div class="q-steps-count"></div>
           </div>
         {{ form_surface_end }}
+
         <aside class="q-media">
           {% if s.split_image != blank %}
             {{ s.split_image | image_url: width: 1200 | image_tag: loading: 'lazy', alt: s.heading | default: 'Quote form media' }}
@@ -161,7 +205,7 @@
           eff_utm_medium: g.marketing_utm_medium,
           eff_utm_campaign: g.marketing_utm_campaign
         -%}
-        <div data-q-steps class="q-steps-ui">
+        <div data-q-steps class="q-steps-ui" aria-hidden="true">
           <div class="q-steps-bar"><span class="q-steps-fill"></span></div>
           <div class="q-steps-count"></div>
         </div>
@@ -169,9 +213,16 @@
     {%- endif -%}
   </div>
 
+  {%- if eff_captcha_mode == 'turnstile' and eff_captcha_key != blank -%}
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
+  {%- endif -%}
+  {%- if eff_captcha_mode == 'recaptcha_v3' and eff_captcha_key != blank -%}
+    <script src="https://www.google.com/recaptcha/api.js?render={{ eff_captcha_key | escape }}" defer></script>
+  {%- endif -%}
+
   <style>
-    /* ===== Quadratum – Quote Form (scoped) ===== */
     #{{ section.id }} { position: relative; padding: var(--q-pad-y) var(--q-pad-x); overflow: hidden; }
+    #{{ section.id }} .q-anchor{ position: relative; top: -80px; height: 0; width: 0; display:block; visibility:hidden; }
     #{{ section.id }} .q-overlay { position:absolute; inset:0; background: var(--q-overlay); pointer-events:none; }
     #{{ section.id }} .q-bg-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
     #{{ section.id }} .q-wrap { max-width: var(--container-lg, 72rem); margin: 0 auto; position: relative; z-index: 1; }
@@ -187,7 +238,6 @@
     #{{ section.id }} .q-shadow-md { box-shadow: 0 6px 18px rgba(0,0,0,.08); }
     #{{ section.id }} .q-shadow-lg { box-shadow: 0 12px 32px rgba(0,0,0,.12); }
 
-    /* ✨ Frameless surface toggle */
     #{{ section.id }}[data-surface="frameless"] .q-surface.is-frameless {
       background: transparent !important;
       box-shadow: none !important;
@@ -202,88 +252,70 @@
       #{{ section.id }} .q-split--left > * { direction: ltr; }
     }
     #{{ section.id }} .q-media img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--q-card-radius); }
-    /* Keep media square even when frameless (optional). Remove radius if you want it squared:
-       #{{ section.id }}[data-surface="frameless"] .q-media img { border-radius: 0; } */
 
-    /* Form chrome */
-    #{{ section.id }} .q-form { display: grid; gap: var(--space-md, 1rem); }
-    #{{ section.id }} .q-fields { display: grid; gap: var(--space-md, 1rem); }
-    #{{ section.id }} .q-field { display: grid; gap: .375rem; }
-    #{{ section.id }} .q-field.half { grid-column: span 1; }
-    @media (min-width: 768px){
-      #{{ section.id }} .q-fields { grid-template-columns: 1fr 1fr; }
-      #{{ section.id }} .q-field:not(.half) { grid-column: 1 / -1; }
-    }
-    #{{ section.id }} .q-label { font-weight: 600; }
-    #{{ section.id }} .q-input,
-    #{{ section.id }} .q-select,
-    #{{ section.id }} .q-textarea {
+    /* Steps UI: present for JS, hidden unless Steps layout */
+    #{{ section.id }} .q-steps-ui{ display:none; margin-top: var(--space-md, 1rem); }
+    #{{ section.id }}[data-template="steps"] .q-steps-ui{ display:block; }
+
+    /* Text-like controls only (prevents checkbox/radio from becoming full width) */
+    #{{ section.id }} input.q-input:not([type="checkbox"]):not([type="radio"]),
+    #{{ section.id }} select.q-select,
+    #{{ section.id }} textarea.q-textarea {
       width: 100%;
       border-radius: var(--q-input-radius);
-      border: var(--q-input-border) solid var(--border-color, #e5e7eb);
+      border: var(--q-input-border-w) solid var(--border-color, #e5e7eb);
       padding: .65rem .8rem;
       background: #fff;
       color: var(--text-base, #111111);
     }
-    #{{ section.id }} .q-textarea { min-height: 120px; resize: vertical; }
-    #{{ section.id }} .q-radio { display: inline-flex; align-items: center; gap: .5rem; margin-right: 1rem; }
-    #{{ section.id }} .q-error { color: var(--color-error, #dc2626); font-size: .875rem; min-height: 1rem; }
-    #{{ section.id }} [aria-invalid="true"] { outline: 2px solid rgba(220,38,38,.3); }
 
-    /* Buttons */
-    #{{ section.id }} .q-btn { display:inline-flex; align-items:center; justify-content:center; gap:.5rem; padding:.75rem 1rem; border-radius: var(--button-radius, 12px); border-width: var(--button_border_width, 1px); cursor:pointer; }
-    #{{ section.id }} .q-btn--solid { background: var(--color_primary, #2563eb); color: var(--text_on_color, #fff); border: 1px solid transparent; }
-    #{{ section.id }} .q-btn--outline { background: transparent; color: var(--color_primary, #2563eb); border: 1px solid currentColor; }
-    #{{ section.id }} .q-btn--ghost { background: transparent; color: var(--color_primary, #2563eb); border: 1px solid transparent; }
-    #{{ section.id }} .q-btn[aria-busy="true"] { opacity: .7; pointer-events: none; }
-
-    /* Steps UI */
-    #{{ section.id }}[data-template="steps"] .q-steps-ui { margin-top: .75rem; }
-    #{{ section.id }} .q-steps-bar { position: relative; height: 6px; background: rgba(0,0,0,.08); border-radius: 999px; overflow: hidden; }
-    #{{ section.id }} .q-steps-fill { position: absolute; inset: 0 auto 0 0; width: 0%; background: var(--color_primary, #2563eb); }
-    #{{ section.id }} .q-steps-count { margin-top: .5rem; font-size: .875rem; color: var(--text-muted, #6b7280); }
-    #{{ section.id }} .q-step { display: none; }
-    #{{ section.id }} .q-step.is-active { display: grid; gap: var(--space-md, 1rem); }
-
-    /* Visibility helpers */
-    #{{ section.id }} .is-hidden { display: none !important; }
-    @media (max-width: 767.98px){ #{{ section.id }}.is-hidden-m { display:none !important; } }
-    @media (min-width: 768px){ #{{ section.id }}.is-hidden-d { display:none !important; } }
-
-    /* === Checkbox & Radio width correction (Form – Quote Full) === */
-    .q-form.q-form--quote-full .q-field input[type="checkbox"].q-input,
-    .q-form.q-form--quote-full .q-field input[type="radio"].q-input {
+    /* Checkbox/radio: inline-size and aligned next to label text */
+    #{{ section.id }} input.q-input[type="checkbox"],
+    #{{ section.id }} input.q-input[type="radio"]{
       width: auto !important;
       min-width: 1rem;
       max-width: 1rem;
+      height: 1.05rem;
+      padding: 0 !important;
+      margin: 0;
       display: inline-block;
       vertical-align: middle;
+      border-radius: 3px;
     }
+
+    /* Invalid state: only outline text inputs/select/textarea */
+    #{{ section.id }} input.q-input:not([type="checkbox"]):not([type="radio"])[aria-invalid="true"],
+    #{{ section.id }} select.q-select[aria-invalid="true"],
+    #{{ section.id }} textarea.q-textarea[aria-invalid="true"]{
+      outline: 1px solid var(--q-error, #dc2626);
+      border-color: var(--q-error, #dc2626);
+    }
+
+    /* Invalid state for checkbox/radio: outline only the control */
+    #{{ section.id }} input.q-input[type="checkbox"][aria-invalid="true"],
+    #{{ section.id }} input.q-input[type="radio"][aria-invalid="true"]{
+      outline: 2px solid var(--q-error, #dc2626);
+      outline-offset: 2px;
+    }
+
+    @media (max-width: 767.98px){ #{{ section.id }}.is-hidden-m { display:none !important; } }
+    @media (min-width: 768px){ #{{ section.id }}.is-hidden-d { display:none !important; } }
   </style>
-  
 </section>
 
 {% schema %}
-{
-  "name": "Forms – Quote (Full)",
-  "tag": "section",
-  "class": "q-form q-form--quote-full",
+{  "name": "Forms – Quote (Full)", "tag": "section", "class": "q-form q-form--quote-full",
   "settings": [
     { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Quote request form" },
-
     { "type": "header", "content": "Layout" },
     { "type": "select", "id": "template_style", "label": "Template style", "default": "card", "options": [
-      { "value": "card", "label": "Card" },
-      { "value": "split", "label": "Split" },
-      { "value": "steps", "label": "Steps" }
+      { "value": "card", "label": "Card" }, { "value": "split", "label": "Split" }, { "value": "steps", "label": "Steps" }
     ]},
     { "type": "select", "id": "surface_style", "label": "Surface", "default": "card", "options": [
-      { "value": "card", "label": "Card surface" },
-      { "value": "frameless", "label": "Frameless (no card)" }
+      { "value": "card", "label": "Card surface" }, { "value": "frameless", "label": "Frameless (no card)" }
     ]},
     { "type": "select", "id": "split_media_side", "label": "Split media side", "default": "right", "options": [
-      { "value": "left", "label": "Left" },
-      { "value": "right", "label": "Right" }
+      { "value": "left", "label": "Left" }, { "value": "right", "label": "Right" }
     ]},
     { "type": "image_picker", "id": "split_image", "label": "Split media image" },
 
@@ -292,9 +324,7 @@
     { "type": "url", "id": "bg_video", "label": "Background video URL" },
     { "type": "color", "id": "bg_color", "label": "Background color", "default": "#ffffff" },
     { "type": "select", "id": "overlay_type", "label": "Overlay type", "default": "none", "options": [
-      { "value": "none", "label": "None" },
-      { "value": "solid", "label": "Solid" },
-      { "value": "gradient", "label": "Gradient" }
+      { "value": "none", "label": "None" }, { "value": "solid", "label": "Solid" }, { "value": "gradient", "label": "Gradient" }
     ]},
     { "type": "color", "id": "overlay_color", "label": "Overlay color", "default": "#000000" },
     { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity (×100)", "min": 0, "max": 100, "step": 1, "default": 24 },
@@ -306,8 +336,7 @@
     { "type": "text", "id": "kicker", "label": "Kicker", "default": "Request a quote" },
     { "type": "text", "id": "heading", "label": "Heading", "default": "Get a Fast, Accurate Quote" },
     { "type": "select", "id": "heading_level", "label": "Heading level", "default": "h2", "options": [
-      { "value": "h2", "label": "H2" },
-      { "value": "h3", "label": "H3" }
+      { "value": "h2", "label": "H2" }, { "value": "h3", "label": "H3" }
     ]},
     { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Tell us a few details and we’ll reply within 1 business day." },
     { "type": "text", "id": "success_text", "label": "Success message", "default": "Thanks! Your request has been sent." },
@@ -345,17 +374,13 @@
 
     { "type": "header", "content": "Sizing & Visibility" },
     { "type": "select", "id": "container_mode", "label": "Container width", "default": "contained", "options": [
-      { "value": "contained", "label": "Contained" },
-      { "value": "full", "label": "Full width" }
+      { "value": "contained", "label": "Contained" }, { "value": "full", "label": "Full width" }
     ]},
-    { "type": "range", "id": "padding_y", "label": "Section padding Y (rem ×100)", "min": 0, "max": 96, "step": 2, "default": 48 },
-    { "type": "range", "id": "padding_x", "label": "Section padding X (rem ×100)", "min": 0, "max": 96, "step": 2, "default": 24 },
+    { "type": "range", "id": "padding_y", "label": "Section padding Y (rem ×10)", "min": 0, "max": 96, "step": 2, "default": 48 },
+    { "type": "range", "id": "padding_x", "label": "Section padding X (rem ×10)", "min": 0, "max": 96, "step": 2, "default": 24 },
     { "type": "range", "id": "card_radius", "label": "Card radius (px)", "min": 0, "max": 28, "step": 1, "default": 16 },
     { "type": "select", "id": "card_shadow", "label": "Card shadow", "default": "md", "options": [
-      { "value": "none", "label": "None" },
-      { "value": "sm", "label": "Small" },
-      { "value": "md", "label": "Medium" },
-      { "value": "lg", "label": "Large" }
+      { "value": "none", "label": "None" }, { "value": "sm", "label": "Small" }, { "value": "md", "label": "Medium" }, { "value": "lg", "label": "Large" }
     ]},
     { "type": "text", "id": "anchor_id", "label": "Anchor id (optional)" },
     { "type": "checkbox", "id": "hide_on_mobile", "label": "Hide on mobile", "default": false },
@@ -383,16 +408,13 @@
         { "type": "textarea", "id": "options", "label": "Options (value|label per line)" },
         { "type": "text", "id": "accept", "label": "Accept (file types)" },
         { "type": "select", "id": "width", "label": "Width", "default": "full", "options": [
-          { "value": "full", "label": "Full" },
-          { "value": "half", "label": "Half" }
+          { "value": "full", "label": "Full" }, { "value": "half", "label": "Half" }
         ]},
         { "type": "header", "content": "Conditional display" },
         { "type": "checkbox", "id": "condition_enable", "label": "Enable condition", "default": false },
         { "type": "text", "id": "condition_field", "label": "When field name is" },
         { "type": "select", "id": "condition_operator", "label": "Operator", "default": "equals", "options": [
-          { "value": "equals", "label": "Equals" },
-          { "value": "contains", "label": "Contains" },
-          { "value": "checked", "label": "Checked" }
+          { "value": "equals", "label": "Equals" }, { "value": "contains", "label": "Contains" }, { "value": "checked", "label": "Checked" }
         ]},
         { "type": "text", "id": "condition_value", "label": "Value" },
         { "type": "header", "content": "HTML field" },
@@ -404,7 +426,7 @@
       "name": "Step (for Steps layout)",
       "settings": [
         { "type": "text", "id": "step_title", "label": "Step title", "default": "Step" },
-        { "type": "textarea", "id": "step_desc", "label": "Step description"}
+        { "type": "textarea", "id": "step_desc", "label": "Step description" }
       ]
     }
   ],
@@ -434,5 +456,3 @@
   ]
 }
 {% endschema %}
-
-{% javascript %}{% endjavascript %}

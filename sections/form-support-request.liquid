@@ -7,37 +7,48 @@
   • Background media + overlay on ROOT
   • A11y, inline validation hooks, conditional logic, steps UI
   • Tokenized CSS; mirrors CTA + Quote sections
+
+  Fixes included:
+  - Section id is ALWAYS section.id (prevents scoped CSS mismatch)
+  - Optional anchor_id rendered as a separate <span> (no duplicate ids)
+  - Captcha mode/key uses globals-first fallback correctly (based on provider)
+  - Checkbox/radio no longer inherit text-input chrome (padding/width/etc.)
+  - Hide on mobile/desktop uses is-hidden-m / is-hidden-d parity
+  - JS loaded once (top), reCAPTCHA script uses defer
 {% endcomment %}
+
 {{ 'forms-sections.css' | asset_url | stylesheet_tag }}
+{{ 'frontend-form-logic-form-sections.js' | asset_url | script_tag }}
 
 {%- assign s = section.settings -%}
-
 {%- assign g = settings -%}
-{%- assign eff_captcha_mode = s.captcha_mode | default: g.forms_captcha_provider | default: 'none' -%}
-{%- assign eff_captcha_key  = s.captcha_site_key | default: g.captcha_turnstile_site_key | default: g.captcha_recaptcha_site_key | default: '' -%}
+
+{%- comment -%}Effective captcha mode (supports inherit){%- endcomment -%}
+{%- assign _cm = s.captcha_mode | default: 'inherit' -%}
+{%- if _cm == 'inherit' -%}{%- assign _cm = blank -%}{%- endif -%}
+{%- assign eff_captcha_mode = _cm | default: g.forms_captcha_provider | default: 'none' -%}
+
+{%- comment -%}Effective captcha key (provider-aware){%- endcomment -%}
+{%- assign eff_captcha_key = s.captcha_site_key | default: '' -%}
+{%- if eff_captcha_key == blank -%}
+  {%- if eff_captcha_mode == 'turnstile' -%}
+    {%- assign eff_captcha_key = g.captcha_turnstile_site_key | default: '' -%}
+  {%- elsif eff_captcha_mode == 'recaptcha_v3' -%}
+    {%- assign eff_captcha_key = g.captcha_recaptcha_site_key | default: '' -%}
+  {%- endif -%}
+{%- endif -%}
+
 {%- assign tags_theme   = g.forms_default_tags | default: 'form, web' -%}
 {%- assign tags_section = s.hidden_tags | default: 'support, web' -%}
 {%- assign eff_tags = tags_theme -%}
 {%- if tags_section != blank -%}{%- assign eff_tags = tags_theme | append: ', ' | append: tags_section -%}{%- endif -%}
+
 {%- assign eff_endpoint = s.endpoint_url -%}
 {%- if eff_endpoint == blank and s.destination == 'custom_endpoint' -%}
   {%- assign eff_endpoint = g.forms_global_endpoint | default: '' -%}
 {%- endif -%}
 
-{%- assign T_font_heading = settings.font_heading -%}
-{%- assign C_primary      = settings.color_primary        | default: '#2563eb' -%}
-{%- assign C_bg_base      = settings.bg_base              | default: '#ffffff' -%}
-{%- assign C_bg_contrast  = settings.bg_contrast          | default: '#f6f7f8' -%}
-{%- assign C_text_base    = settings.text_base            | default: '#111111' -%}
-{%- assign C_text_muted   = settings.text_muted           | default: '#6b7280' -%}
-{%- assign C_success      = settings.color_success        | default: '#16a34a' -%}
-{%- assign C_error        = settings.color_error          | default: '#dc2626' -%}
-{%- assign BTN_default    = settings.button_variant_default | default: 'solid' -%}
-{%- assign BTN_radius     = settings.button_radius        | default: 12 -%}
-{%- assign BTN_bw         = settings.button_border_width  | default: 1 -%}
-{%- assign BTN_hover_op   = settings.button_hover_opacity | default: 92 -%}
-{%- assign BTN_active     = settings.button_active_scale  | default: 98 -%}
-
+{%- assign BTN_default = g.button_variant_default | default: 'solid' -%}
 {%- assign _btn_choice = s.button_variant | default: 'inherit' -%}
 {%- assign _btn_variant = BTN_default -%}
 {%- if _btn_choice != 'inherit' and _btn_choice != blank -%}{%- assign _btn_variant = _btn_choice -%}{%- endif -%}
@@ -45,16 +56,9 @@
 {%- if _btn_variant == 'outline' -%}{%- assign btn_mode_class = 'q-btn--outline' -%}{%- endif -%}
 {%- if _btn_variant == 'ghost' -%}{%- assign btn_mode_class = 'q-btn--ghost' -%}{%- endif -%}
 
-{%- assign visibility_classes = '' -%}
-{%- if s.hide_on_mobile -%}{%- assign visibility_classes = visibility_classes | append: ' hidden md:block q-hide-mobile' -%}{%- endif -%}
-{%- if s.hide_on_desktop -%}{%- assign visibility_classes = visibility_classes | append: ' md:hidden q-hide-desktop' -%}{%- endif -%}
-
-{%- assign anchor = s.anchor_id -%}
-{%- if anchor == blank -%}{%- assign anchor = 'section-' | append: section.id -%}{%- endif -%}
-
-{%- assign steps_count = 0 -%}
-{%- for block in section.blocks -%}{%- if block.type == 'step' -%}{%- assign steps_count = steps_count | plus: 1 -%}{%- endif -%}{%- endfor -%}
-{%- if steps_count == 0 and s.template_style == 'steps' -%}{%- assign steps_count = 1 -%}{%- endif -%}
+{%- assign anchor_id = s.anchor_id | strip -%}
+{%- assign wrap_class = 'q-wrap' -%}
+{%- if s.container_mode == 'full' -%}{%- assign wrap_class = 'q-wrap-full' -%}{%- endif -%}
 
 {%- assign _support_source = 'support-request' -%}
 {%- assign _subject_prefix = 'Support – ' -%}
@@ -65,40 +69,49 @@
     --q-pad-y: {{ s.padding_y | default: 64 }}px;
     --q-pad-x: {{ s.padding_x | default: 24 }}px;
     --q-card-br: {{ s.card_radius | default: 16 }}px;
-    --q-card-shadow: {{ s.card_shadow | default: 2 }};
-    --q-text: {{ C_text_base }};
-    --q-muted: {{ C_text_muted }};
-    --q-bg: {{ s.bg_color | default: C_bg_contrast }};
-    --q-btn-bg: {{ C_primary }};
-    --q-btn-fg: {{ settings.text_on_color | default: '#ffffff' }};
-    --q-btn-bdr: {{ C_text_base }};
-    --q-btn-bw: {{ BTN_bw }}px;
-    --q-btn-br: {{ BTN_radius }}px;
-    --q-btn-hover-op: {{ BTN_hover_op }}%;
-    --q-btn-active-scale: {{ BTN_active | divided_by: 100.0 }};
+    --q-text: {{ g.text_base | default: '#111111' }};
+    --q-muted: {{ g.text_muted | default: '#6b7280' }};
+    --q-bg: {{ s.bg_color | default: g.bg_contrast | default: '#f6f7f8' }};
 
-    /* tokenized form UI hooks */
-    --q-form-bg: {{ s.form_bg | default: C_bg_base }};
+    --q-form-bg: {{ s.form_bg | default: g.bg_base | default: '#ffffff' }};
     --q-input-br: {{ s.input_radius | default: 10 }}px;
     --q-input-bdr: {{ s.input_border | default: '#e5e7eb' }};
+
+    --q-card-shadow-1: {% if s.card_shadow > 0 %}0 1px 2px rgba(0,0,0,.06){% else %}none{% endif %};
+    --q-card-shadow-2: {% if s.card_shadow > 1 %}0 8px 24px rgba(0,0,0,.08){% else %}0 0 0 rgba(0,0,0,0){% endif %};
   }
-  #{{ section.id }} .q-wrap{max-width:{% if settings.style_kit == 'full' %}100%{% elsif settings.style_kit == 'wide' %}var(--q-cont-xl,1440px){% else %}var(--q-cont-lg,1152px){% endif %}; margin:0 auto; padding:0 var(--q-pad-x);}
+
+  #{{ section.id }}{ position: relative; }
+  #{{ section.id }} .q-anchor{ position: relative; top: -80px; height: 0; width: 0; display: block; visibility: hidden; }
+
+  #{{ section.id }} .q-wrap{
+    max-width:{% if g.style_kit == 'full' %}100%{% elsif g.style_kit == 'wide' %}var(--q-cont-xl,1440px){% else %}var(--q-cont-lg,1152px){% endif %};
+    margin:0 auto;
+    padding:0 var(--q-pad-x);
+  }
+  #{{ section.id }} .q-wrap-full{
+    width:100%;
+    max-width:none;
+    margin:0;
+    padding:0 var(--q-pad-x);
+  }
+
   #{{ section.id }} .q-bleed{position:relative;}
   #{{ section.id }} .q-bg{position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none;}
   #{{ section.id }} .q-media{width:100%; height:100%; object-fit:cover; display:block;}
   #{{ section.id }} .q-overlay{position:absolute; inset:0; pointer-events:none;}
   #{{ section.id }} .q-layer{position:relative; z-index:1; padding: var(--q-pad-y) 0;}
+
   #{{ section.id }} .q-grid{display:grid; gap:24px; align-items:stretch;}
   @media (min-width: 768px){
     #{{ section.id }} .q-grid.split-left{grid-template-columns:1.1fr 1fr;}
     #{{ section.id }} .q-grid.split-right{grid-template-columns:1fr 1.1fr;}
   }
+
   #{{ section.id }} .q-card{
     background: var(--q-form-bg);
     border-radius: var(--q-card-br);
-    box-shadow:
-      {% if s.card_shadow > 0 %}0 1px 2px rgba(0,0,0,.06){% else %}none{% endif %},
-      {% if s.card_shadow > 1 %}0 8px 24px rgba(0,0,0,.08){% else %}0 0 0 rgba(0,0,0,0){% endif %};
+    box-shadow: var(--q-card-shadow-1), var(--q-card-shadow-2);
     padding: 28px;
   }
   /* ✨ Frameless toggle */
@@ -111,59 +124,85 @@
 
   #{{ section.id }} .q-media-card{ border-radius: var(--q-card-br); overflow:hidden; background:#000; min-height:240px;}
   #{{ section.id }} .q-head .q-kicker{color:var(--q-muted); font-size:.95rem; margin:0 0 4px;}
-  #{{ section.id }} .q-head .q-heading{
-    margin:0 0 8px; color:var(--q-text);
-    {% if T_font_heading %}font-family: {{ T_font_heading.family }}, {{ T_font_heading.fallback_families }};{% endif %}
-  }
+  #{{ section.id }} .q-head .q-heading{ margin:0 0 8px; color:var(--q-text); }
   #{{ section.id }} .q-head .q-sub{color:var(--q-muted); margin:0 0 16px;}
 
-  #{{ section.id }} .q-error{ color: {{ C_error }}; font-size:.85rem; margin-top:6px; }
-  #{{ section.id }} [aria-invalid="true"]{ border-color: {{ C_error }}; outline:1px solid {{ C_error }}; }
+  #{{ section.id }} .q-live{ min-height: 1.25rem; }
+
+  #{{ section.id }} .q-error{ color: {{ g.color_error | default: '#dc2626' }}; font-size:.85rem; margin-top:6px; }
+  #{{ section.id }} [aria-invalid="true"]{ border-color: {{ g.color_error | default: '#dc2626' }}; outline:1px solid {{ g.color_error | default: '#dc2626' }}; }
 
   /* Conditional visibility */
   #{{ section.id }} .is-hidden{ display:none !important; }
 
-  /* Inputs parity (tokenized) */
-  #{{ section.id }} .q-input,
-  #{{ section.id }} .q-select,
-  #{{ section.id }} .q-textarea{
-    width:100%; border:1px solid var(--q-input-bdr); border-radius:var(--q-input-br); padding:12px 14px; background:#fff; color:var(--q-text);
+  /* Inputs parity (tokenized) — text-like only */
+  #{{ section.id }} input.q-input:not([type="checkbox"]):not([type="radio"]),
+  #{{ section.id }} select.q-select,
+  #{{ section.id }} textarea.q-textarea{
+    width:100%;
+    border:1px solid var(--q-input-bdr);
+    border-radius:var(--q-input-br);
+    padding:12px 14px;
+    background:#fff;
+    color:var(--q-text);
   }
-  #{{ section.id }} .q-radio{ display:flex; align-items:center; gap:10px; width:max-content; }
-  #{{ section.id }} .q-check{ width:auto; height:1.05rem; margin:0; padding:0; }
 
-  /* invalid state for text/select/textarea */
+  /* Radio/checkbox controls */
+  #{{ section.id }} .q-radio{ display:flex; align-items:center; gap:10px; width:max-content; }
+  #{{ section.id }} input.q-input[type="checkbox"],
+  #{{ section.id }} input.q-input[type="radio"]{
+    width:auto !important;
+    min-width: 1rem;
+    max-width: 1rem;
+    height: 1.05rem;
+    padding: 0 !important;
+    margin: 0;
+    display:inline-block;
+    vertical-align:middle;
+  }
+
+  /* Invalid state for text/select/textarea */
   #{{ section.id }} input:not([type="checkbox"]):not([type="radio"])[aria-invalid="true"],
   #{{ section.id }} select[aria-invalid="true"],
   #{{ section.id }} textarea[aria-invalid="true"]{
     border-color: var(--q-error, #dc2626);
     outline:1px solid var(--q-error, #dc2626);
   }
-  /* invalid state for checkboxes/radios */
-  #{{ section.id }} .q-check[aria-invalid="true"]{
+  /* Invalid state for checkboxes/radios */
+  #{{ section.id }} input.q-input[type="checkbox"][aria-invalid="true"],
+  #{{ section.id }} input.q-input[type="radio"][aria-invalid="true"]{
     outline:2px solid var(--q-error, #dc2626);
     outline-offset:2px;
   }
+
+  /* Visibility helpers (parity) */
+  @media (max-width: 767.98px){ #{{ section.id }}.is-hidden-m { display:none !important; } }
+  @media (min-width: 768px){ #{{ section.id }}.is-hidden-d { display:none !important; } }
 </style>
 
 <section
-  id="{{ anchor }}"
-  class="q-form q-form--support-request{{ visibility_classes }}"
+  id="{{ section.id }}"
+  class="q-form q-form--support-request{% if s.hide_on_mobile %} is-hidden-m{% endif %}{% if s.hide_on_desktop %} is-hidden-d{% endif %}"
   role="region"
   aria-label="{{ s.aria_label | default: 'Support request form' }}"
   data-template="{{ s.template_style }}"
   data-surface="{{ s.surface_style | default: 'card' }}"
   data-msg-error="{{ s.error_text | escape }}"
+  data-msg-success="{{ s.success_text | escape }}"
   data-captcha="{{ eff_captcha_mode }}"
   data-captcha-key="{{ eff_captcha_key | escape }}"
   data-btn-variant="{{ btn_mode_class }}"
 
-  {%- comment -%} NEW: engine/analytics hooks {%- endcomment -%}
   data-form-source="{{ _support_source }}"
   data-subject-prefix="{{ _subject_prefix | escape }}"
   data-sla-timestamp="1"
   data-privacy-cc="{{ _privacy_cc | escape }}"
 >
+  {%- comment -%}Optional deep-link anchor WITHOUT duplicating section id{%- endcomment -%}
+  {%- if anchor_id != blank and anchor_id != section.id -%}
+    <span id="{{ anchor_id | escape }}" class="q-anchor" aria-hidden="true"></span>
+  {%- endif -%}
+
   <div class="q-bleed">
     <div class="q-bg" aria-hidden="true">
       {%- assign vurl = s.bg_video | strip -%}
@@ -204,43 +243,36 @@
     </div>
 
     <div class="q-layer">
-      <div class="q-wrap">
+      <div class="{{ wrap_class }}">
         {%- assign is_split_left = false -%}
         {%- assign is_split_right = false -%}
         {%- if s.template_style == 'split' and s.split_media_side == 'left' -%}{%- assign is_split_left = true -%}{%- endif -%}
         {%- if s.template_style == 'split' and s.split_media_side == 'right' -%}{%- assign is_split_right = true -%}{%- endif -%}
 
         <div class="q-grid{% if is_split_left %} split-left{% endif %}{% if is_split_right %} split-right{% endif %}">
-
           {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'left' -%}
             <div class="q-media-card">
               {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
             </div>
           {%- endif -%}
 
-          <div class="q-card{% if s.surface_style == 'frameless' %} is-frameless{% endif %}" data-q-form-card
-               data-form-source="{{ _support_source }}"
-               data-subject-prefix="{{ _subject_prefix | escape }}"
-               data-sla-timestamp="1"
-               data-privacy-cc="{{ _privacy_cc | escape }}">
+          <div class="q-card{% if s.surface_style == 'frameless' %} is-frameless{% endif %}" data-q-form-card>
             <header class="q-head">
               {%- if s.kicker != blank -%}<p class="q-kicker">{{ s.kicker }}</p>{%- endif -%}
               {%- assign htag = s.heading_level | default: 'h2' -%}
-              {%- if s.heading != blank -%}{%- if htag == 'h3' -%}<h3 class="q-heading">{{ s.heading }}</h3>{%- else -%}<h2 class="q-heading">{{ s.heading }}</h2>{%- endif -%}{%- endif -%}
+              {%- if s.heading != blank -%}
+                {%- if htag == 'h3' -%}<h3 class="q-heading">{{ s.heading }}</h3>{%- else -%}<h2 class="q-heading">{{ s.heading }}</h2>{%- endif -%}
+              {%- endif -%}
               {%- if s.subheading != blank -%}<p class="q-sub">{{ s.subheading }}</p>{%- endif -%}
             </header>
 
-            {%- comment -%}
-              Reusable form engine (router + core renderer).
-              Destination:
-                • shopify_contact  → {% form 'contact' %}
-                • custom_endpoint  → <form action="{{ eff_endpoint }}">
-              Pass-through of support-specific hooks via data-* above.
-            {%- endcomment -%}
+            <div class="q-live" aria-live="polite" role="status"></div>
+
             {% render 'form-dispatch',
               id: section.id,
               settings: section.settings,
               blocks: section.blocks,
+              theme_settings: g,
               eff_captcha_mode: eff_captcha_mode,
               eff_captcha_key:  eff_captcha_key,
               eff_endpoint_url: eff_endpoint,
@@ -269,10 +301,8 @@
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
   {%- endif -%}
   {%- if eff_captcha_mode == 'recaptcha_v3' and eff_captcha_key != blank -%}
-    <script src="https://www.google.com/recaptcha/api.js?render={{ eff_captcha_key | escape }}"></script>
+    <script src="https://www.google.com/recaptcha/api.js?render={{ eff_captcha_key | escape }}" defer></script>
   {%- endif -%}
-
-  {{ 'frontend-form-logic-form-sections.js' | asset_url | script_tag }}
 </section>
 
 {% schema %}
@@ -337,12 +367,13 @@
     { "type": "text", "id": "hidden_tags", "label": "Hidden tags/params (comma-separated)", "default": "support, web" },
 
     { "type": "header", "content": "CAPTCHA" },
-    { "type": "select", "id": "captcha_mode", "label": "Captcha provider", "default": "none", "options": [
+    { "type": "select", "id": "captcha_mode", "label": "Captcha provider (overrides Theme → Integrations)", "default": "inherit", "options": [
+      { "value": "inherit", "label": "Inherit (Theme → Integrations)" },
       { "value": "none", "label": "None" },
       { "value": "turnstile", "label": "Cloudflare Turnstile" },
       { "value": "recaptcha_v3", "label": "reCAPTCHA v3" }
     ]},
-    { "type": "text", "id": "captcha_site_key", "label": "Captcha site key" },
+    { "type": "text", "id": "captcha_site_key", "label": "Captcha site key (override)" },
 
     { "type": "header", "content": "Button" },
     { "type": "text", "id": "button_label", "label": "Button label", "default": "Send Support Request" },
@@ -361,7 +392,7 @@
     { "type": "header", "content": "Sizing & spacing" },
     { "type": "select", "id": "container_mode", "label": "Container", "default": "contained", "options": [
       { "value": "contained", "label": "Contained" },
-      { "value": "full", "label": "Full-bleed" }
+      { "value": "full", "label": "Full width" }
     ]},
     { "type": "range", "id": "padding_y", "label": "Padding Y", "min": 0, "max": 160, "step": 8, "default": 64 },
     { "type": "range", "id": "padding_x", "label": "Padding X", "min": 0, "max": 120, "step": 8, "default": 24 },
@@ -437,20 +468,16 @@
         "heading": "We’re here to help.",
         "subheading": "Most requests receive a reply within 1 business day.",
         "destination": "shopify_contact",
-        "button_label": "Send Support Request"
+        "button_label": "Send Support Request",
+        "captcha_mode": "inherit"
       },
       "blocks": [
         { "type": "field", "settings": { "field_type": "text",     "name_attr": "contact[name]",          "label": "Name",          "placeholder": "Your name",         "required": true,  "width": "full" } },
         { "type": "field", "settings": { "field_type": "email",    "name_attr": "contact[email]",         "label": "Email",         "placeholder": "you@example.com",   "required": true,  "width": "full" } },
-
         { "type": "field", "settings": { "field_type": "select",   "name_attr": "contact[category]",      "label": "Category",      "required": true, "options": "order_issue|Order Issue\nshipping_question|Shipping Question\nproduct_question|Product Question\nprivacy_request|Privacy Request\nother|Other", "width": "full" } },
-
         { "type": "field", "settings": { "field_type": "text",     "name_attr": "contact[order_number]",  "label": "Order Number",  "placeholder": "e.g. #1234",        "required": false, "width": "half", "condition_enable": true, "condition_field": "contact[category]", "condition_operator": "equals", "condition_value": "order_issue" } },
-
         { "type": "field", "settings": { "field_type": "textarea", "name_attr": "contact[body]",          "label": "Message",       "placeholder": "Tell us what’s going on…", "required": true, "width": "full" } },
-
         { "type": "field", "settings": { "field_type": "file",     "name_attr": "attachment",             "label": "Attachment",    "accept": ".png,.jpg,.jpeg,.pdf",   "required": false, "width": "full", "help_text": "Optional. Add a screenshot, receipt, or product photo.", "condition_enable": true, "condition_field": "contact[category]", "condition_operator": "equals", "condition_value": "product_question" } },
-
         { "type": "field", "settings": { "field_type": "consent",  "name_attr": "contact[consent]",       "label": "I agree to the privacy policy", "required": true, "width": "full" } }
       ]
     }

@@ -1,16 +1,12 @@
 {% comment %}
   Quadratum — Form: Product Waitlist / Back in Stock
   File: sections/form-waitlist.liquid
-  Root: .q-form.q-form--waitlist
-  Purpose: Capture demand on OOS variants; notify on restock.
 
-  Features
-  • Layouts: inline / card / split
-  • Routing: Shopify Customer or Custom Endpoint (App Proxy)
-  • PDP-aware variant binding; fallback picker if no context
-  • Consent + UTM + tags + product/variant meta
-  • A11y: labels, aria-invalid, aria-live
-  • Captcha: Turnstile / reCAPTCHA v3 (if keys present)
+  Refactor goals (Hybrid Mode)
+  - Make shared frontend-form-logic.js handle validation + captcha + attribution
+  - Keep ONLY waitlist-specific logic here (variant binding + consent mirror + tag enrichment)
+  - Fix CSS selector bug (style was targeting #section.id but section id is anchor)
+  - Ensure validator works (add data-q-field wrappers + error targets)
 {% endcomment %}
 
 {{ 'forms-sections.css' | asset_url | stylesheet_tag }}
@@ -20,7 +16,12 @@
 
 {%- comment %} Effective integrations/config {% endcomment -%}
 {%- assign eff_captcha_mode = s.captcha_mode | default: g.forms_captcha_provider | default: 'none' -%}
-{%- assign eff_captcha_key  = s.captcha_site_key | default: g.captcha_turnstile_site_key | default: g.captcha_recaptcha_site_key | default: '' -%}
+{%- assign eff_captcha_key = '' -%}
+{%- if eff_captcha_mode == 'turnstile' -%}
+  {%- assign eff_captcha_key = s.captcha_site_key | default: g.captcha_turnstile_site_key | default: '' -%}
+{%- elsif eff_captcha_mode == 'recaptcha_v3' -%}
+  {%- assign eff_captcha_key = s.captcha_site_key | default: g.captcha_recaptcha_site_key | default: '' -%}
+{%- endif -%}
 
 {%- assign tags_theme   = g.forms_default_tags | default: 'form, web' -%}
 {%- assign tags_section = s.hidden_tags | default: 'waitlist, web' -%}
@@ -53,15 +54,14 @@
 {%- assign C_bg_contrast = settings.bg_contrast   | default: '#f6f7f8' -%}
 {%- assign C_text_base   = settings.text_base     | default: '#111111' -%}
 {%- assign C_text_muted  = settings.text_muted    | default: '#6b7280' -%}
-{%- assign C_error       = settings.color_error   | default: '#dc2626' -%}
-{%- assign C_success     = settings.color_success | default: '#16a34a' -%}
 {%- assign BTN_radius    = settings.button_radius | default: 12 -%}
 {%- assign BTN_bw        = settings.button_border_width | default: 1 -%}
 {%- assign BTN_hover_op  = settings.button_hover_opacity | default: 92 -%}
 {%- assign BTN_active    = settings.button_active_scale  | default: 98 -%}
 
 <style>
-  #{{ section.id }}{
+  /* IMPORTANT: target the real section id (anchor), not section.id */
+  #{{ anchor }}{
     --q-pad-y: {{ s.padding_y | default: 40 }}px;
     --q-pad-x: {{ s.padding_x | default: 24 }}px;
     --q-card-br: {{ s.card_radius | default: 14 }}px;
@@ -80,21 +80,35 @@
     --q-form-bg: {{ s.form_bg | default: C_bg_base }};
     --q-input-br: {{ s.input_radius | default: 10 }}px;
     --q-input-bdr: {{ s.input_border | default: '#e5e7eb' }};
+    --q-error: {{ settings.color_error | default: '#dc2626' }};
   }
 
   /* Inline (PDP) compaction */
-  #{{ section.id }}[data-template="inline"] .q-card{ padding: 0; background: transparent; box-shadow: none; }
-  #{{ section.id }}[data-template="inline"] .q-head{ margin: 0 0 8px; }
-  #{{ section.id }}[data-template="inline"] .q-fields{ display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
-  #{{ section.id }}[data-template="inline"] .q-field{ margin:0; min-width: 220px; }
-  #{{ section.id }}[data-template="inline"] .q-actions .q-btn{ height:44px; }
+  #{{ anchor }}[data-template="inline"] .q-card{ padding: 0; background: transparent; box-shadow: none; }
+  #{{ anchor }}[data-template="inline"] .q-head{ margin: 0 0 8px; }
+  #{{ anchor }}[data-template="inline"] .q-fields{ display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
+  #{{ anchor }}[data-template="inline"] .q-field{ margin:0; min-width: 220px; }
+  #{{ anchor }}[data-template="inline"] .q-actions .q-btn{ height:44px; }
 
   /* Frameless surface toggle (remove card chrome) */
-  #{{ section.id }}[data-surface="frameless"] .q-card{ background: transparent !important; box-shadow:none !important; padding:0 !important; border-radius:0 !important; }
+  #{{ anchor }}[data-surface="frameless"] .q-card{ background: transparent !important; box-shadow:none !important; padding:0 !important; border-radius:0 !important; }
 
   /* Variant picker visibility (only when needed) */
-  #{{ section.id }} .q-variant-picker{ display:none; }
-  #{{ section.id }}.no-variant .q-variant-picker{ display:block; }
+  #{{ anchor }} .q-variant-picker{ display:none; }
+  #{{ anchor }}.no-variant .q-variant-picker{ display:block; }
+
+  /* Checkbox/radio sizing guards (avoid "width:100%" input styles bleeding into checks) */
+  #{{ anchor }} .q-radio{ display:flex; align-items:center; gap:10px; justify-content:flex-start; width:max-content; }
+  #{{ anchor }} input.q-check{ width:auto; min-width:auto; padding:0; height:1.05rem; margin:0; }
+  #{{ anchor }} input.q-check.q-input{ background: transparent; }
+  #{{ anchor }} input[type="checkbox"].q-check.q-input{ border-radius:4px; }
+  #{{ anchor }} input[type="radio"].q-check.q-input{ border-radius:999px; }
+
+  /* Invalid outline on checks only */
+  #{{ anchor }} input.q-check[aria-invalid="true"]{
+    outline:2px solid var(--q-error);
+    outline-offset:2px;
+  }
 </style>
 
 <section
@@ -104,6 +118,7 @@
   aria-label="{{ s.aria_label | default: 'Product waitlist form' }}"
   data-template="{{ s.template_style | default: 'inline' }}"
   data-surface="{{ s.surface_style | default: 'card' }}"
+  data-container="{{ s.container_mode | default: 'contained' }}"
   data-msg-error="{{ s.error_text | escape }}"
   data-msg-success="{{ s.success_text | escape }}"
   data-captcha="{{ eff_captcha_mode }}"
@@ -119,6 +134,7 @@
       {%- else -%}
         <div class="q-media" style="background: var(--q-bg);"></div>
       {%- endif -%}
+
       {%- if s.overlay_type == 'gradient' -%}
         {%- assign g1c = s.grad_start | default: '#000000' -%}
         {%- assign g2c = s.grad_end   | default: '#000000' -%}
@@ -147,11 +163,6 @@
               {%- if s.subheading != blank -%}<p class="q-sub">{{ s.subheading }}</p>{%- endif -%}
             </header>
 
-            {%- comment -%}
-              Routing:
-              • Shopify Customer → {% form 'customer' %} (tags + accepts_marketing)
-              • Custom Endpoint → <form action="{{ eff_endpoint }}">
-            {%- endcomment -%}
             {%- assign use_shopify_customer = false -%}
             {%- if s.destination == 'shopify_customer' -%}{%- assign use_shopify_customer = true -%}{%- endif -%}
 
@@ -161,43 +172,51 @@
                 <input type="hidden" name="contact[tags]" value="{{ eff_tags | escape }}">
                 <input type="hidden" name="form_name" value="Product Waitlist">
                 <input type="hidden" name="shop" value="{{ shop.permanent_domain | escape }}">
+
                 <input type="hidden" name="product_handle" value="{{ s.product_handle | default: product.handle | default: '' | escape }}">
                 <input type="hidden" name="variant_id" value="">
                 <input type="hidden" name="variant_label" value="">
+
+                {%- comment %} Attribution (shared JS will fill these) {% endcomment -%}
                 <input type="hidden" name="utm_source" value="">
                 <input type="hidden" name="utm_medium" value="">
                 <input type="hidden" name="utm_campaign" value="">
+                <input type="hidden" name="utm_content" value="">
+                <input type="hidden" name="utm_term" value="">
                 <input type="hidden" name="referrer" value="">
+                <input type="hidden" name="page_url" value="">
+                <input type="hidden" name="timestamp" value="">
 
                 <div class="q-fields">
-                  <div class="q-field" style="min-width:240px;">
+                  <div class="q-field" data-q-field data-required="true" style="min-width:240px;">
                     <label class="q-label" for="{{ section.id }}-email">Email</label>
                     <input id="{{ section.id }}-email" class="q-input" type="email" name="contact[email]" placeholder="you@example.com" required>
-                    <p class="q-error" aria-live="polite"></p>
+                    <p class="q-error" id="{{ section.id }}-email-err" aria-live="polite"></p>
                   </div>
 
                   {%- if s.show_first_name -%}
-                  <div class="q-field">
+                  <div class="q-field" data-q-field>
                     <label class="q-label" for="{{ section.id }}-first">First name (optional)</label>
                     <input id="{{ section.id }}-first" class="q-input" type="text" name="customer[first_name]" placeholder="Jane">
-                    <p class="q-error" aria-live="polite"></p>
+                    <p class="q-error" id="{{ section.id }}-first-err" aria-live="polite"></p>
                   </div>
                   {%- endif -%}
 
-                  <div class="q-field q-variant-picker">
+                  <div class="q-field q-variant-picker" data-q-field data-q-variant-wrap>
                     <label class="q-label" for="{{ section.id }}-variant">Variant</label>
                     <select id="{{ section.id }}-variant" class="q-select" data-variant-picker>
                       <option value="">{{ s.variant_placeholder | default: 'Select a variant…' }}</option>
                     </select>
                     <p class="q-help">{{ s.variant_help | default: 'Choose size/color to join the waitlist.' }}</p>
-                    <p class="q-error" aria-live="polite"></p>
+                    <p class="q-error" id="{{ section.id }}-variant-err" aria-live="polite"></p>
                   </div>
 
-                  <div class="q-field">
+                  <div class="q-field" data-q-field data-required="true">
                     <label class="q-radio">
                       <input class="q-input q-check" type="checkbox" name="customer[accepts_marketing]" value="true" required>
                       <span class="q-help">{{ s.consent_label | default: 'I agree to receive an email when this item is back in stock.' }}</span>
                     </label>
+                    <p class="q-error" id="{{ section.id }}-consent-err" aria-live="polite"></p>
                     {%- if s.privacy_link != blank -%}
                       <p class="q-help"><a href="{{ s.privacy_link }}" target="_blank" rel="noopener">{{ s.privacy_text | default: 'Privacy Policy' }}</a></p>
                     {%- endif -%}
@@ -215,44 +234,53 @@
                 <input type="hidden" name="source" value="waitlist">
                 <input type="hidden" name="tags" value="{{ eff_tags | escape }}">
                 <input type="hidden" name="shop" value="{{ shop.permanent_domain | escape }}">
+
                 <input type="hidden" name="product_handle" value="{{ s.product_handle | default: product.handle | default: '' | escape }}">
                 <input type="hidden" name="variant_id" value="">
                 <input type="hidden" name="variant_label" value="">
+
+                {%- comment %} Attribution (shared JS will fill these) {% endcomment -%}
                 <input type="hidden" name="utm_source" value="">
                 <input type="hidden" name="utm_medium" value="">
                 <input type="hidden" name="utm_campaign" value="">
+                <input type="hidden" name="utm_content" value="">
+                <input type="hidden" name="utm_term" value="">
                 <input type="hidden" name="referrer" value="">
+                <input type="hidden" name="page_url" value="">
+                <input type="hidden" name="timestamp" value="">
+
                 <input type="hidden" name="consent" value="false">
 
                 <div class="q-fields">
-                  <div class="q-field" style="min-width:240px;">
+                  <div class="q-field" data-q-field data-required="true" style="min-width:240px;">
                     <label class="q-label" for="{{ section.id }}-email">Email</label>
                     <input id="{{ section.id }}-email" class="q-input" type="email" name="email" placeholder="you@example.com" required>
-                    <p class="q-error" aria-live="polite"></p>
+                    <p class="q-error" id="{{ section.id }}-email-err" aria-live="polite"></p>
                   </div>
 
                   {%- if s.show_first_name -%}
-                  <div class="q-field">
+                  <div class="q-field" data-q-field>
                     <label class="q-label" for="{{ section.id }}-first">First name (optional)</label>
                     <input id="{{ section.id }}-first" class="q-input" type="text" name="first_name" placeholder="Jane">
-                    <p class="q-error" aria-live="polite"></p>
+                    <p class="q-error" id="{{ section.id }}-first-err" aria-live="polite"></p>
                   </div>
                   {%- endif -%}
 
-                  <div class="q-field q-variant-picker">
+                  <div class="q-field q-variant-picker" data-q-field data-q-variant-wrap>
                     <label class="q-label" for="{{ section.id }}-variant">Variant</label>
                     <select id="{{ section.id }}-variant" class="q-select" data-variant-picker>
                       <option value="">{{ s.variant_placeholder | default: 'Select a variant…' }}</option>
                     </select>
                     <p class="q-help">{{ s.variant_help | default: 'Choose size/color to join the waitlist.' }}</p>
-                    <p class="q-error" aria-live="polite"></p>
+                    <p class="q-error" id="{{ section.id }}-variant-err" aria-live="polite"></p>
                   </div>
 
-                  <div class="q-field">
+                  <div class="q-field" data-q-field data-required="true">
                     <label class="q-radio">
                       <input class="q-input q-check" type="checkbox" data-consent value="true" required>
                       <span class="q-help">{{ s.consent_label | default: 'I agree to receive an email when this item is back in stock.' }}</span>
                     </label>
+                    <p class="q-error" id="{{ section.id }}-consent-err" aria-live="polite"></p>
                     {%- if s.privacy_link != blank -%}
                       <p class="q-help"><a href="{{ s.privacy_link }}" target="_blank" rel="noopener">{{ s.privacy_text | default: 'Privacy Policy' }}</a></p>
                     {%- endif -%}
@@ -281,67 +309,117 @@
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
   {%- endif -%}
   {%- if eff_captcha_mode == 'recaptcha_v3' and eff_captcha_key != blank -%}
-    <script src="https://www.google.com/recaptcha/api.js?render={{ eff_captcha_key | escape }}"></script>
+    <script src="https://www.google.com/recaptcha/api.js?render={{ eff_captcha_key | escape }}" defer></script>
   {%- endif -%}
 
-  {{ 'frontend-form-logic-form-sections.js' | asset_url | script_tag }}
+  {{ 'frontend-form-logic.js' | asset_url | script_tag }}
 
+  {%- comment %}
+    Waitlist-only JS:
+    - Bind variant_id + label (auto on PDP or via /products/{handle}.js)
+    - Show picker only when needed
+    - Mirror consent to hidden field in custom endpoint mode
+    - Enrich tags with product_handle + variant_id (Shopify contact[tags] or custom tags)
+  {% endcomment -%}
   <script>
   (function(){
-    const sectionRoot = document.getElementById('{{ anchor }}');
-    if (!sectionRoot) return;
+    const root = document.getElementById('{{ anchor }}');
+    if (!root) return;
 
-    const activeForm = sectionRoot.querySelector('.q-form');
+    // Inner form is the real <form> element.
+    const activeForm = root.querySelector('form.q-form');
     if (!activeForm) return;
 
-    // UTM + referrer capture
-    const queryParams = new URLSearchParams(location.search);
-    const setHidden = (name, value) => {
-      const input = activeForm.querySelector('[name="'+ name +'"]');
-      if (input) input.value = value || '';
-    };
-    setHidden('utm_source', queryParams.get('utm_source') || '');
-    setHidden('utm_medium', queryParams.get('utm_medium') || '');
-    setHidden('utm_campaign', queryParams.get('utm_campaign') || '');
-    setHidden('referrer', document.referrer || '');
+    const bindMode = root.getAttribute('data-bind-mode') || 'auto';
+    const productHandle = (root.getAttribute('data-product-handle') || '').trim();
 
-    // Variant binding helpers
-    const variantPickerWrap = sectionRoot.querySelector('.q-variant-picker');
-    const variantPicker = sectionRoot.querySelector('[data-variant-picker]');
-    const bindMode = sectionRoot.getAttribute('data-bind-mode') || 'auto';
+    const variantWrap = root.querySelector('[data-q-variant-wrap]');
+    const variantPicker = root.querySelector('[data-variant-picker]');
     const variantIdInput = activeForm.querySelector('[name="variant_id"]');
     const variantLabelInput = activeForm.querySelector('[name="variant_label"]');
 
-    const bindVariantFromDOM = () => {
-      // Common PDP patterns
+    const tagsShopify = activeForm.querySelector('input[name="contact[tags]"]');
+    const tagsCustom  = activeForm.querySelector('input[name="tags"]');
+
+    function sanitizeTagValue(val){
+      return String(val || '')
+        .replace(/,/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80);
+    }
+    function parseTags(str){
+      return String(str || '').split(',').map(t => t.trim()).filter(Boolean);
+    }
+    function uniqPush(list, tag){
+      const t = String(tag || '').trim();
+      if (!t) return;
+      if (list.indexOf(t) === -1) list.push(t);
+    }
+    function setTags(tagStr){
+      if (tagsShopify) tagsShopify.value = tagStr;
+      if (tagsCustom) tagsCustom.value = tagStr;
+    }
+    function getTags(){
+      return parseTags((tagsShopify && tagsShopify.value) || (tagsCustom && tagsCustom.value) || '');
+    }
+    function addMetaTags(meta){
+      const tags = getTags();
+      if (meta.product_handle) uniqPush(tags, 'product=' + sanitizeTagValue(meta.product_handle));
+      if (meta.variant_id) uniqPush(tags, 'variant_id=' + sanitizeTagValue(meta.variant_id));
+      setTags(tags.join(', '));
+    }
+
+    function toggleVariantPicker(show){
+      if (!variantWrap) return;
+      root.classList.toggle('no-variant', !!show);
+      variantWrap.style.display = show ? '' : 'none';
+
+      if (variantPicker){
+        if (show) {
+          variantPicker.setAttribute('required', 'required');
+          variantWrap.setAttribute('data-required', 'true');
+        } else {
+          variantPicker.removeAttribute('required');
+          variantWrap.removeAttribute('data-required');
+        }
+      }
+    }
+
+    function applyVariant(v){
+      if (variantIdInput) variantIdInput.value = v.id || '';
+      if (variantLabelInput) variantLabelInput.value = v.label || '';
+      addMetaTags({ product_handle: productHandle || '', variant_id: v.id || '' });
+    }
+
+    function readVariantFromPDP(){
       let id = '';
       let label = '';
 
       const selectId = document.querySelector('select[name="id"]');
-      if (selectId && selectId.value) {
+      if (selectId && selectId.value){
         id = selectId.value;
         label = selectId.options[selectId.selectedIndex]?.text || '';
       }
 
-      if (!id) {
+      if (!id){
         const hiddenId = document.querySelector('input[name="id"]');
         if (hiddenId && hiddenId.value) id = hiddenId.value;
       }
 
-      if (!id) {
+      if (!id){
         const chosen = document.querySelector('[data-variant-id].is-selected,[data-variant-id][aria-checked="true"]');
-        if (chosen) {
+        if (chosen){
           id = chosen.getAttribute('data-variant-id') || '';
-          label = chosen.getAttribute('data-variant-label') || chosen.textContent.trim();
+          label = chosen.getAttribute('data-variant-label') || (chosen.textContent || '').trim();
         }
       }
 
-      // Fallback: parse product JSON for label
-      if (!label && id){
+      if (id && !label){
         try{
           const jsonEl = document.querySelector('script[type="application/json"][data-product]') || document.querySelector('script.product-json');
           const productJson = jsonEl ? JSON.parse(jsonEl.textContent) : (window.meta && window.meta.product) || null;
-          if (productJson?.variants) {
+          if (productJson && productJson.variants){
             const match = productJson.variants.find(v => String(v.id) === String(id));
             if (match) label = (match.title || '').trim();
           }
@@ -349,57 +427,54 @@
       }
 
       return { id, label };
-    };
+    }
 
-    const populatePickerFromJSON = () => {
+    async function fetchProductJSON(handle){
+      if (!handle) return null;
+      try{
+        const res = await fetch('/products/' + encodeURIComponent(handle) + '.js', { credentials: 'same-origin' });
+        if (!res.ok) return null;
+        return await res.json();
+      }catch(_e){}
+      return null;
+    }
+
+    function populatePicker(variants){
+      if (!variantPicker || !variants || !variants.length) return false;
+
+      for (let i = variantPicker.options.length - 1; i > 0; i--) variantPicker.remove(i);
+
+      variants.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = (v.public_title || v.title || 'Variant') + (v.available ? '' : ' — Sold out');
+        variantPicker.appendChild(opt);
+      });
+
+      return true;
+    }
+
+    async function ensurePickerOptions(){
       try{
         const jsonEl = document.querySelector('script[type="application/json"][data-product]') || document.querySelector('script.product-json');
-        const productJson = jsonEl ? JSON.parse(jsonEl.textContent) : (window.meta && window.meta.product) || null;
-        if (!productJson?.variants) return false;
-        if (!variantPicker) return false;
-
-        // Clear (keep placeholder at index 0)
-        for (let i = variantPicker.options.length - 1; i > 0; i--) variantPicker.remove(i);
-
-        productJson.variants.forEach(v => {
-          const opt = document.createElement('option');
-          opt.value = v.id;
-          opt.textContent = v.title + (v.available ? '' : ' — Sold out');
-          variantPicker.appendChild(opt);
-        });
-        return true;
+        if (jsonEl){
+          const productJson = JSON.parse(jsonEl.textContent);
+          if (productJson && productJson.variants) return populatePicker(productJson.variants);
+        }
       }catch(_e){}
+
+      const p = await fetchProductJSON(productHandle);
+      if (p && p.variants) return populatePicker(p.variants);
+
       return false;
-    };
+    }
 
-    const applyVariant = (v) => {
-      if (!variantIdInput || !variantLabelInput) return;
-      variantIdInput.value = v.id || '';
-      variantLabelInput.value = v.label || '';
-    };
+    async function initVariantBinding(){
+      if (bindMode === 'manual'){
+        const ok = await ensurePickerOptions();
+        toggleVariantPicker(true);
+        if (!ok) return;
 
-    const toggleVariantPicker = (show) => {
-      if (!variantPickerWrap) return;
-      if (show) {
-        sectionRoot.classList.add('no-variant');
-        variantPickerWrap.style.display = '';
-      } else {
-        sectionRoot.classList.remove('no-variant');
-        variantPickerWrap.style.display = 'none';
-      }
-    };
-
-    // Initial bind
-    let initialVariant = { id:'', label:'' };
-    if (bindMode === 'auto') initialVariant = bindVariantFromDOM();
-
-    if (initialVariant.id) {
-      applyVariant(initialVariant);
-      toggleVariantPicker(false);
-    } else {
-      const populated = populatePickerFromJSON();
-      toggleVariantPicker(true);
-      if (populated && variantPicker) {
         variantPicker.addEventListener('change', () => {
           const v = {
             id: variantPicker.value || '',
@@ -407,37 +482,60 @@
           };
           applyVariant(v);
         }, { passive: true });
-      }
-    }
 
-    // For custom endpoint mode, mirror consent into hidden field
-    const consentToggle = activeForm.querySelector('[data-consent]');
-    if (consentToggle) {
-      consentToggle.addEventListener('change', () => {
-        setHidden('consent', consentToggle.checked ? 'true' : 'false');
+        return;
+      }
+
+      const initial = readVariantFromPDP();
+      if (initial.id){
+        applyVariant(initial);
+        toggleVariantPicker(false);
+      } else {
+        const ok = await ensurePickerOptions();
+        toggleVariantPicker(true);
+        if (ok && variantPicker){
+          variantPicker.addEventListener('change', () => {
+            const v = {
+              id: variantPicker.value || '',
+              label: variantPicker.options[variantPicker.selectedIndex]?.text || ''
+            };
+            applyVariant(v);
+          }, { passive: true });
+        }
+      }
+
+      document.addEventListener('change', (e) => {
+        const t = e.target;
+        if (t && t.matches && t.matches('select[name="id"]')){
+          const v = readVariantFromPDP();
+          if (v.id){
+            applyVariant(v);
+            toggleVariantPicker(false);
+          }
+        }
       }, { passive: true });
     }
 
-    // Analytics hook (frontend-form-logic handles actual submit/validation)
-    activeForm.addEventListener('q:submit:success', () => {
-      try{
-        window.dataLayer = window.dataLayer || [];
-        window.dataLayer.push({
-          event: 'waitlist_signup',
-          method: '{{ s.destination }}',
-          product_handle: activeForm.querySelector('[name="product_handle"]')?.value || '',
-          variant_id: activeForm.querySelector('[name="variant_id"]')?.value || '',
-          location: '{{ s.template_style }}'
-        });
-      }catch(_e){}
-    }, { passive: true });
+    // Consent mirror (custom endpoint only)
+    const consentToggle = activeForm.querySelector('[data-consent]');
+    const consentHidden = activeForm.querySelector('input[name="consent"]');
+    if (consentToggle && consentHidden){
+      const sync = () => { consentHidden.value = consentToggle.checked ? 'true' : 'false'; };
+      consentToggle.addEventListener('change', sync, { passive: true });
+      sync();
+    }
+
+    // initial meta tag for product handle (even if variant unknown yet)
+    if (productHandle) addMetaTags({ product_handle: productHandle });
+
+    initVariantBinding();
   })();
   </script>
 </section>
 
 {% schema %}
 {
-  "name": "Form – Waitlist ",
+  "name": "Form – Waitlist",
   "tag": "section",
   "class": "q-form q-form--waitlist",
   "settings": [
@@ -577,5 +675,3 @@
   ]
 }
 {% endschema %}
-
-{% javascript %}{% endjavascript %}
