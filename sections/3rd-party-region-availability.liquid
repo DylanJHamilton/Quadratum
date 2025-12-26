@@ -1,0 +1,677 @@
+{% comment %}
+  Quadratum — 3rd Party: Region Availability (Markets + Supplier)
+  File: sections/3rd-party-region-availability.liquid
+
+  Purpose:
+  • Region-aware messaging using Shopify Markets (localization.country) + Supplier metaobject fields
+  • PDP: premium card near shipping/lead-time that shows Supported / Unsupported / Unknown messaging
+  • Cart page (optional): subtle line-item hints (non-blocking)
+
+  Supplier metaobject fields (expected):
+  • regions_label (single_line_text)
+  • region_country_codes (list.single_line_text_field) — ISO-2 list: US, CA, GB...
+  • primary_warehouse_location (single_line_text)
+  • duty_notice (multi_line_text)
+
+  Product metafield:
+  • product.metafields.fulfillment.supplier (metaobject reference → supplier)
+
+  IMPORTANT:
+  • Template strings use [[placeholders]] (NOT {{ }}), because Shopify JSON templates treat {{ }} as dynamic sources.
+  • Supported placeholders:
+    [[country_name]], [[country_code]], [[supplier_name]], [[warehouse_location]], [[regions_label]]
+{% endcomment %}
+
+{%- liquid
+  assign s = section.settings
+
+  assign ns = s.metafield_namespace | default: 'fulfillment'
+  assign k_supplier = s.key_supplier_ref | default: 'supplier'
+
+  assign pad_y = s.padding_y | times: 0.01
+  assign pad_x = s.padding_x | times: 0.01
+
+  assign page_type = request.page_type | default: ''
+  assign is_product = false
+  assign is_cart = false
+  if page_type == 'product'
+    assign is_product = true
+  elsif page_type == 'cart'
+    assign is_cart = true
+  endif
+
+  assign country_code = localization.country.iso_code | default: ''
+  assign country_name = localization.country.name | default: ''
+  if country_name == '' and country_code != ''
+    assign country_name = country_code
+  endif
+
+  case s.card_shadow_strength
+    when 'none'
+      assign shadow_value = 'none'
+    when 'soft'
+      assign shadow_value = 'var(--q-shadow-xs, 0 12px 34px rgba(0,0,0,0.12))'
+    when 'medium'
+      assign shadow_value = 'var(--q-shadow-sm, 0 16px 44px rgba(0,0,0,0.16))'
+    when 'strong'
+      assign shadow_value = 'var(--q-shadow-md, 0 20px 60px rgba(0,0,0,0.22))'
+    else
+      assign shadow_value = 'var(--q-shadow-xs, 0 12px 34px rgba(0,0,0,0.12))'
+  endcase
+
+  assign heading_id = 'q-region-heading-' | append: section.id
+-%}
+
+{%- if s.enable_section -%}
+<section
+  id="q-region-{{ section.id }}"
+  class="q-section q-section--region-availability q-ra-layout--{{ s.layout_style }} q-ra-align--{{ s.alignment }}"
+  aria-labelledby="{{ heading_id }}"
+  style="
+    --q-ra-pad-y: {{ pad_y }}rem;
+    --q-ra-pad-x: {{ pad_x }}rem;
+    --q-ra-radius: {{ s.card_radius }}px;
+    --q-ra-shadow: {{ shadow_value }};
+
+    {%- if s.use_custom_colors -%}
+      --q-ra-bg: {{ s.custom_bg_color }};
+      --q-ra-surface: {{ s.custom_surface_color }};
+      --q-ra-text: {{ s.custom_text_color }};
+      --q-ra-muted: {{ s.custom_muted_text_color }};
+      --q-ra-border: {{ s.custom_border_color }};
+      --q-ra-accent: {{ s.custom_accent_color }};
+      --q-ra-ok: {{ s.custom_ok_color }};
+      --q-ra-warn: {{ s.custom_warn_color }};
+      --q-ra-info: {{ s.custom_info_color }};
+      --q-ra-pill: {{ s.custom_pill_bg_color }};
+    {%- else -%}
+      --q-ra-bg: var(--q-bg, var(--q-color-bg, #ffffff));
+      --q-ra-surface: var(--q-surface-2, rgba(0,0,0,.04));
+      --q-ra-text: var(--q-text, #111827);
+      --q-ra-muted: var(--q-text-muted, rgba(17,24,39,.72));
+      --q-ra-border: var(--q-border-subtle, rgba(17,24,39,.14));
+      --q-ra-accent: var(--q-primary, #2563eb);
+      --q-ra-ok: var(--q-success, #16a34a);
+      --q-ra-warn: var(--q-warning, #f59e0b);
+      --q-ra-info: var(--q-primary, #2563eb);
+      --q-ra-pill: var(--q-primary-soft, rgba(37,99,235,.12));
+    {%- endif -%}
+  "
+>
+  <div class="q-section__inner q-section__inner--lg">
+
+    {%- if is_product and product != blank and s.show_on_product -%}
+      {%- liquid
+        assign supplier = blank
+        assign mf_supplier = product.metafields[ns][k_supplier]
+        if mf_supplier != blank
+          assign supplier = mf_supplier.value
+        endif
+
+        assign regions_label = ''
+        assign codes = blank
+        assign warehouse = ''
+        assign duty_notice = ''
+
+        if supplier != blank
+          assign regions_label = supplier.regions_label.value | default: supplier.regions_label | default: ''
+          assign codes = supplier.region_country_codes.value | default: supplier.region_country_codes
+          assign warehouse = supplier.primary_warehouse_location.value | default: supplier.primary_warehouse_location | default: ''
+          assign duty_notice = supplier.duty_notice.value | default: supplier.duty_notice | default: ''
+        endif
+
+        assign has_codes = false
+        if codes != blank
+          assign has_codes = true
+        endif
+
+        assign status = 'none'
+        if s.region_message_mode == 'always_generic'
+          assign status = 'generic'
+        else
+          if supplier == blank or has_codes == false
+            assign status = 'none'
+          else
+            if country_code == ''
+              assign status = 'unknown'
+            else
+              if codes contains country_code
+                assign status = 'supported'
+              else
+                assign status = 'unsupported'
+              endif
+            endif
+          endif
+        endif
+
+        assign supplier_name = ''
+        if supplier != blank
+          assign supplier_name = supplier.name | default: supplier.title | default: ''
+        endif
+
+        assign final_label = s.card_label
+        if s.append_regions_label_to_heading and regions_label != ''
+          assign final_label = s.card_label | append: ' — ' | append: regions_label
+        endif
+
+        assign msg = ''
+        if status == 'supported'
+          assign msg = s.supported_template
+        elsif status == 'unsupported'
+          assign msg = s.unsupported_template
+        elsif status == 'unknown'
+          assign msg = s.unknown_template
+        elsif status == 'generic'
+          assign msg = s.generic_template
+        else
+          assign msg = ''
+        endif
+
+        if msg != ''
+          assign msg = msg | replace: '[[country_name]]', country_name
+          assign msg = msg | replace: '[[country_code]]', country_code
+          assign msg = msg | replace: '[[supplier_name]]', supplier_name
+          assign msg = msg | replace: '[[warehouse_location]]', warehouse
+          assign msg = msg | replace: '[[regions_label]]', regions_label
+        endif
+
+        assign show_box = false
+        if msg != ''
+          assign show_box = true
+        elsif s.show_generic_when_no_supplier_data
+          assign show_box = true
+          assign msg = s.generic_template
+          assign msg = msg | replace: '[[country_name]]', country_name
+          assign msg = msg | replace: '[[country_code]]', country_code
+          assign msg = msg | replace: '[[supplier_name]]', supplier_name
+          assign msg = msg | replace: '[[warehouse_location]]', warehouse
+          assign msg = msg | replace: '[[regions_label]]', regions_label
+          assign status = 'generic'
+        endif
+
+        assign show_duty = false
+        if duty_notice != '' and s.duty_notice_mode != 'never'
+          if s.duty_notice_mode == 'always'
+            assign show_duty = true
+          elsif s.duty_notice_mode == 'when_unsupported'
+            if status == 'unsupported'
+              assign show_duty = true
+            endif
+          endif
+        endif
+
+        assign show_secondary = false
+        if s.show_secondary_line
+          if warehouse != ''
+            assign show_secondary = true
+          elsif regions_label != ''
+            assign show_secondary = true
+          endif
+        endif
+
+        assign tone = 'neutral'
+        if status == 'supported'
+          assign tone = 'ok'
+        elsif status == 'unsupported'
+          assign tone = 'warn'
+        endif
+      -%}
+
+      {%- if show_box -%}
+        <aside class="q-card q-ra-card q-ra-tone--{{ tone }}" aria-label="{{ s.aria_label | escape }}">
+          <div class="q-ra-head">
+            {%- if s.show_icon -%}
+              <span class="q-ra-icon" aria-hidden="true">
+                {%- if s.icon_source == 'glyph' -%}
+                  {%- if status == 'supported' -%}✓{%- elsif status == 'unsupported' -%}!{%- else -%}i{%- endif -%}
+                {%- else -%}
+                  {%- assign snippet_handle = s.icon_snippet | default: 'icon' -%}
+                  {%- if status == 'supported' -%}
+                    {%- render snippet_handle, name: s.icon_supported -%}
+                  {%- elsif status == 'unsupported' -%}
+                    {%- render snippet_handle, name: s.icon_unsupported -%}
+                  {%- else -%}
+                    {%- render snippet_handle, name: s.icon_unknown -%}
+                  {%- endif -%}
+                {%- endif -%}
+              </span>
+            {%- endif -%}
+
+            <div class="q-ra-title">
+              <p class="q-kicker q-ra-kicker">{{ s.kicker | escape }}</p>
+              <h2 class="q-heading q-heading--lg q-ra-heading" id="{{ heading_id }}">{{ final_label | escape }}</h2>
+            </div>
+          </div>
+
+          <div class="q-ra-body">
+            <p class="q-text q-ra-primary">{{ msg | escape }}</p>
+
+            {%- if show_secondary -%}
+              <p class="q-text q-text--muted q-ra-secondary">
+                {%- if warehouse != '' -%}
+                  {{ s.secondary_prefix | escape }} {{ warehouse | escape }}
+                {%- elsif regions_label != '' -%}
+                  {{ regions_label | escape }}
+                {%- endif -%}
+              </p>
+            {%- endif -%}
+
+            {%- if show_duty -%}
+              <div class="q-text q-text--muted q-ra-duty">
+                {{ duty_notice | escape }}
+              </div>
+            {%- endif -%}
+          </div>
+        </aside>
+      {%- endif -%}
+
+    {%- elsif is_cart and s.show_on_cart -%}
+
+      {%- if cart != blank and cart.item_count > 0 and s.cart_show_region_hints -%}
+        <section class="q-ra-cart" aria-label="{{ s.cart_aria_label | escape }}">
+          <h2 class="q-heading q-heading--lg" id="{{ heading_id }}">{{ s.cart_heading | escape }}</h2>
+
+          <div class="q-ra-cart__list">
+            {%- for item in cart.items -%}
+              {%- liquid
+                assign p = item.product
+
+                assign li_supplier = blank
+                assign li_mf_supplier = p.metafields[ns][k_supplier]
+                if li_mf_supplier != blank
+                  assign li_supplier = li_mf_supplier.value
+                endif
+
+                assign li_regions_label = ''
+                assign li_codes = blank
+                assign li_duty = ''
+                assign li_supplier_name = ''
+
+                if li_supplier != blank
+                  assign li_regions_label = li_supplier.regions_label.value | default: li_supplier.regions_label | default: ''
+                  assign li_codes = li_supplier.region_country_codes.value | default: li_supplier.region_country_codes
+                  assign li_duty = li_supplier.duty_notice.value | default: li_supplier.duty_notice | default: ''
+                  assign li_supplier_name = li_supplier.name | default: li_supplier.title | default: ''
+                endif
+
+                assign li_status = 'none'
+                if s.cart_message_mode == 'always_generic'
+                  assign li_status = 'generic'
+                else
+                  if li_supplier == blank or li_codes == blank
+                    assign li_status = 'none'
+                  else
+                    if country_code == ''
+                      assign li_status = 'unknown'
+                    else
+                      if li_codes contains country_code
+                        assign li_status = 'supported'
+                      else
+                        assign li_status = 'unsupported'
+                      endif
+                    endif
+                  endif
+                endif
+
+                assign li_msg = ''
+                if li_status == 'supported'
+                  assign li_msg = s.cart_supported_template
+                elsif li_status == 'unsupported'
+                  assign li_msg = s.cart_unsupported_template
+                elsif li_status == 'unknown'
+                  assign li_msg = s.cart_unknown_template
+                elsif li_status == 'generic'
+                  assign li_msg = s.cart_generic_template
+                else
+                  assign li_msg = ''
+                endif
+
+                if li_msg != ''
+                  assign li_msg = li_msg | replace: '[[country_name]]', country_name
+                  assign li_msg = li_msg | replace: '[[country_code]]', country_code
+                  assign li_msg = li_msg | replace: '[[supplier_name]]', li_supplier_name
+                  assign li_msg = li_msg | replace: '[[regions_label]]', li_regions_label
+                endif
+
+                assign li_show = false
+                if li_msg != ''
+                  assign li_show = true
+                endif
+              -%}
+
+              {%- if li_show -%}
+                <div class="q-ra-cart__row">
+                  <div class="q-ra-cart__title">
+                    <a class="q-ra-cart__link" href="{{ p.url }}">{{ p.title | escape }}</a>
+                    {%- if li_supplier_name != '' -%}
+                      <span class="q-ra-cart__meta q-text q-text--muted">{{ s.cart_meta_prefix | escape }} {{ li_supplier_name | escape }}</span>
+                    {%- endif -%}
+                  </div>
+
+                  <p class="q-text q-text--muted q-ra-cart__hint">
+                    <span class="q-ra-cart__chip">
+                      {%- if li_status == 'supported' -%}{{ s.cart_chip_ok | escape }}
+                      {%- elsif li_status == 'unsupported' -%}{{ s.cart_chip_warn | escape }}
+                      {%- else -%}{{ s.cart_chip_info | escape }}
+                      {%- endif -%}
+                    </span>
+                    <span>{{ li_msg | escape }}</span>
+                  </p>
+
+                  {%- if s.cart_show_duty_notice and li_duty != '' -%}
+                    {%- if li_status == 'unsupported' -%}
+                      <p class="q-text q-text--muted q-ra-cart__duty">{{ li_duty | escape }}</p>
+                    {%- endif -%}
+                  {%- endif -%}
+                </div>
+              {%- endif -%}
+            {%- endfor -%}
+          </div>
+        </section>
+      {%- endif -%}
+
+    {%- else -%}
+
+      {%- if s.show_placeholder_outside_context -%}
+        <div class="q-card q-ra-card q-ra-tone--neutral" aria-label="Region availability section placeholder">
+          <h2 class="q-heading q-heading--lg" id="{{ heading_id }}">{{ s.placeholder_heading | escape }}</h2>
+          <p class="q-text q-text--muted">{{ s.placeholder_body | escape }}</p>
+        </div>
+      {%- endif -%}
+
+    {%- endif -%}
+
+  </div>
+
+  <style>
+    /* ========= Quadratum — Region Availability (scoped) ========= */
+    #q-region-{{ section.id }}{
+      padding: var(--q-ra-pad-y) var(--q-ra-pad-x);
+      background: var(--q-ra-bg);
+      color: var(--q-ra-text);
+    }
+
+    #q-region-{{ section.id }} .q-ra-card{
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--q-ra-border);
+      border-radius: var(--q-ra-radius);
+      box-shadow: var(--q-ra-shadow);
+      background: var(--q-ra-surface);
+      padding: clamp(1rem, 2vw, 1.35rem);
+    }
+
+    #q-region-{{ section.id }} .q-ra-card::before{
+      content: "";
+      position: absolute;
+      inset: -60% -30% auto -30%;
+      height: 70%;
+      background: var(--q-ra-pill);
+      opacity: .35;
+      filter: blur(56px);
+      pointer-events: none;
+    }
+
+    #q-region-{{ section.id }}.q-ra-layout--strip .q-ra-card{
+      background: transparent;
+      box-shadow: none;
+      border-left: 0;
+      border-right: 0;
+      border-radius: 0;
+      padding-inline: 0;
+    }
+    #q-region-{{ section.id }}.q-ra-layout--strip .q-ra-card::before{ display:none; }
+
+    #q-region-{{ section.id }} .q-ra-head{
+      position: relative;
+      display: flex;
+      gap: .85rem;
+      align-items: flex-start;
+    }
+
+    #q-region-{{ section.id }} .q-ra-icon{
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      border: 1px solid var(--q-ra-border);
+      background: rgba(255,255,255,0);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 850;
+      line-height: 1;
+      color: var(--q-ra-text);
+      flex: 0 0 auto;
+    }
+
+    #q-region-{{ section.id }} .q-ra-kicker{ margin: 0; color: var(--q-ra-muted); }
+    #q-region-{{ section.id }} .q-ra-heading{ margin: .1rem 0 0; }
+
+    #q-region-{{ section.id }} .q-ra-body{ position: relative; margin-top: .85rem; }
+    #q-region-{{ section.id }} .q-ra-primary{ margin: 0; font-weight: 650; }
+    #q-region-{{ section.id }} .q-ra-secondary{ margin: .5rem 0 0; }
+    #q-region-{{ section.id }} .q-ra-duty{ margin-top: .6rem; }
+
+    /* Tone accents */
+    #q-region-{{ section.id }} .q-ra-tone--ok .q-ra-icon{
+      border-color: rgba(34, 197, 94, .45);
+      box-shadow: 0 0 0 6px rgba(34, 197, 94, .08);
+    }
+    #q-region-{{ section.id }} .q-ra-tone--warn .q-ra-icon{
+      border-color: rgba(245, 158, 11, .55);
+      box-shadow: 0 0 0 6px rgba(245, 158, 11, .10);
+    }
+
+    #q-region-{{ section.id }}.q-ra-align--center .q-ra-card{ text-align: center; }
+    #q-region-{{ section.id }}.q-ra-align--center .q-ra-head{ justify-content: center; }
+
+    /* Cart */
+    #q-region-{{ section.id }} .q-ra-cart__list{
+      margin-top: .75rem;
+      display: grid;
+      gap: .9rem;
+    }
+    #q-region-{{ section.id }} .q-ra-cart__row{
+      padding: .85rem .95rem;
+      border: 1px solid var(--q-ra-border);
+      border-radius: calc(var(--q-ra-radius) - 6px);
+      background: rgba(255,255,255,0);
+    }
+    #q-region-{{ section.id }} .q-ra-cart__title{
+      display: flex;
+      flex-direction: column;
+      gap: .25rem;
+    }
+    #q-region-{{ section.id }} .q-ra-cart__link{
+      color: var(--q-ra-text);
+      text-decoration: none;
+      font-weight: 750;
+    }
+    #q-region-{{ section.id }} .q-ra-cart__link:hover{ text-decoration: underline; }
+
+    #q-region-{{ section.id }} .q-ra-cart__hint{
+      margin: .55rem 0 0;
+      display: flex;
+      gap: .5rem;
+      align-items: baseline;
+      flex-wrap: wrap;
+    }
+
+    #q-region-{{ section.id }} .q-ra-cart__chip{
+      display: inline-flex;
+      align-items: center;
+      padding: .25rem .55rem;
+      border-radius: 999px;
+      border: 1px solid var(--q-ra-border);
+      background: rgba(255,255,255,0);
+      font-size: var(--q-fs-xs, .8125rem);
+      font-weight: 780;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    #q-region-{{ section.id }} .q-ra-cart__duty{ margin: .4rem 0 0; }
+  </style>
+</section>
+{%- endif -%}
+
+  {% schema %}
+  {
+    "name": "3rd Party - Regions",
+    "settings": [
+      { "type": "checkbox", "id": "enable_section", "label": "Enable section", "default": true },
+      { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Region and availability information" },
+
+      { "type": "header", "content": "Where to show" },
+      { "type": "checkbox", "id": "show_on_product", "label": "Show on product pages", "default": true },
+      { "type": "checkbox", "id": "show_on_cart", "label": "Enable cart rendering when section is on a cart template", "default": false },
+
+      { "type": "header", "content": "Metafield mapping" },
+      { "type": "text", "id": "metafield_namespace", "label": "Metafield namespace", "default": "fulfillment" },
+      { "type": "text", "id": "key_supplier_ref", "label": "Supplier reference key (metaobject reference)", "default": "supplier" },
+
+      { "type": "header", "content": "Product page content" },
+      { "type": "text", "id": "kicker", "label": "Kicker", "default": "Markets-aware fulfillment" },
+      { "type": "text", "id": "card_label", "label": "Heading label", "default": "Region & Availability" },
+      { "type": "checkbox", "id": "append_regions_label_to_heading", "label": "Append supplier regions_label to heading", "default": true },
+      {
+        "type": "select",
+        "id": "region_message_mode",
+        "label": "Message mode",
+        "default": "auto",
+        "options": [
+          { "value": "auto", "label": "Auto (supplier region_country_codes etc)" },
+          { "value": "always_generic", "label": "Always generic (ignore supplier regions)" }
+        ]
+      },
+      { "type": "checkbox", "id": "show_generic_when_no_supplier_data", "label": "Show generic message when supplier/regions are not configured", "default": true },
+
+      { "type": "header", "content": "Product page message templates" },
+      {
+        "type": "paragraph",
+        "content": "Use placeholders (safe in JSON): [[country_name]], [[country_code]], [[supplier_name]], [[warehouse_location]], [[regions_label]]."
+      },
+      { "type": "text", "id": "supported_template", "label": "Supported region template", "default": "Ships to [[country_name]] from [[warehouse_location]]." },
+      { "type": "text", "id": "unsupported_template", "label": "Unsupported region template", "default": "This item may not be available to ship to [[country_name]]. Contact us before ordering." },
+      { "type": "text", "id": "unknown_template", "label": "Unknown region template", "default": "Shipping availability may vary by country. Please confirm during checkout." },
+      { "type": "text", "id": "generic_template", "label": "Generic template", "default": "International availability varies by product and destination. Please confirm during checkout." },
+
+      { "type": "header", "content": "Secondary line & duty notice" },
+      { "type": "checkbox", "id": "show_secondary_line", "label": "Show secondary line (warehouse/regions label)", "default": true },
+      { "type": "text", "id": "secondary_prefix", "label": "Secondary line prefix (when warehouse exists)", "default": "Ships from:" },
+      {
+        "type": "select",
+        "id": "duty_notice_mode",
+        "label": "Duty notice display",
+        "default": "when_unsupported",
+        "options": [
+          { "value": "never", "label": "Never" },
+          { "value": "when_unsupported", "label": "Only when unsupported" },
+          { "value": "always", "label": "Always when present" }
+        ]
+      },
+
+      { "type": "header", "content": "Icon" },
+      { "type": "checkbox", "id": "show_icon", "label": "Show status icon", "default": true },
+      {
+        "type": "select",
+        "id": "icon_source",
+        "label": "Icon source",
+        "default": "glyph",
+        "options": [
+          { "value": "glyph", "label": "Built-in glyphs (no snippet)" },
+          { "value": "theme", "label": "Theme icon snippet (uses your icon system)" }
+        ]
+      },
+      { "type": "text", "id": "icon_snippet", "label": "Theme icon snippet handle (Icon source = Theme)", "default": "icon" },
+      { "type": "text", "id": "icon_supported", "label": "Supported icon name", "default": "check" },
+      { "type": "text", "id": "icon_unsupported", "label": "Unsupported icon name", "default": "alert" },
+      { "type": "text", "id": "icon_unknown", "label": "Unknown icon name", "default": "info" },
+
+      { "type": "header", "content": "Cart (optional)" },
+      { "type": "checkbox", "id": "cart_show_region_hints", "label": "Show region hints on cart page", "default": false },
+      { "type": "text", "id": "cart_aria_label", "label": "Cart ARIA label", "default": "Cart region availability hints" },
+      { "type": "text", "id": "cart_heading", "label": "Cart heading", "default": "Region & shipping availability" },
+      { "type": "text", "id": "cart_meta_prefix", "label": "Cart supplier prefix", "default": "Supplier:" },
+      {
+        "type": "select",
+        "id": "cart_message_mode",
+        "label": "Cart message mode",
+        "default": "auto",
+        "options": [
+          { "value": "auto", "label": "Auto (supplier regions + Markets country)" },
+          { "value": "always_generic", "label": "Always generic" }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": "Cart templates placeholders: [[country_name]], [[country_code]], [[supplier_name]], [[regions_label]]."
+      },
+      { "type": "text", "id": "cart_supported_template", "label": "Cart supported template", "default": "Available to ship to [[country_code]]." },
+      { "type": "text", "id": "cart_unsupported_template", "label": "Cart unsupported template", "default": "May not ship to [[country_code]] — verify before checkout." },
+      { "type": "text", "id": "cart_unknown_template", "label": "Cart unknown template", "default": "Availability varies by destination — confirm at checkout." },
+      { "type": "text", "id": "cart_generic_template", "label": "Cart generic template", "default": "Shipping availability varies by destination." },
+      { "type": "text", "id": "cart_chip_ok", "label": "Cart chip label (supported)", "default": "OK" },
+      { "type": "text", "id": "cart_chip_warn", "label": "Cart chip label (unsupported)", "default": "Check" },
+      { "type": "text", "id": "cart_chip_info", "label": "Cart chip label (unknown/generic)", "default": "Info" },
+      { "type": "checkbox", "id": "cart_show_duty_notice", "label": "Show duty notice under items when unsupported", "default": true },
+
+      { "type": "header", "content": "Layout & style" },
+      {
+        "type": "select",
+        "id": "layout_style",
+        "label": "Layout style",
+        "default": "card",
+        "options": [
+          { "value": "card", "label": "Card" },
+          { "value": "strip", "label": "Strip" }
+        ]
+      },
+      {
+        "type": "select",
+        "id": "alignment",
+        "label": "Alignment",
+        "default": "left",
+        "options": [
+          { "value": "left", "label": "Left" },
+          { "value": "center", "label": "Center" }
+        ]
+      },
+      { "type": "range", "id": "padding_y", "label": "Vertical padding (rem ×100)", "min": 0, "max": 72, "step": 4, "default": 0 },
+      { "type": "range", "id": "padding_x", "label": "Horizontal padding (rem ×100)", "min": 0, "max": 40, "step": 4, "default": 0 },
+      { "type": "range", "id": "card_radius", "label": "Card radius (px)", "min": 0, "max": 32, "step": 1, "default": 18 },
+      {
+        "type": "select",
+        "id": "card_shadow_strength",
+        "label": "Card shadow",
+        "default": "soft",
+        "options": [
+          { "value": "none", "label": "None" },
+          { "value": "soft", "label": "Soft" },
+          { "value": "medium", "label": "Medium" },
+          { "value": "strong", "label": "Strong" }
+        ]
+      },
+
+      { "type": "header", "content": "Design overrides" },
+      { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors for this section", "default": true },
+      { "type": "color", "id": "custom_bg_color", "label": "Background color", "default": "#0b1120" },
+      { "type": "color", "id": "custom_surface_color", "label": "Surface / card color", "default": "#0f172a" },
+      { "type": "color", "id": "custom_text_color", "label": "Text color", "default": "#f8fafc" },
+      { "type": "color", "id": "custom_muted_text_color", "label": "Muted text color", "default": "#cbd5e1" },
+      { "type": "color", "id": "custom_border_color", "label": "Border color", "default": "#1f2a44" },
+      { "type": "color", "id": "custom_accent_color", "label": "Accent color", "default": "#60a5fa" },
+      { "type": "color", "id": "custom_ok_color", "label": "OK tone color", "default": "#22c55e" },
+      { "type": "color", "id": "custom_warn_color", "label": "Warning tone color", "default": "#f59e0b" },
+      { "type": "color", "id": "custom_info_color", "label": "Info tone color", "default": "#60a5fa" },
+      { "type": "color", "id": "custom_pill_bg_color", "label": "Highlight glow color", "default": "#0b2a4a" },
+
+      { "type": "header", "content": "Outside-context placeholder" },
+      { "type": "checkbox", "id": "show_placeholder_outside_context", "label": "Show placeholder outside product/cart context", "default": true },
+      { "type": "text", "id": "placeholder_heading", "label": "Placeholder heading", "default": "Region & Availability" },
+      { "type": "text", "id": "placeholder_body", "label": "Placeholder body", "default": "Add this section to a product template (or a cart template) to display region-aware availability messaging." }
+    ],
+    "presets": [
+      { "name": "3rd Party - Region Availability", "category": "3rd Party Integrations" }
+    ]
+  }
+  {% endschema %}

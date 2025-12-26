@@ -1,0 +1,707 @@
+{% comment %}
+  Quadratum — Main: Metaobject Supplier (Fulfillment Brain)
+  File: sections/main-metaobject-supplier.liquid
+
+  Purpose:
+  • Render a Supplier metaobject page (metaobject.supplier template)
+  • Premium hero/card layout using Quadratum tokens
+  • Shows supplier logo, description, fulfillment details, website CTA
+  • Renders a product grid sourced from:
+      1) Supplier metaobject field: catalog_collection (recommended)
+      2) Section fallback collection (optional)
+
+  Notes:
+  • 100% theme-side (metaobjects/metafields/Liquid/CSS only)
+  • No new snippets introduced (uses existing product card snippet via render)
+  • A11y: semantic landmarks, proper headings, accessible links
+{% endcomment %}
+
+{%- liquid
+  assign s = section.settings
+
+  assign pad_y = s.padding_y | times: 0.01
+  assign pad_x = s.padding_x | times: 0.01
+
+  assign is_metaobject_context = false
+  if metaobject != blank
+    assign is_metaobject_context = true
+  endif
+
+  assign supplier = metaobject
+
+  if supplier != blank
+    assign supplier_name = supplier.name | default: supplier.title
+    assign supplier_url = supplier.system.url | default: blank
+
+    assign logo_obj = supplier.logo.value | default: supplier.logo
+    assign short_desc = supplier.short_description.value | default: supplier.short_description
+    assign lead_time = supplier.default_lead_time.value | default: supplier.default_lead_time
+    assign regions = supplier.regions_served.value | default: supplier.regions_served
+    assign notes = supplier.shipping_notes.value | default: supplier.shipping_notes
+    assign website = supplier.website_url.value | default: supplier.website_url
+  endif
+
+  assign source_collection = blank
+  if supplier != blank and s.collection_source == 'metaobject'
+    assign col_ref = supplier.catalog_collection.value | default: supplier.catalog_collection
+    if col_ref != blank
+      assign source_collection = col_ref
+    endif
+  endif
+  if source_collection == blank and s.collection_source == 'section' and s.fallback_collection != blank
+    assign source_collection = s.fallback_collection
+  endif
+
+  case s.card_shadow_strength
+    when 'none'
+      assign shadow_value = 'none'
+    when 'soft'
+      assign shadow_value = 'var(--q-shadow-xs, 0 12px 34px rgba(0,0,0,0.12))'
+    when 'medium'
+      assign shadow_value = 'var(--q-shadow-sm, 0 16px 44px rgba(0,0,0,0.16))'
+    when 'strong'
+      assign shadow_value = 'var(--q-shadow-md, 0 20px 60px rgba(0,0,0,0.22))'
+    else
+      assign shadow_value = 'var(--q-shadow-xs, 0 12px 34px rgba(0,0,0,0.12))'
+  endcase
+
+  assign heading_id = 'q-supplier-heading-' | append: section.id
+-%}
+
+<section
+  id="q-supplier-{{ section.id }}"
+  class="q-section q-section--supplier-detail q-supplier-layout--{{ s.layout_style }} q-supplier-align--{{ s.alignment }}"
+  aria-labelledby="{{ heading_id }}"
+  style="
+    --q-sup-pad-y: {{ pad_y }}rem;
+    --q-sup-pad-x: {{ pad_x }}rem;
+    --q-sup-radius: {{ s.card_radius }}px;
+    --q-sup-shadow: {{ shadow_value }};
+    --q-sup-cols: {{ s.columns_desktop }};
+
+    {%- if s.use_custom_colors -%}
+      --q-sup-bg: {{ s.custom_bg_color }};
+      --q-sup-surface: {{ s.custom_surface_color }};
+      --q-sup-text: {{ s.custom_text_color }};
+      --q-sup-muted: {{ s.custom_muted_text_color }};
+      --q-sup-border: {{ s.custom_border_color }};
+      --q-sup-accent: {{ s.custom_accent_color }};
+      --q-sup-highlight: {{ s.custom_highlight_bg_color }};
+    {%- else -%}
+      --q-sup-bg: var(--q-bg, var(--q-color-bg, #ffffff));
+      --q-sup-surface: var(--q-surface-2, rgba(0,0,0,.04));
+      --q-sup-text: var(--q-text, #111827);
+      --q-sup-muted: var(--q-text-muted, rgba(17,24,39,.72));
+      --q-sup-border: var(--q-border-subtle, rgba(17,24,39,.14));
+      --q-sup-accent: var(--q-primary, #2563eb);
+      --q-sup-highlight: var(--q-primary-soft, rgba(37,99,235,.12));
+    {%- endif -%}
+  "
+>
+  <div class="q-section__inner q-section__inner--lg">
+
+    {%- if is_metaobject_context == false -%}
+      <div class="q-card q-supplier-card">
+        <h2 class="q-heading q-heading--lg" id="{{ heading_id }}">Supplier page section</h2>
+        <p class="q-text q-text--muted">
+          This section is intended for the <strong>metaobject.supplier</strong> template.
+        </p>
+      </div>
+    {%- else -%}
+
+      <header class="q-card q-supplier-card q-supplier-hero" role="banner">
+        <div class="q-supplier-hero__grid">
+          {%- if s.show_logo and logo_obj != blank -%}
+            <div class="q-supplier-hero__logo">
+              {{
+                logo_obj
+                | image_url: width: 440
+                | image_tag:
+                  loading: 'eager',
+                  class: 'q-supplier-hero__logo-img',
+                  alt: supplier_name
+              }}
+            </div>
+          {%- endif -%}
+
+          <div class="q-supplier-hero__content">
+            <div class="q-supplier-hero__kicker q-kicker">
+              <span class="q-supplier-pill">{{ s.kicker_label | escape }}</span>
+            </div>
+
+            <h1 class="q-heading q-heading--xl q-supplier-hero__title" id="{{ heading_id }}">
+              {{ supplier_name | escape }}
+            </h1>
+
+            {%- if s.show_short_description and short_desc != blank -%}
+              <p class="q-text q-text--muted q-supplier-hero__desc">
+                {{ short_desc | escape }}
+              </p>
+            {%- endif -%}
+
+            <div class="q-supplier-hero__actions">
+              {%- if s.show_website_button and website != blank -%}
+                <a class="q-btn q-btn--{{ s.website_button_variant }}" href="{{ website }}" rel="nofollow">
+                  {{ s.website_button_label | escape }}
+                </a>
+              {%- endif -%}
+
+              {%- if s.show_storefront_link and supplier_url != blank -%}
+                <a class="q-btn q-btn--{{ s.storefront_button_variant }}" href="{{ supplier_url }}">
+                  {{ s.storefront_button_label | escape }}
+                </a>
+              {%- endif -%}
+            </div>
+          </div>
+        </div>
+
+        {%- if s.show_facts -%}
+          <div class="q-supplier-facts" role="list" aria-label="Supplier fulfillment details">
+            {%- if s.show_lead_time and lead_time != blank -%}
+              <div class="q-supplier-fact" role="listitem">
+                <div class="q-supplier-fact__k">{{ s.label_lead_time | escape }}</div>
+                <div class="q-supplier-fact__v">{{ lead_time | escape }}</div>
+              </div>
+            {%- endif -%}
+
+            {%- if s.show_regions and regions != blank -%}
+              <div class="q-supplier-fact" role="listitem">
+                <div class="q-supplier-fact__k">{{ s.label_regions | escape }}</div>
+                <div class="q-supplier-fact__v">{{ regions | escape }}</div>
+              </div>
+            {%- endif -%}
+
+            {%- if s.show_shipping_notes and notes != blank -%}
+              <div class="q-supplier-fact" role="listitem">
+                <div class="q-supplier-fact__k">{{ s.label_notes | escape }}</div>
+                <div class="q-supplier-fact__v">{{ notes | escape }}</div>
+              </div>
+            {%- endif -%}
+          </div>
+        {%- endif -%}
+      </header>
+
+      {%- if s.show_product_grid -%}
+        <section class="q-supplier-products" aria-label="Supplier products">
+          <div class="q-supplier-products__head">
+            <h2 class="q-heading q-heading--lg">{{ s.products_heading | escape }}</h2>
+
+            {%- if source_collection != blank and s.show_collection_link -%}
+              <a class="q-btn q-btn--{{ s.collection_link_variant }}" href="{{ source_collection.url }}">
+                {{ s.collection_link_label | escape }}
+              </a>
+            {%- endif -%}
+          </div>
+
+          {%- if source_collection == blank -%}
+            <div class="q-card q-supplier-card q-supplier-empty">
+              <p class="q-text q-text--muted">
+                No catalog collection is connected for this supplier yet.
+              </p>
+              <p class="q-text q-text--muted">
+                Recommended: add a <strong>catalog_collection</strong> (Collection reference) field to the Supplier metaobject and point it to an automated collection.
+              </p>
+            </div>
+          {%- else -%}
+            <div class="q-grid q-grid--products q-supplier-grid q-cols-{{ s.columns_desktop }}">
+              {%- for p in source_collection.products limit: s.max_products -%}
+                {%- render 'card-product', product: p -%}
+              {%- endfor -%}
+            </div>
+          {%- endif -%}
+        </section>
+      {%- endif -%}
+
+    {%- endif -%}
+  </div>
+
+  <style>
+    /* ========= Quadratum — Supplier Detail (scoped) ========= */
+    #q-supplier-{{ section.id }}{
+      padding: var(--q-sup-pad-y) 0;
+      background: var(--q-sup-bg);
+      color: var(--q-sup-text);
+    }
+
+    #q-supplier-{{ section.id }} .q-supplier-card{
+      border: 1px solid var(--q-sup-border);
+      border-radius: var(--q-sup-radius);
+      box-shadow: var(--q-sup-shadow);
+      background: var(--q-sup-surface);
+      padding: clamp(1.15rem, 2vw, 1.8rem);
+    }
+
+    /* Layout variants */
+    #q-supplier-{{ section.id }}.q-supplier-layout--strip .q-supplier-card{
+      background: transparent;
+      box-shadow: none;
+      border-left: 0;
+      border-right: 0;
+      border-radius: 0;
+      padding-inline: 0;
+    }
+
+    /* Hero */
+    #q-supplier-{{ section.id }} .q-supplier-hero{
+      position: relative;
+      overflow: hidden;
+    }
+    #q-supplier-{{ section.id }} .q-supplier-hero::before{
+      content: "";
+      position: absolute;
+      inset: -40% -20% auto -20%;
+      height: 70%;
+      background: var(--q-sup-highlight);
+      opacity: .32;
+      filter: blur(60px);
+      pointer-events: none;
+    }
+    #q-supplier-{{ section.id }} .q-supplier-hero__grid{
+      position: relative;
+      display: grid;
+      gap: clamp(1rem, 2vw, 1.6rem);
+      align-items: start;
+    }
+    @media (min-width: 990px){
+      #q-supplier-{{ section.id }} .q-supplier-hero__grid{
+        grid-template-columns: 220px 1fr;
+      }
+    }
+
+    #q-supplier-{{ section.id }}.q-supplier-align--center .q-supplier-hero{
+      text-align: center;
+    }
+    #q-supplier-{{ section.id }}.q-supplier-align--center .q-supplier-hero__grid{
+      justify-items: center;
+    }
+    #q-supplier-{{ section.id }}.q-supplier-align--left .q-supplier-hero{
+      text-align: left;
+    }
+
+    #q-supplier-{{ section.id }} .q-supplier-hero__logo-img{
+      width: 100%;
+      height: auto;
+      max-height: 140px;
+      object-fit: contain;
+      border-radius: calc(var(--q-sup-radius) - 8px);
+      background: rgba(255,255,255,.0);
+    }
+
+    #q-supplier-{{ section.id }} .q-supplier-pill{
+      display: inline-flex;
+      align-items: center;
+      padding: .35rem .7rem;
+      border-radius: 999px;
+      border: 1px solid var(--q-sup-border);
+      background: var(--q-sup-highlight);
+      color: var(--q-sup-text);
+    }
+
+    #q-supplier-{{ section.id }} .q-supplier-hero__desc{
+      max-width: 72ch;
+      margin-inline: auto;
+    }
+    #q-supplier-{{ section.id }}.q-supplier-align--left .q-supplier-hero__desc{
+      margin-inline: 0;
+    }
+
+    #q-supplier-{{ section.id }} .q-supplier-hero__actions{
+      display: flex;
+      flex-wrap: wrap;
+      gap: .75rem;
+      align-items: center;
+      justify-content: center;
+      margin-top: .65rem;
+    }
+    #q-supplier-{{ section.id }}.q-supplier-align--left .q-supplier-hero__actions{
+      justify-content: flex-start;
+    }
+
+    /* Facts */
+    #q-supplier-{{ section.id }} .q-supplier-facts{
+      position: relative;
+      margin-top: clamp(1rem, 2vw, 1.4rem);
+      display: grid;
+      gap: .75rem;
+    }
+    @media (min-width: 990px){
+      #q-supplier-{{ section.id }} .q-supplier-facts{
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+    #q-supplier-{{ section.id }} .q-supplier-fact{
+      padding: .85rem .95rem;
+      border: 1px solid var(--q-sup-border);
+      border-radius: calc(var(--q-sup-radius) - 8px);
+      background: rgba(255,255,255,0.0);
+    }
+    #q-supplier-{{ section.id }} .q-supplier-fact__k{
+      font-size: var(--q-fs-xs, .8125rem);
+      color: var(--q-sup-muted);
+      font-weight: 700;
+      letter-spacing: .01em;
+    }
+    #q-supplier-{{ section.id }} .q-supplier-fact__v{
+      margin-top: .25rem;
+      font-size: var(--q-fs-sm, .875rem);
+      line-height: 1.45;
+      color: var(--q-sup-text);
+    }
+
+    /* Products */
+    #q-supplier-{{ section.id }} .q-supplier-products{
+      margin-top: clamp(1.25rem, 3vw, 2rem);
+    }
+    #q-supplier-{{ section.id }} .q-supplier-products__head{
+      display: flex;
+      flex-wrap: wrap;
+      gap: .8rem 1rem;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: .85rem;
+    }
+    #q-supplier-{{ section.id }} .q-supplier-grid{
+      display: grid;
+      gap: var(--q-gap-lg, 1rem);
+    }
+    @media (min-width: 990px){
+      #q-supplier-{{ section.id }} .q-supplier-grid{
+        grid-template-columns: repeat(var(--q-sup-cols), minmax(0, 1fr));
+      }
+    }
+
+    /* Empty */
+    #q-supplier-{{ section.id }} .q-supplier-empty{
+      margin-top: 1rem;
+    }
+  </style>
+
+  {% schema %}
+  {
+    "name": "3P - Metaobjects",
+    "settings": [
+      {
+        "type": "header",
+        "content": "Header"
+      },
+      {
+        "type": "text",
+        "id": "kicker_label",
+        "label": "Kicker label",
+        "default": "Fulfillment partner"
+      },
+      {
+        "type": "select",
+        "id": "layout_style",
+        "label": "Layout style",
+        "default": "hero",
+        "options": [
+          { "value": "hero", "label": "Hero card" },
+          { "value": "strip", "label": "Strip" }
+        ]
+      },
+      {
+        "type": "select",
+        "id": "alignment",
+        "label": "Content alignment",
+        "default": "left",
+        "options": [
+          { "value": "left", "label": "Left" },
+          { "value": "center", "label": "Center" }
+        ]
+      },
+
+      {
+        "type": "header",
+        "content": "Content toggles"
+      },
+      {
+        "type": "checkbox",
+        "id": "show_logo",
+        "label": "Show logo",
+        "default": true
+      },
+      {
+        "type": "checkbox",
+        "id": "show_short_description",
+        "label": "Show short description",
+        "default": true
+      },
+      {
+        "type": "checkbox",
+        "id": "show_facts",
+        "label": "Show fulfillment facts row",
+        "default": true
+      },
+      {
+        "type": "checkbox",
+        "id": "show_lead_time",
+        "label": "Show lead time",
+        "default": true
+      },
+      {
+        "type": "checkbox",
+        "id": "show_regions",
+        "label": "Show regions served",
+        "default": true
+      },
+      {
+        "type": "checkbox",
+        "id": "show_shipping_notes",
+        "label": "Show shipping notes",
+        "default": true
+      },
+      {
+        "type": "text",
+        "id": "label_lead_time",
+        "label": "Lead time label",
+        "default": "Lead time"
+      },
+      {
+        "type": "text",
+        "id": "label_regions",
+        "label": "Regions label",
+        "default": "Regions served"
+      },
+      {
+        "type": "text",
+        "id": "label_notes",
+        "label": "Notes label",
+        "default": "Shipping notes"
+      },
+
+      {
+        "type": "header",
+        "content": "Buttons"
+      },
+      {
+        "type": "checkbox",
+        "id": "show_website_button",
+        "label": "Show website button (uses supplier.website_url)",
+        "default": true
+      },
+      {
+        "type": "text",
+        "id": "website_button_label",
+        "label": "Website button label",
+        "default": "Visit supplier"
+      },
+      {
+        "type": "select",
+        "id": "website_button_variant",
+        "label": "Website button style",
+        "default": "secondary",
+        "options": [
+          { "value": "primary", "label": "Primary" },
+          { "value": "secondary", "label": "Secondary" },
+          { "value": "outline", "label": "Outline" },
+          { "value": "ghost", "label": "Ghost" }
+        ]
+      },
+      {
+        "type": "checkbox",
+        "id": "show_storefront_link",
+        "label": "Show storefront metaobject page link (supplier.system.url)",
+        "default": false
+      },
+      {
+        "type": "text",
+        "id": "storefront_button_label",
+        "label": "Storefront button label",
+        "default": "View supplier page"
+      },
+      {
+        "type": "select",
+        "id": "storefront_button_variant",
+        "label": "Storefront button style",
+        "default": "ghost",
+        "options": [
+          { "value": "primary", "label": "Primary" },
+          { "value": "secondary", "label": "Secondary" },
+          { "value": "outline", "label": "Outline" },
+          { "value": "ghost", "label": "Ghost" }
+        ]
+      },
+
+      {
+        "type": "header",
+        "content": "Products grid"
+      },
+      {
+        "type": "checkbox",
+        "id": "show_product_grid",
+        "label": "Show products grid",
+        "default": true
+      },
+      {
+        "type": "text",
+        "id": "products_heading",
+        "label": "Products heading",
+        "default": "Products fulfilled by this supplier"
+      },
+      {
+        "type": "select",
+        "id": "collection_source",
+        "label": "Collection source",
+        "default": "metaobject",
+        "options": [
+          { "value": "metaobject", "label": "Supplier metaobject field (catalog_collection)" },
+          { "value": "section", "label": "Fallback collection (section setting)" }
+        ]
+      },
+      {
+        "type": "collection",
+        "id": "fallback_collection",
+        "label": "Fallback collection"
+      },
+      {
+        "type": "checkbox",
+        "id": "show_collection_link",
+        "label": "Show collection link button (when collection exists)",
+        "default": false
+      },
+      {
+        "type": "text",
+        "id": "collection_link_label",
+        "label": "Collection link label",
+        "default": "Shop all"
+      },
+      {
+        "type": "select",
+        "id": "collection_link_variant",
+        "label": "Collection link style",
+        "default": "outline",
+        "options": [
+          { "value": "primary", "label": "Primary" },
+          { "value": "secondary", "label": "Secondary" },
+          { "value": "outline", "label": "Outline" },
+          { "value": "ghost", "label": "Ghost" }
+        ]
+      },
+      {
+        "type": "select",
+        "id": "columns_desktop",
+        "label": "Columns (desktop)",
+        "default": "4",
+        "options": [
+          { "value": "2", "label": "2" },
+          { "value": "3", "label": "3" },
+          { "value": "4", "label": "4" }
+        ]
+      },
+      {
+        "type": "range",
+        "id": "max_products",
+        "label": "Max products",
+        "min": 4,
+        "max": 24,
+        "step": 1,
+        "default": 12
+      },
+
+      {
+        "type": "header",
+        "content": "Spacing & shape"
+      },
+      {
+        "type": "range",
+        "id": "padding_y",
+        "label": "Vertical padding (rem ×100)",
+        "min": 12,
+        "max": 72,
+        "step": 4,
+        "default": 36
+      },
+      {
+        "type": "range",
+        "id": "padding_x",
+        "label": "Horizontal padding (rem ×100)",
+        "min": 0,
+        "max": 40,
+        "step": 4,
+        "default": 0
+      },
+      {
+        "type": "range",
+        "id": "card_radius",
+        "label": "Card radius (px)",
+        "min": 0,
+        "max": 32,
+        "step": 1,
+        "default": 20
+      },
+      {
+        "type": "select",
+        "id": "card_shadow_strength",
+        "label": "Card shadow",
+        "default": "soft",
+        "options": [
+          { "value": "none", "label": "None" },
+          { "value": "soft", "label": "Soft" },
+          { "value": "medium", "label": "Medium" },
+          { "value": "strong", "label": "Strong" }
+        ]
+      },
+
+      {
+        "type": "header",
+        "content": "Design overrides"
+      },
+      {
+        "type": "checkbox",
+        "id": "use_custom_colors",
+        "label": "Use custom colors for this section",
+        "default": false
+      },
+      {
+        "type": "color",
+        "id": "custom_bg_color",
+        "label": "Background color",
+        "default": "#0b1120"
+      },
+      {
+        "type": "color",
+        "id": "custom_surface_color",
+        "label": "Surface / card color",
+        "default": "#020617"
+      },
+      {
+        "type": "color",
+        "id": "custom_text_color",
+        "label": "Text color",
+        "default": "#e5e7eb"
+      },
+      {
+        "type": "color",
+        "id": "custom_muted_text_color",
+        "label": "Muted text color",
+        "default": "#9ca3af"
+      },
+      {
+        "type": "color",
+        "id": "custom_border_color",
+        "label": "Border color",
+        "default": "#1f2933"
+      },
+      {
+        "type": "color",
+        "id": "custom_accent_color",
+        "label": "Accent color",
+        "default": "#22c55e"
+      },
+      {
+        "type": "color",
+        "id": "custom_highlight_bg_color",
+        "label": "Highlight background",
+        "default": "#022c22"
+      }
+    ],
+    "presets": [
+      {
+        "name": "3rd Party - Metaobject Supplier",
+        "category": "3rd Party Integrations"
+      }
+    ]
+  }
+  {% endschema %}
+</section>

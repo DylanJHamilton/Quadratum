@@ -1,0 +1,564 @@
+{% comment %}
+  Quadratum — 3rd Party: Order Tracking CTA
+  File: sections/3rd-party-order-tracking-cta.liquid
+
+  Purpose:
+  • Smart "Where’s my order?" CTA that adapts to logged-in vs guest users
+  • Routes users to account, help page, and/or external tracking portal
+  • Optional dropship / freight expectation-setting callout
+  • Theme-only (Liquid + routes + tokens), no APIs
+
+  A11y:
+  • Semantic <section> with aria-labelledby
+  • Button labels are explicit
+  • Decorative icon marked aria-hidden when used
+{% endcomment %}
+
+{%- liquid
+  assign s = section.settings
+
+  assign pad_y = s.padding_y | times: 0.01
+  assign pad_x = s.padding_x | times: 0.01
+
+  assign heading_id = 'q-ordertrack-heading-' | append: section.id
+
+  assign is_logged_in = false
+  if customer != blank
+    assign is_logged_in = true
+  endif
+
+  assign help_url = s.help_page_url
+  assign external_url = s.external_tracking_url
+  assign support_url = s.support_contact_url
+
+  assign primary_href = ''
+  assign primary_label = ''
+  assign secondary_href = ''
+  assign secondary_label = ''
+  assign state_note = ''
+
+  if is_logged_in
+    assign state_note = s.logged_in_note
+    assign primary_href = routes.account_url
+    assign primary_label = s.logged_in_primary_label
+
+    if s.mode_when_logged_in == 'account_cta_plus_help'
+      if help_url != blank and s.logged_in_secondary_label != blank
+        assign secondary_href = help_url
+        assign secondary_label = s.logged_in_secondary_label
+      endif
+    endif
+  else
+    assign state_note = s.guest_note
+
+    if s.mode_when_guest == 'help_page_only'
+      if help_url != blank
+        assign primary_href = help_url
+        assign primary_label = s.guest_primary_label
+      endif
+    elsif s.mode_when_guest == 'external_tracking_only'
+      if external_url != blank
+        assign primary_href = external_url
+        assign primary_label = s.guest_secondary_label | default: s.guest_primary_label
+      endif
+    else
+      comment
+        help_plus_external (default)
+      endcomment
+
+      if help_url != blank
+        assign primary_href = help_url
+        assign primary_label = s.guest_primary_label
+      elsif external_url != blank
+        assign primary_href = external_url
+        assign primary_label = s.guest_secondary_label | default: s.guest_primary_label
+      endif
+
+      if external_url != blank and primary_href != external_url and s.guest_secondary_label != blank
+        assign secondary_href = external_url
+        assign secondary_label = s.guest_secondary_label
+      endif
+    endif
+  endif
+
+  assign has_any_cta = false
+  if primary_href != '' and primary_label != ''
+    assign has_any_cta = true
+  endif
+  if secondary_href != '' and secondary_label != ''
+    assign has_any_cta = true
+  endif
+  if support_url != blank and s.support_link_label != blank
+    assign has_any_cta = true
+  endif
+
+  assign border_w = 1
+  assign border_alpha = 0.18
+  if s.card_border == 'none'
+    assign border_w = 0
+    assign border_alpha = 0
+  elsif s.card_border == 'hairline'
+    assign border_w = 1
+    assign border_alpha = 0.12
+  else
+    assign border_w = 1
+    assign border_alpha = 0.18
+  endif
+
+  assign shadow_value = 'none'
+  if s.card_shadow == 'soft'
+    assign shadow_value = 'var(--q-shadow-xs, 0 12px 34px rgba(0,0,0,0.12))'
+  endif
+-%}
+
+<section
+  id="q-ordertrack-{{ section.id }}"
+  class="q-section q-section--ordertrack q-ordertrack-layout--{{ s.layout_variant }} q-ordertrack-align--{{ s.content_alignment }}"
+  aria-labelledby="{{ heading_id }}"
+  style="
+    --q-ordertrack-pad-y: {{ pad_y }}rem;
+    --q-ordertrack-pad-x: {{ pad_x }}rem;
+    --q-ordertrack-radius: {{ s.card_radius }}px;
+    --q-ordertrack-border-w: {{ border_w }}px;
+    --q-ordertrack-border-alpha: {{ border_alpha }};
+    --q-ordertrack-shadow: {{ shadow_value }};
+
+    {%- if s.use_custom_colors -%}
+      --q-ordertrack-bg: {{ s.bg_color }};
+      --q-ordertrack-card-bg: {{ s.card_bg_color }};
+      --q-ordertrack-text: {{ s.text_color }};
+      --q-ordertrack-muted: {{ s.muted_text_color }};
+      --q-ordertrack-accent: {{ s.accent_color }};
+      --q-ordertrack-border: {{ s.border_color }};
+      --q-ordertrack-soft: {{ s.soft_bg_color }};
+    {%- else -%}
+      --q-ordertrack-bg: var(--q-bg, var(--q-color-bg, #ffffff));
+      --q-ordertrack-card-bg: var(--q-surface-2, rgba(0,0,0,.04));
+      --q-ordertrack-text: var(--q-text, #111827);
+      --q-ordertrack-muted: var(--q-text-muted, rgba(17,24,39,.72));
+      --q-ordertrack-accent: var(--q-primary, #2563eb);
+      --q-ordertrack-border: var(--q-border-subtle, rgba(17,24,39,.14));
+      --q-ordertrack-soft: var(--q-primary-soft, rgba(37,99,235,.12));
+    {%- endif -%}
+  "
+>
+
+  <div class="q-section__inner q-section__inner--{{ s.content_max_width }}">
+
+    <div class="q-ordertrack-shell">
+
+      <div class="q-card q-ordertrack-card">
+        {%- if s.kicker != blank -%}
+          <p class="q-kicker q-ordertrack-kicker">{{ s.kicker | escape }}</p>
+        {%- endif -%}
+
+        <h2 class="q-heading q-heading--xl q-ordertrack-heading" id="{{ heading_id }}">
+          {{ s.heading | escape }}
+        </h2>
+
+        <div class="q-ordertrack-body q-text q-ordertrack-rich">
+          {{ s.body_richtext }}
+        </div>
+
+        {%- if state_note != blank -%}
+          <p class="q-text q-ordertrack-note">{{ state_note | escape }}</p>
+        {%- endif -%}
+
+        {%- if has_any_cta -%}
+          <div class="q-ordertrack-actions" aria-label="{{ s.buttons_aria_label | escape }}">
+
+            {%- if primary_href != '' and primary_label != '' -%}
+              <a
+                class="q-btn q-btn--{{ s.primary_button_variant }}{% if s.buttons_full_width_mobile %} q-btn--full-mobile{% endif %}"
+                href="{{ primary_href }}"
+              >
+                {{ primary_label | escape }}
+              </a>
+            {%- endif -%}
+
+            {%- if secondary_href != '' and secondary_label != '' -%}
+              <a
+                class="q-btn q-btn--{{ s.secondary_button_variant }}{% if s.buttons_full_width_mobile %} q-btn--full-mobile{% endif %}"
+                href="{{ secondary_href }}"
+                {%- if s.external_open_new_tab and secondary_href == external_url -%} target="_blank" rel="noopener noreferrer"{%- endif -%}
+              >
+                {{ secondary_label | escape }}
+              </a>
+            {%- endif -%}
+
+            {%- if support_url != blank and s.support_link_label != blank -%}
+              <a class="q-ordertrack-support q-text" href="{{ support_url }}">
+                {{ s.support_link_label | escape }}
+              </a>
+            {%- endif -%}
+
+          </div>
+        {%- else -%}
+          <div class="q-ordertrack-empty q-text q-text--muted">
+            {{ s.no_links_message | escape }}
+          </div>
+        {%- endif -%}
+
+      </div>
+
+      {%- if s.show_dropship_info -%}
+        <aside class="q-card q-ordertrack-callout" aria-label="{{ s.dropship_aria_label | escape }}">
+          <div class="q-ordertrack-callout__head">
+            {%- if s.show_dropship_icon -%}
+              <span class="q-ordertrack-callout__icon" aria-hidden="true">
+                {%- if s.dropship_icon_source == 'glyph' -%}
+                  {{ s.dropship_glyph | escape }}
+                {%- else -%}
+                  {%- assign icon_snip = s.icon_snippet | default: 'icon' -%}
+                  {%- render icon_snip, name: s.dropship_icon_name -%}
+                {%- endif -%}
+              </span>
+            {%- endif -%}
+
+            <h3 class="q-heading q-heading--lg q-ordertrack-callout__title">
+              {{ s.dropship_info_heading | escape }}
+            </h3>
+          </div>
+
+          <div class="q-text q-ordertrack-callout__body">
+            {{ s.dropship_info_body }}
+          </div>
+        </aside>
+      {%- endif -%}
+
+    </div>
+
+  </div>
+
+  <style>
+    /* ========= Quadratum — Order Tracking CTA (scoped) ========= */
+    #q-ordertrack-{{ section.id }}{
+      padding: var(--q-ordertrack-pad-y) 0;
+      background: var(--q-ordertrack-bg);
+      color: var(--q-ordertrack-text);
+    }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-shell{
+      padding-inline: var(--q-ordertrack-pad-x);
+      display: grid;
+      gap: clamp(1rem, 2.2vw, 1.5rem);
+      align-items: start;
+    }
+    @media (min-width: 990px){
+      #q-ordertrack-{{ section.id }}.q-ordertrack-layout--split .q-ordertrack-shell{
+        grid-template-columns: 1.2fr .8fr;
+      }
+    }
+
+    #q-ordertrack-{{ section.id }}.q-ordertrack-layout--centered_card .q-ordertrack-shell{
+      max-width: 980px;
+      margin-inline: auto;
+    }
+    #q-ordertrack-{{ section.id }}.q-ordertrack-layout--centered_card .q-ordertrack-shell{
+      grid-template-columns: 1fr;
+    }
+
+    #q-ordertrack-{{ section.id }}.q-ordertrack-layout--full_width_strip .q-ordertrack-shell{
+      grid-template-columns: 1fr;
+    }
+
+    #q-ordertrack-{{ section.id }} .q-ordertrack-card,
+    #q-ordertrack-{{ section.id }} .q-ordertrack-callout{
+      border-radius: var(--q-ordertrack-radius);
+      background: var(--q-ordertrack-card-bg);
+      box-shadow: var(--q-ordertrack-shadow);
+      border: var(--q-ordertrack-border-w) solid color-mix(in oklab, var(--q-ordertrack-border) calc(var(--q-ordertrack-border-alpha) * 100%), transparent);
+      padding: clamp(1.05rem, 2.2vw, 1.6rem);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* soft glow accent */
+    #q-ordertrack-{{ section.id }} .q-ordertrack-card::before{
+      content: "";
+      position: absolute;
+      inset: -40% -20% auto -20%;
+      height: 70%;
+      background: var(--q-ordertrack-soft);
+      opacity: .34;
+      filter: blur(60px);
+      pointer-events: none;
+    }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-card > *{
+      position: relative;
+    }
+
+    /* Typography + color enforcement (fixes the “black text on dark bg” issue) */
+    #q-ordertrack-{{ section.id }} .q-ordertrack-heading,
+    #q-ordertrack-{{ section.id }} .q-ordertrack-kicker,
+    #q-ordertrack-{{ section.id }} .q-ordertrack-note,
+    #q-ordertrack-{{ section.id }} .q-ordertrack-support{
+      color: var(--q-ordertrack-text);
+    }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-rich,
+    #q-ordertrack-{{ section.id }} .q-ordertrack-rich p{
+      color: var(--q-ordertrack-muted);
+    }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-note{
+      margin-top: .85rem;
+      font-weight: 650;
+    }
+
+    #q-ordertrack-{{ section.id }} .q-ordertrack-kicker{
+      margin: 0 0 .35rem;
+      color: color-mix(in oklab, var(--q-ordertrack-muted) 90%, var(--q-ordertrack-text));
+    }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-heading{
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-body{ margin-top: .75rem; }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-rich p{ margin: .55rem 0 0; }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-rich p:first-child{ margin-top: 0; }
+
+    /* Actions */
+    #q-ordertrack-{{ section.id }} .q-ordertrack-actions{
+      margin-top: 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .75rem;
+      align-items: center;
+    }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-support{
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      font-weight: 650;
+      text-decoration: underline;
+      color: var(--q-ordertrack-text);
+      opacity: .92;
+    }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-support:hover{ opacity: 1; }
+
+    /* Optional "full width buttons on mobile" hook */
+    @media (max-width: 749px){
+      #q-ordertrack-{{ section.id }} .q-btn.q-btn--full-mobile{
+        width: 100%;
+        justify-content: center;
+      }
+      #q-ordertrack-{{ section.id }} .q-ordertrack-actions{
+        width: 100%;
+      }
+    }
+
+    /* Callout */
+    #q-ordertrack-{{ section.id }} .q-ordertrack-callout{
+      background: color-mix(in oklab, var(--q-ordertrack-card-bg) 78%, var(--q-ordertrack-soft));
+    }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-callout__head{
+      display: flex;
+      gap: .75rem;
+      align-items: center;
+    }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-callout__icon{
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in oklab, var(--q-ordertrack-border) 55%, transparent);
+      background: var(--q-ordertrack-soft);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      font-weight: 800;
+      color: var(--q-ordertrack-text);
+    }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-callout__title{
+      margin: 0;
+    }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-callout__body{
+      margin-top: .75rem;
+      color: var(--q-ordertrack-muted);
+    }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-callout__body p{ margin: .55rem 0 0; }
+    #q-ordertrack-{{ section.id }} .q-ordertrack-callout__body p:first-child{ margin-top: 0; }
+
+    /* Alignment */
+    #q-ordertrack-{{ section.id }}.q-ordertrack-align--center .q-ordertrack-card{
+      text-align: center;
+    }
+    #q-ordertrack-{{ section.id }}.q-ordertrack-align--center .q-ordertrack-actions{
+      justify-content: center;
+    }
+  </style>
+</section>
+  {% schema %}
+  {
+    "name": "3rd Party - Order CTA",
+    "settings": [
+      { "type": "text", "id": "kicker", "label": "Kicker", "default": "Order updates" },
+      { "type": "text", "id": "heading", "label": "Heading", "default": "Where’s my order?" },
+      { "type": "richtext", "id": "body_richtext", "label": "Body", "default": "<p>Order updates and tracking links are available in your account and in your dispatch emails. Some items ship from partner warehouses, so tracking may arrive in separate emails.</p>" },
+
+      { "type": "header", "content": "Behavior — logged in" },
+      {
+        "type": "select",
+        "id": "mode_when_logged_in",
+        "label": "Logged-in mode",
+        "default": "account_cta_plus_help",
+        "options": [
+          { "value": "account_cta_only", "label": "Account CTA only" },
+          { "value": "account_cta_plus_help", "label": "Account CTA + Help link" }
+        ]
+      },
+      { "type": "text", "id": "logged_in_note", "label": "Logged-in note", "default": "You’re logged in — view your orders and tracking updates in your account dashboard." },
+      { "type": "text", "id": "logged_in_primary_label", "label": "Logged-in primary button label", "default": "View your orders" },
+      { "type": "text", "id": "logged_in_secondary_label", "label": "Logged-in secondary button label", "default": "Tracking help" },
+
+      { "type": "header", "content": "Behavior — guest" },
+      {
+        "type": "select",
+        "id": "mode_when_guest",
+        "label": "Guest mode",
+        "default": "help_plus_external",
+        "options": [
+          { "value": "help_page_only", "label": "Help page only" },
+          { "value": "external_tracking_only", "label": "External tracking portal only" },
+          { "value": "help_plus_external", "label": "Help + External tracking portal" }
+        ]
+      },
+      { "type": "text", "id": "guest_note", "label": "Guest note", "default": "If you checked out as a guest, your tracking link will be included in your order confirmation and dispatch emails." },
+      { "type": "text", "id": "guest_primary_label", "label": "Guest primary button label", "default": "How tracking works" },
+      { "type": "text", "id": "guest_secondary_label", "label": "Guest secondary button label", "default": "Go to tracking portal" },
+
+      { "type": "header", "content": "Links" },
+      { "type": "url", "id": "help_page_url", "label": "Help / tracking info page URL" },
+      { "type": "url", "id": "external_tracking_url", "label": "External tracking portal URL (optional)" },
+      { "type": "checkbox", "id": "external_open_new_tab", "label": "Open external tracking portal in a new tab", "default": true },
+      { "type": "url", "id": "support_contact_url", "label": "Support link URL (optional)" },
+      { "type": "text", "id": "support_link_label", "label": "Support link label", "default": "Still need help? Contact support" },
+      { "type": "text", "id": "no_links_message", "label": "No-links message", "default": "No tracking links are configured yet. Add a Help page URL or an External tracking portal URL in the section settings." },
+
+      { "type": "header", "content": "Dropship / freight info" },
+      { "type": "checkbox", "id": "show_dropship_info", "label": "Show dropship/freight info callout", "default": true },
+      { "type": "text", "id": "dropship_info_heading", "label": "Dropship info heading", "default": "Partner warehouses & freight shipping" },
+      { "type": "richtext", "id": "dropship_info_body", "label": "Dropship info body", "default": "<p>Many products ship directly from partner warehouses. For the latest tracking, check your dispatch email or view orders in your account.</p><p>Freight shipments may use separate carrier portals — full details are always included in the dispatch email.</p>" },
+
+      { "type": "header", "content": "Buttons" },
+      {
+        "type": "select",
+        "id": "primary_button_variant",
+        "label": "Primary button style",
+        "default": "primary",
+        "options": [
+          { "value": "primary", "label": "Primary" },
+          { "value": "secondary", "label": "Secondary" },
+          { "value": "outline", "label": "Outline" },
+          { "value": "ghost", "label": "Ghost" }
+        ]
+      },
+      {
+        "type": "select",
+        "id": "secondary_button_variant",
+        "label": "Secondary button style",
+        "default": "outline",
+        "options": [
+          { "value": "primary", "label": "Primary" },
+          { "value": "secondary", "label": "Secondary" },
+          { "value": "outline", "label": "Outline" },
+          { "value": "ghost", "label": "Ghost" }
+        ]
+      },
+      { "type": "checkbox", "id": "buttons_full_width_mobile", "label": "Full-width buttons on mobile", "default": true },
+
+      { "type": "header", "content": "Layout & style" },
+      {
+        "type": "select",
+        "id": "layout_variant",
+        "label": "Layout variant",
+        "default": "split",
+        "options": [
+          { "value": "centered_card", "label": "Centered card" },
+          { "value": "split", "label": "Split" },
+          { "value": "full_width_strip", "label": "Full-width strip" }
+        ]
+      },
+      {
+        "type": "select",
+        "id": "content_alignment",
+        "label": "Content alignment",
+        "default": "left",
+        "options": [
+          { "value": "left", "label": "Left" },
+          { "value": "center", "label": "Center" }
+        ]
+      },
+      {
+        "type": "select",
+        "id": "content_max_width",
+        "label": "Content max width",
+        "default": "lg",
+        "options": [
+          { "value": "sm", "label": "Small" },
+          { "value": "md", "label": "Medium" },
+          { "value": "lg", "label": "Large" }
+        ]
+      },
+      {
+        "type": "select",
+        "id": "card_border",
+        "label": "Card border",
+        "default": "subtle",
+        "options": [
+          { "value": "none", "label": "None" },
+          { "value": "hairline", "label": "Hairline" },
+          { "value": "subtle", "label": "Subtle" }
+        ]
+      },
+      {
+        "type": "select",
+        "id": "card_shadow",
+        "label": "Card shadow",
+        "default": "soft",
+        "options": [
+          { "value": "none", "label": "None" },
+          { "value": "soft", "label": "Soft" }
+        ]
+      },
+      { "type": "range", "id": "card_radius", "label": "Card radius (px)", "min": 0, "max": 32, "step": 1, "default": 22 },
+      { "type": "range", "id": "padding_y", "label": "Vertical padding (rem ×100)", "min": 0, "max": 72, "step": 4, "default": 44 },
+      { "type": "range", "id": "padding_x", "label": "Horizontal padding (rem ×100)", "min": 0, "max": 40, "step": 4, "default": 0 },
+
+      { "type": "header", "content": "Icon (dropship callout)" },
+      { "type": "checkbox", "id": "show_dropship_icon", "label": "Show icon", "default": true },
+      {
+        "type": "select",
+        "id": "dropship_icon_source",
+        "label": "Icon source",
+        "default": "glyph",
+        "options": [
+          { "value": "glyph", "label": "Built-in glyph (safe)" },
+          { "value": "theme", "label": "Theme icon snippet" }
+        ]
+      },
+      { "type": "text", "id": "dropship_glyph", "label": "Glyph (when Icon source = glyph)", "default": "🚚" },
+      { "type": "text", "id": "icon_snippet", "label": "Theme icon snippet handle (when Icon source = theme)", "default": "icon" },
+      { "type": "text", "id": "dropship_icon_name", "label": "Theme icon name (when Icon source = theme)", "default": "truck" },
+
+      { "type": "header", "content": "A11y labels" },
+      { "type": "text", "id": "buttons_aria_label", "label": "Buttons ARIA label", "default": "Order tracking actions" },
+      { "type": "text", "id": "dropship_aria_label", "label": "Dropship note ARIA label", "default": "Tracking and fulfillment notes" },
+
+      { "type": "header", "content": "Color overrides" },
+      { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors", "default": true },
+      { "type": "color", "id": "bg_color", "label": "Background color", "default": "#0b1120" },
+      { "type": "color", "id": "card_bg_color", "label": "Card background color", "default": "#0f172a" },
+      { "type": "color", "id": "text_color", "label": "Text color", "default": "#f8fafc" },
+      { "type": "color", "id": "muted_text_color", "label": "Muted text color", "default": "#cbd5e1" },
+      { "type": "color", "id": "accent_color", "label": "Accent color", "default": "#60a5fa" },
+      { "type": "color", "id": "border_color", "label": "Border color", "default": "#1f2a44" },
+      { "type": "color", "id": "soft_bg_color", "label": "Soft accent background", "default": "#0b2a4a" }
+    ],
+    "presets": [
+      {
+        "name": "3rd Party - Order Tracking CTA",
+        "category": "3rd Party Integrations"
+      }
+    ]
+  }
+  {% endschema %}
+

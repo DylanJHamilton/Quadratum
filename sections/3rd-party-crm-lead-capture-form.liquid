@@ -1,0 +1,571 @@
+{% comment %}
+  Quadratum — 3rd Party · CRM Lead Capture Form (Direct POST)
+  File: sections/3rd-party-crm-lead-capture-form.liquid
+  Category: 3rd Party Integrations
+  Dependencies:
+    - Reuse existing Quadratum forms CSS: forms-sections.css
+  Notes:
+    - Direct POST to external endpoint (CRM). No snippets. No extra assets.
+    - Adheres to frontend-form-logic.js:
+        • wrapper [data-q-form-wrap="1"]
+        • field wrappers [data-q-field]
+        • error elements .q-error
+        • live region .q-live
+        • captcha attrs data-captcha + data-captcha-key
+        • optional attribution: data-q-attrib-create="1" and/or hidden inputs
+        • optional tag packing: data-q-pack-tags="0" to disable
+{% endcomment %}
+
+{{ 'forms-sections.css' | asset_url | stylesheet_tag }}
+
+{% liquid
+  assign s = section.settings
+  assign g = settings
+
+  assign eff_captcha_mode = s.captcha_mode | default: 'inherit'
+  if eff_captcha_mode == 'inherit'
+    assign eff_captcha_mode = g.forms_captcha_provider | default: 'none'
+  endif
+
+
+  assign eff_captcha_key = s.captcha_site_key | default: g.captcha_turnstile_site_key | default: g.captcha_recaptcha_site_key | default: ''
+%}
+
+{% if s.enable_section %}
+<section
+  id="q-crm-lead-{{ section.id }}"
+  class="q-section q-third-party-crm-lead-form q-section--bg-{{ s.background_style }} q-section--width-{{ s.max_width }}"
+  aria-label="{{ s.aria_label | escape }}"
+  data-q-third-party="crm-lead-form"
+>
+  <style>
+    /* Scoped polish (no extra assets) */
+    #q-crm-lead-{{ section.id }} .q-section__inner{
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: var(--q-pad-y, 48px) var(--q-pad-x, 20px);
+    }
+    #q-crm-lead-{{ section.id }} .q-section__header{ margin-bottom: 18px; }
+    #q-crm-lead-{{ section.id }} .q-section__header--center{ text-align:center; }
+    #q-crm-lead-{{ section.id }} .q-section__kicker{
+      margin: 0 0 6px;
+      font-size: 0.9rem;
+      opacity: .78;
+    }
+    #q-crm-lead-{{ section.id }} .q-section__heading{
+      margin: 0;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+    }
+    #q-crm-lead-{{ section.id }} .q-section__body p{
+      margin: 10px 0 0;
+      opacity: .82;
+      max-width: 68ch;
+    }
+    #q-crm-lead-{{ section.id }} .q-section__header--center .q-section__body p{
+      margin-left:auto; margin-right:auto;
+    }
+
+    #q-crm-lead-{{ section.id }} .q-third-party-crm-lead-form__wrap{ margin-top: 18px; }
+
+    /* Card shell */
+    #q-crm-lead-{{ section.id }} .q-form{
+      background: var(--q-card-bg, rgba(255,255,255,0.98));
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: var(--q-radius-lg, 18px);
+      box-shadow: var(--q-shadow-lg, 0 10px 28px rgba(0,0,0,0.08));
+      padding: clamp(18px, 2.4vw, 28px);
+    }
+
+    /* Grid spacing */
+    #q-crm-lead-{{ section.id }} .q-form__grid{
+      display: grid;
+      gap: 14px;
+    }
+    #q-crm-lead-{{ section.id }} .q-form__grid--1{ grid-template-columns: 1fr; }
+    #q-crm-lead-{{ section.id }} .q-form__grid--2{ grid-template-columns: 1fr; }
+    @media (min-width: 860px){
+      #q-crm-lead-{{ section.id }} .q-form__grid--2{ grid-template-columns: 1fr 1fr; }
+      #q-crm-lead-{{ section.id }} .q-form__field--full{ grid-column: 1 / -1; }
+    }
+
+    #q-crm-lead-{{ section.id }} .q-label{
+      display:block;
+      font-weight: 600;
+      margin-bottom: 6px;
+      font-size: 0.95rem;
+    }
+
+    /* Inputs */
+    #q-crm-lead-{{ section.id }} .q-input,
+    #q-crm-lead-{{ section.id }} .q-textarea{
+      width: 100%;
+      border-radius: var(--q-radius-md, 12px);
+      border: 1px solid rgba(0,0,0,0.12);
+      background: rgba(255,255,255,0.92);
+      padding: 12px 12px;
+      outline: none;
+    }
+    #q-crm-lead-{{ section.id }} .q-input:focus,
+    #q-crm-lead-{{ section.id }} .q-textarea:focus{
+      border-color: rgba(0,0,0,0.22);
+      box-shadow: 0 0 0 4px rgba(0,0,0,0.06);
+    }
+
+    #q-crm-lead-{{ section.id }} .q-error{
+      min-height: 1.1em;
+      margin: 6px 0 0;
+      font-size: 0.9rem;
+      color: var(--q-danger, #b42318);
+    }
+
+    #q-crm-lead-{{ section.id }} .q-form__legal,
+    #q-crm-lead-{{ section.id }} .q-form__subtext{
+      margin: 12px 0 0;
+      font-size: 0.92rem;
+      opacity: .78;
+    }
+
+    #q-crm-lead-{{ section.id }} .q-form__actions{
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+    }
+    #q-crm-lead-{{ section.id }} .q-form__actions--left{ justify-content: flex-start; }
+    #q-crm-lead-{{ section.id }} .q-form__actions--center{ justify-content: center; }
+    #q-crm-lead-{{ section.id }} .q-form__actions--right{ justify-content: flex-end; }
+
+    /* Live region messages */
+    #q-crm-lead-{{ section.id }} .q-live{
+      margin-bottom: 10px;
+      font-size: 0.95rem;
+    }
+    #q-crm-lead-{{ section.id }} .q-live .bad{
+      color: var(--q-danger, #b42318);
+      font-weight: 600;
+    }
+  </style>
+
+  <div class="q-section__inner">
+    {% if s.kicker != blank or s.heading != blank or s.body != blank %}
+      <header class="q-section__header q-section__header--{{ s.content_align }}">
+        {% if s.kicker != blank %}<p class="q-section__kicker">{{ s.kicker | escape }}</p>{% endif %}
+        {% if s.heading != blank %}<h2 class="q-section__heading">{{ s.heading | escape }}</h2>{% endif %}
+        {% if s.body != blank %}
+          <div class="q-section__body"><p>{{ s.body | escape }}</p></div>
+        {% endif %}
+      </header>
+    {% endif %}
+
+    <div
+      class="q-third-party-crm-lead-form__wrap"
+      data-q-form-wrap="1"
+      data-btn-variant="q-btn--solid"
+      {% if s.enable_attribution and s.attrib_create %}data-q-attrib-create="1"{% endif %}
+      {% if s.enable_pack_tags == false %}data-q-pack-tags="0"{% endif %}
+      {% if eff_captcha_mode != blank %}data-captcha="{{ eff_captcha_mode | escape }}"{% endif %}
+      {% if eff_captcha_key != blank %}data-captcha-key="{{ eff_captcha_key | escape }}"{% endif %}
+      {% if s.msg_error != blank %}data-msg-error="{{ s.msg_error | escape }}"{% endif %}
+    >
+      <div class="q-live" role="status" aria-live="polite"></div>
+
+      <form
+        action="{{ s.action_url | escape }}"
+        method="{{ s.method | default: 'post' }}"
+        class="q-form q-form--crm-lead q-form--layout-{{ s.form_layout }}"
+        novalidate
+      >
+        {% if s.include_default_tags and s.tags_field_name != blank and s.tags_value != blank %}
+          <input type="hidden" name="{{ s.tags_field_name | escape }}" value="{{ s.tags_value | escape }}">
+        {% endif %}
+
+        {% if s.enable_attribution and s.include_attribution_fields %}
+          <input type="hidden" name="utm_source" value="">
+          <input type="hidden" name="utm_medium" value="">
+          <input type="hidden" name="utm_campaign" value="">
+          <input type="hidden" name="utm_content" value="">
+          <input type="hidden" name="utm_term" value="">
+          <input type="hidden" name="referrer" value="">
+          <input type="hidden" name="page_url" value="">
+          <input type="hidden" name="timestamp" value="">
+        {% endif %}
+
+        <div class="q-form__grid q-form__grid--{{ s.form_columns }}">
+          {% if s.show_name %}
+            <div class="q-form__field q-form__field--name{% if s.name_required %} q-form__field--required{% endif %}" data-q-field {% if s.name_required %}data-required="true"{% endif %}>
+              <label for="crm-name-{{ section.id }}" class="q-label">{{ s.label_name | escape }}</label>
+              <input
+                id="crm-name-{{ section.id }}"
+                type="text"
+                name="{{ s.name_field_name | escape }}"
+                class="q-input"
+                autocomplete="name"
+                {% if s.name_placeholder != blank %}placeholder="{{ s.name_placeholder | escape }}"{% endif %}
+                {% if s.name_required %}required{% endif %}
+                aria-describedby="crm-name-{{ section.id }}-err"
+              >
+              <p id="crm-name-{{ section.id }}-err" class="q-error" aria-live="polite"></p>
+            </div>
+          {% endif %}
+
+          {% if s.show_email %}
+            <div class="q-form__field q-form__field--email{% if s.email_required %} q-form__field--required{% endif %}" data-q-field {% if s.email_required %}data-required="true"{% endif %}>
+              <label for="crm-email-{{ section.id }}" class="q-label">{{ s.label_email | escape }}</label>
+              <input
+                id="crm-email-{{ section.id }}"
+                type="email"
+                name="{{ s.email_field_name | escape }}"
+                class="q-input"
+                autocomplete="email"
+                inputmode="email"
+                {% if s.email_placeholder != blank %}placeholder="{{ s.email_placeholder | escape }}"{% endif %}
+                {% if s.email_required %}required{% endif %}
+                aria-describedby="crm-email-{{ section.id }}-err"
+              >
+              <p id="crm-email-{{ section.id }}-err" class="q-error" aria-live="polite"></p>
+            </div>
+          {% endif %}
+
+          {% if s.show_phone %}
+            <div class="q-form__field q-form__field--phone{% if s.phone_required %} q-form__field--required{% endif %}" data-q-field {% if s.phone_required %}data-required="true"{% endif %}>
+              <label for="crm-phone-{{ section.id }}" class="q-label">{{ s.label_phone | escape }}</label>
+              <input
+                id="crm-phone-{{ section.id }}"
+                type="tel"
+                name="{{ s.phone_field_name | escape }}"
+                class="q-input"
+                autocomplete="tel"
+                inputmode="tel"
+                {% if s.phone_placeholder != blank %}placeholder="{{ s.phone_placeholder | escape }}"{% endif %}
+                {% if s.phone_required %}required{% endif %}
+                aria-describedby="crm-phone-{{ section.id }}-err"
+              >
+              <p id="crm-phone-{{ section.id }}-err" class="q-error" aria-live="polite"></p>
+            </div>
+          {% endif %}
+        </div>
+
+        {% if s.show_message %}
+          <div class="q-form__field q-form__field--message q-form__field--full{% if s.message_required %} q-form__field--required{% endif %}" data-q-field {% if s.message_required %}data-required="true"{% endif %} style="margin-top: 14px;">
+            <label for="crm-message-{{ section.id }}" class="q-label">{{ s.label_message | escape }}</label>
+            <textarea
+              id="crm-message-{{ section.id }}"
+              name="{{ s.message_field_name | escape }}"
+              class="q-textarea"
+              rows="5"
+              {% if s.message_placeholder != blank %}placeholder="{{ s.message_placeholder | escape }}"{% endif %}
+              {% if s.message_required %}required{% endif %}
+              aria-describedby="crm-message-{{ section.id }}-err"
+            ></textarea>
+            <p id="crm-message-{{ section.id }}-err" class="q-error" aria-live="polite"></p>
+          </div>
+        {% endif %}
+
+        {% assign has_visible_blocks = false %}
+        {% for block in section.blocks %}
+          {% if block.type != 'hidden_field' %}
+            {% assign has_visible_blocks = true %}
+            {% break %}
+          {% endif %}
+        {% endfor %}
+
+        {% if has_visible_blocks %}
+          <div class="q-form__grid q-form__grid--{{ s.custom_fields_columns }}" style="margin-top: 14px;">
+            {% for block in section.blocks %}
+              {% assign b = block.settings %}
+
+              {% if block.type == 'text_field' %}
+                <div class="q-form__field{% if b.required %} q-form__field--required{% endif %}" data-q-field {% if b.required %}data-required="true"{% endif %} {{ block.shopify_attributes }}>
+                  <label for="crm-{{ block.id }}-{{ section.id }}" class="q-label">{{ b.label | escape }}</label>
+                  <input
+                    id="crm-{{ block.id }}-{{ section.id }}"
+                    type="text"
+                    name="{{ b.name | escape }}"
+                    class="q-input"
+                    {% if b.placeholder != blank %}placeholder="{{ b.placeholder | escape }}"{% endif %}
+                    {% if b.required %}required{% endif %}
+                    aria-describedby="crm-{{ block.id }}-{{ section.id }}-err"
+                  >
+                  <p id="crm-{{ block.id }}-{{ section.id }}-err" class="q-error" aria-live="polite"></p>
+                </div>
+
+              {% elsif block.type == 'select_field' %}
+                <div class="q-form__field{% if b.required %} q-form__field--required{% endif %}" data-q-field {% if b.required %}data-required="true"{% endif %} {{ block.shopify_attributes }}>
+                  <label for="crm-{{ block.id }}-{{ section.id }}" class="q-label">{{ b.label | escape }}</label>
+                  <select
+                    id="crm-{{ block.id }}-{{ section.id }}"
+                    name="{{ b.name | escape }}"
+                    class="q-input q-input--select"
+                    {% if b.required %}required{% endif %}
+                    aria-describedby="crm-{{ block.id }}-{{ section.id }}-err"
+                  >
+                    <option value="">{% if b.placeholder != blank %}{{ b.placeholder | escape }}{% else %}Select an option{% endif %}</option>
+                    {% assign options = b.options | split: '\n' %}
+                    {% for option in options %}
+                      {% assign opt = option | strip %}
+                      {% if opt != blank %}
+                        <option value="{{ opt | escape }}">{{ opt | escape }}</option>
+                      {% endif %}
+                    {% endfor %}
+                  </select>
+                  <p id="crm-{{ block.id }}-{{ section.id }}-err" class="q-error" aria-live="polite"></p>
+                </div>
+
+              {% elsif block.type == 'checkbox_field' %}
+                <div class="q-form__field q-form__field--checkbox" data-q-field {{ block.shopify_attributes }}>
+                  <label class="q-checkbox" style="display:flex; gap:10px; align-items:flex-start; padding:10px 0;">
+                    <input
+                      type="checkbox"
+                      name="{{ b.name | escape }}"
+                      class="q-checkbox__input"
+                      {% if b.checked_by_default %}checked{% endif %}
+                      style="margin-top:3px;"
+                    >
+                    <span class="q-checkbox__label" style="opacity:.9;">{{ b.label | escape }}</span>
+                  </label>
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {% for block in section.blocks %}
+          {% assign b = block.settings %}
+          {% if block.type == 'hidden_field' %}
+            <input
+              type="hidden"
+              name="{{ b.name | escape }}"
+              value="{{ b.value | escape }}"
+              {{ block.shopify_attributes }}
+            >
+          {% endif %}
+        {% endfor %}
+
+        {% if s.legal_text != blank %}
+          <p class="q-form__legal">{{ s.legal_text | escape }}</p>
+        {% endif %}
+
+        <div class="q-form__actions q-form__actions--{{ s.actions_align }}">
+          <button type="submit" class="q-btn q-btn--solid q-button q-button--primary">
+            {{ s.submit_label | escape }}
+          </button>
+        </div>
+
+        {% if s.subtext != blank %}
+          <p class="q-form__subtext q-form__subtext--{{ s.content_align }}">
+            {{ s.subtext | escape }}
+          </p>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{% schema %}
+{
+  "name": "3rd Party - CRM Lead Form",
+  "tag": "section",
+  "class": "q-section q-third-party-crm-lead-form",
+  "settings": [
+    { "type": "checkbox", "id": "enable_section", "label": "Enable section", "default": true },
+
+    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Start your quote" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Tell us about your project" },
+    { "type": "textarea", "id": "body", "label": "Intro text", "default": "Answer a few quick questions and we’ll connect you with the best option for your needs." },
+
+    { "type": "text", "id": "action_url", "label": "Form action URL (CRM endpoint)", "default": "https://example.com/external-form-endpoint" },
+    {
+      "type": "select",
+      "id": "method",
+      "label": "HTTP method",
+      "default": "post",
+      "options": [
+        { "value": "post", "label": "POST" },
+        { "value": "get", "label": "GET" }
+      ]
+    },
+
+    { "type": "header", "content": "Core fields" },
+
+    { "type": "checkbox", "id": "show_name", "label": "Show name field", "default": true },
+    { "type": "checkbox", "id": "name_required", "label": "Name required", "default": true },
+    { "type": "text", "id": "label_name", "label": "Name label", "default": "Full name" },
+    { "type": "text", "id": "name_placeholder", "label": "Name placeholder", "default": "Jane Doe" },
+    { "type": "text", "id": "name_field_name", "label": "Name field name (CRM param)", "default": "name" },
+
+    { "type": "checkbox", "id": "show_email", "label": "Show email field", "default": true },
+    { "type": "checkbox", "id": "email_required", "label": "Email required", "default": true },
+    { "type": "text", "id": "label_email", "label": "Email label", "default": "Email address" },
+    { "type": "text", "id": "email_placeholder", "label": "Email placeholder", "default": "you@example.com" },
+    { "type": "text", "id": "email_field_name", "label": "Email field name (CRM param)", "default": "email" },
+
+    { "type": "checkbox", "id": "show_phone", "label": "Show phone field", "default": true },
+    { "type": "checkbox", "id": "phone_required", "label": "Phone required", "default": false },
+    { "type": "text", "id": "label_phone", "label": "Phone label", "default": "Phone number" },
+    { "type": "text", "id": "phone_placeholder", "label": "Phone placeholder", "default": "(555) 555-5555" },
+    { "type": "text", "id": "phone_field_name", "label": "Phone field name (CRM param)", "default": "phone" },
+
+    { "type": "checkbox", "id": "show_message", "label": "Show message field", "default": true },
+    { "type": "checkbox", "id": "message_required", "label": "Message required", "default": false },
+    { "type": "text", "id": "label_message", "label": "Message label", "default": "How can we help?" },
+    { "type": "text", "id": "message_placeholder", "label": "Message placeholder", "default": "Tell us what you’re looking for…" },
+    { "type": "text", "id": "message_field_name", "label": "Message field name (CRM param)", "default": "message" },
+
+    { "type": "header", "content": "Theme settings integration" },
+    {
+      "type": "select",
+      "id": "captcha_mode",
+      "label": "Captcha mode",
+      "default": "inherit",
+      "options": [
+        { "value": "inherit", "label": "Inherit global (Theme settings)" },
+        { "value": "none", "label": "None" },
+        { "value": "turnstile", "label": "Cloudflare Turnstile" },
+        { "value": "recaptcha_v3", "label": "reCAPTCHA v3" }
+      ]
+    },
+    { "type": "text", "id": "captcha_site_key", "label": "Captcha site key (override optional)" },
+
+    { "type": "checkbox", "id": "enable_attribution", "label": "Enable attribution capture (UTMs/referrer/page)", "default": true },
+    { "type": "checkbox", "id": "include_attribution_fields", "label": "Render attribution hidden inputs (recommended)", "default": true },
+    { "type": "checkbox", "id": "attrib_create", "label": "Allow JS to create missing attribution inputs", "default": true },
+
+    { "type": "checkbox", "id": "include_default_tags", "label": "Include default tags hidden field", "default": false },
+    { "type": "text", "id": "tags_field_name", "label": "Tags field name (CRM param)", "default": "tags" },
+    { "type": "text", "id": "tags_value", "label": "Tags value", "default": "form, web" },
+
+    { "type": "checkbox", "id": "enable_pack_tags", "label": "Enable JS tag packing (only affects contact[tags] if present)", "default": true },
+
+    { "type": "header", "content": "Layout & styling" },
+    {
+      "type": "select",
+      "id": "content_align",
+      "label": "Content alignment",
+      "default": "left",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "form_layout",
+      "label": "Form layout style",
+      "default": "card",
+      "options": [
+        { "value": "stacked", "label": "Stacked" },
+        { "value": "card", "label": "Card" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "form_columns",
+      "label": "Core fields columns",
+      "default": "2",
+      "options": [
+        { "value": "1", "label": "Single column" },
+        { "value": "2", "label": "Two columns (desktop)" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "custom_fields_columns",
+      "label": "Custom fields columns",
+      "default": "2",
+      "options": [
+        { "value": "1", "label": "Single column" },
+        { "value": "2", "label": "Two columns (desktop)" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "background_style",
+      "label": "Background style",
+      "default": "surface",
+      "options": [
+        { "value": "surface", "label": "Surface" },
+        { "value": "contrast", "label": "Contrast" },
+        { "value": "brand", "label": "Brand color" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "max_width",
+      "label": "Content width",
+      "default": "md",
+      "options": [
+        { "value": "sm", "label": "Narrow" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Wide" }
+      ]
+    },
+
+    { "type": "header", "content": "Submit & legal" },
+    { "type": "text", "id": "submit_label", "label": "Submit button label", "default": "Submit" },
+    { "type": "textarea", "id": "legal_text", "label": "Legal / consent text", "default": "By submitting this form you agree to be contacted about your request. You can unsubscribe at any time." },
+    { "type": "textarea", "id": "subtext", "label": "Post-form helper text", "default": "We usually respond within one business day." },
+    {
+      "type": "select",
+      "id": "actions_align",
+      "label": "Button alignment",
+      "default": "left",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ]
+    },
+
+    { "type": "text", "id": "msg_error", "label": "Validation message (inline)", "default": "Please fix the highlighted fields and try again." },
+    { "type": "text", "id": "aria_label", "label": "Section aria label", "default": "CRM lead capture form" }
+  ],
+  "blocks": [
+    {
+      "type": "text_field",
+      "name": "Custom text field",
+      "settings": [
+        { "type": "text", "id": "label", "label": "Field label", "default": "Custom text field" },
+        { "type": "text", "id": "name", "label": "Field name (CRM param)", "default": "custom_text_field" },
+        { "type": "text", "id": "placeholder", "label": "Placeholder", "default": "Contact Us Today For Inquiries" },
+        { "type": "checkbox", "id": "required", "label": "Required", "default": false }
+      ]
+    },
+    {
+      "type": "select_field",
+      "name": "Custom select field",
+      "settings": [
+        { "type": "text", "id": "label", "label": "Field label", "default": "Select an option" },
+        { "type": "text", "id": "name", "label": "Field name (CRM param)", "default": "custom_select_field" },
+        { "type": "text", "id": "placeholder", "label": "Placeholder (blank option)", "default": "Select an option" },
+        { "type": "textarea", "id": "options", "label": "Options (one per line)", "default": "Option A\nOption B\nOption C" },
+        { "type": "checkbox", "id": "required", "label": "Required", "default": false }
+      ]
+    },
+    {
+      "type": "checkbox_field",
+      "name": "Custom checkbox field",
+      "settings": [
+        { "type": "text", "id": "label", "label": "Field label", "default": "I agree to receive updates" },
+        { "type": "text", "id": "name", "label": "Field name (CRM param)", "default": "custom_checkbox_field" },
+        { "type": "checkbox", "id": "checked_by_default", "label": "Checked by default", "default": false }
+      ]
+    },
+    {
+      "type": "hidden_field",
+      "name": "Hidden metadata field",
+      "settings": [
+        { "type": "text", "id": "name", "label": "Field name (CRM param)", "default": "source" },
+        { "type": "text", "id": "value", "label": "Hidden value", "default": "quadratum_crm_lead_form" }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "3rd Party - CRM Lead Capture Form",
+      "category": "3rd Party Integrations"
+    }
+  ]
+}
+{% endschema %}
+

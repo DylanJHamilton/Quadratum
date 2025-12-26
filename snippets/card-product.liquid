@@ -1,0 +1,216 @@
+{% comment %}
+  Quadratum — Snippet: Card Product (Compat Wrapper / Canonical Tile)
+  File: snippets/card-product.liquid
+
+  Purpose:
+  - Provide a canonical product tile for sections to render reliably.
+  - Token-driven styling; safe defaults; no external dependencies.
+
+  Accepts:
+  - product (required)
+  - show_warehouse_chip (bool)
+  - warehouse_label (string)
+  - warehouse_code (string)
+  - warehouse_chip_position (string: card_top_left | card_top_right | below_title)
+
+  Optional (safe):
+  - card_aspect (string e.g. "1/1", "4/5", "3/2") default "4/5"
+  - show_vendor (bool) default false
+  - show_price (bool) default true
+{% endcomment %}
+
+{%- assign p = product -%}
+{%- if p == blank -%}{% break %}{%- endif -%}
+
+{%- assign show_vendor = show_vendor | default: false -%}
+{%- assign show_price  = show_price  | default: true -%}
+
+{%- assign show_chip = show_warehouse_chip | default: false -%}
+{%- assign chip_label = warehouse_label | default: '' -%}
+{%- assign chip_pos = warehouse_chip_position | default: 'card_top_left' -%}
+
+{%- assign aspect = card_aspect | default: '4/5' -%}
+
+{%- unless q_card_product_css_included -%}
+  {%- assign q_card_product_css_included = true -%}
+  <style>
+    .q-card-product{
+      position: relative;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      text-decoration: none;
+      color: inherit;
+      background: var(--q-card-product-bg, var(--q-surface-2, rgba(0,0,0,.03)));
+      border-radius: var(--q-radius-card, var(--q-radius-lg, 16px));
+      overflow: hidden;
+      box-shadow: var(--q-shadow-soft, 0 10px 28px rgba(0,0,0,.10));
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+    .q-card-product:hover{
+      transform: translateY(-2px);
+      box-shadow: var(--q-shadow-soft-hover, 0 14px 34px rgba(0,0,0,.14));
+    }
+
+    .q-card-product__media{
+      position: relative;
+      width: 100%;
+      aspect-ratio: var(--q-card-product-aspect, 4/5);
+      background: var(--q-surface-1, rgba(0,0,0,.02));
+      overflow: hidden;
+    }
+    .q-card-product__media img{
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .q-card-product__content{
+      padding: var(--q-space-4, 16px);
+      display: grid;
+      gap: var(--q-space-2, 8px);
+      align-content: start;
+    }
+
+    .q-card-product__vendor{
+      font-size: var(--q-fs-xs, .85rem);
+      color: var(--q-text-muted, rgba(0,0,0,.65));
+      letter-spacing: var(--q-tracking-wide, .02em);
+      text-transform: uppercase;
+    }
+
+    .q-card-product__title{
+      font-size: var(--q-fs-md, 1rem);
+      line-height: 1.25;
+      font-weight: var(--q-fw-semibold, 600);
+      margin: 0;
+    }
+
+    .q-card-product__price{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: baseline;
+      font-size: var(--q-fs-sm, .95rem);
+    }
+    .q-card-product__price-current{
+      font-weight: var(--q-fw-semibold, 600);
+    }
+    .q-card-product__price-compare{
+      color: var(--q-text-muted, rgba(0,0,0,.65));
+      text-decoration: line-through;
+      font-size: var(--q-fs-xs, .9em);
+    }
+    .q-card-product__price-note{
+      color: var(--q-text-muted, rgba(0,0,0,.65));
+      font-size: var(--q-fs-xs, .9em);
+    }
+
+    .q-card-product__chip{
+      --q-card-chip-bg: var(--q-ware-chip-bg, var(--q-chip-bg, rgba(0,0,0,.08)));
+      --q-card-chip-text: var(--q-ware-strip-chip-text, var(--q-chip-text, currentColor));
+      position: absolute;
+      z-index: 2;
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: var(--q-fs-xs, .82rem);
+      line-height: 1;
+      background: var(--q-card-chip-bg);
+      color: var(--q-card-chip-text);
+      box-shadow: var(--q-shadow-soft, 0 8px 22px rgba(0,0,0,.10));
+      backdrop-filter: saturate(120%) blur(8px);
+      pointer-events: none;
+      max-width: calc(100% - 24px);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .q-card-product__chip--card_top_left{ top: 12px; left: 12px; }
+    .q-card-product__chip--card_top_right{ top: 12px; right: 12px; }
+    .q-card-product__chip--below{
+      position: static;
+      margin-top: var(--q-space-2, 8px);
+      width: fit-content;
+    }
+  </style>
+{%- endunless -%}
+
+{%- comment -%} Price math (robust, no dependencies) {%- endcomment -%}
+{%- assign price_min = p.price_min -%}
+{%- assign price_max = p.price_max -%}
+{%- assign compare_min = p.compare_at_price_min -%}
+{%- assign compare_max = p.compare_at_price_max -%}
+{%- assign price_varies = p.price_varies -%}
+{%- assign on_sale = false -%}
+{%- if compare_min > price_min -%}{%- assign on_sale = true -%}{%- endif -%}
+
+<a
+  class="q-card-product"
+  href="{{ p.url }}"
+  aria-label="{{ p.title | escape }}"
+  style="--q-card-product-aspect: {{ aspect }};"
+>
+  {%- if show_chip and chip_label != blank and chip_pos != 'below_title' -%}
+    <div class="q-card-product__chip q-card-product__chip--{{ chip_pos }}">
+      {{ chip_label }}
+    </div>
+  {%- endif -%}
+
+  <div class="q-card-product__media">
+    {%- if p.featured_media != blank -%}
+      {{ p.featured_media.preview_image
+        | image_url: width: 1000
+        | image_tag:
+          loading: 'lazy',
+          alt: p.featured_media.alt | default: p.title | escape
+      }}
+    {%- else -%}
+      <div style="width:100%;height:100%;display:grid;place-items:center;color:var(--q-text-muted,rgba(0,0,0,.6));font-size:var(--q-fs-sm,.95rem);">
+        No image
+      </div>
+    {%- endif -%}
+  </div>
+
+  <div class="q-card-product__content">
+    {%- if show_vendor and p.vendor != blank -%}
+      <div class="q-card-product__vendor">{{ p.vendor }}</div>
+    {%- endif -%}
+
+    <h3 class="q-card-product__title">{{ p.title }}</h3>
+
+    {%- if show_chip and chip_label != blank and chip_pos == 'below_title' -%}
+      <div class="q-card-product__chip q-card-product__chip--below">
+        {{ chip_label }}
+      </div>
+    {%- endif -%}
+
+    {%- if show_price -%}
+      <div class="q-card-product__price">
+        {%- if price_varies -%}
+          <span class="q-card-product__price-current">
+            {{ price_min | money }}
+          </span>
+          <span class="q-card-product__price-note">to {{ price_max | money }}</span>
+        {%- else -%}
+          <span class="q-card-product__price-current">
+            {{ p.price | money }}
+          </span>
+        {%- endif -%}
+
+        {%- if on_sale -%}
+          {%- if compare_max != blank and compare_max > price_max -%}
+            <span class="q-card-product__price-compare">
+              {{ compare_max | money }}
+            </span>
+          {%- elsif compare_min != blank and compare_min > price_min -%}
+            <span class="q-card-product__price-compare">
+              {{ compare_min | money }}
+            </span>
+          {%- endif -%}
+        {%- endif -%}
+      </div>
+    {%- endif -%}
+  </div>
+</a>
