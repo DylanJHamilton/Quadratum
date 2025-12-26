@@ -1,0 +1,533 @@
+{% comment %}
+  Quadratum — 3rd Party · Fulfilled By Partner Product Strip (Theme-only)
+  File: sections/third-party-fulfilled-by-partner-strip.liquid
+
+  • Native Shopify collection + optional tag filter (with safe fallback)
+  • Styled with Quadratum tokens (no bare HTML look)
+  • No external JS / no API calls / no new snippets/assets
+  • Layouts: strip | carousel (scroll-snap) | grid
+{% endcomment %}
+
+{%- assign s = section.settings -%}
+
+{%- liquid
+  assign should_render = false
+  if s.enable_section == true
+    assign should_render = true
+  endif
+
+  assign collection_handle = ''
+  if s.collection != blank
+    assign collection_handle = s.collection.handle | default: s.collection
+  endif
+
+  assign base_collection = blank
+  if collection_handle != blank
+    assign base_collection = collections[collection_handle]
+  endif
+
+  assign tag_filter = s.filter_tag | default: '' | strip
+  assign max_items = s.max_items | default: 4
+
+  assign has_products = false
+  if base_collection != blank and base_collection.products_count > 0
+    assign has_products = true
+  endif
+
+  assign tag_match_count = 0
+  if has_products and tag_filter != blank
+    for p in base_collection.products
+      if p.tags contains tag_filter
+        assign tag_match_count = tag_match_count | plus: 1
+      endif
+      if tag_match_count > 0
+        break
+      endif
+    endfor
+  endif
+
+  assign use_tag_filter = false
+  if tag_filter != blank and tag_match_count > 0
+    assign use_tag_filter = true
+  endif
+
+  assign sorted_products = blank
+  if base_collection != blank
+    assign sorted_products = base_collection.products
+
+    case s.sort_order
+      when 'price_asc'
+        assign sorted_products = base_collection.products | sort: 'price'
+      when 'price_desc'
+        assign sorted_products = base_collection.products | sort: 'price' | reverse
+      when 'created_desc'
+        assign sorted_products = base_collection.products | sort: 'created_at' | reverse
+      else
+        assign sorted_products = base_collection.products
+    endcase
+  endif
+
+  assign view_all_url = blank
+  if s.show_view_all_link == true
+    if s.view_all_url_mode == 'custom'
+      if s.view_all_custom_url != blank
+        assign view_all_url = s.view_all_custom_url
+      endif
+    else
+      if base_collection != blank
+        assign view_all_url = base_collection.url
+      endif
+    endif
+  endif
+-%}
+
+{%- if should_render -%}
+<section
+  id="fulfilled-strip-{{ section.id }}"
+  class="q-section q-section--products q-section--bg-{{ s.background_style }} q-section--layout-{{ s.layout_style }} q-section--align-{{ s.alignment }} q-fulfilled-strip"
+  aria-label="{{ s.aria_label | escape }}"
+  data-q-section="fulfilled-by-partner"
+>
+  <style>
+    #fulfilled-strip-{{ section.id }}{
+      --q-fs-pad-x: var(--q-pad-x, clamp(16px, 3vw, 32px));
+      --q-fs-pad-y: var(--q-pad-y, clamp(22px, 3vw, 44px));
+      --q-fs-gap: var(--q-gap-md, 16px);
+      --q-fs-radius: var(--q-radius-lg, var(--q-radius, 16px));
+      --q-fs-border: var(--q-border, rgba(0,0,0,0.12));
+      --q-fs-soft: var(--q-soft, rgba(0,0,0,0.05));
+      --q-fs-shadow: var(--q-shadow-md, 0 12px 28px rgba(0,0,0,0.08));
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-section__inner{
+      margin-inline: auto;
+      padding-inline: var(--q-fs-pad-x);
+      padding-block: var(--q-fs-pad-y);
+      max-width: var(--q-container-lg, 1200px);
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-section__header{ margin-bottom: 1rem; }
+    #fulfilled-strip-{{ section.id }}.q-section--align-center .q-section__header{ text-align: center; }
+
+    #fulfilled-strip-{{ section.id }} .q-kicker{
+      margin: 0 0 0.35rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.78;
+      font-size: var(--q-kicker-fs, 0.85rem);
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-heading--section{
+      margin: 0;
+      font-size: var(--q-heading-2-fs, clamp(1.55rem, 2.3vw, 2.15rem));
+      line-height: 1.12;
+      letter-spacing: -0.01em;
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__partner{
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      margin-top: 0.75rem;
+      padding: 0.4rem 0.65rem;
+      border-radius: 999px;
+      border: 1px solid var(--q-fs-border);
+      background: var(--q-fs-soft);
+    }
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__partner-logo{
+      display: block;
+      width: auto;
+      height: auto;
+      max-height: 28px;
+    }
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__partner-name{
+      font-weight: 650;
+      font-size: 0.95rem;
+      opacity: 0.9;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__body{
+      margin-top: 0.85rem;
+      max-width: 80ch;
+      font-size: var(--q-body-fs, 1.02rem);
+      line-height: var(--q-body-lh, 1.7);
+      opacity: 0.92;
+    }
+    #fulfilled-strip-{{ section.id }}.q-section--align-center .q-fulfilled-strip__body{ margin-inline: auto; }
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__body.rte p{ margin: 0 0 0.75rem; }
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__body.rte p:last-child{ margin-bottom: 0; }
+
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__note{
+      margin-top: 0.65rem;
+      opacity: 0.75;
+      font-size: 0.96rem;
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products{
+      margin-top: 1.05rem;
+      gap: var(--q-fs-gap);
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products--strip{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products--grid{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    @media (min-width: 750px){
+      #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products--grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (min-width: 990px){
+      #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products--grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products--carousel{
+      display: flex;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x mandatory;
+      padding-bottom: 0.25rem;
+    }
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products--carousel:focus-visible{
+      outline: 2px solid currentColor;
+      outline-offset: 3px;
+      border-radius: var(--q-fs-radius);
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__card{ min-width: 72%; scroll-snap-align: start; }
+    @media (min-width: 750px){ #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__card{ min-width: 40%; } }
+    @media (min-width: 990px){ #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__card{ min-width: 28%; } }
+
+    #fulfilled-strip-{{ section.id }} .q-product-card{
+      position: relative;
+      border-radius: var(--q-fs-radius);
+      border: 1px solid var(--q-fs-border);
+      background: var(--q-surface, #fff);
+      box-shadow: var(--q-fs-shadow);
+      overflow: hidden;
+      height: 100%;
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-product-card__link{
+      display: grid;
+      grid-template-rows: auto 1fr;
+      text-decoration: none;
+      color: inherit;
+      height: 100%;
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-product-card__media{
+      position: relative;
+      aspect-ratio: 4 / 3;
+      background: var(--q-fs-soft);
+      overflow: hidden;
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-product-card__img{
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transform: scale(1);
+      transition: transform 160ms ease;
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-product-card__info{
+      padding: 0.9rem 0.95rem 1rem;
+      display: grid;
+      gap: 0.35rem;
+      align-content: start;
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-product-card__title{
+      margin: 0;
+      font-size: 1.02rem;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+      font-weight: 650;
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-product-card__price{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      align-items: baseline;
+      opacity: 0.92;
+      font-size: 0.98rem;
+    }
+    #fulfilled-strip-{{ section.id }} .q-product-card__compare{
+      opacity: 0.6;
+      text-decoration: line-through;
+      font-size: 0.95rem;
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-product-card__link:focus-visible{
+      outline: 2px solid currentColor;
+      outline-offset: 3px;
+      border-radius: calc(var(--q-fs-radius) - 2px);
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-product-card:hover .q-product-card__img{ transform: scale(1.03); }
+    @media (prefers-reduced-motion: reduce){
+      #fulfilled-strip-{{ section.id }} .q-product-card__img{ transition: none; }
+      #fulfilled-strip-{{ section.id }} .q-product-card:hover .q-product-card__img{ transform: none; }
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-badge{
+      display: inline-flex;
+      align-items: center;
+      padding: 0.35rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.86rem;
+      line-height: 1.1;
+      border: 1px solid var(--q-fs-border);
+      background: var(--q-fs-soft);
+      font-weight: 650;
+      letter-spacing: -0.005em;
+    }
+    #fulfilled-strip-{{ section.id }} .q-badge--partner{
+      position: absolute;
+      top: 0.65rem;
+      left: 0.65rem;
+      z-index: 2;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-section__footer{ margin-top: 1.1rem; }
+    #fulfilled-strip-{{ section.id }}.q-section--align-center .q-section__footer{ text-align: center; }
+    #fulfilled-strip-{{ section.id }} .q-link{ text-decoration: none; font-weight: 650; }
+    #fulfilled-strip-{{ section.id }} .q-link--inline{ opacity: 0.85; }
+    #fulfilled-strip-{{ section.id }} .q-link--inline:hover{
+      opacity: 1;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    #fulfilled-strip-{{ section.id }} .q-link:focus-visible{
+      outline: 2px solid currentColor;
+      outline-offset: 3px;
+      border-radius: 8px;
+    }
+
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__placeholder{
+      margin-top: 0.9rem;
+      padding: 0.9rem 1rem;
+      border: 1px dashed var(--q-fs-border);
+      border-radius: var(--q-fs-radius);
+      background: var(--q-fs-soft);
+      opacity: 0.85;
+    }
+  </style>
+
+  <div class="q-section__inner">
+    <div class="q-section__header q-section__header--{{ s.alignment }}">
+      {%- if s.kicker != blank -%}
+        <p class="q-kicker">{{ s.kicker | escape }}</p>
+      {%- endif -%}
+
+      {%- if s.heading != blank -%}
+        <h2 class="q-heading q-heading--section">{{ s.heading | escape }}</h2>
+      {%- endif -%}
+
+      {%- if s.show_partner_logo and s.partner_logo != blank -%}
+        {%- assign partner_alt = s.partner_name | default: 'Partner logo' | strip | escape -%}
+        <div class="q-fulfilled-strip__partner">
+          {{ s.partner_logo | image_url: width: 160 | image_tag: loading: 'lazy', class: 'q-fulfilled-strip__partner-logo', alt: partner_alt }}
+          {%- if s.partner_name != blank -%}
+            <span class="q-fulfilled-strip__partner-name">{{ s.partner_name | escape }}</span>
+          {%- endif -%}
+        </div>
+      {%- endif -%}
+
+      {%- if s.body != blank -%}
+        <div class="q-fulfilled-strip__body rte">
+          {{ s.body }}
+        </div>
+      {%- endif -%}
+
+      {%- if s.shipping_note != blank -%}
+        <div class="q-fulfilled-strip__note">{{ s.shipping_note | escape }}</div>
+      {%- endif -%}
+    </div>
+
+    {%- if has_products -%}
+      <div class="q-section__body">
+        <div
+          class="q-fulfilled-strip__products q-fulfilled-strip__products--{{ s.layout_style }}"
+          {% if s.layout_style == 'carousel' %}tabindex="0"{% endif %}
+          role="list"
+          aria-label="{{ s.aria_label | escape }}"
+        >
+          {%- assign shown = 0 -%}
+          {%- for product in sorted_products -%}
+            {%- if shown >= max_items -%}{%- break -%}{%- endif -%}
+
+            {%- assign include_product = true -%}
+            {%- if use_tag_filter -%}
+              {%- if product.tags contains tag_filter -%}
+                {%- assign include_product = true -%}
+              {%- else -%}
+                {%- assign include_product = false -%}
+              {%- endif -%}
+            {%- endif -%}
+
+            {%- if include_product -%}
+              {%- assign shown = shown | plus: 1 -%}
+              {%- assign img_alt = product.featured_image.alt | default: product.title | strip | escape -%}
+
+              <article class="q-product-card q-fulfilled-strip__card" role="listitem">
+                <a class="q-product-card__link" href="{{ product.url }}">
+                  <div class="q-product-card__media">
+                    {%- if s.fulfilled_badge_text != blank -%}
+                      <span class="q-badge q-badge--partner">{{ s.fulfilled_badge_text | escape }}</span>
+                    {%- endif -%}
+
+                    {%- if product.featured_image != blank -%}
+                      {{ product.featured_image
+                        | image_url: width: 900
+                        | image_tag:
+                          class: 'q-product-card__img',
+                          loading: 'lazy',
+                          alt: img_alt,
+                          widths: '360,540,720,900',
+                          sizes: '(min-width: 990px) 320px, (min-width: 750px) 38vw, 72vw'
+                      }}
+                    {%- endif -%}
+                  </div>
+
+                  <div class="q-product-card__info">
+                    <h3 class="q-product-card__title">{{ product.title | escape }}</h3>
+
+                    <div class="q-product-card__price">
+                      {%- if product.compare_at_price_max > product.price -%}
+                        <span class="q-product-card__compare">{{ product.compare_at_price_max | money }}</span>
+                      {%- endif -%}
+                      <span class="q-product-card__current">{{ product.price | money }}</span>
+                    </div>
+                  </div>
+                </a>
+              </article>
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+      </div>
+    {%- elsif request.design_mode -%}
+      <div class="q-fulfilled-strip__placeholder">
+        <strong>Setup required:</strong> Select a collection (and optional tag) to display products.
+      </div>
+    {%- endif -%}
+
+    {%- if view_all_url != blank and has_products -%}
+      <div class="q-section__footer q-fulfilled-strip__footer">
+        <a href="{{ view_all_url }}" class="q-link q-link--inline">
+          {{ s.view_all_label | escape }}
+        </a>
+      </div>
+    {%- endif -%}
+  </div>
+</section>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "3P - Partner Strip",
+  "tag": "section",
+  "class": "q-section q-fulfilled-strip",
+  "settings": [
+    { "type": "checkbox", "id": "enable_section", "label": "Enable section", "default": true },
+    { "type": "text", "id": "aria_label", "label": "Section aria-label", "default": "Fulfilled by partner product strip" },
+
+    { "type": "header", "content": "Content" },
+    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Fulfilled by partner" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Fast-shipping items from our partners" },
+    { "type": "richtext", "id": "body", "label": "Body text", "default": "<p>These products ship directly from our partner network for faster delivery and reliable fulfillment.</p>" },
+    { "type": "text", "id": "shipping_note", "label": "Shipping note", "default": "Ships directly from our partner locations." },
+
+    { "type": "header", "content": "Partner labeling" },
+    { "type": "text", "id": "partner_name", "label": "Partner / network name", "default": "Our fulfillment partners" },
+    { "type": "text", "id": "fulfilled_badge_text", "label": "Badge text", "default": "Fulfilled by partner" },
+    { "type": "checkbox", "id": "show_partner_logo", "label": "Show partner logo", "default": false },
+    { "type": "image_picker", "id": "partner_logo", "label": "Partner logo" },
+
+    { "type": "header", "content": "Products source" },
+    { "type": "collection", "id": "collection", "label": "Product collection" },
+    { "type": "text", "id": "filter_tag", "label": "Filter by product tag (optional)", "default": "fast-ship" },
+    { "type": "range", "id": "max_items", "label": "Max products to show", "min": 2, "max": 12, "step": 1, "default": 4 },
+    {
+      "type": "select",
+      "id": "sort_order",
+      "label": "Sort order (fallback)",
+      "default": "collection_default",
+      "options": [
+        { "value": "collection_default", "label": "Collection default" },
+        { "value": "best_selling", "label": "Best selling" },
+        { "value": "price_asc", "label": "Price, low to high" },
+        { "value": "price_desc", "label": "Price, high to low" },
+        { "value": "created_desc", "label": "Newest first" }
+      ]
+    },
+
+    { "type": "header", "content": "Layout & styling" },
+    {
+      "type": "select",
+      "id": "layout_style",
+      "label": "Layout style",
+      "default": "strip",
+      "options": [
+        { "value": "strip", "label": "Strip" },
+        { "value": "carousel", "label": "Carousel" },
+        { "value": "grid", "label": "Grid" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "background_style",
+      "label": "Background style",
+      "default": "surface",
+      "options": [
+        { "value": "surface", "label": "Surface" },
+        { "value": "contrast", "label": "Contrast" },
+        { "value": "brand", "label": "Brand color" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "alignment",
+      "label": "Content alignment",
+      "default": "left",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" }
+      ]
+    },
+
+    { "type": "header", "content": "View all link" },
+    { "type": "checkbox", "id": "show_view_all_link", "label": "Show \"View all\" link", "default": true },
+    { "type": "text", "id": "view_all_label", "label": "\"View all\" label", "default": "View all partner products" },
+    {
+      "type": "select",
+      "id": "view_all_url_mode",
+      "label": "\"View all\" link destination",
+      "default": "collection",
+      "options": [
+        { "value": "collection", "label": "Selected collection" },
+        { "value": "custom", "label": "Custom URL" }
+      ]
+    },
+    { "type": "url", "id": "view_all_custom_url", "label": "Custom \"View all\" URL" }
+  ],
+  "blocks": [],
+  "presets": [
+    {
+      "name": "3rd Party - Partner Fulfillment Strip-",
+      "category": "3rd Party Integrations"
+    }
+  ]
+}
+{% endschema %}
