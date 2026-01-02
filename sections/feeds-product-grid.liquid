@@ -1,0 +1,718 @@
+{% comment %}
+  Quadratum — Feed · Product Grid
+  File: sections/feeds-product-grid.liquid
+
+  CRITICAL:
+  • Must use shared snippet: product-card
+  • One grid powers shop / collection / landing feeds
+  • Progressive enhancement: initial render works without JS
+
+  Notes:
+  • Sorting override uses Shopify-native sort_by query param.
+  • For override, we redirect (JS) to ensure server-side sort matches.
+  • Load more / infinite fetches next page HTML and appends items.
+{% endcomment %}
+
+{%- liquid
+  assign sid = section.id
+  assign source_mode = section.settings.source_mode
+
+  assign feed_collection = nil
+  if source_mode == 'collection'
+    assign feed_collection = section.settings.collection
+  elsif source_mode == 'dynamic_collection'
+    if collection
+      assign feed_collection = collection
+    endif
+  endif
+
+  assign products_per_page = section.settings.products_per_page | default: 16
+
+  assign cols_m = section.settings.columns_mobile | default: 2
+  assign cols_t = section.settings.columns_tablet | default: 3
+  assign cols_d = section.settings.columns_desktop | default: 4
+
+  assign density = section.settings.card_density | default: 'comfortable'
+
+  assign sort_order = section.settings.sort_order | default: 'inherit'
+  assign pagination_mode = section.settings.pagination_mode | default: 'pagination'
+
+  assign show_filters_toggle = section.settings.enable_filters_toggle
+
+  assign show_badges = section.settings.show_badges
+  assign badge_sale = section.settings.badge_sale
+  assign badge_new = section.settings.badge_new
+  assign badge_tags = section.settings.badge_tags
+  assign badge_fulfilled = section.settings.badge_fulfilled
+
+  assign price_mode = section.settings.price_mode | default: 'simple'
+  assign enable_quick_add = section.settings.enable_quick_add
+  assign enable_quick_view = section.settings.enable_quick_view
+
+  assign has_filters = false
+  if feed_collection
+    if feed_collection.filters and feed_collection.filters.size > 0
+      assign has_filters = true
+    endif
+  endif
+
+  assign density_class = 'q-density--comfortable'
+  if density == 'compact'
+    assign density_class = 'q-density--compact'
+  endif
+
+  assign pe_class = 'q-pe--pagination'
+  if pagination_mode == 'load_more'
+    assign pe_class = 'q-pe--loadmore'
+  elsif pagination_mode == 'infinite'
+    assign pe_class = 'q-pe--infinite'
+  endif
+
+  assign sort_by_param = ''
+  if sort_order != 'inherit'
+    assign sort_by_param = sort_order
+  endif
+-%}
+
+<section
+  class="q-feed q-feed-product-grid {{ density_class }} {{ pe_class }}"
+  data-section-id="{{ sid }}"
+  data-feed="product-grid"
+  data-pagination-mode="{{ pagination_mode }}"
+  data-sort-order="{{ sort_order }}"
+  data-sort-by="{{ sort_by_param }}"
+  data-products-per-page="{{ products_per_page }}"
+  style="
+    --q-feed-cols-m: {{ cols_m }};
+    --q-feed-cols-t: {{ cols_t }};
+    --q-feed-cols-d: {{ cols_d }};
+  "
+>
+  <div class="q-feed__inner">
+    {%- if section.settings.show_header -%}
+      <header class="q-feed__header">
+        <div class="q-feed__header-left">
+          {%- if section.settings.heading != blank -%}
+            <h2 class="q-feed__heading">{{ section.settings.heading }}</h2>
+          {%- endif -%}
+          {%- if section.settings.subheading != blank -%}
+            <div class="q-feed__subheading">{{ section.settings.subheading }}</div>
+          {%- endif -%}
+        </div>
+
+        {%- if show_filters_toggle and has_filters -%}
+          <button
+            type="button"
+            class="q-feed__filters-toggle"
+            data-filters-toggle
+            aria-expanded="false"
+          >
+            {{ section.settings.filters_toggle_label | default: 'Filters' }}
+          </button>
+        {%- endif -%}
+      </header>
+    {%- endif -%}
+
+    {%- if feed_collection == nil -%}
+      <div class="q-feed__empty" role="status">
+        <h3 class="q-feed__empty-title">{{ section.settings.empty_title | default: 'No collection selected' }}</h3>
+        <p class="q-feed__empty-text">{{ section.settings.empty_text | default: 'Choose a collection source in the section settings.' }}</p>
+      </div>
+    {%- else -%}
+
+      {%- paginate feed_collection.products by products_per_page -%}
+        <div class="q-feed__body">
+          {%- if section.settings.show_collection_title and feed_collection.title != blank -%}
+            <div class="q-feed__collection-title">
+              {{ feed_collection.title }}
+            </div>
+          {%- endif -%}
+
+          {%- if feed_collection.all_products_count == 0 or feed_collection.products_count == 0 -%}
+            <div class="q-feed__empty" role="status">
+              <h3 class="q-feed__empty-title">{{ section.settings.no_products_title | default: 'No products found' }}</h3>
+              <p class="q-feed__empty-text">{{ section.settings.no_products_text | default: 'Try a different collection or adjust filters.' }}</p>
+            </div>
+          {%- else -%}
+            <div
+              class="q-feed__grid"
+              data-feed-grid
+              aria-live="polite"
+              aria-busy="false"
+            >
+              {%- for product in feed_collection.products -%}
+                <div class="q-feed__item" data-feed-item>
+                  {%- render 'product-card',
+                    product: product,
+                    show_badges: show_badges,
+                    badge_sale: badge_sale,
+                    badge_new: badge_new,
+                    badge_tags: badge_tags,
+                    badge_fulfilled: badge_fulfilled,
+                    price_mode: price_mode,
+                    enable_quick_add: enable_quick_add,
+                    enable_quick_view: enable_quick_view
+                  -%}
+                </div>
+              {%- endfor -%}
+            </div>
+
+            <nav class="q-feed__pagination" aria-label="Pagination" data-feed-pagination>
+              {%- if paginate.pages > 1 -%}
+                <div class="q-feed__pagination-links">
+                  {%- if paginate.previous -%}
+                    <a class="q-feed__page-link" href="{{ paginate.previous.url }}" rel="prev">{{ section.settings.prev_label | default: 'Previous' }}</a>
+                  {%- endif -%}
+
+                  <span class="q-feed__page-status">
+                    {{ paginate.current_page }} / {{ paginate.pages }}
+                  </span>
+
+                  {%- if paginate.next -%}
+                    <a class="q-feed__page-link" href="{{ paginate.next.url }}" rel="next" data-next-link>{{ section.settings.next_label | default: 'Next' }}</a>
+                  {%- endif -%}
+                </div>
+              {%- endif -%}
+
+              {%- if pagination_mode == 'load_more' -%}
+                <button
+                  type="button"
+                  class="q-feed__load-more"
+                  data-load-more
+                  {%- if paginate.next == nil -%} disabled aria-disabled="true"{%- endif -%}
+                >
+                  {{ section.settings.load_more_label | default: 'Load more' }}
+                </button>
+              {%- endif -%}
+
+              {%- if pagination_mode == 'infinite' -%}
+                <div class="q-feed__infinite-sentinel" data-infinite-sentinel aria-hidden="true"></div>
+              {%- endif -%}
+            </nav>
+          {%- endif -%}
+        </div>
+      {%- endpaginate -%}
+    {%- endif -%}
+  </div>
+
+  <style>
+    [data-section-id="{{ sid }}"] .q-feed__inner{
+      padding-block: var(--q-section-pad-y, var(--q-pad-y, 0));
+      padding-inline: var(--q-section-pad-x, var(--q-pad-x, 0));
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__header{
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: var(--q-gap, 1rem);
+      margin-bottom: var(--q-gap, 1rem);
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__header-left{
+      min-width: 0;
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__heading{
+      margin: 0;
+      font-size: var(--q-h2-fs, var(--q-heading-fs, 1.5rem));
+      line-height: var(--q-heading-lh, 1.2);
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__subheading{
+      margin-top: 0.25em;
+      opacity: 0.85;
+      font-size: var(--q-body-fs, 1rem);
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__filters-toggle{
+      appearance: none;
+      border: 1px solid var(--q-border, currentColor);
+      background: transparent;
+      color: inherit;
+      border-radius: var(--q-radius, 0.75rem);
+      padding: calc(var(--q-btn-py, 0.6rem)) calc(var(--q-btn-px, 0.9rem));
+      cursor: pointer;
+      font: inherit;
+      white-space: nowrap;
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__collection-title{
+      margin-bottom: var(--q-gap, 1rem);
+      font-size: var(--q-eyebrow-fs, 1rem);
+      opacity: 0.8;
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__grid{
+      display: grid;
+      grid-template-columns: repeat(var(--q-feed-cols-m, 2), minmax(0, 1fr));
+      gap: var(--q-feed-gap, var(--q-gap, 1rem));
+    }
+
+    [data-section-id="{{ sid }}"].q-density--comfortable{
+      --q-feed-gap: var(--q-gap-md, var(--q-gap, 1rem));
+    }
+    [data-section-id="{{ sid }}"].q-density--compact{
+      --q-feed-gap: var(--q-gap-sm, var(--q-gap, 0.75rem));
+    }
+
+    @media (min-width: 750px){
+      [data-section-id="{{ sid }}"] .q-feed__grid{
+        grid-template-columns: repeat(var(--q-feed-cols-t, 3), minmax(0, 1fr));
+      }
+    }
+    @media (min-width: 990px){
+      [data-section-id="{{ sid }}"] .q-feed__grid{
+        grid-template-columns: repeat(var(--q-feed-cols-d, 4), minmax(0, 1fr));
+      }
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__pagination{
+      margin-top: var(--q-gap, 1rem);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--q-gap, 1rem);
+      flex-wrap: wrap;
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__pagination-links{
+      display: inline-flex;
+      align-items: center;
+      gap: var(--q-gap-sm, 0.75rem);
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__page-link{
+      text-decoration: none;
+      border: 1px solid var(--q-border, currentColor);
+      border-radius: var(--q-radius, 0.75rem);
+      padding: calc(var(--q-btn-py, 0.6rem)) calc(var(--q-btn-px, 0.9rem));
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__page-status{
+      opacity: 0.8;
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__load-more{
+      appearance: none;
+      border: 1px solid var(--q-border, currentColor);
+      background: transparent;
+      color: inherit;
+      border-radius: var(--q-radius, 0.75rem);
+      padding: calc(var(--q-btn-py, 0.6rem)) calc(var(--q-btn-px, 0.9rem));
+      cursor: pointer;
+      font: inherit;
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__load-more[disabled]{
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    [data-section-id="{{ sid }}"].q-pe--loadmore .q-feed__pagination-links,
+    [data-section-id="{{ sid }}"].q-pe--infinite .q-feed__pagination-links{
+      position: absolute;
+      width: 1px; height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__empty{
+      border: 1px solid var(--q-border, currentColor);
+      border-radius: var(--q-radius, 1rem);
+      padding: var(--q-card-pad, 1.25rem);
+      opacity: 0.9;
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__empty-title{
+      margin: 0 0 0.25rem 0;
+      font-size: var(--q-h3-fs, 1.25rem);
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__empty-text{
+      margin: 0;
+      opacity: 0.85;
+    }
+  </style>
+
+  <script>
+    (() => {
+      const root = document.querySelector('[data-section-id="{{ sid }}"]');
+      if (!root) return;
+
+      const mode = root.getAttribute('data-pagination-mode') || 'pagination';
+      const sortOrder = root.getAttribute('data-sort-order') || 'inherit';
+      const sortBy = root.getAttribute('data-sort-by') || '';
+      const grid = root.querySelector('[data-feed-grid]');
+
+      // Shopify-native sorting enforcement
+      if (sortOrder !== 'inherit' && sortBy) {
+        const url = new URL(window.location.href);
+        const current = url.searchParams.get('sort_by') || '';
+        if (current !== sortBy) {
+          url.searchParams.set('sort_by', sortBy);
+          window.location.replace(url.toString());
+          return;
+        }
+      }
+
+      if (mode === 'pagination') return;
+      if (!grid) return;
+
+      const loadMoreBtn = root.querySelector('[data-load-more]');
+      const sentinel = root.querySelector('[data-infinite-sentinel]');
+
+      let isLoading = false;
+
+      const getNextUrl = () => {
+        const link = root.querySelector('[data-next-link]');
+        return link ? link.getAttribute('href') : null;
+      };
+
+      const setBusy = (busy) => {
+        grid.setAttribute('aria-busy', busy ? 'true' : 'false');
+      };
+
+      const fetchAndAppend = async () => {
+        const nextUrl = getNextUrl();
+        if (!nextUrl || isLoading) return;
+
+        isLoading = true;
+        setBusy(true);
+
+        try {
+          const res = await fetch(nextUrl, { credentials: 'same-origin' });
+          if (!res.ok) throw new Error('Fetch failed');
+
+          const html = await res.text();
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          const incomingRoot = doc.querySelector('[data-section-id="{{ sid }}"]');
+          if (!incomingRoot) return;
+
+          const incomingGrid = incomingRoot.querySelector('[data-feed-grid]');
+          if (!incomingGrid) return;
+
+          const incomingItems = incomingGrid.querySelectorAll('[data-feed-item]');
+          incomingItems.forEach((item) => grid.appendChild(item));
+
+          // Update next link
+          const incomingNext = incomingRoot.querySelector('[data-next-link]');
+          const currentNext = root.querySelector('[data-next-link]');
+          if (currentNext) {
+            if (incomingNext) {
+              currentNext.setAttribute('href', incomingNext.getAttribute('href'));
+            } else {
+              currentNext.remove();
+            }
+          }
+
+          // Disable load more when exhausted
+          if (mode === 'load_more' && loadMoreBtn) {
+            const stillNext = getNextUrl();
+            if (!stillNext) {
+              loadMoreBtn.setAttribute('disabled', 'disabled');
+              loadMoreBtn.setAttribute('aria-disabled', 'true');
+            }
+          }
+        } catch (e) {
+          if (mode === 'load_more' && loadMoreBtn) {
+            loadMoreBtn.setAttribute('disabled', 'disabled');
+            loadMoreBtn.setAttribute('aria-disabled', 'true');
+          }
+        } finally {
+          isLoading = false;
+          setBusy(false);
+        }
+      };
+
+      if (mode === 'load_more' && loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', fetchAndAppend);
+      }
+
+      if (mode === 'infinite' && sentinel) {
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) fetchAndAppend();
+          });
+        }, { rootMargin: '200px 0px' });
+
+        io.observe(sentinel);
+      }
+
+      // Filters toggle = layout hook only
+      const toggle = root.querySelector('[data-filters-toggle]');
+      if (toggle) {
+        toggle.addEventListener('click', () => {
+          const expanded = toggle.getAttribute('aria-expanded') === 'true';
+          toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+          root.classList.toggle('q-feed--filters-open', !expanded);
+        });
+      }
+    })();
+  </script>
+</section>
+
+  {% schema %}
+  {
+    "name": "Feed · Product Grid",
+    "tag": "section",
+    "class": "q-feed-product-grid",
+    "settings": [
+      {
+        "type": "header",
+        "content": "Source"
+      },
+      {
+        "type": "select",
+        "id": "source_mode",
+        "label": "Source mode",
+        "default": "collection",
+        "options": [
+          { "value": "collection", "label": "Collection (manual)" },
+          { "value": "dynamic_collection", "label": "Dynamic: current collection" }
+        ]
+      },
+      {
+        "type": "collection",
+        "id": "collection",
+        "label": "Collection (manual mode)"
+      },
+
+      {
+        "type": "header",
+        "content": "Header"
+      },
+      {
+        "type": "checkbox",
+        "id": "show_header",
+        "label": "Show header",
+        "default": true
+      },
+      {
+        "type": "text",
+        "id": "heading",
+        "label": "Heading",
+        "default": "Browse products"
+      },
+      {
+        "type": "richtext",
+        "id": "subheading",
+        "label": "Subheading",
+        "default": "<p>Explore the catalog.</p>"
+      },
+      {
+        "type": "checkbox",
+        "id": "show_collection_title",
+        "label": "Show collection title (when available)",
+        "default": false
+      },
+
+      {
+        "type": "header",
+        "content": "Layout"
+      },
+      {
+        "type": "range",
+        "id": "columns_mobile",
+        "label": "Columns (mobile)",
+        "min": 1,
+        "max": 3,
+        "step": 1,
+        "default": 2
+      },
+      {
+        "type": "range",
+        "id": "columns_tablet",
+        "label": "Columns (tablet)",
+        "min": 2,
+        "max": 4,
+        "step": 1,
+        "default": 3
+      },
+      {
+        "type": "range",
+        "id": "columns_desktop",
+        "label": "Columns (desktop)",
+        "min": 3,
+        "max": 6,
+        "step": 1,
+        "default": 4
+      },
+      {
+        "type": "select",
+        "id": "card_density",
+        "label": "Card density",
+        "default": "comfortable",
+        "options": [
+          { "value": "comfortable", "label": "Comfortable" },
+          { "value": "compact", "label": "Compact" }
+        ]
+      },
+      {
+        "type": "checkbox",
+        "id": "enable_filters_toggle",
+        "label": "Enable sidebar filters toggle (layout hook only)",
+        "default": false
+      },
+      {
+        "type": "text",
+        "id": "filters_toggle_label",
+        "label": "Filters toggle label",
+        "default": "Filters"
+      },
+
+      {
+        "type": "header",
+        "content": "Content"
+      },
+      {
+        "type": "select",
+        "id": "sort_order",
+        "label": "Sort order",
+        "default": "inherit",
+        "options": [
+          { "value": "inherit", "label": "Inherit collection default" },
+          { "value": "created-descending", "label": "Newest" },
+          { "value": "price-ascending", "label": "Price (low → high)" },
+          { "value": "price-descending", "label": "Price (high → low)" },
+          { "value": "title-ascending", "label": "Alphabetical" }
+        ]
+      },
+      {
+        "type": "range",
+        "id": "products_per_page",
+        "label": "Products per page",
+        "min": 8,
+        "max": 48,
+        "step": 4,
+        "default": 16
+      },
+
+      {
+        "type": "header",
+        "content": "Behavior"
+      },
+      {
+        "type": "select",
+        "id": "pagination_mode",
+        "label": "Pagination mode",
+        "default": "pagination",
+        "options": [
+          { "value": "pagination", "label": "Standard pagination" },
+          { "value": "load_more", "label": "Load more button" },
+          { "value": "infinite", "label": "Infinite scroll" }
+        ]
+      },
+      {
+        "type": "text",
+        "id": "prev_label",
+        "label": "Previous label",
+        "default": "Previous"
+      },
+      {
+        "type": "text",
+        "id": "next_label",
+        "label": "Next label",
+        "default": "Next"
+      },
+      {
+        "type": "text",
+        "id": "load_more_label",
+        "label": "Load more label",
+        "default": "Load more"
+      },
+
+      {
+        "type": "header",
+        "content": "Product card options"
+      },
+      {
+        "type": "checkbox",
+        "id": "show_badges",
+        "label": "Show badges",
+        "default": true
+      },
+      {
+        "type": "checkbox",
+        "id": "badge_sale",
+        "label": "Sale badge",
+        "default": true
+      },
+      {
+        "type": "checkbox",
+        "id": "badge_new",
+        "label": "New badge",
+        "default": true
+      },
+      {
+        "type": "checkbox",
+        "id": "badge_tags",
+        "label": "Tag badges",
+        "default": false
+      },
+      {
+        "type": "checkbox",
+        "id": "badge_fulfilled",
+        "label": "Fulfilled by supplier badge (future)",
+        "default": false
+      },
+      {
+        "type": "select",
+        "id": "price_mode",
+        "label": "Price display",
+        "default": "simple",
+        "options": [
+          { "value": "simple", "label": "Simple price" },
+          { "value": "range", "label": "Price range (variants)" }
+        ]
+      },
+      {
+        "type": "checkbox",
+        "id": "enable_quick_add",
+        "label": "Enable quick add",
+        "default": false
+      },
+      {
+        "type": "checkbox",
+        "id": "enable_quick_view",
+        "label": "Enable quick view",
+        "default": false
+      },
+
+      {
+        "type": "header",
+        "content": "Empty states"
+      },
+      {
+        "type": "text",
+        "id": "empty_title",
+        "label": "No collection title",
+        "default": "No collection selected"
+      },
+      {
+        "type": "text",
+        "id": "empty_text",
+        "label": "No collection text",
+        "default": "Choose a collection source in the section settings."
+      },
+      {
+        "type": "text",
+        "id": "no_products_title",
+        "label": "No products title",
+        "default": "No products found"
+      },
+      {
+        "type": "text",
+        "id": "no_products_text",
+        "label": "No products text",
+        "default": "Try a different collection or adjust filters."
+      }
+    ],
+    "presets": [
+      {
+        "name": "Feed · Product Grid"
+      }
+    ]
+  }
+  {% endschema %}
