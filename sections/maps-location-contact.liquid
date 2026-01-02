@@ -1,0 +1,463 @@
+{% comment %}
+  Quadratum — Maps: Location Map + Contact (Section)
+  File: sections/maps-location-map-contact.liquid
+
+  • Split layout (desktop), stacked (mobile)
+  • Map supports:
+      - Coordinates (lat/lng + zoom)
+      - Google Maps share URL (used for DIRECTIONS only; iframe uses coords/address to avoid embed/CORS/frame issues)
+      - Optional Embed iframe code (advanced)
+  • Graceful fallback: hide map if invalid/unavailable; contact card always renders
+  • Token-first styling with optional scoped custom colors
+{% endcomment %}
+
+{%- assign s = section.settings -%}
+
+{%- assign use_custom = s.use_custom_colors -%}
+
+{%- assign bg = settings.bg_base -%}
+{%- assign surface = settings.bg_contrast -%}
+{%- assign text = settings.text_base -%}
+{%- assign muted = settings.text_muted -%}
+{%- assign accent = settings.color_primary -%}
+{%- assign border = '#e5e7eb' -%}
+
+{%- if use_custom -%}
+  {%- assign bg = s.custom_bg -%}
+  {%- assign surface = s.custom_surface -%}
+  {%- assign text = s.custom_text -%}
+  {%- assign muted = s.custom_muted -%}
+  {%- assign accent = s.custom_accent -%}
+  {%- assign border = s.custom_border -%}
+{%- endif -%}
+
+{%- assign heading = s.heading | default: 'Visit Our Showroom' -%}
+{%- assign body = s.body -%}
+
+{%- assign address_text = s.address | strip -%}
+{%- assign phone_text = s.phone | strip -%}
+{%- assign email_text = s.email | strip -%}
+
+{%- assign lat = s.lat | strip -%}
+{%- assign lng = s.lng | strip -%}
+{%- assign zoom = s.zoom -%}
+
+{%- assign has_coords = false -%}
+{%- if lat != blank and lng != blank -%}
+  {%- assign has_coords = true -%}
+{%- endif -%}
+
+{%- assign address_encoded = address_text | url_encode -%}
+
+{%- comment %}
+  Map URL strategy (fix for “CORS” / blocked frames):
+  - NEVER iframe the “place/share URL” directly (Google can redirect to consent pages that block framing)
+  - Use coords or address for iframe embed URL
+  - Use share/place URL ONLY for "Get Directions" (new tab)
+{% endcomment -%}
+
+{%- assign source = s.map_source | default: 'coords' -%}
+{%- assign directions_url = '' -%}
+{%- assign embed_url = '' -%}
+{%- assign iframe_title = s.iframe_title | default: 'Map showing our location' -%}
+
+{%- if source == 'embed_iframe' and s.embed_code != blank -%}
+  {%- assign raw = s.embed_code | strip -%}
+  {%- assign extracted_src = '' -%}
+  {%- if raw contains 'src="' -%}
+    {%- assign extracted_src = raw | split: 'src="' | last | split: '"' | first | strip -%}
+  {%- endif -%}
+
+  {%- if extracted_src != blank -%}
+    {%- assign embed_url = extracted_src -%}
+  {%- endif -%}
+
+  {%- comment %}
+    Directions URL fallback if embed is used:
+    Prefer share_url if present, else derive from coords/address
+  {% endcomment -%}
+  {%- if s.gmaps_url != blank -%}
+    {%- assign directions_url = s.gmaps_url | strip -%}
+  {%- elsif address_text != blank -%}
+    {%- assign directions_url = 'https://www.google.com/maps?q=' | append: address_encoded -%}
+  {%- elsif has_coords -%}
+    {%- assign directions_url = 'https://www.google.com/maps?q=' | append: lat | append: ',' | append: lng | append: '&z=' | append: zoom -%}
+  {%- endif -%}
+
+{%- else -%}
+  {%- comment %}
+    Coords / Share URL mode (safe embed)
+  {% endcomment -%}
+
+  {%- if s.gmaps_url != blank -%}
+    {%- assign directions_url = s.gmaps_url | strip -%}
+  {%- elsif address_text != blank -%}
+    {%- assign directions_url = 'https://www.google.com/maps?q=' | append: address_encoded -%}
+  {%- elsif has_coords -%}
+    {%- assign directions_url = 'https://www.google.com/maps?q=' | append: lat | append: ',' | append: lng | append: '&z=' | append: zoom -%}
+  {%- endif -%}
+
+  {%- if address_text != blank -%}
+    {%- assign embed_url = 'https://www.google.com/maps?q=' | append: address_encoded | append: '&output=embed' -%}
+  {%- elsif has_coords -%}
+    {%- assign embed_url = 'https://www.google.com/maps?q=' | append: lat | append: ',' | append: lng | append: '&z=' | append: zoom | append: '&output=embed' -%}
+  {%- endif -%}
+{%- endif -%}
+
+{%- assign show_map = false -%}
+{%- if embed_url != blank -%}
+  {%- assign show_map = true -%}
+{%- endif -%}
+
+{%- assign wrap = s.section_max_width | default: 'container' -%}
+{%- assign reverse = false -%}
+{%- if s.layout_direction == 'content_left' -%}
+  {%- assign reverse = true -%}
+{%- endif -%}
+
+<section
+  class="q-map-contact"
+  style="
+    --qmc-bg: {{ bg }};
+    --qmc-surface: {{ surface }};
+    --qmc-text: {{ text }};
+    --qmc-muted: {{ muted }};
+    --qmc-accent: {{ accent }};
+    --qmc-border: {{ border }};
+    --qmc-radius: {{ s.radius | default: 18 }}px;
+    --qmc-pad-y: {{ s.pad_y | default: 48 | times: 0.01 }}rem;
+    --qmc-pad-x: {{ s.pad_x | default: 20 | times: 0.01 }}rem;
+    --qmc-gap: {{ s.gap | default: 24 | times: 0.01 }}rem;
+    --qmc-map-h: {{ s.map_height | default: 420 }}px;
+    --qmc-shadow: {{ s.shadow_strength | default: 0.18 }};
+  "
+>
+  <div class="q-map-contact__outer q-wrap--{{ wrap }}">
+    <div class="q-map-contact__grid{% if reverse %} is-reverse{% endif %}">
+      {%- if show_map -%}
+        <div class="q-map-contact__mapWrap">
+          <div class="q-map-contact__mapSurface" role="region" aria-label="{{ s.map_aria_label | default: 'Location map' }}">
+            <iframe
+              class="q-map-contact__iframe"
+              src="{{ embed_url }}"
+              title="{{ iframe_title | escape }}"
+              loading="lazy"
+              referrerpolicy="no-referrer-when-downgrade"
+              allowfullscreen
+            ></iframe>
+          </div>
+        </div>
+      {%- endif -%}
+
+      <div class="q-map-contact__cardWrap">
+        <div class="q-map-contact__card">
+          {%- if heading != blank -%}
+            <h2 class="q-map-contact__heading">{{ heading }}</h2>
+          {%- endif -%}
+
+          {%- if body != blank -%}
+            <div class="q-map-contact__body rte">{{ body }}</div>
+          {%- endif -%}
+
+          {%- if address_text != blank or phone_text != blank or email_text != blank -%}
+            <div class="q-map-contact__details">
+              {%- if address_text != blank -%}
+                <div class="q-map-contact__detail">
+                  <div class="q-map-contact__label">{{ s.label_address | default: 'Address' }}</div>
+                  <div class="q-map-contact__value">{{ address_text | newline_to_br }}</div>
+                </div>
+              {%- endif -%}
+
+              {%- if phone_text != blank -%}
+                {%- assign phone_href = phone_text | replace: ' ', '' | replace: '(', '' | replace: ')', '' | replace: '-', '' -%}
+                <div class="q-map-contact__detail">
+                  <div class="q-map-contact__label">{{ s.label_phone | default: 'Phone' }}</div>
+                  <div class="q-map-contact__value">
+                    <a class="q-map-contact__link" href="tel:{{ phone_href }}">{{ phone_text }}</a>
+                  </div>
+                </div>
+              {%- endif -%}
+
+              {%- if email_text != blank -%}
+                <div class="q-map-contact__detail">
+                  <div class="q-map-contact__label">{{ s.label_email | default: 'Email' }}</div>
+                  <div class="q-map-contact__value">
+                    <a class="q-map-contact__link" href="mailto:{{ email_text }}">{{ email_text }}</a>
+                  </div>
+                </div>
+              {%- endif -%}
+            </div>
+          {%- endif -%}
+
+          <div class="q-map-contact__actions">
+            {%- if s.btn_directions_enable and directions_url != blank -%}
+              <a class="qmc-btn qmc-btn--primary" href="{{ directions_url }}" target="_blank" rel="noopener">
+                {{ s.btn_directions_label | default: 'Get Directions' }}
+              </a>
+            {%- endif -%}
+
+            {%- if s.btn_call_enable and phone_text != blank -%}
+              {%- assign phone_href2 = phone_text | replace: ' ', '' | replace: '(', '' | replace: ')', '' | replace: '-', '' -%}
+              <a class="qmc-btn qmc-btn--secondary" href="tel:{{ phone_href2 }}">
+                {{ s.btn_call_label | default: 'Call Us' }}
+              </a>
+            {%- endif -%}
+
+            {%- if s.btn_contact_enable and s.btn_contact_url != blank -%}
+              <a class="qmc-btn qmc-btn--secondary" href="{{ s.btn_contact_url }}">
+                {{ s.btn_contact_label | default: 'Contact Form' }}
+              </a>
+            {%- endif -%}
+          </div>
+
+          {%- unless show_map -%}
+            {%- if s.no_map_note != blank -%}
+              <div class="q-map-contact__note">{{ s.no_map_note }}</div>
+            {%- endif -%}
+          {%- endunless -%}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .q-map-contact{
+      background: var(--qmc-bg);
+      padding: var(--qmc-pad-y) var(--qmc-pad-x);
+      color: var(--qmc-text);
+    }
+
+    /* simple container presets (safe defaults) */
+    .q-wrap--container{ max-width: 1152px; margin: 0 auto; }
+    .q-wrap--wide{ max-width: 1440px; margin: 0 auto; }
+    .q-wrap--full{ max-width: none; margin: 0 auto; }
+
+    .q-map-contact__grid{
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: var(--qmc-gap);
+      align-items: stretch;
+    }
+    .q-map-contact__grid.is-reverse{ direction: rtl; }
+    .q-map-contact__grid.is-reverse > *{ direction: ltr; }
+
+    .q-map-contact__mapSurface,
+    .q-map-contact__card{
+      background: var(--qmc-surface);
+      border: 1px solid var(--qmc-border);
+      border-radius: var(--qmc-radius);
+      overflow: hidden;
+      box-shadow: 0 14px 40px rgba(0,0,0,var(--qmc-shadow));
+    }
+
+    .q-map-contact__mapSurface{
+      height: var(--qmc-map-h);
+    }
+    .q-map-contact__iframe{
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+    }
+
+    .q-map-contact__card{
+      padding: 1.25rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      min-height: 100%;
+    }
+
+    .q-map-contact__heading{
+      margin: 0;
+      line-height: 1.15;
+      letter-spacing: normal;
+    }
+
+    .q-map-contact__body{ color: var(--qmc-muted); }
+    .q-map-contact__details{
+      display: grid;
+      gap: 0.75rem;
+      padding-top: 0.25rem;
+    }
+    .q-map-contact__label{
+      font-size: 0.85rem;
+      color: var(--qmc-muted);
+      margin-bottom: 0.15rem;
+    }
+    .q-map-contact__value{ color: var(--qmc-text); }
+    .q-map-contact__link{
+      color: var(--qmc-text);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .q-map-contact__actions{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      padding-top: 0.25rem;
+    }
+
+    /* Buttons are color-customizable via vars (accent/text/bg) */
+    .qmc-btn{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      font-weight: 600;
+      border-radius: calc(var(--qmc-radius) - 6px);
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--qmc-border);
+      transition: opacity .18s ease, transform .18s ease;
+      transform: translateZ(0);
+      white-space: nowrap;
+    }
+    .qmc-btn--primary{
+      background: var(--qmc-accent);
+      color: #fff;
+      border-color: color-mix(in srgb, var(--qmc-accent) 70%, var(--qmc-border));
+    }
+    .qmc-btn--secondary{
+      background: transparent;
+      color: var(--qmc-text);
+    }
+    .qmc-btn:hover{ opacity: 0.92; }
+    .qmc-btn:active{ transform: scale(0.98); }
+
+    .q-map-contact__note{
+      margin-top: 0.25rem;
+      font-size: 0.9rem;
+      color: var(--qmc-muted);
+    }
+
+    @media (max-width: 900px){
+      .q-map-contact__grid{
+        grid-template-columns: 1fr;
+      }
+      .q-map-contact__mapSurface{
+        height: calc(var(--qmc-map-h) * 0.85);
+      }
+    }
+  </style>
+</section>
+
+{% schema %}
+{
+  "name": "Maps - Location Contact",
+  "tag": "section",
+  "class": "section-maps-location-map-contact",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Content"
+    },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Visit Our Showroom" },
+    { "type": "richtext", "id": "body", "label": "Body", "default": "<p>Stop by, call ahead, or get directions in one click. We’re happy to help you plan your visit.</p>" },
+
+    { "type": "header", "content": "Contact details" },
+    { "type": "textarea", "id": "address", "label": "Address", "default": "Best Website Builder Group\nNortheast Ohio, USA" },
+    { "type": "text", "id": "phone", "label": "Phone", "default": "(555) 123-4567" },
+    { "type": "text", "id": "email", "label": "Email", "default": "hello@example.com" },
+
+    { "type": "header", "content": "Buttons" },
+    { "type": "checkbox", "id": "btn_directions_enable", "label": "Enable “Get Directions”", "default": true },
+    { "type": "text", "id": "btn_directions_label", "label": "Directions label", "default": "Get Directions" },
+
+    { "type": "checkbox", "id": "btn_call_enable", "label": "Enable “Call Us”", "default": true },
+    { "type": "text", "id": "btn_call_label", "label": "Call label", "default": "Call Us" },
+
+    { "type": "checkbox", "id": "btn_contact_enable", "label": "Enable “Contact Form”", "default": true },
+    { "type": "text", "id": "btn_contact_label", "label": "Contact label", "default": "Contact Form" },
+    { "type": "url", "id": "btn_contact_url", "label": "Contact link"},
+
+    { "type": "header", "content": "Map source" },
+    {
+      "type": "select",
+      "id": "map_source",
+      "label": "Map source",
+      "default": "coords",
+      "options": [
+        { "value": "coords", "label": "Coordinates (lat/lng)" },
+        { "value": "share_url", "label": "Google Maps share URL (for directions)" },
+        { "value": "embed_iframe", "label": "Embed iframe code (advanced)" }
+      ]
+    },
+    { "type": "text", "id": "lat", "label": "Latitude", "default": "41.4993" },
+    { "type": "text", "id": "lng", "label": "Longitude", "default": "-81.6944" },
+    { "type": "range", "id": "zoom", "label": "Zoom", "min": 1, "max": 20, "step": 1, "default": 11 },
+
+    {
+      "type": "text",
+      "id": "gmaps_url",
+      "label": "Google Maps place/share URL (used for Directions button only)",
+      "default": "https://www.google.com/maps/place/Best+Website+Builder+Group"
+    },
+    {
+      "type": "textarea",
+      "id": "embed_code",
+      "label": "Embed iframe code (optional)",
+    },
+
+    { "type": "header", "content": "Accessibility & fallback" },
+    { "type": "text", "id": "iframe_title", "label": "Iframe title", "default": "Map showing our location" },
+    { "type": "text", "id": "map_aria_label", "label": "Map region label", "default": "Location map" },
+    { "type": "text", "id": "no_map_note", "label": "Fallback note (when map hidden)", "default": "Map unavailable right now — use the buttons above for directions or to contact us." },
+    { "type": "text", "id": "label_address", "label": "Address label", "default": "Address" },
+    { "type": "text", "id": "label_phone", "label": "Phone label", "default": "Phone" },
+    { "type": "text", "id": "label_email", "label": "Email label", "default": "Email" },
+
+    { "type": "header", "content": "Layout" },
+    {
+      "type": "select",
+      "id": "layout_direction",
+      "label": "Layout direction",
+      "default": "map_left",
+      "options": [
+        { "value": "map_left", "label": "Map left / Content right" },
+        { "value": "content_left", "label": "Content left / Map right" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "section_max_width",
+      "label": "Max width",
+      "default": "container",
+      "options": [
+        { "value": "container", "label": "Container" },
+        { "value": "wide", "label": "Wide" },
+        { "value": "full", "label": "Full width" }
+      ]
+    },
+    { "type": "range", "id": "map_height", "label": "Map height (px)", "min": 240, "max": 720, "step": 10, "default": 420 },
+    { "type": "range", "id": "gap", "label": "Gap (rem ×100)", "min": 8, "max": 60, "step": 1, "default": 24 },
+    { "type": "range", "id": "pad_y", "label": "Section padding Y (rem ×100)", "min": 0, "max": 120, "step": 2, "default": 48 },
+    { "type": "range", "id": "pad_x", "label": "Section padding X (rem ×100)", "min": 0, "max": 60, "step": 2, "default": 20 },
+    { "type": "range", "id": "radius", "label": "Corner radius (px)", "min": 0, "max": 32, "step": 1, "default": 18 },
+    {
+      "type": "range",
+      "id": "shadow_strength",
+      "label": "Shadow strength (×100)",
+      "min": 0,
+      "max": 30,
+      "step": 1,
+      "default": 18
+    },
+
+    { "type": "header", "content": "Colors (optional overrides)" },
+    { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors", "default": false },
+    { "type": "color", "id": "custom_bg", "label": "Background", "default": "#ffffff" },
+    { "type": "color", "id": "custom_surface", "label": "Surface / Card", "default": "#f6f7f8" },
+    { "type": "color", "id": "custom_text", "label": "Text", "default": "#111111" },
+    { "type": "color", "id": "custom_muted", "label": "Muted text", "default": "#6b7280" },
+    { "type": "color", "id": "custom_accent", "label": "Accent (primary button)", "default": "#2563eb" },
+    { "type": "color", "id": "custom_border", "label": "Border", "default": "#e5e7eb" }
+  ],
+  "presets": [
+    {
+      "name": "Maps - Location Map + Contact",
+      "category": "Maps"
+    }
+  ]
+}
+{% endschema %}

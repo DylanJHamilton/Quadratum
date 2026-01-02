@@ -1,0 +1,551 @@
+{% comment %}
+  Quadratum — Maps: Basic Google Map (Section)
+  File: sections/maps-basic-google-map.liquid
+
+  • Embed-first (works immediately w/ Google Maps iframe embed code; no API).
+  • API-ready fallback: Address or Coordinates generate Open in Google Maps link (no JS API).
+  • Premium split layout: map left/right + content hierarchy + framed surface.
+  • Token-driven styling; optional scoped custom colors.
+  • Future reuse friendly: self-contained, mode-based logic, portable classes.
+{% endcomment %}
+
+{%- assign s = section.settings -%}
+{%- assign g = settings -%}
+{%- assign section_id = 'qmap-basic-' | append: section.id -%}
+
+{%- assign layout = s.layout | default: 'split' -%}
+{%- assign map_side = s.map_side | default: 'right' -%}
+{%- assign content_align = s.content_align | default: 'left' -%}
+{%- assign style = s.style | default: 'card' -%}
+
+{%- assign mode = s.mode | default: 'embed' -%}
+
+{%- comment %}
+  Pull global defaults (theme settings are strings for lat/lng)
+{% endcomment -%}
+{%- assign g_lat = g.gmap_default_lat | default: '' -%}
+{%- assign g_lng = g.gmap_default_lng | default: '' -%}
+{%- assign g_zoom = g.gmap_default_zoom | default: 12 -%}
+
+{%- assign lat = s.lat -%}
+{%- assign lng = s.lng -%}
+{%- assign zoom = s.zoom | default: g_zoom | default: 12 -%}
+
+{%- if lat == blank -%}
+  {%- if g_lat != blank and g_lat != 'none' -%}
+    {%- assign lat = g_lat -%}
+  {%- else -%}
+    {%- assign lat = '40.7128' -%}
+  {%- endif -%}
+{%- endif -%}
+
+{%- if lng == blank -%}
+  {%- if g_lng != blank and g_lng != 'none' -%}
+    {%- assign lng = g_lng -%}
+  {%- else -%}
+    {%- assign lng = '-74.0060' -%}
+  {%- endif -%}
+{%- endif -%}
+
+{%- assign address = s.address | default: 'Times Square, New York, NY' -%}
+
+{%- comment %} Build link fallback for all modes {% endcomment -%}
+{%- assign map_link = '' -%}
+{%- if mode == 'coords' -%}
+  {%- assign map_link = 'https://www.google.com/maps?q=' | append: lat | append: ',' | append: lng | append: '&z=' | append: zoom -%}
+{%- elsif mode == 'address' -%}
+  {%- assign map_link = 'https://www.google.com/maps/search/?api=1&query=' | append: address | url_encode -%}
+{%- else -%}
+  {%- assign map_link = 'https://www.google.com/maps/search/?api=1&query=' | append: address | url_encode -%}
+{%- endif -%}
+
+{%- comment %}
+  Safe embed:
+  - Only render iframe if we can extract a src
+  - Only allow http/https
+{% endcomment -%}
+{%- assign embed_code = s.embed_code | default: '' | strip -%}
+{%- assign embed_src = '' -%}
+{%- assign has_iframe = false -%}
+
+{%- if embed_code != blank and embed_code contains '<iframe' and embed_code contains 'src=' -%}
+  {%- assign has_iframe = true -%}
+  {%- if embed_code contains 'src="' -%}
+    {%- assign embed_src = embed_code | split: 'src="' | last | split: '"' | first | strip -%}
+  {%- elsif embed_code contains "src='" -%}
+    {%- assign embed_src = embed_code | split: "src='" | last | split: "'" | first | strip -%}
+  {%- endif -%}
+{%- endif -%}
+
+{%- assign embed_src_ok = false -%}
+{%- if embed_src != blank -%}
+  {%- if embed_src contains 'https://' -%}
+    {%- assign embed_src_ok = true -%}
+  {%- elsif embed_src contains 'http://' -%}
+    {%- assign embed_src_ok = true -%}
+  {%- endif -%}
+{%- endif -%}
+
+{%- assign can_render_iframe = false -%}
+{%- if mode == 'embed' -%}
+  {%- if embed_src_ok -%}
+    {%- assign can_render_iframe = true -%}
+  {%- endif -%}
+{%- endif -%}
+
+<section
+  id="{{ section_id }}"
+  class="qmap-basic qmap-basic--{{ style }} qmap-basic--{{ layout }} qmap-basic--map-{{ map_side }} qmap-basic--align-{{ content_align }}"
+>
+  <div class="qmap-basic__inner">
+    <div class="qmap-basic__content">
+      {%- if s.kicker != blank -%}
+        <div class="qmap-basic__kicker">{{ s.kicker }}</div>
+      {%- endif -%}
+
+      {%- if s.heading != blank -%}
+        <h2 class="qmap-basic__heading">{{ s.heading }}</h2>
+      {%- endif -%}
+
+      {%- if s.body != blank -%}
+        <div class="qmap-basic__body rte">
+          {{ s.body }}
+        </div>
+      {%- endif -%}
+
+      <div class="qmap-basic__actions">
+        <a class="qmap-basic__btn qmap-basic__btn--primary"
+           href="{{ map_link }}"
+           target="_blank"
+           rel="noopener"
+           aria-label="{{ s.cta_label | escape }}">
+          {{ s.cta_label }}
+        </a>
+
+        {%- if s.secondary_label != blank and s.secondary_url != blank -%}
+          <a class="qmap-basic__btn qmap-basic__btn--secondary"
+             href="{{ s.secondary_url }}"
+             aria-label="{{ s.secondary_label | escape }}">
+            {{ s.secondary_label }}
+          </a>
+        {%- endif -%}
+      </div>
+
+      {%- if s.details != blank -%}
+        <div class="qmap-basic__details">
+          {{ s.details }}
+        </div>
+      {%- endif -%}
+    </div>
+
+    <div class="qmap-basic__map" aria-label="{{ s.map_aria_label | escape }}">
+      <div class="qmap-basic__surface">
+        {%- if can_render_iframe -%}
+          <iframe
+            class="qmap-basic__iframe"
+            src="{{ embed_src | escape }}"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            allowfullscreen
+            title="{{ s.iframe_title | escape }}"
+          ></iframe>
+        {%- else -%}
+          <div class="qmap-basic__placeholder">
+            <div class="qmap-basic__ph-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M12 22s7-4.5 7-11a7 7 0 1 0-14 0c0 6.5 7 11 7 11Z" vector-effect="non-scaling-stroke"></path>
+                <path d="M12 11.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" vector-effect="non-scaling-stroke"></path>
+              </svg>
+            </div>
+
+            <div class="qmap-basic__ph-copy">
+              <div class="qmap-basic__ph-title">{{ s.placeholder_title }}</div>
+              <div class="qmap-basic__ph-sub">{{ s.placeholder_sub }}</div>
+            </div>
+
+            <div class="qmap-basic__ph-cta">
+              <a class="qmap-basic__btn qmap-basic__btn--primary"
+                 href="{{ map_link }}"
+                 target="_blank"
+                 rel="noopener">
+                {{ s.cta_label }}
+              </a>
+            </div>
+
+            {%- if mode == 'embed' and embed_code != blank and has_iframe == false -%}
+              <div class="qmap-basic__note">{{ s.invalid_embed_note }}</div>
+            {%- elsif mode == 'embed' and embed_src != blank and embed_src_ok == false -%}
+              <div class="qmap-basic__note">{{ s.invalid_embed_note }}</div>
+            {%- endif -%}
+          </div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+
+  <style>
+    #{{ section_id }}{
+      --qmap-bg: var(--q-color-bg, transparent);
+      --qmap-surface: var(--q-surface-1, var(--q-color-surface, transparent));
+      --qmap-text: var(--q-color-text, currentColor);
+      --qmap-muted: var(--q-color-muted, currentColor);
+      --qmap-accent: var(--q-color-accent, currentColor);
+      --qmap-border: var(--q-color-border, currentColor);
+
+      --qmap-radius: var(--q-radius-lg, 16px);
+      --qmap-shadow: var(--q-shadow-md, none);
+
+      --qmap-pad-y: var(--q-space-7, 28px);
+      --qmap-pad-x: var(--q-space-7, 28px);
+      --qmap-gap: var(--q-space-7, 28px);
+
+      --qmap-map-height: {{ s.map_height | default: 380 }}px;
+
+      --qmap-btn-radius: {{ settings.button_radius | default: 12 }}px;
+      --qmap-btn-border: {{ settings.button_border_width | default: 1 }}px;
+      --qmap-btn-hover-opacity: {{ settings.button_hover_opacity | default: 92 | divided_by: 100.0 }};
+      --qmap-btn-pressed-scale: {{ settings.button_active_scale | default: 98 | divided_by: 100.0 }};
+      --qmap-btn-uppercase: {% if settings.buttons_uppercase %}uppercase{% else %}none{% endif %};
+    }
+
+    {% if s.use_custom_colors %}
+      #{{ section_id }}{
+        --qmap-bg: {{ s.custom_bg }};
+        --qmap-surface: {{ s.custom_surface }};
+        --qmap-text: {{ s.custom_text }};
+        --qmap-muted: {{ s.custom_muted }};
+        --qmap-accent: {{ s.custom_accent }};
+        --qmap-border: {{ s.custom_border }};
+      }
+    {% endif %}
+
+    #{{ section_id }}.qmap-basic{
+      background: var(--qmap-bg);
+      color: var(--qmap-text);
+      padding: var(--qmap-pad-y) var(--qmap-pad-x);
+    }
+
+    #{{ section_id }} .qmap-basic__inner{
+      display: grid;
+      gap: var(--qmap-gap);
+      align-items: center;
+    }
+
+    #{{ section_id }}.qmap-basic--split .qmap-basic__inner{
+      grid-template-columns: minmax(280px, 1fr) minmax(320px, 1fr);
+    }
+
+    #{{ section_id }}.qmap-basic--split.qmap-basic--map-left .qmap-basic__content{ order: 2; }
+    #{{ section_id }}.qmap-basic--split.qmap-basic--map-left .qmap-basic__map{ order: 1; }
+
+    @media (max-width: 900px){
+      #{{ section_id }}.qmap-basic--split .qmap-basic__inner{
+        grid-template-columns: 1fr;
+      }
+      #{{ section_id }}.qmap-basic--split.qmap-basic--map-left .qmap-basic__content,
+      #{{ section_id }}.qmap-basic--split.qmap-basic--map-left .qmap-basic__map{ order: initial; }
+    }
+
+    #{{ section_id }} .qmap-basic__kicker{
+      font-size: var(--q-text-sm, 0.9rem);
+      letter-spacing: 0.02em;
+      color: var(--qmap-muted);
+      opacity: 0.9;
+      margin-bottom: var(--q-space-2, 8px);
+    }
+
+    #{{ section_id }} .qmap-basic__heading{
+      margin: 0 0 var(--q-space-3, 12px) 0;
+      font-size: var(--q-heading-lg, 1.85rem);
+      line-height: 1.12;
+    }
+
+    #{{ section_id }} .qmap-basic__body{
+      color: var(--qmap-muted);
+      font-size: var(--q-text-md, 1rem);
+      line-height: 1.6;
+      margin-bottom: var(--q-space-4, 16px);
+    }
+
+    #{{ section_id }} .qmap-basic__actions{
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--q-space-3, 12px);
+      margin: var(--q-space-2, 8px) 0 var(--q-space-4, 16px);
+    }
+
+    #{{ section_id }} .qmap-basic__btn{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      padding: 0.78em 1.05em;
+      border-radius: var(--qmap-btn-radius);
+      border: var(--qmap-btn-border) solid var(--qmap-border);
+      text-transform: var(--qmap-btn-uppercase);
+      transition: transform 120ms ease, opacity 120ms ease;
+      will-change: transform;
+      user-select: none;
+    }
+
+    #{{ section_id }} .qmap-basic__btn:hover{
+      opacity: var(--qmap-btn-hover-opacity);
+      transform: translateY(-1px);
+    }
+
+    #{{ section_id }} .qmap-basic__btn:active{
+      transform: scale(var(--qmap-btn-pressed-scale));
+    }
+
+    #{{ section_id }} .qmap-basic__btn--primary{
+      background: var(--qmap-accent);
+      color: var(--qmap-text);
+    }
+
+    #{{ section_id }} .qmap-basic__btn--secondary{
+      background: transparent;
+      color: var(--qmap-text);
+    }
+
+    #{{ section_id }} .qmap-basic__details{
+      color: var(--qmap-muted);
+      opacity: 0.95;
+      font-size: var(--q-text-sm, 0.95rem);
+    }
+
+    #{{ section_id }} .qmap-basic__surface{
+      background: var(--qmap-surface);
+      border: 1px solid var(--qmap-border);
+      border-radius: var(--qmap-radius);
+      overflow: hidden;
+      box-shadow: var(--qmap-shadow);
+      min-height: var(--qmap-map-height);
+    }
+
+    #{{ section_id }}.qmap-basic--minimal{
+      padding: 0;
+      background: transparent;
+    }
+    #{{ section_id }}.qmap-basic--minimal .qmap-basic__surface{
+      box-shadow: none;
+    }
+
+    #{{ section_id }}.qmap-basic--bordered .qmap-basic__surface{
+      box-shadow: none;
+    }
+
+    #{{ section_id }}.qmap-basic--bleed{
+      padding-left: 0;
+      padding-right: 0;
+    }
+    #{{ section_id }}.qmap-basic--bleed .qmap-basic__surface{
+      border-left: none;
+      border-right: none;
+      border-radius: 0;
+    }
+
+    #{{ section_id }} .qmap-basic__iframe{
+      width: 100%;
+      height: var(--qmap-map-height);
+      display: block;
+      border: 0;
+    }
+
+    #{{ section_id }} .qmap-basic__placeholder{
+      min-height: var(--qmap-map-height);
+      padding: var(--q-space-7, 28px);
+      display: grid;
+      gap: var(--q-space-4, 16px);
+      align-content: center;
+      justify-items: start;
+    }
+
+    #{{ section_id }} .qmap-basic__ph-icon svg{
+      width: 44px;
+      height: 44px;
+      stroke: var(--qmap-text);
+      stroke-width: 1.6;
+      opacity: 0.9;
+    }
+
+    #{{ section_id }} .qmap-basic__ph-title{
+      font-size: var(--q-heading-sm, 1.1rem);
+      margin-bottom: 4px;
+    }
+
+    #{{ section_id }} .qmap-basic__ph-sub{
+      color: var(--qmap-muted);
+      opacity: 0.95;
+      font-size: var(--q-text-sm, 0.95rem);
+      line-height: 1.5;
+    }
+
+    #{{ section_id }} .qmap-basic__note{
+      color: var(--qmap-muted);
+      opacity: 0.85;
+      font-size: var(--q-text-xs, 0.85rem);
+      border-top: 1px dashed var(--qmap-border);
+      padding-top: var(--q-space-3, 12px);
+      width: 100%;
+    }
+
+    #{{ section_id }}.qmap-basic--align-center .qmap-basic__content{
+      text-align: center;
+    }
+    #{{ section_id }}.qmap-basic--align-center .qmap-basic__actions{
+      justify-content: center;
+    }
+    #{{ section_id }}.qmap-basic--align-center .qmap-basic__placeholder{
+      justify-items: center;
+      text-align: center;
+    }
+  </style>
+</section>
+
+{% schema %}
+{
+  "name": "Maps - Basic Google Map",
+  "tag": "section",
+  "class": "section q-section q-section--maps-basic",
+  "settings": [
+    {
+      "type": "select",
+      "id": "mode",
+      "label": "Map mode",
+      "default": "embed",
+      "options": [
+        { "value": "embed", "label": "Embed code (iframe)" },
+        { "value": "address", "label": "Address (Open in Google Maps)" },
+        { "value": "coords", "label": "Coordinates + zoom (Open in Google Maps)" }
+      ]
+    },
+    {
+      "type": "textarea",
+      "id": "embed_code",
+      "label": "Google Maps embed code (iframe)",
+      "default": "<iframe src=\"https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3021.8913612276266!2d-73.98648868459363!3d40.75889597932609!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c25855c6480299%3A0x55194ec5a1f6c4f2!2sTimes%20Square!5e0!3m2!1sen!2sus!4v1700000000000\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>"
+    },
+    {
+      "type": "text",
+      "id": "address",
+      "label": "Address (used for Address mode + general fallback link)",
+      "default": "Times Square, New York, NY"
+    },
+    {
+      "type": "text",
+      "id": "lat",
+      "label": "Latitude (blank uses theme default)",
+    },
+    {
+      "type": "text",
+      "id": "lng",
+      "label": "Longitude (blank uses theme default)",
+    },
+    {
+      "type": "range",
+      "id": "zoom",
+      "label": "Zoom",
+      "min": 3,
+      "max": 18,
+      "step": 1,
+      "default": 12
+    },
+
+    {
+      "type": "header",
+      "content": "Content"
+    },
+    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Directions & Location" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Find us in person" },
+    {
+      "type": "richtext",
+      "id": "body",
+      "label": "Body",
+      "default": "<p>Use the map to get directions, check nearby landmarks, and arrive with confidence. This section works instantly with embed code and stays API-ready for later upgrades.</p>"
+    },
+    { "type": "text", "id": "cta_label", "label": "Primary button label", "default": "Open in Google Maps" },
+    { "type": "text", "id": "secondary_label", "label": "Secondary button label", "default": "Contact us" },
+    { "type": "url", "id": "secondary_url", "label": "Secondary button link" },
+    {
+      "type": "richtext",
+      "id": "details",
+      "label": "Optional details (hours / parking / notes)",
+      "default": "<p><strong>Hours:</strong> Mon–Fri 9–5 • <strong>Parking:</strong> On-site</p>"
+    },
+
+    {
+      "type": "header",
+      "content": "Layout"
+    },
+    { "type": "select", "id": "layout", "label": "Layout", "default": "split", "options": [{ "value": "split", "label": "Split (content + map)" }] },
+    {
+      "type": "select",
+      "id": "map_side",
+      "label": "Map side",
+      "default": "right",
+      "options": [
+        { "value": "right", "label": "Right" },
+        { "value": "left", "label": "Left" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "style",
+      "label": "Style",
+      "default": "card",
+      "options": [
+        { "value": "card", "label": "Card" },
+        { "value": "bordered", "label": "Bordered" },
+        { "value": "minimal", "label": "Minimal" },
+        { "value": "bleed", "label": "Bleed" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "content_align",
+      "label": "Content alignment",
+      "default": "left",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" }
+      ]
+    },
+    { "type": "range", "id": "map_height", "label": "Map height", "min": 260, "max": 760, "step": 10, "default": 380 },
+
+    {
+      "type": "header",
+      "content": "Accessibility + fallback UI"
+    },
+    { "type": "text", "id": "iframe_title", "label": "Iframe title", "default": "Map showing our location" },
+    { "type": "text", "id": "map_aria_label", "label": "Map panel ARIA label", "default": "Location map" },
+    { "type": "text", "id": "placeholder_title", "label": "Placeholder title", "default": "Get directions instantly" },
+    { "type": "text", "id": "placeholder_sub", "label": "Placeholder subtitle", "default": "Open Google Maps to view routes, ETA, and nearby landmarks." },
+    { "type": "text", "id": "invalid_embed_note", "label": "Invalid embed note", "default": "Tip: Paste a valid Google Maps <iframe> embed code to display the map inline." },
+
+    {
+      "type": "header",
+      "content": "Custom colors (scoped)"
+    },
+    { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors", "default": false },
+    { "type": "color", "id": "custom_bg", "label": "Background", "default": "#ffffff" },
+    { "type": "color", "id": "custom_surface", "label": "Surface", "default": "#f6f7f8" },
+    { "type": "color", "id": "custom_text", "label": "Text", "default": "#111111" },
+    { "type": "color", "id": "custom_muted", "label": "Muted text", "default": "#6b7280" },
+    { "type": "color", "id": "custom_accent", "label": "Accent", "default": "#2563eb" },
+    { "type": "color", "id": "custom_border", "label": "Border", "default": "#e5e7eb" }
+  ],
+  "presets": [
+    {
+      "name": "Maps - Basic Google Map",
+      "category": "Maps",
+      "settings": {
+        "mode": "embed",
+        "map_side": "right",
+        "style": "card",
+        "content_align": "left",
+        "map_height": 380
+      }
+    }
+  ]
+}
+{% endschema %}
