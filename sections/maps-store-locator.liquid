@@ -1,0 +1,809 @@
+{% comment %}
+  Quadratum — Maps: Store Locator (Flagship Section)
+  File: sections/maps-store-locator.liquid
+
+  • Theme-native Store Locator with Google Maps JS API (pins + card sync)
+  • Local testing: Dev Preview Map forces itself on localhost (no key / no referrer setup needed)
+  • Safe degradation: list-only when API disabled / key missing / map disabled
+  • Automatic fallback: if Google JS fails to load, fall back to Dev Preview Map (if enabled) else list
+  • No external snippet dependencies
+  • Tokenized + optional custom colors via scoped CSS variables
+
+  ADDITIONS (this pass):
+  • Section-scoped Google marker styling via SVG Symbol (uses --q-accent)
+  • No schema changes
+{% endcomment %}
+
+{%- assign s = section.settings -%}
+{%- assign g = settings -%}
+
+{%- assign gmap_enabled = false -%}
+{%- if g.gmap_enable -%}{%- assign gmap_enabled = true -%}{%- endif -%}
+
+{%- assign gmap_key = g.gmap_api_key | default: '' | strip -%}
+{%- assign has_key = false -%}
+{%- if gmap_key != blank and gmap_key != 'none' -%}{%- assign has_key = true -%}{%- endif -%}
+
+{%- assign can_use_google = false -%}
+{%- if s.enable_map and gmap_enabled and has_key -%}{%- assign can_use_google = true -%}{%- endif -%}
+
+{%- assign use_custom = s.use_custom_colors -%}
+{%- assign maxw = s.max_width | default: 1200 -%}
+{%- assign layout_dir = s.layout_direction | default: 'map_left' -%}
+
+<section
+  id="q-maps-store-locator-{{ section.id }}"
+  class="q-maps-store-locator"
+  data-layout="{{ layout_dir }}"
+  data-can-google="{% if can_use_google %}true{% else %}false{% endif %}"
+  data-dev-enabled="{% if s.dev_preview_map %}true{% else %}false{% endif %}"
+  data-mode="{% if can_use_google %}google{% elsif s.dev_preview_map %}dev{% else %}list{% endif %}"
+  style="
+    --q-bg: {% if use_custom %}{{ s.custom_bg }}{% else %}{{ g.bg_base }}{% endif %};
+    --q-surface: {% if use_custom %}{{ s.custom_surface }}{% else %}{{ g.bg_contrast }}{% endif %};
+    --q-text: {% if use_custom %}{{ s.custom_text }}{% else %}{{ g.text_base }}{% endif %};
+    --q-muted: {% if use_custom %}{{ s.custom_muted }}{% else %}{{ g.text_muted }}{% endif %};
+    --q-accent: {% if use_custom %}{{ s.custom_accent }}{% else %}{{ g.color_primary }}{% endif %};
+    --q-border: {% if use_custom %}{{ s.custom_border }}{% else %}#e5e7eb{% endif %};
+    --q-on-accent: {{ g.text_on_color | default: '#ffffff' }};
+    --q-shadow-strength: {{ s.shadow_strength | default: 0.4 }};
+    --q-radius: {{ s.radius | default: 18 }}px;
+    --q-pad-y: {{ s.pad_y | default: 48 }}px;
+    --q-pad-x: {{ s.pad_x | default: 20 }}px;
+    --q-gap: {{ s.gap | default: 18 }}px;
+    --q-map-h: {{ s.map_height | default: 520 }}px;
+    --q-maxw: {{ maxw }}px;
+  "
+>
+  <style>
+    #q-maps-store-locator-{{ section.id }}{
+      background: var(--q-bg);
+      color: var(--q-text);
+      padding: var(--q-pad-y) var(--q-pad-x);
+    }
+    #q-maps-store-locator-{{ section.id }} .q-wrap{ max-width: var(--q-maxw); margin:0 auto; }
+    #q-maps-store-locator-{{ section.id }} .q-head{ margin-bottom: calc(var(--q-gap) * 1.1); }
+    #q-maps-store-locator-{{ section.id }} .q-kicker{ color:var(--q-muted); font-size:.9rem; letter-spacing:.02em; margin:0 0 6px; }
+    #q-maps-store-locator-{{ section.id }} .q-title{ margin:0; line-height:1.08; font-size:2rem; }
+    #q-maps-store-locator-{{ section.id }} .q-sub{ margin:10px 0 0; color:var(--q-muted); max-width:70ch; }
+
+    #q-maps-store-locator-{{ section.id }} .q-grid{
+      display:grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap:var(--q-gap);
+      align-items:stretch;
+    }
+    #q-maps-store-locator-{{ section.id }}[data-layout="list_left"] .q-map-col{ order:2; }
+    #q-maps-store-locator-{{ section.id }}[data-layout="list_left"] .q-list-col{ order:1; }
+
+    #q-maps-store-locator-{{ section.id }} .q-surface{
+      background:var(--q-surface);
+      border:1px solid var(--q-border);
+      border-radius:var(--q-radius);
+      box-shadow: 0 10px 30px rgba(0,0,0,calc(0.12 * var(--q-shadow-strength)));
+      overflow:hidden;
+    }
+
+    #q-maps-store-locator-{{ section.id }} .q-map{
+      height:var(--q-map-h);
+      width:100%;
+      position:relative;
+      background: linear-gradient(135deg, rgba(0,0,0,.05), rgba(0,0,0,.02));
+    }
+
+    /* Dev preview “map” (no key required) */
+    #q-maps-store-locator-{{ section.id }} .q-dev{
+      height:var(--q-map-h);
+      position:relative;
+      background:
+        radial-gradient(circle at 20% 30%, rgba(0,0,0,.08), transparent 40%),
+        radial-gradient(circle at 70% 60%, rgba(0,0,0,.06), transparent 45%),
+        linear-gradient(135deg, rgba(255,255,255,.35), rgba(255,255,255,0)),
+        repeating-linear-gradient(0deg, rgba(0,0,0,.05), rgba(0,0,0,.05) 1px, transparent 1px, transparent 22px),
+        repeating-linear-gradient(90deg, rgba(0,0,0,.05), rgba(0,0,0,.05) 1px, transparent 1px, transparent 22px);
+    }
+    #q-maps-store-locator-{{ section.id }} .q-dev-note{
+      position:absolute;
+      top:12px; left:12px; right:12px;
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+      padding:10px 12px;
+      border-radius: 14px;
+      border:1px solid var(--q-border);
+      background: rgba(255,255,255,.65);
+      backdrop-filter: blur(10px);
+      color: var(--q-muted);
+      font-size:.9rem;
+      z-index: 2;
+    }
+    #q-maps-store-locator-{{ section.id }} .q-dev-pin{
+      position:absolute;
+      width:14px; height:14px;
+      border-radius:999px;
+      background: var(--q-accent);
+      box-shadow: 0 10px 20px rgba(0,0,0,.18);
+      transform: translate(-50%, -50%);
+      cursor:pointer;
+      outline:none;
+      z-index: 1;
+    }
+    #q-maps-store-locator-{{ section.id }} .q-dev-pin::after{
+      content:"";
+      position:absolute; left:50%; top:50%;
+      width:6px; height:6px; border-radius:999px;
+      background: rgba(255,255,255,.9);
+      transform: translate(-50%, -50%);
+    }
+    #q-maps-store-locator-{{ section.id }} .q-dev-pin.is-active{
+      box-shadow: 0 0 0 6px rgba(37,99,235,.18), 0 12px 24px rgba(0,0,0,.18);
+    }
+
+    #q-maps-store-locator-{{ section.id }} .q-controls{
+      padding:14px 14px 10px;
+      border-bottom:1px solid var(--q-border);
+      display:grid;
+      gap:10px;
+      background: rgba(255,255,255,.25);
+      backdrop-filter: blur(10px);
+    }
+    #q-maps-store-locator-{{ section.id }} .q-search{ display:flex; gap:10px; align-items:center; }
+    #q-maps-store-locator-{{ section.id }} .q-search input{
+      width:100%;
+      padding:12px 12px;
+      border-radius:12px;
+      border:1px solid var(--q-border);
+      background: rgba(255,255,255,.7);
+      color:var(--q-text);
+      outline:none;
+    }
+    #q-maps-store-locator-{{ section.id }} .q-search input:focus{
+      border-color: var(--q-accent);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.18);
+    }
+
+    #q-maps-store-locator-{{ section.id }} .q-tags{ display:flex; flex-wrap:wrap; gap:8px; }
+    #q-maps-store-locator-{{ section.id }} .q-chip{
+      border:1px solid var(--q-border);
+      background: rgba(255,255,255,.55);
+      color:var(--q-text);
+      border-radius:999px;
+      padding:7px 10px;
+      font-size:.85rem;
+      cursor:pointer;
+      user-select:none;
+      transition: transform .08s ease, border-color .12s ease;
+    }
+    #q-maps-store-locator-{{ section.id }} .q-chip:hover{ transform: translateY(-1px); }
+    #q-maps-store-locator-{{ section.id }} .q-chip[aria-pressed="true"]{
+      border-color: var(--q-accent);
+      box-shadow: 0 0 0 3px rgba(16,185,129,.15);
+    }
+
+    #q-maps-store-locator-{{ section.id }} .q-list{
+      max-height: var(--q-map-h);
+      overflow:auto;
+      padding:14px;
+      display:grid;
+      gap:12px;
+    }
+
+    #q-maps-store-locator-{{ section.id }} .q-card{
+      border:1px solid var(--q-border);
+      border-radius: calc(var(--q-radius) - 6px);
+      background: rgba(255,255,255,.55);
+      padding:14px;
+      display:grid;
+      gap:10px;
+      cursor:pointer;
+      transition: transform .08s ease, border-color .12s ease, box-shadow .12s ease;
+    }
+    #q-maps-store-locator-{{ section.id }} .q-card:hover{ transform: translateY(-1px); }
+    #q-maps-store-locator-{{ section.id }} .q-card.is-active{
+      border-color: var(--q-accent);
+      box-shadow: 0 10px 25px rgba(0,0,0,.10);
+    }
+    #q-maps-store-locator-{{ section.id }} .q-card h3{ margin:0; font-size:1.05rem; line-height:1.2; }
+    #q-maps-store-locator-{{ section.id }} .q-meta{ color:var(--q-muted); font-size:.92rem; line-height:1.35; }
+
+    #q-maps-store-locator-{{ section.id }} .q-actions{ display:flex; flex-wrap:wrap; gap:8px; }
+    #q-maps-store-locator-{{ section.id }} .q-btn{
+      display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--q-border);
+      text-decoration:none;
+      color:var(--q-text);
+      background: rgba(255,255,255,.7);
+      font-size:.9rem;
+      line-height:1;
+    }
+    #q-maps-store-locator-{{ section.id }} .q-btn.primary{
+      border-color: transparent;
+      background: var(--q-accent);
+      color: var(--q-on-accent);
+    }
+
+    #q-maps-store-locator-{{ section.id }} .q-empty{
+      padding:16px;
+      color:var(--q-muted);
+      border:1px dashed var(--q-border);
+      border-radius:14px;
+      background: rgba(255,255,255,.45);
+    }
+
+    @media (max-width: 980px){
+      #q-maps-store-locator-{{ section.id }} .q-grid{ grid-template-columns:1fr; }
+      #q-maps-store-locator-{{ section.id }} .q-list{ max-height:none; }
+      #q-maps-store-locator-{{ section.id }} .q-map,
+      #q-maps-store-locator-{{ section.id }} .q-dev{ height:min(420px, var(--q-map-h)); }
+    }
+  </style>
+
+  <div class="q-wrap">
+    <header class="q-head">
+      {%- if s.kicker != blank -%}<p class="q-kicker">{{ s.kicker }}</p>{%- endif -%}
+      <h2 class="q-title">{{ s.heading }}</h2>
+      {%- if s.subheading != blank -%}<div class="q-sub">{{ s.subheading }}</div>{%- endif -%}
+    </header>
+
+    <div class="q-grid">
+      <div class="q-map-col">
+        <div class="q-surface">
+          {%- if can_use_google -%}
+            <div class="q-map" id="q-map-{{ section.id }}" aria-label="{{ s.map_aria_label | escape }}"></div>
+          {%- elsif s.dev_preview_map -%}
+            <div class="q-dev" id="q-dev-{{ section.id }}" aria-label="{{ s.map_aria_label | escape }}">
+              <div class="q-dev-note">
+                <span><strong>Dev Preview Map</strong> — no API key required</span>
+                <span style="opacity:.85;">Enable Google Maps in Theme Settings later</span>
+              </div>
+              <!-- pins injected by JS -->
+            </div>
+          {%- else -%}
+            <div class="q-map" style="display:flex;align-items:center;justify-content:center;padding:18px;color:var(--q-muted);">
+              <div style="max-width:60ch;">
+                <strong>Map is disabled.</strong>
+                <div style="margin-top:8px;">
+                  Turn on <em>Dev Preview Map</em> to test locally without an API key, or enable Google Maps in Theme Settings.
+                </div>
+              </div>
+            </div>
+          {%- endif -%}
+        </div>
+      </div>
+
+      <div class="q-list-col">
+        <div class="q-surface">
+          <div class="q-controls">
+            {%- if s.enable_search -%}
+              <div class="q-search">
+                <input
+                  id="q-search-{{ section.id }}"
+                  type="text"
+                  placeholder="{{ s.search_placeholder | escape }}"
+                  aria-label="{{ s.search_label | escape }}"
+                >
+              </div>
+            {%- endif -%}
+
+            {%- if s.enable_filters -%}
+              <div class="q-tags" id="q-tags-{{ section.id }}"></div>
+            {%- endif -%}
+          </div>
+
+          <div class="q-list" id="q-list-{{ section.id }}">
+            <div class="q-empty" id="q-empty-{{ section.id }}" style="display:none;">
+              No locations match your search.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="application/json" id="q-locations-{{ section.id }}">
+      {
+        "defaults": {
+          "centerLat": {{ s.default_lat | default: g.gmap_default_lat | default: "37.7749" | json }},
+          "centerLng": {{ s.default_lng | default: g.gmap_default_lng | default: "-122.4194" | json }},
+          "zoom": {{ s.default_zoom | default: g.gmap_default_zoom | default: 12 | json }}
+        },
+        "locations": [
+          {%- for block in section.blocks -%}
+            {%- assign b = block.settings -%}
+            {
+              "id": {{ block.id | json }},
+              "name": {{ b.name | json }},
+              "address": {{ b.address | strip_newlines | json }},
+              "phone": {{ b.phone | json }},
+              "email": {{ b.email | json }},
+              "hours": {{ b.hours | json }},
+              "tags": {{ b.tags | json }},
+              "url": {{ b.url | json }},
+              "lat": {{ b.lat | default: 0 | json }},
+              "lng": {{ b.lng | default: 0 | json }}
+            }{%- unless forloop.last -%},{%- endunless -%}
+          {%- endfor -%}
+        ]
+      }
+    </script>
+
+    <script>
+      (function(){
+        const rootId = "q-maps-store-locator-{{ section.id }}";
+        const root = document.getElementById(rootId);
+        const dataEl = document.getElementById("q-locations-{{ section.id }}");
+        const listEl = document.getElementById("q-list-{{ section.id }}");
+        const emptyEl = document.getElementById("q-empty-{{ section.id }}");
+        const enableSearch = {{ s.enable_search | json }};
+        const enableFilters = {{ s.enable_filters | json }};
+
+        if (!root || !dataEl || !listEl) return;
+
+        // --- MODE OVERRIDES (this is the local-dev fix) ---
+        let mode = (root.dataset && root.dataset.mode) ? root.dataset.mode : "list";
+        const canGoogle = (root.dataset.canGoogle === "true");
+        const devEnabled = (root.dataset.devEnabled === "true");
+        const host = (window.location && window.location.hostname) ? window.location.hostname : "";
+        const isLocal = (host === "127.0.0.1" || host === "localhost");
+
+        // If we are on localhost and Dev Preview is enabled, FORCE dev mode even if Google is configured.
+        if (isLocal && devEnabled) {
+          mode = "dev";
+          root.dataset.mode = "dev";
+        }
+
+        let payload = null;
+        try { payload = JSON.parse(dataEl.textContent || "{}"); } catch(e){ payload = {defaults:{}, locations:[]}; }
+        const locations = Array.isArray(payload.locations) ? payload.locations : [];
+        const defaults = payload.defaults || {};
+
+        let activeTag = "";
+        let query = "";
+
+        function norm(str){ return (str || "").toString().toLowerCase().trim(); }
+        function parseTags(t){ return (t || "").toString().split(",").map(x => x.trim()).filter(Boolean); }
+
+        function escapeHtml(str){
+          return (str || "").toString()
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+        }
+        function escapeAttr(str){ return (str || "").toString().replaceAll('"','').replaceAll("'",""); }
+        function directionsUrl(loc){
+          const q = encodeURIComponent((loc.address || "").toString());
+          if (q) return "https://www.google.com/maps/search/?api=1&query=" + q;
+          if (loc.lat && loc.lng) return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(loc.lat + "," + loc.lng);
+          return "https://www.google.com/maps";
+        }
+
+        function getFiltered(){
+          return locations.filter(loc => {
+            const hay = norm([loc.name, loc.address, loc.phone, loc.email, loc.hours, loc.tags].join(" "));
+            const okQ = !query || hay.includes(query);
+            const tags = parseTags(loc.tags).map(norm);
+            const okT = !activeTag || tags.includes(norm(activeTag));
+            return okQ && okT;
+          });
+        }
+
+        function buildCard(loc, idx){
+          const card = document.createElement("div");
+          card.className = "q-card";
+          card.dataset.locId = loc.id;
+
+          const h = document.createElement("h3");
+          h.textContent = loc.name || ("Location " + (idx+1));
+          card.appendChild(h);
+
+          const meta = document.createElement("div");
+          meta.className = "q-meta";
+          const parts = [];
+          if (loc.address) parts.push(loc.address);
+          if (loc.hours) parts.push(loc.hours);
+          meta.innerHTML = parts.map(p => `<div>${escapeHtml(p)}</div>`).join("");
+          card.appendChild(meta);
+
+          const meta2 = document.createElement("div");
+          meta2.className = "q-meta";
+          const cparts = [];
+          if (loc.phone) cparts.push(`<a href="tel:${escapeAttr(loc.phone)}" style="color:inherit;text-decoration:underline;">${escapeHtml(loc.phone)}</a>`);
+          if (loc.email) cparts.push(`<a href="mailto:${escapeAttr(loc.email)}" style="color:inherit;text-decoration:underline;">${escapeHtml(loc.email)}</a>`);
+          if (cparts.length) meta2.innerHTML = cparts.join(" • ");
+          card.appendChild(meta2);
+
+          const actions = document.createElement("div");
+          actions.className = "q-actions";
+
+          const primary = document.createElement("a");
+          primary.className = "q-btn primary";
+          primary.href = loc.url || directionsUrl(loc);
+          primary.target = loc.url ? "" : "_blank";
+          primary.rel = loc.url ? "" : "noopener";
+          primary.textContent = {{ s.card_primary_label | json }};
+          actions.appendChild(primary);
+
+          const secondary = document.createElement("a");
+          secondary.className = "q-btn";
+          secondary.href = directionsUrl(loc);
+          secondary.target = "_blank";
+          secondary.rel = "noopener";
+          secondary.textContent = {{ s.card_directions_label | json }};
+          actions.appendChild(secondary);
+
+          card.appendChild(actions);
+          return card;
+        }
+
+        function renderList(filtered){
+          [...listEl.querySelectorAll(".q-card")].forEach(el => el.remove());
+
+          if (!filtered.length){
+            if (emptyEl) emptyEl.style.display = "block";
+            return;
+          }
+          if (emptyEl) emptyEl.style.display = "none";
+
+          filtered.forEach((loc, idx) => {
+            const card = buildCard(loc, idx);
+            card.addEventListener("click", () => {
+              setActive(String(loc.id));
+              if (mode === "dev") focusDevPin(String(loc.id));
+              if (mode === "google") focusGoogleMarker(String(loc.id));
+            });
+            listEl.insertBefore(card, emptyEl);
+          });
+        }
+
+        function setActive(locId){
+          const cards = listEl.querySelectorAll(".q-card");
+          cards.forEach(c => c.classList.toggle("is-active", String(c.dataset.locId) === String(locId)));
+        }
+
+        function scrollToCard(locId){
+          const card = listEl.querySelector(`.q-card[data-loc-id="${CSS.escape(String(locId))}"]`);
+          if (!card) return;
+          card.scrollIntoView({behavior:"smooth", block:"nearest"});
+          setActive(String(locId));
+        }
+
+        // Search
+        if (enableSearch){
+          const input = document.getElementById("q-search-{{ section.id }}");
+          if (input){
+            input.addEventListener("input", (e) => {
+              query = norm(e.target.value);
+              render();
+            });
+          }
+        }
+
+        // Filters
+        function buildChips(){
+          if (!enableFilters) return;
+          const wrap = document.getElementById("q-tags-{{ section.id }}");
+          if (!wrap) return;
+
+          wrap.innerHTML = "";
+          const set = new Map();
+          locations.forEach(l => parseTags(l.tags).forEach(t => set.set(norm(t), t)));
+          const chips = Array.from(set.entries()).map(([k,v]) => ({key:k,label:v}));
+
+          const allBtn = document.createElement("button");
+          allBtn.className = "q-chip";
+          allBtn.type = "button";
+          allBtn.textContent = {{ s.filter_all_label | json }};
+          allBtn.setAttribute("aria-pressed", "true");
+          allBtn.addEventListener("click", () => {
+            activeTag = "";
+            [...wrap.querySelectorAll(".q-chip")].forEach(b => b.setAttribute("aria-pressed", "false"));
+            allBtn.setAttribute("aria-pressed", "true");
+            render();
+          });
+          wrap.appendChild(allBtn);
+
+          chips.forEach(ch => {
+            const btn = document.createElement("button");
+            btn.className = "q-chip";
+            btn.type = "button";
+            btn.textContent = ch.label;
+            btn.setAttribute("aria-pressed", "false");
+            btn.addEventListener("click", () => {
+              activeTag = ch.label;
+              [...wrap.querySelectorAll(".q-chip")].forEach(b => b.setAttribute("aria-pressed", "false"));
+              btn.setAttribute("aria-pressed", "true");
+              render();
+            });
+            wrap.appendChild(btn);
+          });
+        }
+
+        // DEV PREVIEW MAP (pins + card sync without real map)
+        const devPins = new Map();
+        function latLngToXY(lat, lng, bounds){
+          const x = (lng - bounds.minLng) / (bounds.maxLng - bounds.minLng || 1);
+          const y = 1 - (lat - bounds.minLat) / (bounds.maxLat - bounds.minLat || 1);
+          return { x: Math.max(0.05, Math.min(0.95, x)), y: Math.max(0.08, Math.min(0.92, y)) };
+        }
+        function buildDevPins(filtered){
+          const dev = document.getElementById("q-dev-{{ section.id }}");
+          if (!dev) return;
+
+          [...dev.querySelectorAll(".q-dev-pin")].forEach(p => p.remove());
+          devPins.clear();
+
+          const pts = filtered
+            .map(l => ({lat:Number(l.lat), lng:Number(l.lng), id:String(l.id)}))
+            .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng) && p.lat !== 0 && p.lng !== 0);
+
+          if (!pts.length) return;
+
+          const bounds = pts.reduce((b,p) => ({
+            minLat: Math.min(b.minLat, p.lat),
+            maxLat: Math.max(b.maxLat, p.lat),
+            minLng: Math.min(b.minLng, p.lng),
+            maxLng: Math.max(b.maxLng, p.lng),
+          }), {minLat: pts[0].lat, maxLat: pts[0].lat, minLng: pts[0].lng, maxLng: pts[0].lng});
+
+          pts.forEach(p => {
+            const xy = latLngToXY(p.lat, p.lng, bounds);
+            const pin = document.createElement("button");
+            pin.type = "button";
+            pin.className = "q-dev-pin";
+            pin.style.left = (xy.x * 100) + "%";
+            pin.style.top  = (xy.y * 100) + "%";
+            pin.setAttribute("aria-label", "Map pin");
+            pin.addEventListener("click", () => {
+              setActive(p.id);
+              scrollToCard(p.id);
+              focusDevPin(p.id);
+            });
+            dev.appendChild(pin);
+            devPins.set(p.id, pin);
+          });
+        }
+        function focusDevPin(locId){
+          devPins.forEach((pin, id) => pin.classList.toggle("is-active", String(id) === String(locId)));
+        }
+
+        // --- ADDITION: Section-scoped Google marker icon (uses CSS var --q-accent) ---
+        function getSectionMarkerIcon(){
+          const accent =
+            getComputedStyle(document.getElementById(rootId))
+              .getPropertyValue('--q-accent')
+              .trim() || '#2563eb';
+
+          return {
+            path: "M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5c-1.4 0-2.5-1.1-2.5-2.5S10.6 6.5 12 6.5s2.5 1.1 2.5 2.5S13.4 11.5 12 11.5z",
+            fillColor: accent,
+            fillOpacity: 1,
+            strokeColor: "#ffffff",
+            strokeWeight: 2,
+            scale: 1.4,
+            anchor: new google.maps.Point(12, 24)
+          };
+        }
+
+        // GOOGLE MAP (only when key exists)
+        let gMap = null;
+        let gMarkers = [];
+        let gInfo = null;
+
+        function clearGoogleMarkers(){
+          gMarkers.forEach(m => m.setMap(null));
+          gMarkers = [];
+        }
+        function focusGoogleMarker(locId){
+          const m = gMarkers.find(x => String(x.__locId) === String(locId));
+          if (!m || !gMap) return;
+          gMap.panTo(m.getPosition());
+          gMap.setZoom(Math.max(gMap.getZoom(), 12));
+        }
+        function renderGoogle(filtered){
+          if (!gMap || !window.google || !google.maps) return;
+
+          clearGoogleMarkers();
+          gInfo = gInfo || new google.maps.InfoWindow();
+
+          const bounds = new google.maps.LatLngBounds();
+          let hasAny = false;
+
+          filtered.forEach(loc => {
+            const lat = Number(loc.lat);
+            const lng = Number(loc.lng);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat === 0 || lng === 0) return;
+
+            hasAny = true;
+            const pos = {lat, lng};
+            bounds.extend(pos);
+
+            const marker = new google.maps.Marker({
+              position: pos,
+              map: gMap,
+              title: loc.name || "",
+              icon: getSectionMarkerIcon() /* ADDITION */
+            });
+            marker.__locId = String(loc.id);
+
+            marker.addListener("click", () => {
+              const content =
+                '<div style="font-family:system-ui;font-size:14px;">' +
+                  '<div style="font-weight:700;margin-bottom:4px;">' + escapeHtml(loc.name || "") + '</div>' +
+                  '<div style="color:#555;margin-bottom:8px;">' + escapeHtml(loc.address || "") + '</div>' +
+                  '<a href="' + escapeAttr(loc.url || directionsUrl(loc)) + '" style="color:#2563eb;text-decoration:underline;">' +
+                    {{ s.pin_primary_label | json }} +
+                  '</a>' +
+                '</div>';
+              gInfo.setContent(content);
+              gInfo.open(gMap, marker);
+              scrollToCard(String(loc.id));
+            });
+
+            gMarkers.push(marker);
+          });
+
+          if (hasAny){
+            gMap.fitBounds(bounds, 60);
+          } else {
+            gMap.setCenter({lat: Number(defaults.centerLat || 37.7749), lng: Number(defaults.centerLng || -122.4194)});
+            gMap.setZoom(Number(defaults.zoom || 12));
+          }
+        }
+
+        function render(){
+          const filtered = getFiltered();
+          renderList(filtered);
+
+          if (mode === "dev") buildDevPins(filtered);
+          if (mode === "google") renderGoogle(filtered);
+        }
+
+        buildChips();
+        render();
+
+        // Boot Google only if in google mode AND not forced to dev by localhost
+        if (mode === "google" && canGoogle){
+          window["qInitStoreLocator_{{ section.id }}"] = function(){
+            const el = document.getElementById("q-map-{{ section.id }}");
+            if (!el) return;
+
+            gMap = new google.maps.Map(el, {
+              center: {lat: Number(defaults.centerLat || 37.7749), lng: Number(defaults.centerLng || -122.4194)},
+              zoom: Number(defaults.zoom || 12),
+              mapTypeControl: false,
+              streetViewControl: false,
+              fullscreenControl: true
+            });
+
+            render();
+          };
+
+          // If Google fails, fall back to dev (if enabled) else list. (This makes local + misconfigured keys non-blocking.)
+          function fallback(){
+            if (devEnabled) {
+              mode = "dev";
+              root.dataset.mode = "dev";
+              render();
+            } else {
+              mode = "list";
+              root.dataset.mode = "list";
+            }
+          }
+
+          var cb = "qInitStoreLocator_{{ section.id }}";
+          var src = "https://maps.googleapis.com/maps/api/js?key={{ gmap_key | url_encode }}&callback=" + cb;
+
+          var sc = document.createElement("script");
+          sc.src = src;
+          sc.async = true;
+          sc.defer = true;
+
+          sc.onerror = function(){ fallback(); };
+
+          // Also fallback if callback never fires (blocked by referrer/billing)
+          var t = window.setTimeout(function(){
+            if (!gMap) fallback();
+          }, 3500);
+
+          var oldCb = window[cb];
+          window[cb] = function(){
+            window.clearTimeout(t);
+            if (typeof oldCb === "function") oldCb();
+          };
+
+          document.head.appendChild(sc);
+        }
+      })();
+    </script>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Maps - Store Locator",
+  "settings": [
+    { "type": "header", "content": "Content" },
+    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Locations" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Find a Location Near You" },
+    { "type": "richtext", "id": "subheading", "label": "Subheading", "default": "<p>Browse our locations and get directions in seconds.</p>" },
+
+    { "type": "header", "content": "Map + List Layout" },
+    { "type": "checkbox", "id": "enable_map", "label": "Enable map (requires Theme Settings → Google Maps)", "default": true },
+    { "type": "checkbox", "id": "dev_preview_map", "label": "Dev Preview Map (no API key needed)", "default": true },
+    {
+      "type": "select",
+      "id": "layout_direction",
+      "label": "Layout direction",
+      "default": "map_left",
+      "options": [
+        { "value": "map_left", "label": "Map left / List right" },
+        { "value": "list_left", "label": "List left / Map right" }
+      ]
+    },
+    { "type": "range", "id": "map_height", "label": "Map height (px)", "min": 320, "max": 760, "step": 20, "default": 520 },
+    { "type": "text", "id": "map_aria_label", "label": "Map ARIA label", "default": "Store locator map" },
+
+    { "type": "header", "content": "Search + Filters" },
+    { "type": "checkbox", "id": "enable_search", "label": "Enable search", "default": true },
+    { "type": "text", "id": "search_label", "label": "Search field label", "default": "Search by city or ZIP" },
+    { "type": "text", "id": "search_placeholder", "label": "Search placeholder", "default": "Search by city, ZIP, or keyword…" },
+    { "type": "checkbox", "id": "enable_filters", "label": "Enable tag filters", "default": true },
+    { "type": "text", "id": "filter_all_label", "label": "All filter label", "default": "All" },
+
+    { "type": "header", "content": "Map Defaults" },
+    { "type": "text", "id": "default_lat", "label": "Default center latitude", "default": "37.7749" },
+    { "type": "text", "id": "default_lng", "label": "Default center longitude", "default": "-122.4194" },
+    { "type": "range", "id": "default_zoom", "label": "Default zoom", "min": 1, "max": 20, "step": 1, "default": 12 },
+
+    { "type": "header", "content": "Card + Pin Labels" },
+    { "type": "text", "id": "card_primary_label", "label": "Card primary button label", "default": "View Location" },
+    { "type": "text", "id": "card_directions_label", "label": "Card directions label", "default": "Directions" },
+    { "type": "text", "id": "pin_primary_label", "label": "Pin link label", "default": "Open details" },
+
+    { "type": "header", "content": "Design + Spacing" },
+    { "type": "range", "id": "max_width", "label": "Max width (px)", "min": 900, "max": 1700, "step": 20, "default": 1200 },
+    { "type": "range", "id": "pad_y", "label": "Section padding Y (px)", "min": 0, "max": 120, "step": 4, "default": 48 },
+    { "type": "range", "id": "pad_x", "label": "Section padding X (px)", "min": 0, "max": 60, "step": 2, "default": 20 },
+    { "type": "range", "id": "gap", "label": "Column gap (px)", "min": 10, "max": 40, "step": 2, "default": 18 },
+    { "type": "range", "id": "radius", "label": "Surface radius (px)", "min": 0, "max": 32, "step": 1, "default": 18 },
+    { "type": "range", "id": "shadow_strength", "label": "Shadow strength", "min": 0, "max": 1, "step": 0.1, "default": 0.4 },
+
+    { "type": "header", "content": "Custom Colors" },
+    { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors", "default": false },
+    { "type": "color", "id": "custom_bg", "label": "Background", "default": "#ffffff" },
+    { "type": "color", "id": "custom_surface", "label": "Surface", "default": "#f6f7f8" },
+    { "type": "color", "id": "custom_text", "label": "Text", "default": "#111111" },
+    { "type": "color", "id": "custom_muted", "label": "Muted text", "default": "#6b7280" },
+    { "type": "color", "id": "custom_accent", "label": "Accent", "default": "#2563eb" },
+    { "type": "color", "id": "custom_border", "label": "Border", "default": "#e5e7eb" }
+  ],
+  "blocks": [
+    {
+      "type": "location",
+      "name": "Location",
+      "settings": [
+        { "type": "text", "id": "name", "label": "Location name", "default": "Main Showroom" },
+        { "type": "textarea", "id": "address", "label": "Address", "default": "123 Main St, City, ST 00000" },
+        { "type": "text", "id": "lat", "label": "Latitude", "default": "37.7749" },
+        { "type": "text", "id": "lng", "label": "Longitude", "default": "-122.4194" },
+        { "type": "text", "id": "phone", "label": "Phone", "default": "(555) 123-4567" },
+        { "type": "text", "id": "email", "label": "Email", "default": "hello@example.com" },
+        { "type": "text", "id": "hours", "label": "Hours", "default": "Mon–Fri 9–5" },
+        { "type": "text", "id": "tags", "label": "Tags (comma-separated)", "default": "Showroom, Service" },
+        { "type": "url", "id": "url", "label": "Location page URL (optional)" }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Maps - Store Locator",
+      "category": "Maps",
+      "blocks": [
+        { "type": "location" },
+        { "type": "location" }
+      ]
+    }
+  ]
+}
+{% endschema %}
