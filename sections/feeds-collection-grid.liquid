@@ -1,0 +1,479 @@
+{% comment %}
+  Quadratum — Feed · Collection Grid
+  File: sections/feeds-collection-grid.liquid
+
+  CRITICAL:
+  • Must use shared snippet: collection-card
+  • Grid-only in v1 (orientation, not SKU browsing)
+  • Defaults must render immediately
+  • Optional filtering must never break rendering
+
+  Notes:
+  • "Dynamic: all collections" is only guaranteed on list-collections template
+    (where `collections` is an iterable array). Else we fail gracefully.
+{% endcomment %}
+
+{%- liquid
+  assign sid = section.id
+
+  assign source_mode = section.settings.source_mode | default: 'manual'
+
+  assign manual_collections = section.settings.manual_collections
+  assign manual_count = 0
+  if manual_collections != blank
+    assign manual_count = manual_collections.size
+  endif
+
+  assign cols_p = section.settings.columns_phone | default: 2
+  assign cols_t = section.settings.columns_tablet | default: 3
+  assign cols_d = section.settings.columns_desktop | default: 4
+
+  assign density = section.settings.card_density | default: 'compact'
+  assign card_preset = section.settings.card_preset | default: 'catalog'
+
+  assign show_image = section.settings.show_image
+  assign show_count = section.settings.show_count
+  assign show_description = section.settings.show_description
+  assign overlay_text_enabled = section.settings.overlay_text_enabled
+  assign overlay_text_source = section.settings.overlay_text_source | default: 'title'
+  assign overlay_custom_text = section.settings.overlay_custom_text | default: ''
+  assign image_aspect = section.settings.image_aspect | default: 'auto'
+
+  assign text_align = section.settings.text_align | default: 'left'
+  assign title_size = section.settings.title_size | default: 16
+  assign title_weight = section.settings.title_weight | default: '600'
+  assign meta_size = section.settings.meta_size | default: 13
+  assign meta_opacity = section.settings.meta_opacity | default: 82 | divided_by: 100.0
+
+  assign enable_color_overrides = section.settings.enable_color_overrides
+
+  comment
+    Optional filtering (safe + graceful):
+    - include_handles: comma-separated handles (whitelist)
+    - exclude_handles: comma-separated handles (blacklist)
+    - title_contains: simple contains match
+  endcomment
+  assign include_handles = section.settings.include_handles | default: ''
+  assign exclude_handles = section.settings.exclude_handles | default: ''
+  assign title_contains = section.settings.title_contains | default: ''
+
+  assign include_list = include_handles | downcase | split: ',' | map: 'strip'
+  assign exclude_list = exclude_handles | downcase | split: ',' | map: 'strip'
+  assign title_contains_down = title_contains | downcase | strip
+
+  assign density_class = 'q-density--comfortable'
+  if density == 'compact'
+    assign density_class = 'q-density--compact'
+  endif
+
+  assign style_vars = ''
+  assign style_vars = style_vars | append: '--q-feed-cols-p:' | append: cols_p | append: ';'
+  assign style_vars = style_vars | append: '--q-feed-cols-t:' | append: cols_t | append: ';'
+  assign style_vars = style_vars | append: '--q-feed-cols-d:' | append: cols_d | append: ';'
+  assign style_vars = style_vars | append: '--q-section-bg:' | append: section.settings.section_bg | append: ';'
+  assign style_vars = style_vars | append: '--q-section-border:' | append: section.settings.section_border | append: ';'
+  assign style_vars = style_vars | append: '--q-section-radius:' | append: section.settings.section_radius | append: 'px;'
+  assign style_vars = style_vars | append: '--q-pad-y:' | append: section.settings.pad_y | append: 'px;'
+  assign style_vars = style_vars | append: '--q-pad-x:' | append: section.settings.pad_x | append: 'px;'
+  assign style_vars = style_vars | append: '--q-feed-text-align:' | append: text_align | append: ';'
+  assign style_vars = style_vars | append: '--q-cc-title-size:' | append: title_size | append: 'px;'
+  assign style_vars = style_vars | append: '--q-cc-title-weight:' | append: title_weight | append: ';'
+  assign style_vars = style_vars | append: '--q-cc-meta-size:' | append: meta_size | append: 'px;'
+  assign style_vars = style_vars | append: '--q-cc-meta-opacity:' | append: meta_opacity | append: ';'
+
+  if enable_color_overrides
+    assign style_vars = style_vars | append: '--q-cc-card-bg:' | append: section.settings.card_bg | append: ';'
+    assign style_vars = style_vars | append: '--q-cc-card-border:' | append: section.settings.card_border | append: ';'
+    assign style_vars = style_vars | append: '--q-cc-title-color:' | append: section.settings.title_color | append: ';'
+    assign style_vars = style_vars | append: '--q-cc-meta-color:' | append: section.settings.meta_color | append: ';'
+    assign style_vars = style_vars | append: '--q-cc-overlay-color:' | append: section.settings.overlay_color | append: ';'
+    assign style_vars = style_vars | append: '--q-cc-overlay-text:' | append: section.settings.overlay_text_color | append: ';'
+  endif
+
+  comment
+    Build the source list.
+
+    Manual:
+      - uses collection_list setting
+    Dynamic (all):
+      - only guaranteed on list-collections template where `collections` is iterable
+      - elsewhere: fail gracefully to empty state
+  endcomment
+
+  assign can_iterate_collections = false
+  if collections and collections.size
+    assign can_iterate_collections = true
+  endif
+
+  assign use_dynamic = false
+  if source_mode == 'dynamic_all' and can_iterate_collections
+    assign use_dynamic = true
+  endif
+
+  assign has_any = false
+-%}
+
+<section
+  class="q-feed q-feed-collection-grid {{ density_class }}"
+  data-section-id="{{ sid }}"
+  data-feed="collection-grid"
+  style="{{ style_vars }}"
+>
+  <div class="q-feed__inner">
+    {%- if section.settings.show_header -%}
+      <header class="q-feed__header">
+        <div class="q-feed__header-left">
+          {%- if section.settings.heading != blank -%}
+            <h2 class="q-feed__heading">{{ section.settings.heading }}</h2>
+          {%- endif -%}
+          {%- if section.settings.subheading != blank -%}
+            <div class="q-feed__subheading">{{ section.settings.subheading }}</div>
+          {%- endif -%}
+        </div>
+      </header>
+    {%- endif -%}
+
+    <div class="q-feed__body">
+      <div class="q-feed__grid" data-feed-grid aria-live="polite">
+        {%- if source_mode == 'manual' -%}
+          {%- if manual_count > 0 -%}
+            {%- for collection in manual_collections -%}
+              {%- assign h = collection.handle | downcase -%}
+              {%- assign t = collection.title | downcase -%}
+
+              {%- assign ok = true -%}
+
+              {%- if include_handles != blank and include_list.size > 0 -%}
+                {%- assign ok = false -%}
+                {%- if include_list contains h -%}{%- assign ok = true -%}{%- endif -%}
+              {%- endif -%}
+
+              {%- if ok and exclude_handles != blank and exclude_list contains h -%}
+                {%- assign ok = false -%}
+              {%- endif -%}
+
+              {%- if ok and title_contains_down != blank -%}
+                {%- unless t contains title_contains_down -%}
+                  {%- assign ok = false -%}
+                {%- endunless -%}
+              {%- endif -%}
+
+              {%- if ok -%}
+                {%- assign has_any = true -%}
+                <div class="q-feed__item" data-feed-item>
+                  {%- render 'collection-card',
+                    collection: collection,
+                    card_preset: card_preset,
+                    density: density,
+                    show_image: show_image,
+                    show_count: show_count,
+                    show_description: show_description,
+                    overlay_text_enabled: overlay_text_enabled,
+                    overlay_text_source: overlay_text_source,
+                    overlay_custom_text: overlay_custom_text,
+                    image_aspect: image_aspect,
+                    text_align: text_align,
+                    title_size: title_size,
+                    title_weight: title_weight,
+                    meta_size: meta_size,
+                    meta_opacity: section.settings.meta_opacity,
+                    enable_color_overrides: enable_color_overrides,
+                    card_bg: section.settings.card_bg,
+                    card_border: section.settings.card_border,
+                    title_color: section.settings.title_color,
+                    meta_color: section.settings.meta_color,
+                    overlay_color: section.settings.overlay_color,
+                    overlay_text_color: section.settings.overlay_text_color
+                  -%}
+                </div>
+              {%- endif -%}
+            {%- endfor -%}
+          {%- endif -%}
+
+        {%- elsif use_dynamic -%}
+          {%- for collection in collections -%}
+            {%- assign h = collection.handle | downcase -%}
+            {%- assign t = collection.title | downcase -%}
+
+            {%- assign ok = true -%}
+
+            {%- if include_handles != blank and include_list.size > 0 -%}
+              {%- assign ok = false -%}
+              {%- if include_list contains h -%}{%- assign ok = true -%}{%- endif -%}
+            {%- endif -%}
+
+            {%- if ok and exclude_handles != blank and exclude_list contains h -%}
+              {%- assign ok = false -%}
+            {%- endif -%}
+
+            {%- if ok and title_contains_down != blank -%}
+              {%- unless t contains title_contains_down -%}
+                {%- assign ok = false -%}
+              {%- endunless -%}
+            {%- endif -%}
+
+            {%- if ok -%}
+              {%- assign has_any = true -%}
+              <div class="q-feed__item" data-feed-item>
+                {%- render 'collection-card',
+                  collection: collection,
+                  card_preset: card_preset,
+                  density: density,
+                  show_image: show_image,
+                  show_count: show_count,
+                  show_description: show_description,
+                  overlay_text_enabled: overlay_text_enabled,
+                  overlay_text_source: overlay_text_source,
+                  overlay_custom_text: overlay_custom_text,
+                  image_aspect: image_aspect,
+                  text_align: text_align,
+                  title_size: title_size,
+                  title_weight: title_weight,
+                  meta_size: meta_size,
+                  meta_opacity: section.settings.meta_opacity,
+                  enable_color_overrides: enable_color_overrides,
+                  card_bg: section.settings.card_bg,
+                  card_border: section.settings.card_border,
+                  title_color: section.settings.title_color,
+                  meta_color: section.settings.meta_color,
+                  overlay_color: section.settings.overlay_color,
+                  overlay_text_color: section.settings.overlay_text_color
+                -%}
+              </div>
+            {%- endif -%}
+          {%- endfor -%}
+        {%- endif -%}
+      </div>
+
+      {%- unless has_any -%}
+        <div class="q-feed__empty" role="status">
+          <h3 class="q-feed__empty-title">{{ section.settings.empty_title | default: 'Nothing to show' }}</h3>
+          <p class="q-feed__empty-text">
+            {%- if source_mode == 'dynamic_all' and can_iterate_collections == false -%}
+              {{ section.settings.empty_text_dynamic | default: 'Dynamic mode is only available on the collections list template. Use Manual mode here.' }}
+            {%- else -%}
+              {{ section.settings.empty_text | default: 'Choose collections in the section settings.' }}
+            {%- endif -%}
+          </p>
+        </div>
+      {%- endunless -%}
+    </div>
+  </div>
+
+  <style>
+    [data-section-id="{{ sid }}"]{
+      background: var(--q-section-bg, transparent);
+      border: 1px solid var(--q-section-border, transparent);
+      border-radius: var(--q-section-radius, 0px);
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__inner{
+      padding-block: var(--q-pad-y, 0px);
+      padding-inline: var(--q-pad-x, 0px);
+      text-align: var(--q-feed-text-align, left);
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__header{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap: var(--q-gap, 1rem);
+      margin-bottom: var(--q-gap, 1rem);
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__heading{
+      margin:0;
+      font-size: var(--q-h2-fs, var(--q-heading-fs, 1.5rem));
+      line-height: var(--q-heading-lh, 1.2);
+      color: var(--q-title-color, currentColor);
+    }
+    [data-section-id="{{ sid }}"] .q-feed__subheading{
+      margin-top:.25em;
+      opacity:.85;
+      font-size: var(--q-body-fs, 1rem);
+      color: var(--q-meta-color, currentColor);
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__grid{
+      display:grid;
+      grid-template-columns: repeat(var(--q-feed-cols-p, 2), minmax(0,1fr));
+      gap: var(--q-feed-gap, var(--q-gap, 1rem));
+      align-items: stretch;
+    }
+
+    [data-section-id="{{ sid }}"].q-density--comfortable{ --q-feed-gap: var(--q-gap-md, var(--q-gap, 1rem)); }
+    [data-section-id="{{ sid }}"].q-density--compact{ --q-feed-gap: var(--q-gap-sm, var(--q-gap, .75rem)); }
+
+    @media (min-width: 750px){
+      [data-section-id="{{ sid }}"] .q-feed__grid{
+        grid-template-columns: repeat(var(--q-feed-cols-t, 3), minmax(0,1fr));
+      }
+    }
+    @media (min-width: 990px){
+      [data-section-id="{{ sid }}"] .q-feed__grid{
+        grid-template-columns: repeat(var(--q-feed-cols-d, 4), minmax(0,1fr));
+      }
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__empty{
+      border:1px solid var(--q-border, currentColor);
+      border-radius: var(--q-radius, 1rem);
+      padding: var(--q-card-pad, 1.25rem);
+      opacity:.9;
+      background: var(--q-section-bg, transparent);
+      margin-top: var(--q-gap, 1rem);
+    }
+    [data-section-id="{{ sid }}"] .q-feed__empty-title{
+      margin:0 0 .25rem 0;
+      font-size: var(--q-h3-fs, 1.25rem);
+      color: var(--q-title-color, currentColor);
+    }
+    [data-section-id="{{ sid }}"] .q-feed__empty-text{ margin:0; opacity:.85; color: var(--q-meta-color, currentColor); }
+  </style>
+</section>
+
+{% schema %}
+{
+  "name": "Feed · Collection Grid",
+  "tag": "section",
+  "class": "q-feed-collection-grid",
+  "settings": [
+    { "type": "header", "content": "Section styling" },
+    { "type": "color", "id": "section_bg", "label": "Section background", "default": "transparent" },
+    { "type": "color", "id": "section_border", "label": "Section border", "default": "transparent" },
+    { "type": "range", "id": "section_radius", "label": "Section radius (px)", "min": 0, "max": 40, "step": 1, "default": 0 },
+    { "type": "range", "id": "pad_y", "label": "Padding Y (px)", "min": 0, "max": 120, "step": 4, "default": 0 },
+    { "type": "range", "id": "pad_x", "label": "Padding X (px)", "min": 0, "max": 120, "step": 4, "default": 0 },
+
+    { "type": "header", "content": "Source" },
+    {
+      "type": "select",
+      "id": "source_mode",
+      "label": "Source mode",
+      "default": "manual",
+      "options": [
+        { "value": "manual", "label": "Manual Selection" },
+        { "value": "dynamic_all", "label": "Dynamic - All Collections" }
+      ]
+    },
+    { "type": "collection_list", "id": "manual_collections", "label": "Collections (manual selection)", "limit": 50 },
+
+    { "type": "header", "content": "Optional filtering (safe)" },
+    { "type": "text", "id": "include_handles", "label": "Include handles (comma-separated)",  },
+    { "type": "text", "id": "exclude_handles", "label": "Exclude handles (comma-separated)",  },
+    { "type": "text", "id": "title_contains", "label": "Title contains (simple match)", },
+
+    { "type": "header", "content": "Header" },
+    { "type": "checkbox", "id": "show_header", "label": "Show header", "default": false },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Shop by category" },
+    { "type": "richtext", "id": "subheading", "label": "Subheading", "default": "<p>Browse collections.</p>" },
+
+    { "type": "header", "content": "Grid layout" },
+    { "type": "range", "id": "columns_phone", "label": "Columns (phone)", "min": 1, "max": 3, "step": 1, "default": 2 },
+    { "type": "range", "id": "columns_tablet", "label": "Columns (tablet)", "min": 1, "max": 6, "step": 1, "default": 3 },
+    { "type": "range", "id": "columns_desktop", "label": "Columns (desktop)", "min": 1, "max": 8, "step": 1, "default": 4 },
+    {
+      "type": "select",
+      "id": "card_density",
+      "label": "Card density",
+      "default": "compact",
+      "options": [
+        { "value": "comfortable", "label": "Comfortable" },
+        { "value": "compact", "label": "Compact" }
+      ]
+    },
+
+    { "type": "header", "content": "Card preset" },
+    {
+      "type": "select",
+      "id": "card_preset",
+      "label": "Card preset",
+      "default": "catalog",
+      "options": [
+        { "value": "editorial", "label": "Editorial" },
+        { "value": "tech", "label": "Tech" },
+        { "value": "catalog", "label": "Catalog" },
+        { "value": "minimal", "label": "Minimal" },
+        { "value": "pill", "label": "Pill" }
+      ]
+    },
+
+    { "type": "header", "content": "Card content" },
+    { "type": "checkbox", "id": "show_image", "label": "Show collection image", "default": true },
+    { "type": "checkbox", "id": "show_count", "label": "Show product count", "default": true },
+    { "type": "checkbox", "id": "show_description", "label": "Show short description", "default": false },
+
+    { "type": "header", "content": "Image aspect" },
+    {
+      "type": "select",
+      "id": "image_aspect",
+      "label": "Card image aspect",
+      "default": "auto",
+      "options": [
+        { "value": "auto", "label": "Auto (default)" },
+        { "value": "square", "label": "Square" },
+        { "value": "landscape", "label": "Landscape" }
+      ]
+    },
+
+    { "type": "header", "content": "Overlay text (optional)" },
+    { "type": "checkbox", "id": "overlay_text_enabled", "label": "Enable overlay text on image", "default": false },
+    {
+      "type": "select",
+      "id": "overlay_text_source",
+      "label": "Overlay text source",
+      "default": "title",
+      "options": [
+        { "value": "title", "label": "Title" },
+        { "value": "description", "label": "Description (truncated)" },
+        { "value": "custom", "label": "Custom text" }
+      ]
+    },
+    { "type": "text", "id": "overlay_custom_text", "label": "Overlay custom text (when enabled)"},
+
+    { "type": "header", "content": "Typography" },
+    {
+      "type": "select",
+      "id": "text_align",
+      "label": "Text alignment",
+      "default": "left",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" }
+      ]
+    },
+    { "type": "range", "id": "title_size", "label": "Title size", "min": 12, "max": 24, "step": 1, "default": 16 },
+    {
+      "type": "select",
+      "id": "title_weight",
+      "label": "Title weight",
+      "default": "600",
+      "options": [
+        { "value": "400", "label": "Regular (400)" },
+        { "value": "500", "label": "Medium (500)" },
+        { "value": "600", "label": "Semibold (600)" },
+        { "value": "700", "label": "Bold (700)" }
+      ]
+    },
+    { "type": "range", "id": "meta_size", "label": "Meta size", "min": 11, "max": 16, "step": 1, "default": 13 },
+    { "type": "range", "id": "meta_opacity", "label": "Meta opacity (%)", "min": 50, "max": 100, "step": 5, "default": 85 },
+
+    { "type": "header", "content": "Color overrides" },
+    { "type": "checkbox", "id": "enable_color_overrides", "label": "Enable color overrides (per-section)", "default": false },
+    { "type": "color", "id": "card_bg", "label": "Card background", "default": "transparent" },
+    { "type": "color", "id": "card_border", "label": "Card border", "default": "rgba(0,0,0,0.10)" },
+    { "type": "color", "id": "title_color", "label": "Title color",  },
+    { "type": "color", "id": "meta_color", "label": "Meta color",  },
+    { "type": "color", "id": "overlay_color", "label": "Overlay background", "default": "rgba(0,0,0,0.55)" },
+    { "type": "color", "id": "overlay_text_color", "label": "Overlay text color", "default": "#ffffff" },
+
+    { "type": "header", "content": "Empty states" },
+    { "type": "text", "id": "empty_title", "label": "Empty title", "default": "Nothing to show" },
+    { "type": "text", "id": "empty_text", "label": "Empty text (manual)", "default": "Choose collections in the section settings." },
+    { "type": "text", "id": "empty_text_dynamic", "label": "Empty text (dynamic mode unsupported here)", "default": "Dynamic mode is only available on the collections list template. Use Manual mode here." }
+  ],
+  "presets": [
+    { "name": "Feed · Collection Grid", "category": "Feeds" }
+  ]
+}
+{% endschema %}

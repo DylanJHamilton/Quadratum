@@ -1,43 +1,136 @@
 {% comment %}
-  Quadratum — Feed · Product Grid
+  Quadratum — Feed · Product Grid / Carousel
   File: sections/feeds-product-grid.liquid
 
   CRITICAL:
   • Must use shared snippet: product-card
-  • One grid powers shop / collection / landing feeds
+  • One feed supports Grid OR Carousel layout
   • Progressive enhancement: initial render works without JS
+  • Collection modes can paginate + sort (manual products do not paginate)
 
-  Notes:
-  • Sorting override uses Shopify-native sort_by query param.
-  • For override, we redirect (JS) to ensure server-side sort matches.
-  • Load more / infinite fetches next page HTML and appends items.
+  Carousel:
+  • No dependency on external libs
+  • Uses horizontal scroll + snap (works without JS)
+  • Optional prev/next buttons enhance UX
+
+  FIXES ADDED (Jan 2026):
+  • Quick view placement control: overlay | below_content | both | none
+  • Kill the always-visible action row (and its extra buttons) via show_action_row
+  • Optional row toggles: show_secondary_row_cta, show_row_quick_view
+  • Title style preset: inherit | coquette (uses --q-font-accent if present)
+
+  NEW (Jan 2026):
+  • Layout mode per breakpoint: mobile + desktop (inherit|grid|carousel)
+  • Deterministic carousel contract via --q-carousel-item-w
+  • Carousel scroll step uses computed gap + item width (no hardcoded 16)
+  • If ANY breakpoint uses carousel → cap products_per_page to 12 (server-side safe)
 {% endcomment %}
 
 {%- liquid
   assign sid = section.id
-  assign source_mode = section.settings.source_mode
+
+  assign source_mode = section.settings.source_mode | default: 'all_products'
 
   assign feed_collection = nil
-  if source_mode == 'collection'
+  assign manual_products = section.settings.manual_products
+  assign manual_count = 0
+  if manual_products != blank
+    assign manual_count = manual_products.size
+  endif
+
+  comment
+    Determine source
+  endcomment
+  assign using_manual = false
+
+  if source_mode == 'manual_products'
+    if manual_count > 0
+      assign using_manual = true
+    else
+      assign fallback = section.settings.manual_products_fallback | default: 'all_products'
+      if fallback == 'collection'
+        assign feed_collection = section.settings.collection
+      elsif fallback == 'empty'
+        assign feed_collection = nil
+      else
+        assign feed_collection = collections['all']
+      endif
+    endif
+  elsif source_mode == 'collection'
     assign feed_collection = section.settings.collection
   elsif source_mode == 'dynamic_collection'
     if collection
       assign feed_collection = collection
+    else
+      assign feed_collection = nil
     endif
+  else
+    assign feed_collection = collections['all']
   endif
 
-  assign products_per_page = section.settings.products_per_page | default: 16
+  assign products_per_page = section.settings.products_per_page | default: 24
 
-  assign cols_m = section.settings.columns_mobile | default: 2
+  comment
+    Breakpoint columns (user-controlled)
+    - Phone: < 750
+    - Tablet: >= 750
+    - Laptop: >= 990
+    - Desktop: >= 1200
+  endcomment
+  assign cols_p = section.settings.columns_phone | default: 2
   assign cols_t = section.settings.columns_tablet | default: 3
-  assign cols_d = section.settings.columns_desktop | default: 4
+  assign cols_l = section.settings.columns_laptop | default: 4
+  assign cols_d = section.settings.columns_desktop | default: 5
 
-  assign density = section.settings.card_density | default: 'comfortable'
+  assign density = section.settings.card_density | default: 'compact'
 
   assign sort_order = section.settings.sort_order | default: 'inherit'
-  assign pagination_mode = section.settings.pagination_mode | default: 'pagination'
+  assign pagination_mode = section.settings.pagination_mode | default: 'load_more'
+
+  comment
+    Layout mode + per breakpoint overrides
+    - layout_mode: base (grid|carousel)
+    - layout_mode_mobile: inherit|grid|carousel
+    - layout_mode_desktop: inherit|grid|carousel
+  endcomment
+  assign layout_mode = section.settings.layout_mode | default: 'grid'
+  assign layout_mode_mobile = section.settings.layout_mode_mobile | default: 'inherit'
+  assign layout_mode_desktop = section.settings.layout_mode_desktop | default: 'inherit'
+
+  assign resolved_layout_mobile = layout_mode
+  if layout_mode_mobile != blank and layout_mode_mobile != 'inherit'
+    assign resolved_layout_mobile = layout_mode_mobile
+  endif
+
+  assign resolved_layout_desktop = layout_mode
+  if layout_mode_desktop != blank and layout_mode_desktop != 'inherit'
+    assign resolved_layout_desktop = layout_mode_desktop
+  endif
+
+  comment
+    If ANY breakpoint uses carousel, we must cap products_per_page to 12 (server-side safe)
+  endcomment
+  assign any_carousel = false
+  if resolved_layout_mobile == 'carousel' or resolved_layout_desktop == 'carousel'
+    assign any_carousel = true
+  endif
+
+  assign products_per_page_effective = products_per_page
+  if any_carousel and products_per_page_effective > 12
+    assign products_per_page_effective = 12
+  endif
+
+  assign carousel_nav = section.settings.carousel_nav
+  assign carousel_scroll_amount = section.settings.carousel_scroll_amount | default: 'page'
+  assign carousel_hide_scrollbar = section.settings.carousel_hide_scrollbar
+  assign carousel_snap = section.settings.carousel_snap
 
   assign show_filters_toggle = section.settings.enable_filters_toggle
+  assign filters_toggle_label = section.settings.filters_toggle_label | default: 'Filters'
+  assign show_filter_count = section.settings.show_filter_count
+
+  assign show_sort_dropdown = section.settings.show_sort_dropdown
+  assign sort_label = section.settings.sort_label | default: 'Sort'
 
   assign show_badges = section.settings.show_badges
   assign badge_sale = section.settings.badge_sale
@@ -46,8 +139,85 @@
   assign badge_fulfilled = section.settings.badge_fulfilled
 
   assign price_mode = section.settings.price_mode | default: 'simple'
+
+  assign show_reviews = section.settings.show_reviews
+  assign reviews_source = section.settings.reviews_source | default: 'shopify'
+  assign reviews_show_count = section.settings.reviews_show_count
+
+  assign show_variant_swatches = section.settings.show_variant_swatches
+  assign swatch_option_name = section.settings.swatch_option_name | default: 'Color'
+  assign swatch_style = section.settings.swatch_style | default: 'dot'
+  assign swatch_limit = section.settings.swatch_limit | default: 6
+
   assign enable_quick_add = section.settings.enable_quick_add
   assign enable_quick_view = section.settings.enable_quick_view
+  assign quick_add_mode = section.settings.quick_add_mode | default: 'sizes'
+  assign quick_view_mode = section.settings.quick_view_mode | default: 'drawer'
+
+  comment
+    FIX: quick view placement
+    overlay | below_content | both | none
+  endcomment
+  assign quick_view_placement = section.settings.quick_view_placement | default: 'below_content'
+
+  comment
+    FIX: action row controls (these are the “extra buttons” you saw)
+  endcomment
+  assign show_action_row = section.settings.show_action_row
+  assign show_secondary_row_cta = section.settings.show_secondary_row_cta
+  assign show_row_quick_view = section.settings.show_row_quick_view
+
+  assign card_preset = section.settings.card_preset | default: 'catalog'
+
+  assign media_mode = section.settings.media_mode | default: 'single'
+  assign scroll_gallery_limit = section.settings.scroll_gallery_limit | default: 6
+  assign media_ratio = section.settings.media_ratio | default: 135
+  assign media_fit = section.settings.media_fit | default: 'cover'
+  assign image_zoom = section.settings.image_zoom
+
+  assign hover_treatment = section.settings.hover_treatment | default: 'overlay_actions'
+  assign hover_overlay_opacity = section.settings.hover_overlay_opacity | default: 15
+  assign hover_actions_visibility = section.settings.hover_actions_visibility | default: 'desktop_only'
+  assign actions_layout = section.settings.actions_layout | default: 'stack'
+
+  assign text_align = section.settings.text_align | default: 'left'
+  assign title_size = section.settings.title_size | default: 16
+  assign title_weight = section.settings.title_weight | default: '600'
+  assign price_size = section.settings.price_size | default: 15
+  assign price_weight = section.settings.price_weight | default: '600'
+
+  comment
+    FIX: title style preset
+  endcomment
+  assign title_style = section.settings.title_style | default: 'inherit'
+
+  assign badge_style = section.settings.badge_style | default: 'pill'
+  assign badge_fill = section.settings.badge_fill | default: 'filled'
+  assign badge_position = section.settings.badge_position | default: 'top_left'
+
+  assign button_style = section.settings.button_style | default: 'filled'
+  assign button_size = section.settings.button_size | default: 'md'
+  assign button_full_width = section.settings.button_full_width
+  assign button_hover_strength = section.settings.button_hover_strength | default: 40
+
+  comment
+    Button labels (designer-controlled)
+  endcomment
+  assign label_add_to_cart = section.settings.label_add_to_cart | default: 'Add to cart'
+  assign label_add_to_bag = section.settings.label_add_to_bag | default: 'Add to bag'
+  assign label_select_options = section.settings.label_select_options | default: 'Select options'
+  assign label_sold_out = section.settings.label_sold_out | default: 'Sold out'
+  assign label_learn_more = section.settings.label_learn_more | default: 'Learn more'
+  assign label_quick_view = section.settings.label_quick_view | default: 'Quick view'
+
+  comment
+    Product meta toggles (passed to product-card; snippet must render)
+  endcomment
+  assign show_product_meta = section.settings.show_product_meta
+  assign meta_show_vendor = section.settings.meta_show_vendor
+  assign meta_show_type = section.settings.meta_show_type
+  assign meta_show_sku = section.settings.meta_show_sku
+  assign meta_show_availability = section.settings.meta_show_availability
 
   assign has_filters = false
   if feed_collection
@@ -61,6 +231,14 @@
     assign density_class = 'q-density--compact'
   endif
 
+  comment
+    Keep base class for backwards compatibility, but breakpoint layout is driven by data attributes + CSS.
+  endcomment
+  assign layout_class = 'q-layout--grid'
+  if layout_mode == 'carousel'
+    assign layout_class = 'q-layout--carousel'
+  endif
+
   assign pe_class = 'q-pe--pagination'
   if pagination_mode == 'load_more'
     assign pe_class = 'q-pe--loadmore'
@@ -68,25 +246,103 @@
     assign pe_class = 'q-pe--infinite'
   endif
 
+  comment
+    Only collection modes can truly paginate + sort server-side via ?sort_by=
+  endcomment
+  assign can_paginate = true
+  if using_manual
+    assign can_paginate = false
+  endif
+  if feed_collection == nil
+    assign can_paginate = false
+  endif
+
   assign sort_by_param = ''
-  if sort_order != 'inherit'
+  if sort_order != 'inherit' and feed_collection != nil and can_paginate
     assign sort_by_param = sort_order
+  endif
+
+  assign zoom_scale = 1.06
+  if image_zoom != true
+    assign zoom_scale = 1.0
+  endif
+
+  comment
+    Per-section overrides → set CSS vars at the section root.
+  endcomment
+  assign enable_color_overrides = section.settings.enable_color_overrides
+
+  assign style_vars = ''
+  assign style_vars = style_vars | append: '--q-feed-cols-p:' | append: cols_p | append: ';'
+  assign style_vars = style_vars | append: '--q-feed-cols-t:' | append: cols_t | append: ';'
+  assign style_vars = style_vars | append: '--q-feed-cols-l:' | append: cols_l | append: ';'
+  assign style_vars = style_vars | append: '--q-feed-cols-d:' | append: cols_d | append: ';'
+  assign style_vars = style_vars | append: '--q-card-media-ratio:' | append: media_ratio | append: '%;'
+  assign style_vars = style_vars | append: '--q-card-image-zoom:' | append: zoom_scale | append: ';'
+  assign style_vars = style_vars | append: '--q-card-hover-overlay:' | append: hover_overlay_opacity | append: '%;'
+  assign style_vars = style_vars | append: '--q-card-btn-hover:' | append: button_hover_strength | append: '%;'
+  assign style_vars = style_vars | append: '--q-feed-text-align:' | append: text_align | append: ';'
+  assign style_vars = style_vars | append: '--q-section-bg:' | append: section.settings.section_bg | append: ';'
+  assign style_vars = style_vars | append: '--q-section-border:' | append: section.settings.section_border | append: ';'
+  assign style_vars = style_vars | append: '--q-section-radius:' | append: section.settings.section_radius | append: 'px;'
+  assign style_vars = style_vars | append: '--q-pad-y:' | append: section.settings.pad_y | append: 'px;'
+  assign style_vars = style_vars | append: '--q-pad-x:' | append: section.settings.pad_x | append: 'px;'
+
+  comment
+    FIX: coquette title preset (pure CSS vars; safe even if font not defined)
+  endcomment
+  if title_style == 'coquette'
+    assign style_vars = style_vars | append: '--q-card-title-ff: var(--q-font-accent, var(--q-font-heading, inherit));'
+    assign style_vars = style_vars | append: '--q-card-title-ls: .02em;'
+  else
+    assign style_vars = style_vars | append: '--q-card-title-ff: inherit;'
+    assign style_vars = style_vars | append: '--q-card-title-ls: normal;'
+  endif
+
+  if enable_color_overrides
+    assign style_vars = style_vars | append: '--q-card-bg:' | append: section.settings.card_bg | append: ';'
+    assign style_vars = style_vars | append: '--q-card-border:' | append: section.settings.card_border | append: ';'
+    assign style_vars = style_vars | append: '--q-title-color:' | append: section.settings.title_color | append: ';'
+    assign style_vars = style_vars | append: '--q-meta-color:' | append: section.settings.meta_color | append: ';'
+    assign style_vars = style_vars | append: '--q-price-color:' | append: section.settings.price_color | append: ';'
+    assign style_vars = style_vars | append: '--q-compare-color:' | append: section.settings.compare_price_color | append: ';'
+    assign style_vars = style_vars | append: '--q-badge-bg:' | append: section.settings.badge_bg | append: ';'
+    assign style_vars = style_vars | append: '--q-badge-text:' | append: section.settings.badge_text | append: ';'
+    assign style_vars = style_vars | append: '--q-badge-border:' | append: section.settings.badge_border | append: ';'
+    assign style_vars = style_vars | append: '--q-btn-bg:' | append: section.settings.btn_bg | append: ';'
+    assign style_vars = style_vars | append: '--q-btn-text:' | append: section.settings.btn_text | append: ';'
+    assign style_vars = style_vars | append: '--q-btn-border:' | append: section.settings.btn_border | append: ';'
+    assign style_vars = style_vars | append: '--q-btn-bg-hover:' | append: section.settings.btn_bg_hover | append: ';'
+    assign style_vars = style_vars | append: '--q-btn-text-hover:' | append: section.settings.btn_text_hover | append: ';'
+    assign style_vars = style_vars | append: '--q-hover-overlay-color:' | append: section.settings.hover_overlay_color | append: ';'
+  endif
+
+  comment
+    Carousel nav should be present if ANY breakpoint can be carousel,
+    then CSS hides it when current breakpoint is grid.
+  endcomment
+  assign show_carousel_nav = false
+  if carousel_nav and any_carousel
+    assign show_carousel_nav = true
   endif
 -%}
 
 <section
-  class="q-feed q-feed-product-grid {{ density_class }} {{ pe_class }}"
+  class="q-feed q-feed-product-grid {{ density_class }} {{ pe_class }} {{ layout_class }}"
   data-section-id="{{ sid }}"
   data-feed="product-grid"
+  data-layout-mode="{{ layout_mode }}"
+  data-layout-mobile="{{ resolved_layout_mobile }}"
+  data-layout-desktop="{{ resolved_layout_desktop }}"
   data-pagination-mode="{{ pagination_mode }}"
   data-sort-order="{{ sort_order }}"
   data-sort-by="{{ sort_by_param }}"
-  data-products-per-page="{{ products_per_page }}"
-  style="
-    --q-feed-cols-m: {{ cols_m }};
-    --q-feed-cols-t: {{ cols_t }};
-    --q-feed-cols-d: {{ cols_d }};
-  "
+  data-products-per-page="{{ products_per_page_effective }}"
+  data-quick-view-mode="{{ quick_view_mode }}"
+  data-can-paginate="{% if can_paginate %}true{% else %}false{% endif %}"
+  data-show-filter-count="{% if show_filter_count %}true{% else %}false{% endif %}"
+  data-carousel-scroll="{{ carousel_scroll_amount }}"
+  style="{{ style_vars }}"
 >
   <div class="q-feed__inner">
     {%- if section.settings.show_header -%}
@@ -100,58 +356,236 @@
           {%- endif -%}
         </div>
 
-        {%- if show_filters_toggle and has_filters -%}
-          <button
-            type="button"
-            class="q-feed__filters-toggle"
-            data-filters-toggle
-            aria-expanded="false"
-          >
-            {{ section.settings.filters_toggle_label | default: 'Filters' }}
-          </button>
-        {%- endif -%}
+        <div class="q-feed__header-right">
+          {%- if show_sort_dropdown and can_paginate -%}
+            <label class="q-feed__sort">
+              <span class="q-feed__sort-label">{{ sort_label }}</span>
+              <select class="q-feed__sort-select" data-sort-select>
+                <option value="inherit"{% if sort_order == 'inherit' %} selected{% endif %}>Inherit</option>
+                <option value="created-descending"{% if sort_order == 'created-descending' %} selected{% endif %}>Newest</option>
+                <option value="price-ascending"{% if sort_order == 'price-ascending' %} selected{% endif %}>Price (low → high)</option>
+                <option value="price-descending"{% if sort_order == 'price-descending' %} selected{% endif %}>Price (high → low)</option>
+                <option value="title-ascending"{% if sort_order == 'title-ascending' %} selected{% endif %}>Alphabetical</option>
+              </select>
+            </label>
+          {%- endif -%}
+
+          {%- if show_filters_toggle and has_filters -%}
+            <button
+              type="button"
+              class="q-feed__filters-toggle"
+              data-filters-toggle
+              aria-expanded="false"
+            >
+              <span>{{ filters_toggle_label }}</span>
+              {%- if show_filter_count -%}
+                <span class="q-feed__filter-count" data-filter-count hidden>0</span>
+              {%- endif -%}
+            </button>
+          {%- endif -%}
+
+          {%- if show_carousel_nav -%}
+            <div class="q-feed__carousel-nav" aria-label="Carousel controls">
+              <button type="button" class="q-feed__carousel-btn" data-carousel-prev aria-label="Previous">
+                {{ section.settings.carousel_prev_label | default: 'Prev' }}
+              </button>
+              <button type="button" class="q-feed__carousel-btn" data-carousel-next aria-label="Next">
+                {{ section.settings.carousel_next_label | default: 'Next' }}
+              </button>
+            </div>
+          {%- endif -%}
+        </div>
       </header>
     {%- endif -%}
 
-    {%- if feed_collection == nil -%}
-      <div class="q-feed__empty" role="status">
-        <h3 class="q-feed__empty-title">{{ section.settings.empty_title | default: 'No collection selected' }}</h3>
-        <p class="q-feed__empty-text">{{ section.settings.empty_text | default: 'Choose a collection source in the section settings.' }}</p>
-      </div>
-    {%- else -%}
+    {%- if using_manual -%}
+      {%- if manual_count == 0 -%}
+        <div class="q-feed__empty" role="status">
+          <h3 class="q-feed__empty-title">{{ section.settings.empty_title | default: 'Nothing to show' }}</h3>
+          <p class="q-feed__empty-text">{{ section.settings.empty_text | default: 'Choose a source in the section settings.' }}</p>
+        </div>
+      {%- else -%}
+        <div class="q-feed__body">
+          <div class="q-feed__grid" data-feed-grid aria-live="polite" aria-busy="false">
+            {%- for product in manual_products limit: products_per_page_effective -%}
+              <div class="q-feed__item" data-feed-item>
+                {%- render 'product-card',
+                  product: product,
 
-      {%- paginate feed_collection.products by products_per_page -%}
+                  card_preset: card_preset,
+
+                  media_mode: media_mode,
+                  scroll_gallery_limit: scroll_gallery_limit,
+                  media_fit: media_fit,
+                  media_ratio: media_ratio,
+                  image_zoom: image_zoom,
+
+                  hover_treatment: hover_treatment,
+                  hover_overlay_opacity: hover_overlay_opacity,
+                  hover_actions_visibility: hover_actions_visibility,
+                  actions_layout: actions_layout,
+
+                  enable_quick_add: enable_quick_add,
+                  enable_quick_view: enable_quick_view,
+                  quick_add_mode: quick_add_mode,
+                  quick_view_mode: quick_view_mode,
+                  quick_view_placement: quick_view_placement,
+
+                  price_mode: price_mode,
+
+                  show_badges: show_badges,
+                  badge_sale: badge_sale,
+                  badge_new: badge_new,
+                  badge_tags: badge_tags,
+                  badge_fulfilled: badge_fulfilled,
+
+                  show_reviews: show_reviews,
+                  reviews_source: reviews_source,
+                  reviews_show_count: reviews_show_count,
+
+                  show_variant_swatches: show_variant_swatches,
+                  swatch_option_name: swatch_option_name,
+                  swatch_style: swatch_style,
+                  swatch_limit: swatch_limit,
+
+                  show_product_meta: show_product_meta,
+                  meta_show_vendor: meta_show_vendor,
+                  meta_show_type: meta_show_type,
+                  meta_show_sku: meta_show_sku,
+                  meta_show_availability: meta_show_availability,
+
+                  label_add_to_cart: label_add_to_cart,
+                  label_add_to_bag: label_add_to_bag,
+                  label_select_options: label_select_options,
+                  label_sold_out: label_sold_out,
+                  label_learn_more: label_learn_more,
+                  label_quick_view: label_quick_view,
+
+                  text_align: text_align,
+                  title_size: title_size,
+                  title_weight: title_weight,
+                  price_size: price_size,
+                  price_weight: price_weight,
+
+                  badge_style: badge_style,
+                  badge_fill: badge_fill,
+                  badge_position: badge_position,
+
+                  button_style: button_style,
+                  button_size: button_size,
+                  button_full_width: button_full_width,
+                  button_hover_strength: button_hover_strength,
+
+                  show_action_row: show_action_row,
+                  show_secondary_row_cta: show_secondary_row_cta,
+                  show_row_quick_view: show_row_quick_view,
+
+                  primary_cta_label: label_add_to_bag,
+                  secondary_cta_label: label_learn_more,
+                  qv_label: label_quick_view
+                -%}
+              </div>
+            {%- endfor -%}
+          </div>
+        </div>
+      {%- endif -%}
+
+    {%- elsif feed_collection == nil -%}
+      <div class="q-feed__empty" role="status">
+        <h3 class="q-feed__empty-title">{{ section.settings.empty_title | default: 'Nothing to show' }}</h3>
+        <p class="q-feed__empty-text">{{ section.settings.empty_text | default: 'Choose a source in the section settings.' }}</p>
+      </div>
+
+    {%- else -%}
+      {%- paginate feed_collection.products by products_per_page_effective -%}
         <div class="q-feed__body">
           {%- if section.settings.show_collection_title and feed_collection.title != blank -%}
-            <div class="q-feed__collection-title">
-              {{ feed_collection.title }}
-            </div>
+            <div class="q-feed__collection-title">{{ feed_collection.title }}</div>
           {%- endif -%}
 
-          {%- if feed_collection.all_products_count == 0 or feed_collection.products_count == 0 -%}
+          {%- if feed_collection.products_count == 0 -%}
             <div class="q-feed__empty" role="status">
               <h3 class="q-feed__empty-title">{{ section.settings.no_products_title | default: 'No products found' }}</h3>
               <p class="q-feed__empty-text">{{ section.settings.no_products_text | default: 'Try a different collection or adjust filters.' }}</p>
             </div>
           {%- else -%}
-            <div
-              class="q-feed__grid"
-              data-feed-grid
-              aria-live="polite"
-              aria-busy="false"
-            >
+            <div class="q-feed__grid" data-feed-grid aria-live="polite" aria-busy="false">
               {%- for product in feed_collection.products -%}
                 <div class="q-feed__item" data-feed-item>
                   {%- render 'product-card',
                     product: product,
+
+                    card_preset: card_preset,
+
+                    media_mode: media_mode,
+                    scroll_gallery_limit: scroll_gallery_limit,
+                    media_fit: media_fit,
+                    media_ratio: media_ratio,
+                    image_zoom: image_zoom,
+
+                    hover_treatment: hover_treatment,
+                    hover_overlay_opacity: hover_overlay_opacity,
+                    hover_actions_visibility: hover_actions_visibility,
+                    actions_layout: actions_layout,
+
+                    enable_quick_add: enable_quick_add,
+                    enable_quick_view: enable_quick_view,
+                    quick_add_mode: quick_add_mode,
+                    quick_view_mode: quick_view_mode,
+                    quick_view_placement: quick_view_placement,
+
+                    price_mode: price_mode,
+
                     show_badges: show_badges,
                     badge_sale: badge_sale,
                     badge_new: badge_new,
                     badge_tags: badge_tags,
                     badge_fulfilled: badge_fulfilled,
-                    price_mode: price_mode,
-                    enable_quick_add: enable_quick_add,
-                    enable_quick_view: enable_quick_view
+
+                    show_reviews: show_reviews,
+                    reviews_source: reviews_source,
+                    reviews_show_count: reviews_show_count,
+
+                    show_variant_swatches: show_variant_swatches,
+                    swatch_option_name: swatch_option_name,
+                    swatch_style: swatch_style,
+                    swatch_limit: swatch_limit,
+
+                    show_product_meta: show_product_meta,
+                    meta_show_vendor: meta_show_vendor,
+                    meta_show_type: meta_show_type,
+                    meta_show_sku: meta_show_sku,
+                    meta_show_availability: meta_show_availability,
+
+                    label_add_to_cart: label_add_to_cart,
+                    label_add_to_bag: label_add_to_bag,
+                    label_select_options: label_select_options,
+                    label_sold_out: label_sold_out,
+                    label_learn_more: label_learn_more,
+                    label_quick_view: label_quick_view,
+
+                    text_align: text_align,
+                    title_size: title_size,
+                    title_weight: title_weight,
+                    price_size: price_size,
+                    price_weight: price_weight,
+
+                    badge_style: badge_style,
+                    badge_fill: badge_fill,
+                    badge_position: badge_position,
+
+                    button_style: button_style,
+                    button_size: button_size,
+                    button_full_width: button_full_width,
+                    button_hover_strength: button_hover_strength,
+
+                    show_action_row: show_action_row,
+                    show_secondary_row_cta: show_secondary_row_cta,
+                    show_row_quick_view: show_row_quick_view,
+
+                    primary_cta_label: label_add_to_bag,
+                    secondary_cta_label: label_learn_more,
+                    qv_label: label_quick_view
                   -%}
                 </div>
               {%- endfor -%}
@@ -164,9 +598,7 @@
                     <a class="q-feed__page-link" href="{{ paginate.previous.url }}" rel="prev">{{ section.settings.prev_label | default: 'Previous' }}</a>
                   {%- endif -%}
 
-                  <span class="q-feed__page-status">
-                    {{ paginate.current_page }} / {{ paginate.pages }}
-                  </span>
+                  <span class="q-feed__page-status">{{ paginate.current_page }} / {{ paginate.pages }}</span>
 
                   {%- if paginate.next -%}
                     <a class="q-feed__page-link" href="{{ paginate.next.url }}" rel="next" data-next-link>{{ section.settings.next_label | default: 'Next' }}</a>
@@ -196,144 +628,267 @@
   </div>
 
   <style>
+    [data-section-id="{{ sid }}"]{
+      background: var(--q-section-bg, transparent);
+      border: 1px solid var(--q-section-border, transparent);
+      border-radius: var(--q-section-radius, 0px);
+    }
+
     [data-section-id="{{ sid }}"] .q-feed__inner{
-      padding-block: var(--q-section-pad-y, var(--q-pad-y, 0));
-      padding-inline: var(--q-section-pad-x, var(--q-pad-x, 0));
+      padding-block: var(--q-pad-y, 0px);
+      padding-inline: var(--q-pad-x, 0px);
+      text-align: var(--q-feed-text-align, left);
     }
 
     [data-section-id="{{ sid }}"] .q-feed__header{
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
       gap: var(--q-gap, 1rem);
       margin-bottom: var(--q-gap, 1rem);
     }
-
-    [data-section-id="{{ sid }}"] .q-feed__header-left{
-      min-width: 0;
+    [data-section-id="{{ sid }}"] .q-feed__header-right{
+      display:inline-flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap: var(--q-gap-sm, .75rem);
+      flex-wrap:wrap;
     }
 
     [data-section-id="{{ sid }}"] .q-feed__heading{
-      margin: 0;
+      margin:0;
       font-size: var(--q-h2-fs, var(--q-heading-fs, 1.5rem));
       line-height: var(--q-heading-lh, 1.2);
+      color: var(--q-title-color, currentColor);
     }
-
     [data-section-id="{{ sid }}"] .q-feed__subheading{
-      margin-top: 0.25em;
-      opacity: 0.85;
+      margin-top:.25em;
+      opacity:.85;
       font-size: var(--q-body-fs, 1rem);
+      color: var(--q-meta-color, currentColor);
     }
 
-    [data-section-id="{{ sid }}"] .q-feed__filters-toggle{
-      appearance: none;
-      border: 1px solid var(--q-border, currentColor);
+    [data-section-id="{{ sid }}"] .q-feed__sort{
+      display:inline-flex;
+      align-items:center;
+      gap:.5rem;
+      white-space:nowrap;
+    }
+    [data-section-id="{{ sid }}"] .q-feed__sort-label{ opacity:.85; font-size:.95em; }
+    [data-section-id="{{ sid }}"] .q-feed__sort-select{
+      border:1px solid var(--q-border, currentColor);
+      border-radius: var(--q-radius, .75rem);
+      padding: .55rem .75rem;
       background: transparent;
       color: inherit;
-      border-radius: var(--q-radius, 0.75rem);
-      padding: calc(var(--q-btn-py, 0.6rem)) calc(var(--q-btn-px, 0.9rem));
-      cursor: pointer;
       font: inherit;
-      white-space: nowrap;
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__filters-toggle,
+    [data-section-id="{{ sid }}"] .q-feed__page-link,
+    [data-section-id="{{ sid }}"] .q-feed__load-more,
+    [data-section-id="{{ sid }}"] .q-feed__carousel-btn{
+      appearance:none;
+      border:1px solid var(--q-border, currentColor);
+      background: transparent;
+      color: inherit;
+      border-radius: var(--q-radius, .75rem);
+      padding: calc(var(--q-btn-py, .6rem)) calc(var(--q-btn-px, .9rem));
+      cursor:pointer;
+      font: inherit;
+      white-space:nowrap;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:.5rem;
+      transition: transform .12s ease, opacity .12s ease;
+    }
+    [data-section-id="{{ sid }}"] .q-feed__filters-toggle:hover,
+    [data-section-id="{{ sid }}"] .q-feed__page-link:hover,
+    [data-section-id="{{ sid }}"] .q-feed__load-more:hover,
+    [data-section-id="{{ sid }}"] .q-feed__carousel-btn:hover{
+      opacity: .95;
+      transform: translateY(-1px);
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__carousel-nav{
+      display:inline-flex;
+      align-items:center;
+      gap: .5rem;
+    }
+
+    /* Hide carousel nav if current breakpoint is grid */
+    [data-section-id="{{ sid }}"][data-layout-mobile="grid"] .q-feed__carousel-nav{ display:none; }
+    @media (min-width: 990px){
+      [data-section-id="{{ sid }}"][data-layout-desktop="grid"] .q-feed__carousel-nav{ display:none; }
+      [data-section-id="{{ sid }}"][data-layout-desktop="carousel"] .q-feed__carousel-nav{ display:inline-flex; }
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__filter-count{
+      min-width: 1.25rem;
+      height: 1.25rem;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius: 999px;
+      font-size: .8em;
+      background: var(--q-badge-bg, currentColor);
+      color: var(--q-badge-text, #fff);
+      border: 1px solid var(--q-badge-border, transparent);
+      padding: 0 .35rem;
+      line-height: 1;
     }
 
     [data-section-id="{{ sid }}"] .q-feed__collection-title{
       margin-bottom: var(--q-gap, 1rem);
       font-size: var(--q-eyebrow-fs, 1rem);
-      opacity: 0.8;
+      opacity: .8;
+      color: var(--q-meta-color, currentColor);
     }
 
-    [data-section-id="{{ sid }}"] .q-feed__grid{
-      display: grid;
-      grid-template-columns: repeat(var(--q-feed-cols-m, 2), minmax(0, 1fr));
+    [data-section-id="{{ sid }}"].q-density--comfortable{ --q-feed-gap: var(--q-gap-md, var(--q-gap, 1rem)); }
+    [data-section-id="{{ sid }}"].q-density--compact{ --q-feed-gap: var(--q-gap-sm, var(--q-gap, .75rem)); }
+
+    /* --------------------------
+       Breakpoint layout engine
+       Mobile first: data-layout-mobile
+       Desktop (>=990): data-layout-desktop
+       -------------------------- */
+
+    /* GRID layout (mobile) */
+    [data-section-id="{{ sid }}"][data-layout-mobile="grid"] .q-feed__grid{
+      display:grid;
+      grid-template-columns: repeat(var(--q-feed-cols-p, 2), minmax(0,1fr));
       gap: var(--q-feed-gap, var(--q-gap, 1rem));
+      align-items: stretch;
     }
 
-    [data-section-id="{{ sid }}"].q-density--comfortable{
-      --q-feed-gap: var(--q-gap-md, var(--q-gap, 1rem));
-    }
-    [data-section-id="{{ sid }}"].q-density--compact{
-      --q-feed-gap: var(--q-gap-sm, var(--q-gap, 0.75rem));
+    /* CAROUSEL layout (mobile) */
+    [data-section-id="{{ sid }}"][data-layout-mobile="carousel"] .q-feed__grid{
+      display:flex;
+      gap: var(--q-feed-gap, var(--q-gap, 1rem));
+      overflow-x:auto;
+      overflow-y:hidden;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: .25rem;
+      align-items: stretch;
+      scroll-behavior: smooth;
     }
 
+    /* Deterministic contract var: --q-carousel-item-w */
+    [data-section-id="{{ sid }}"]{ --q-carousel-cols: var(--q-feed-cols-p, 2); }
+    @media (min-width: 750px){ [data-section-id="{{ sid }}"]{ --q-carousel-cols: var(--q-feed-cols-t, 3); } }
+    @media (min-width: 990px){ [data-section-id="{{ sid }}"]{ --q-carousel-cols: var(--q-feed-cols-l, 4); } }
+    @media (min-width: 1200px){ [data-section-id="{{ sid }}"]{ --q-carousel-cols: var(--q-feed-cols-d, 5); } }
+
+    [data-section-id="{{ sid }}"][data-layout-mobile="carousel"]{
+      --q-carousel-item-w: calc((100% - (var(--q-feed-gap, 1rem) * (var(--q-carousel-cols) - 1))) / var(--q-carousel-cols));
+    }
+    [data-section-id="{{ sid }}"][data-layout-mobile="carousel"] .q-feed__item{
+      flex: 0 0 var(--q-carousel-item-w);
+      scroll-snap-align: start;
+    }
+
+    /* Desktop overrides (>=990) */
+    @media (min-width: 990px){
+      [data-section-id="{{ sid }}"][data-layout-desktop="grid"] .q-feed__grid{
+        display:grid;
+        grid-template-columns: repeat(var(--q-feed-cols-l, 4), minmax(0,1fr));
+        gap: var(--q-feed-gap, var(--q-gap, 1rem));
+        align-items: stretch;
+        overflow: visible;
+        padding-bottom: 0;
+      }
+      [data-section-id="{{ sid }}"][data-layout-desktop="carousel"] .q-feed__grid{
+        display:flex;
+        gap: var(--q-feed-gap, var(--q-gap, 1rem));
+        overflow-x:auto;
+        overflow-y:hidden;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: .25rem;
+        align-items: stretch;
+        scroll-behavior: smooth;
+      }
+      [data-section-id="{{ sid }}"][data-layout-desktop="carousel"]{
+        --q-carousel-item-w: calc((100% - (var(--q-feed-gap, 1rem) * (var(--q-carousel-cols) - 1))) / var(--q-carousel-cols));
+      }
+      [data-section-id="{{ sid }}"][data-layout-desktop="carousel"] .q-feed__item{
+        flex: 0 0 var(--q-carousel-item-w);
+        scroll-snap-align: start;
+      }
+    }
+
+    /* Tablet columns for grid when desktop is also grid */
     @media (min-width: 750px){
-      [data-section-id="{{ sid }}"] .q-feed__grid{
-        grid-template-columns: repeat(var(--q-feed-cols-t, 3), minmax(0, 1fr));
+      [data-section-id="{{ sid }}"][data-layout-mobile="grid"] .q-feed__grid{
+        grid-template-columns: repeat(var(--q-feed-cols-t, 3), minmax(0,1fr));
       }
     }
     @media (min-width: 990px){
-      [data-section-id="{{ sid }}"] .q-feed__grid{
-        grid-template-columns: repeat(var(--q-feed-cols-d, 4), minmax(0, 1fr));
+      [data-section-id="{{ sid }}"][data-layout-desktop="grid"] .q-feed__grid{
+        grid-template-columns: repeat(var(--q-feed-cols-l, 4), minmax(0,1fr));
+      }
+    }
+    @media (min-width: 1200px){
+      [data-section-id="{{ sid }}"][data-layout-desktop="grid"] .q-feed__grid{
+        grid-template-columns: repeat(var(--q-feed-cols-d, 5), minmax(0,1fr));
       }
     }
 
+    /* Carousel snap / scrollbar (apply only when current breakpoint is carousel) */
+    [data-section-id="{{ sid }}"][data-layout-mobile="carousel"] .q-feed__grid{ scroll-snap-type: x mandatory; }
+    @media (min-width: 990px){
+      [data-section-id="{{ sid }}"][data-layout-desktop="carousel"] .q-feed__grid{ scroll-snap-type: x mandatory; }
+      [data-section-id="{{ sid }}"][data-layout-desktop="grid"] .q-feed__grid{ scroll-snap-type: none; }
+    }
+
+    [data-section-id="{{ sid }}"] .q-feed__grid.q-snap--off{ scroll-snap-type: none !important; }
+    [data-section-id="{{ sid }}"] .q-feed__grid.q-snap--off .q-feed__item{ scroll-snap-align: none !important; }
+
+    [data-section-id="{{ sid }}"] .q-feed__grid.q-scrollbar--hidden{ scrollbar-width: none; }
+    [data-section-id="{{ sid }}"] .q-feed__grid.q-scrollbar--hidden::-webkit-scrollbar{ display:none; }
+
     [data-section-id="{{ sid }}"] .q-feed__pagination{
       margin-top: var(--q-gap, 1rem);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
       gap: var(--q-gap, 1rem);
-      flex-wrap: wrap;
+      flex-wrap:wrap;
+      position: relative; /* ensure hidden links don't float outside in weird layouts */
     }
-
     [data-section-id="{{ sid }}"] .q-feed__pagination-links{
-      display: inline-flex;
-      align-items: center;
-      gap: var(--q-gap-sm, 0.75rem);
+      display:inline-flex;
+      align-items:center;
+      gap: var(--q-gap-sm, .75rem);
     }
+    [data-section-id="{{ sid }}"] .q-feed__page-status{ opacity:.8; }
 
-    [data-section-id="{{ sid }}"] .q-feed__page-link{
-      text-decoration: none;
-      border: 1px solid var(--q-border, currentColor);
-      border-radius: var(--q-radius, 0.75rem);
-      padding: calc(var(--q-btn-py, 0.6rem)) calc(var(--q-btn-px, 0.9rem));
-    }
-
-    [data-section-id="{{ sid }}"] .q-feed__page-status{
-      opacity: 0.8;
-    }
-
-    [data-section-id="{{ sid }}"] .q-feed__load-more{
-      appearance: none;
-      border: 1px solid var(--q-border, currentColor);
-      background: transparent;
-      color: inherit;
-      border-radius: var(--q-radius, 0.75rem);
-      padding: calc(var(--q-btn-py, 0.6rem)) calc(var(--q-btn-px, 0.9rem));
-      cursor: pointer;
-      font: inherit;
-    }
-
-    [data-section-id="{{ sid }}"] .q-feed__load-more[disabled]{
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+    [data-section-id="{{ sid }}"] .q-feed__load-more[disabled]{ opacity:.5; cursor:not-allowed; }
 
     [data-section-id="{{ sid }}"].q-pe--loadmore .q-feed__pagination-links,
     [data-section-id="{{ sid }}"].q-pe--infinite .q-feed__pagination-links{
-      position: absolute;
-      width: 1px; height: 1px;
-      overflow: hidden;
+      position:absolute;
+      width:1px; height:1px;
+      overflow:hidden;
       clip: rect(0 0 0 0);
-      white-space: nowrap;
+      white-space:nowrap;
     }
 
     [data-section-id="{{ sid }}"] .q-feed__empty{
-      border: 1px solid var(--q-border, currentColor);
+      border:1px solid var(--q-border, currentColor);
       border-radius: var(--q-radius, 1rem);
       padding: var(--q-card-pad, 1.25rem);
-      opacity: 0.9;
+      opacity:.9;
+      background: var(--q-section-bg, transparent);
     }
-
     [data-section-id="{{ sid }}"] .q-feed__empty-title{
-      margin: 0 0 0.25rem 0;
+      margin:0 0 .25rem 0;
       font-size: var(--q-h3-fs, 1.25rem);
+      color: var(--q-title-color, currentColor);
     }
-
-    [data-section-id="{{ sid }}"] .q-feed__empty-text{
-      margin: 0;
-      opacity: 0.85;
-    }
+    [data-section-id="{{ sid }}"] .q-feed__empty-text{ margin:0; opacity:.85; color: var(--q-meta-color, currentColor); }
   </style>
 
   <script>
@@ -341,12 +896,133 @@
       const root = document.querySelector('[data-section-id="{{ sid }}"]');
       if (!root) return;
 
+      const canPaginate = root.getAttribute('data-can-paginate') === 'true';
+
+      // Filter count badge (Shopify filter params usually start with "filter.")
+      const wantsFilterCount = root.getAttribute('data-show-filter-count') === 'true';
+      const countEl = root.querySelector('[data-filter-count]');
+      if (wantsFilterCount && countEl) {
+        const url = new URL(window.location.href);
+        let count = 0;
+        url.searchParams.forEach((v, k) => {
+          if (k && k.indexOf('filter.') === 0) count += 1;
+        });
+        if (count > 0) {
+          countEl.textContent = String(count);
+          countEl.hidden = false;
+        } else {
+          countEl.hidden = true;
+        }
+      }
+
+      // Filters toggle = layout hook only
+      const toggle = root.querySelector('[data-filters-toggle]');
+      if (toggle) {
+        toggle.addEventListener('click', () => {
+          const expanded = toggle.getAttribute('aria-expanded') === 'true';
+          toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+          root.classList.toggle('q-feed--filters-open', !expanded);
+        });
+      }
+
+      // Sort dropdown UI (collection feeds only)
+      const sortSelect = root.querySelector('[data-sort-select]');
+      if (sortSelect && canPaginate) {
+        sortSelect.addEventListener('change', () => {
+          const val = sortSelect.value || 'inherit';
+          const url = new URL(window.location.href);
+          if (val === 'inherit') url.searchParams.delete('sort_by');
+          else url.searchParams.set('sort_by', val);
+          window.location.assign(url.toString());
+        });
+      }
+
+      const grid = root.querySelector('[data-feed-grid]');
+      const prev = root.querySelector('[data-carousel-prev]');
+      const next = root.querySelector('[data-carousel-next]');
+      const amount = root.getAttribute('data-carousel-scroll') || 'page';
+
+      const mqDesktop = window.matchMedia('(min-width: 990px)');
+
+      const getEffectiveLayout = () => {
+        const mobile = root.getAttribute('data-layout-mobile') || (root.getAttribute('data-layout-mode') || 'grid');
+        const desktop = root.getAttribute('data-layout-desktop') || (root.getAttribute('data-layout-mode') || 'grid');
+        return mqDesktop.matches ? desktop : mobile;
+      };
+
+      const parsePx = (v) => {
+        const n = parseFloat(v || '0');
+        return Number.isFinite(n) ? n : 0;
+      };
+
+      const getGapPx = () => {
+        if (!grid) return 0;
+        const cs = window.getComputedStyle(grid);
+        // Prefer rowGap/columnGap when present; fallback to gap.
+        const g = cs.columnGap || cs.gap || '0px';
+        return parsePx(g);
+      };
+
+      const getCardStep = (dir) => {
+        if (!grid) return 0;
+        const first = grid.querySelector('[data-feed-item]');
+        if (!first) return 0;
+        const w = first.getBoundingClientRect().width;
+        const gap = getGapPx();
+        return (w + gap) * dir;
+      };
+
+      const getPageStep = (dir) => {
+        if (!grid) return 0;
+        return grid.getBoundingClientRect().width * dir;
+      };
+
+      const scrollByStep = (dir) => {
+        if (!grid) return;
+        const step = (amount === 'card') ? getCardStep(dir) : getPageStep(dir);
+        try { grid.scrollBy({ left: step, behavior: 'smooth' }); }
+        catch(e) { grid.scrollLeft = grid.scrollLeft + step; }
+      };
+
+      const applyCarouselEnhancements = () => {
+        if (!grid) return;
+
+        const effective = getEffectiveLayout();
+        const isCarousel = effective === 'carousel';
+
+        // Snap + scrollbar toggles only when carousel is active
+        grid.classList.toggle('q-is-carousel', isCarousel);
+
+        if (!isCarousel) {
+          grid.classList.remove('q-snap--off');
+          grid.classList.remove('q-scrollbar--hidden');
+          return;
+        }
+
+        const snapOn = {{ carousel_snap | json }};
+        const hideScrollbar = {{ carousel_hide_scrollbar | json }};
+        if (!snapOn) grid.classList.add('q-snap--off');
+        else grid.classList.remove('q-snap--off');
+
+        if (hideScrollbar) grid.classList.add('q-scrollbar--hidden');
+        else grid.classList.remove('q-scrollbar--hidden');
+      };
+
+      applyCarouselEnhancements();
+      if (mqDesktop && mqDesktop.addEventListener) mqDesktop.addEventListener('change', applyCarouselEnhancements);
+      else if (mqDesktop && mqDesktop.addListener) mqDesktop.addListener(applyCarouselEnhancements);
+
+      if (prev) prev.addEventListener('click', () => scrollByStep(-1));
+      if (next) next.addEventListener('click', () => scrollByStep(1));
+
+      if (!canPaginate) return;
+
       const mode = root.getAttribute('data-pagination-mode') || 'pagination';
       const sortOrder = root.getAttribute('data-sort-order') || 'inherit';
       const sortBy = root.getAttribute('data-sort-by') || '';
-      const grid = root.querySelector('[data-feed-grid]');
+      const grid2 = root.querySelector('[data-feed-grid]');
 
-      // Shopify-native sorting enforcement
+      // Shopify-native sorting enforcement (collection feeds only)
       if (sortOrder !== 'inherit' && sortBy) {
         const url = new URL(window.location.href);
         const current = url.searchParams.get('sort_by') || '';
@@ -358,7 +1034,7 @@
       }
 
       if (mode === 'pagination') return;
-      if (!grid) return;
+      if (!grid2) return;
 
       const loadMoreBtn = root.querySelector('[data-load-more]');
       const sentinel = root.querySelector('[data-infinite-sentinel]');
@@ -371,7 +1047,44 @@
       };
 
       const setBusy = (busy) => {
-        grid.setAttribute('aria-busy', busy ? 'true' : 'false');
+        grid2.setAttribute('aria-busy', busy ? 'true' : 'false');
+      };
+
+      const updateNextLink = (incomingRoot) => {
+        const incomingNext = incomingRoot.querySelector('[data-next-link]');
+        const currentNext = root.querySelector('[data-next-link]');
+
+        if (incomingNext) {
+          if (currentNext) currentNext.setAttribute('href', incomingNext.getAttribute('href'));
+          else {
+            const nav = root.querySelector('[data-feed-pagination]');
+            if (nav) {
+              const a = document.createElement('a');
+              a.className = 'q-feed__page-link';
+              a.setAttribute('rel', 'next');
+              a.setAttribute('data-next-link', '');
+              a.setAttribute('href', incomingNext.getAttribute('href'));
+              a.style.position = 'absolute';
+              a.style.width = '1px';
+              a.style.height = '1px';
+              a.style.overflow = 'hidden';
+              a.style.clip = 'rect(0 0 0 0)';
+              nav.appendChild(a);
+            }
+          }
+        } else if (currentNext) {
+          currentNext.remove();
+        }
+      };
+
+      const disableLoadMoreIfDone = () => {
+        if (mode === 'load_more' && loadMoreBtn) {
+          const stillNext = getNextUrl();
+          if (!stillNext) {
+            loadMoreBtn.setAttribute('disabled', 'disabled');
+            loadMoreBtn.setAttribute('aria-disabled', 'true');
+          }
+        }
       };
 
       const fetchAndAppend = async () => {
@@ -394,27 +1107,13 @@
           if (!incomingGrid) return;
 
           const incomingItems = incomingGrid.querySelectorAll('[data-feed-item]');
-          incomingItems.forEach((item) => grid.appendChild(item));
+          incomingItems.forEach((item) => grid2.appendChild(item));
 
-          // Update next link
-          const incomingNext = incomingRoot.querySelector('[data-next-link]');
-          const currentNext = root.querySelector('[data-next-link]');
-          if (currentNext) {
-            if (incomingNext) {
-              currentNext.setAttribute('href', incomingNext.getAttribute('href'));
-            } else {
-              currentNext.remove();
-            }
-          }
+          updateNextLink(incomingRoot);
+          disableLoadMoreIfDone();
 
-          // Disable load more when exhausted
-          if (mode === 'load_more' && loadMoreBtn) {
-            const stillNext = getNextUrl();
-            if (!stillNext) {
-              loadMoreBtn.setAttribute('disabled', 'disabled');
-              loadMoreBtn.setAttribute('aria-disabled', 'true');
-            }
-          }
+          // Keep carousel UI consistent after appends
+          applyCarouselEnhancements();
         } catch (e) {
           if (mode === 'load_more' && loadMoreBtn) {
             loadMoreBtn.setAttribute('disabled', 'disabled');
@@ -426,293 +1125,497 @@
         }
       };
 
-      if (mode === 'load_more' && loadMoreBtn) {
-        loadMoreBtn.addEventListener('click', fetchAndAppend);
-      }
+      if (mode === 'load_more' && loadMoreBtn) loadMoreBtn.addEventListener('click', fetchAndAppend);
 
       if (mode === 'infinite' && sentinel) {
         const io = new IntersectionObserver((entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) fetchAndAppend();
-          });
+          entries.forEach((entry) => { if (entry.isIntersecting) fetchAndAppend(); });
         }, { rootMargin: '200px 0px' });
-
         io.observe(sentinel);
-      }
-
-      // Filters toggle = layout hook only
-      const toggle = root.querySelector('[data-filters-toggle]');
-      if (toggle) {
-        toggle.addEventListener('click', () => {
-          const expanded = toggle.getAttribute('aria-expanded') === 'true';
-          toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-          root.classList.toggle('q-feed--filters-open', !expanded);
-        });
       }
     })();
   </script>
 </section>
 
-  {% schema %}
-  {
-    "name": "Feed · Product Grid",
-    "tag": "section",
-    "class": "q-feed-product-grid",
-    "settings": [
-      {
-        "type": "header",
-        "content": "Source"
-      },
-      {
-        "type": "select",
-        "id": "source_mode",
-        "label": "Source mode",
-        "default": "collection",
-        "options": [
-          { "value": "collection", "label": "Collection (manual)" },
-          { "value": "dynamic_collection", "label": "Dynamic: current collection" }
-        ]
-      },
-      {
-        "type": "collection",
-        "id": "collection",
-        "label": "Collection (manual mode)"
-      },
+{% schema %}
+{
+  "name": "Feeds - Products",
+  "tag": "section",
+  "class": "q-feed-product-grid",
+  "settings": [
+    { "type": "header", "content": "Section styling" },
+    { "type": "color", "id": "section_bg", "label": "Section background", "default": "transparent" },
+    { "type": "color", "id": "section_border", "label": "Section border", "default": "transparent" },
+    { "type": "range", "id": "section_radius", "label": "Section radius (px)", "min": 0, "max": 40, "step": 1, "default": 0 },
+    { "type": "range", "id": "pad_y", "label": "Padding Y (px)", "min": 0, "max": 120, "step": 4, "default": 0 },
+    { "type": "range", "id": "pad_x", "label": "Padding X (px)", "min": 0, "max": 120, "step": 4, "default": 0 },
 
-      {
-        "type": "header",
-        "content": "Header"
-      },
-      {
-        "type": "checkbox",
-        "id": "show_header",
-        "label": "Show header",
-        "default": true
-      },
-      {
-        "type": "text",
-        "id": "heading",
-        "label": "Heading",
-        "default": "Browse products"
-      },
-      {
-        "type": "richtext",
-        "id": "subheading",
-        "label": "Subheading",
-        "default": "<p>Explore the catalog.</p>"
-      },
-      {
-        "type": "checkbox",
-        "id": "show_collection_title",
-        "label": "Show collection title (when available)",
-        "default": false
-      },
+    { "type": "header", "content": "Source" },
+    {
+      "type": "select",
+      "id": "source_mode",
+      "label": "Source mode",
+      "default": "all_products",
+      "options": [
+        { "value": "all_products", "label": "All products (default)" },
+        { "value": "collection", "label": "Collection (manual)" },
+        { "value": "dynamic_collection", "label": "Dynamic: current collection" },
+        { "value": "manual_products", "label": "Manual product selection" }
+      ]
+    },
+    { "type": "collection", "id": "collection", "label": "Collection (manual mode)" },
+    { "type": "product_list", "id": "manual_products", "label": "Products (manual selection)", "limit": 48 },
+    {
+      "type": "select",
+      "id": "manual_products_fallback",
+      "label": "If manual products is empty",
+      "default": "all_products",
+      "options": [
+        { "value": "all_products", "label": "Fallback to All products" },
+        { "value": "collection", "label": "Fallback to Collection" },
+        { "value": "empty", "label": "Show empty state" }
+      ]
+    },
 
-      {
-        "type": "header",
-        "content": "Layout"
-      },
-      {
-        "type": "range",
-        "id": "columns_mobile",
-        "label": "Columns (mobile)",
-        "min": 1,
-        "max": 3,
-        "step": 1,
-        "default": 2
-      },
-      {
-        "type": "range",
-        "id": "columns_tablet",
-        "label": "Columns (tablet)",
-        "min": 2,
-        "max": 4,
-        "step": 1,
-        "default": 3
-      },
-      {
-        "type": "range",
-        "id": "columns_desktop",
-        "label": "Columns (desktop)",
-        "min": 3,
-        "max": 6,
-        "step": 1,
-        "default": 4
-      },
-      {
-        "type": "select",
-        "id": "card_density",
-        "label": "Card density",
-        "default": "comfortable",
-        "options": [
-          { "value": "comfortable", "label": "Comfortable" },
-          { "value": "compact", "label": "Compact" }
-        ]
-      },
-      {
-        "type": "checkbox",
-        "id": "enable_filters_toggle",
-        "label": "Enable sidebar filters toggle (layout hook only)",
-        "default": false
-      },
-      {
-        "type": "text",
-        "id": "filters_toggle_label",
-        "label": "Filters toggle label",
-        "default": "Filters"
-      },
+    { "type": "header", "content": "Layout mode" },
+    {
+      "type": "select",
+      "id": "layout_mode",
+      "label": "Feed layout (base)",
+      "default": "grid",
+      "options": [
+        { "value": "grid", "label": "Grid" },
+        { "value": "carousel", "label": "Carousel" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "layout_mode_mobile",
+      "label": "Layout on mobile (< 990px)",
+      "default": "inherit",
+      "options": [
+        { "value": "inherit", "label": "Inherit base" },
+        { "value": "grid", "label": "Grid" },
+        { "value": "carousel", "label": "Carousel" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "layout_mode_desktop",
+      "label": "Layout on desktop (≥ 990px)",
+      "default": "inherit",
+      "options": [
+        { "value": "inherit", "label": "Inherit base" },
+        { "value": "grid", "label": "Grid" },
+        { "value": "carousel", "label": "Carousel" }
+      ]
+    },
 
-      {
-        "type": "header",
-        "content": "Content"
-      },
-      {
-        "type": "select",
-        "id": "sort_order",
-        "label": "Sort order",
-        "default": "inherit",
-        "options": [
-          { "value": "inherit", "label": "Inherit collection default" },
-          { "value": "created-descending", "label": "Newest" },
-          { "value": "price-ascending", "label": "Price (low → high)" },
-          { "value": "price-descending", "label": "Price (high → low)" },
-          { "value": "title-ascending", "label": "Alphabetical" }
-        ]
-      },
-      {
-        "type": "range",
-        "id": "products_per_page",
-        "label": "Products per page",
-        "min": 8,
-        "max": 48,
-        "step": 4,
-        "default": 16
-      },
+    { "type": "header", "content": "Carousel options" },
+    { "type": "checkbox", "id": "carousel_nav", "label": "Show carousel Prev/Next buttons (header)", "default": true },
+    { "type": "text", "id": "carousel_prev_label", "label": "Prev label", "default": "Prev" },
+    { "type": "text", "id": "carousel_next_label", "label": "Next label", "default": "Next" },
+    {
+      "type": "select",
+      "id": "carousel_scroll_amount",
+      "label": "Scroll amount",
+      "default": "page",
+      "options": [
+        { "value": "page", "label": "One viewport width" },
+        { "value": "card", "label": "One card" }
+      ]
+    },
+    { "type": "checkbox", "id": "carousel_snap", "label": "Enable snap-to-card", "default": true },
+    { "type": "checkbox", "id": "carousel_hide_scrollbar", "label": "Hide scrollbar (where supported)", "default": true },
 
-      {
-        "type": "header",
-        "content": "Behavior"
-      },
-      {
-        "type": "select",
-        "id": "pagination_mode",
-        "label": "Pagination mode",
-        "default": "pagination",
-        "options": [
-          { "value": "pagination", "label": "Standard pagination" },
-          { "value": "load_more", "label": "Load more button" },
-          { "value": "infinite", "label": "Infinite scroll" }
-        ]
-      },
-      {
-        "type": "text",
-        "id": "prev_label",
-        "label": "Previous label",
-        "default": "Previous"
-      },
-      {
-        "type": "text",
-        "id": "next_label",
-        "label": "Next label",
-        "default": "Next"
-      },
-      {
-        "type": "text",
-        "id": "load_more_label",
-        "label": "Load more label",
-        "default": "Load more"
-      },
+    { "type": "header", "content": "Header" },
+    { "type": "checkbox", "id": "show_header", "label": "Show header", "default": false },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Browse products" },
+    { "type": "richtext", "id": "subheading", "label": "Subheading", "default": "<p>Explore the catalog.</p>" },
+    { "type": "checkbox", "id": "show_collection_title", "label": "Show collection title (when available)", "default": false },
 
-      {
-        "type": "header",
-        "content": "Product card options"
-      },
-      {
-        "type": "checkbox",
-        "id": "show_badges",
-        "label": "Show badges",
-        "default": true
-      },
-      {
-        "type": "checkbox",
-        "id": "badge_sale",
-        "label": "Sale badge",
-        "default": true
-      },
-      {
-        "type": "checkbox",
-        "id": "badge_new",
-        "label": "New badge",
-        "default": true
-      },
-      {
-        "type": "checkbox",
-        "id": "badge_tags",
-        "label": "Tag badges",
-        "default": false
-      },
-      {
-        "type": "checkbox",
-        "id": "badge_fulfilled",
-        "label": "Fulfilled by supplier badge (future)",
-        "default": false
-      },
-      {
-        "type": "select",
-        "id": "price_mode",
-        "label": "Price display",
-        "default": "simple",
-        "options": [
-          { "value": "simple", "label": "Simple price" },
-          { "value": "range", "label": "Price range (variants)" }
-        ]
-      },
-      {
-        "type": "checkbox",
-        "id": "enable_quick_add",
-        "label": "Enable quick add",
-        "default": false
-      },
-      {
-        "type": "checkbox",
-        "id": "enable_quick_view",
-        "label": "Enable quick view",
-        "default": false
-      },
+    { "type": "header", "content": "Sorting + filters UI" },
+    { "type": "checkbox", "id": "show_sort_dropdown", "label": "Show sort dropdown (collection feeds only)", "default": false },
+    { "type": "text", "id": "sort_label", "label": "Sort label", "default": "Sort" },
+    { "type": "checkbox", "id": "show_filter_count", "label": "Show active filter count badge (when possible)", "default": true },
 
-      {
-        "type": "header",
-        "content": "Empty states"
-      },
-      {
-        "type": "text",
-        "id": "empty_title",
-        "label": "No collection title",
-        "default": "No collection selected"
-      },
-      {
-        "type": "text",
-        "id": "empty_text",
-        "label": "No collection text",
-        "default": "Choose a collection source in the section settings."
-      },
-      {
-        "type": "text",
-        "id": "no_products_title",
-        "label": "No products title",
-        "default": "No products found"
-      },
-      {
-        "type": "text",
-        "id": "no_products_text",
-        "label": "No products text",
-        "default": "Try a different collection or adjust filters."
-      }
-    ],
-    "presets": [
-      {
-        "name": "Feed · Product Grid"
-      }
-    ]
-  }
-  {% endschema %}
+    { "type": "header", "content": "Columns per breakpoint" },
+    { "type": "range", "id": "columns_phone", "label": "Columns (phone)", "min": 1, "max": 3, "step": 1, "default": 2 },
+    { "type": "range", "id": "columns_tablet", "label": "Columns (tablet)", "min": 1, "max": 6, "step": 1, "default": 3 },
+    { "type": "range", "id": "columns_laptop", "label": "Columns (laptop)", "min": 1, "max": 8, "step": 1, "default": 4 },
+    { "type": "range", "id": "columns_desktop", "label": "Columns (desktop)", "min": 1, "max": 10, "step": 1, "default": 5 },
+    {
+      "type": "select",
+      "id": "card_density",
+      "label": "Card density",
+      "default": "compact",
+      "options": [
+        { "value": "comfortable", "label": "Comfortable" },
+        { "value": "compact", "label": "Compact" }
+      ]
+    },
+
+    { "type": "header", "content": "Filters (layout hook)" },
+    { "type": "checkbox", "id": "enable_filters_toggle", "label": "Enable sidebar filters toggle (layout hook only)", "default": false },
+    { "type": "text", "id": "filters_toggle_label", "label": "Filters toggle label", "default": "Filters" },
+
+    { "type": "header", "content": "Content" },
+    {
+      "type": "select",
+      "id": "sort_order",
+      "label": "Sort order (collection feeds only)",
+      "default": "inherit",
+      "options": [
+        { "value": "inherit", "label": "Inherit collection default" },
+        { "value": "created-descending", "label": "Newest" },
+        { "value": "price-ascending", "label": "Price (low → high)" },
+        { "value": "price-descending", "label": "Price (high → low)" },
+        { "value": "title-ascending", "label": "Alphabetical" }
+      ]
+    },
+    { "type": "range", "id": "products_per_page", "label": "Products per page", "min": 8, "max": 48, "step": 4, "default": 24 },
+
+    { "type": "header", "content": "Behavior" },
+    {
+      "type": "select",
+      "id": "pagination_mode",
+      "label": "Pagination mode (collection feeds only)",
+      "default": "load_more",
+      "options": [
+        { "value": "pagination", "label": "Standard pagination" },
+        { "value": "load_more", "label": "Load more button" },
+        { "value": "infinite", "label": "Infinite scroll" }
+      ]
+    },
+    { "type": "text", "id": "prev_label", "label": "Previous label", "default": "Previous" },
+    { "type": "text", "id": "next_label", "label": "Next label", "default": "Next" },
+    { "type": "text", "id": "load_more_label", "label": "Load more label", "default": "Load more" },
+
+    { "type": "header", "content": "Shapeshift preset" },
+    {
+      "type": "select",
+      "id": "card_preset",
+      "label": "Card preset",
+      "default": "catalog",
+      "options": [
+        { "value": "editorial", "label": "Editorial (fashion / Ivy-style)" },
+        { "value": "tech", "label": "Tech (dense / spec-forward)" },
+        { "value": "catalog", "label": "Catalog (universal default)" },
+        { "value": "minimal", "label": "Minimal (clean / airy)" },
+        { "value": "pill", "label": "Pill (soft UI)" }
+      ]
+    },
+
+    { "type": "header", "content": "Media" },
+    {
+      "type": "select",
+      "id": "media_mode",
+      "label": "Media mode",
+      "default": "single",
+      "options": [
+        { "value": "single", "label": "Single image" },
+        { "value": "swap", "label": "Hover swap (2nd image when available)" },
+        { "value": "scroll", "label": "Scroll gallery (no JS, swipeable)" }
+      ]
+    },
+    { "type": "range", "id": "scroll_gallery_limit", "label": "Gallery image limit (scroll mode)", "min": 2, "max": 8, "step": 1, "default": 6 },
+    { "type": "range", "id": "media_ratio", "label": "Media ratio (padding-top %)", "min": 60, "max": 170, "step": 5, "default": 135 },
+    {
+      "type": "select",
+      "id": "media_fit",
+      "label": "Media fit",
+      "default": "cover",
+      "options": [
+        { "value": "cover", "label": "Cover" },
+        { "value": "contain", "label": "Contain" }
+      ]
+    },
+    { "type": "checkbox", "id": "image_zoom", "label": "Image hover zoom", "default": true },
+
+    { "type": "header", "content": "Hover + actions" },
+    {
+      "type": "select",
+      "id": "hover_treatment",
+      "label": "Hover treatment",
+      "default": "overlay_actions",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "media_zoom", "label": "Zoom only" },
+        { "value": "media_dim", "label": "Dim image" },
+        { "value": "overlay_actions", "label": "Overlay actions (quick add/view)" },
+        { "value": "swap_only", "label": "Swap only (no overlay)" }
+      ]
+    },
+    { "type": "range", "id": "hover_overlay_opacity", "label": "Hover overlay opacity (%)", "min": 0, "max": 80, "step": 5, "default": 15 },
+    {
+      "type": "select",
+      "id": "hover_actions_visibility",
+      "label": "Show hover actions",
+      "default": "desktop_only",
+      "options": [
+        { "value": "always", "label": "Always" },
+        { "value": "desktop_only", "label": "Desktop only" },
+        { "value": "never", "label": "Never" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "actions_layout",
+      "label": "Actions layout",
+      "default": "stack",
+      "options": [
+        { "value": "stack", "label": "Stack" },
+        { "value": "split", "label": "Split (side-by-side)" }
+      ]
+    },
+
+    { "type": "header", "content": "Typography" },
+    {
+      "type": "select",
+      "id": "text_align",
+      "label": "Text alignment",
+      "default": "left",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" }
+      ]
+    },
+    { "type": "range", "id": "title_size", "label": "Title size", "min": 12, "max": 22, "step": 1, "default": 16 },
+    {
+      "type": "select",
+      "id": "title_weight",
+      "label": "Title weight",
+      "default": "600",
+      "options": [
+        { "value": "400", "label": "Regular (400)" },
+        { "value": "500", "label": "Medium (500)" },
+        { "value": "600", "label": "Semibold (600)" },
+        { "value": "700", "label": "Bold (700)" }
+      ]
+    },
+    { "type": "range", "id": "price_size", "label": "Price size", "min": 12, "max": 20, "step": 1, "default": 15 },
+    {
+      "type": "select",
+      "id": "price_weight",
+      "label": "Price weight",
+      "default": "600",
+      "options": [
+        { "value": "400", "label": "Regular (400)" },
+        { "value": "500", "label": "Medium (500)" },
+        { "value": "600", "label": "Semibold (600)" },
+        { "value": "700", "label": "Bold (700)" }
+      ]
+    },
+
+    { "type": "header", "content": "Title style preset" },
+    {
+      "type": "select",
+      "id": "title_style",
+      "label": "Title style preset",
+      "default": "inherit",
+      "options": [
+        { "value": "inherit", "label": "Inherit theme" },
+        { "value": "coquette", "label": "Coquette (uses --q-font-accent if available)" }
+      ]
+    },
+
+    { "type": "header", "content": "Badges" },
+    { "type": "checkbox", "id": "show_badges", "label": "Show badges", "default": true },
+    { "type": "checkbox", "id": "badge_sale", "label": "Sale badge", "default": true },
+    { "type": "checkbox", "id": "badge_new", "label": "New badge", "default": false },
+    { "type": "checkbox", "id": "badge_tags", "label": "Tag badges", "default": false },
+    { "type": "checkbox", "id": "badge_fulfilled", "label": "Fulfilled by supplier badge (future)", "default": false },
+    {
+      "type": "select",
+      "id": "badge_style",
+      "label": "Badge style",
+      "default": "pill",
+      "options": [
+        { "value": "pill", "label": "Pill" },
+        { "value": "rect", "label": "Rectangle" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "badge_fill",
+      "label": "Badge fill",
+      "default": "filled",
+      "options": [
+        { "value": "filled", "label": "Filled" },
+        { "value": "outline", "label": "Outline" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "badge_position",
+      "label": "Badge position",
+      "default": "top_left",
+      "options": [
+        { "value": "top_left", "label": "Top left" },
+        { "value": "top_right", "label": "Top right" },
+        { "value": "bottom_left", "label": "Bottom left" },
+        { "value": "bottom_right", "label": "Bottom right" }
+      ]
+    },
+
+    { "type": "header", "content": "Price display" },
+    {
+      "type": "select",
+      "id": "price_mode",
+      "label": "Price display",
+      "default": "simple",
+      "options": [
+        { "value": "simple", "label": "Simple price" },
+        { "value": "range", "label": "Price range (variants)" }
+      ]
+    },
+
+    { "type": "header", "content": "Reviews" },
+    { "type": "checkbox", "id": "show_reviews", "label": "Show rating summary (when available)", "default": false },
+    {
+      "type": "select",
+      "id": "reviews_source",
+      "label": "Reviews source",
+      "default": "shopify",
+      "options": [
+        { "value": "shopify", "label": "Shopify standard metafields (reviews.rating)" },
+        { "value": "none", "label": "None" }
+      ]
+    },
+    { "type": "checkbox", "id": "reviews_show_count", "label": "Show review count (when available)", "default": true },
+
+    { "type": "header", "content": "Variant display (swatches)" },
+    { "type": "checkbox", "id": "show_variant_swatches", "label": "Show swatches (when variants exist)", "default": true },
+    { "type": "text", "id": "swatch_option_name", "label": "Swatch option name (e.g., Color)", "default": "Color" },
+    {
+      "type": "select",
+      "id": "swatch_style",
+      "label": "Swatch style",
+      "default": "dot",
+      "options": [
+        { "value": "dot", "label": "Dots" },
+        { "value": "square", "label": "Squares" },
+        { "value": "text", "label": "Text pills" }
+      ]
+    },
+    { "type": "range", "id": "swatch_limit", "label": "Swatch limit per product", "min": 3, "max": 12, "step": 1, "default": 6 },
+
+    { "type": "header", "content": "Product meta" },
+    { "type": "checkbox", "id": "show_product_meta", "label": "Show product meta row", "default": false },
+    { "type": "checkbox", "id": "meta_show_vendor", "label": "Show vendor", "default": false },
+    { "type": "checkbox", "id": "meta_show_type", "label": "Show product type", "default": false },
+    { "type": "checkbox", "id": "meta_show_sku", "label": "Show SKU (from selected/first variant)", "default": false },
+    { "type": "checkbox", "id": "meta_show_availability", "label": "Show availability (In stock / Sold out)", "default": false },
+
+    { "type": "header", "content": "Buttons + CTAs" },
+    {
+      "type": "select",
+      "id": "button_style",
+      "label": "Button style",
+      "default": "filled",
+      "options": [
+        { "value": "filled", "label": "Filled" },
+        { "value": "outline", "label": "Outline" },
+        { "value": "ghost", "label": "Ghost" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "button_size",
+      "label": "Button size",
+      "default": "md",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
+    { "type": "checkbox", "id": "button_full_width", "label": "Buttons full width", "default": true },
+    { "type": "range", "id": "button_hover_strength", "label": "Button hover effect strength", "min": 0, "max": 100, "step": 5, "default": 40 },
+
+    { "type": "header", "content": "Button labels" },
+    { "type": "text", "id": "label_add_to_cart", "label": "Add to cart label", "default": "Add to cart" },
+    { "type": "text", "id": "label_add_to_bag", "label": "Add to bag label", "default": "Add to bag" },
+    { "type": "text", "id": "label_select_options", "label": "Select options label", "default": "Select options" },
+    { "type": "text", "id": "label_sold_out", "label": "Sold out label", "default": "Sold out" },
+    { "type": "text", "id": "label_learn_more", "label": "Learn more label (view product)", "default": "Learn more" },
+    { "type": "text", "id": "label_quick_view", "label": "Quick view label (modal/drawer trigger)", "default": "Quick view" },
+
+    { "type": "header", "content": "Quick add + Quick view" },
+    { "type": "checkbox", "id": "enable_quick_add", "label": "Enable quick add", "default": true },
+    {
+      "type": "select",
+      "id": "quick_add_mode",
+      "label": "Quick add presentation",
+      "default": "sizes",
+      "options": [
+        { "value": "button", "label": "Button" },
+        { "value": "icon", "label": "Icon" },
+        { "value": "sizes", "label": "Sizes grid (when applicable)" },
+        { "value": "dropdown", "label": "Variants dropdown (when applicable)" }
+      ]
+    },
+    { "type": "checkbox", "id": "enable_quick_view", "label": "Enable quick view", "default": true },
+    {
+      "type": "select",
+      "id": "quick_view_mode",
+      "label": "Quick view mode",
+      "default": "drawer",
+      "options": [
+        { "value": "drawer", "label": "Drawer" },
+        { "value": "modal", "label": "Modal" }
+      ]
+    },
+
+    { "type": "header", "content": "Quick view placement" },
+    {
+      "type": "select",
+      "id": "quick_view_placement",
+      "label": "Quick view placement",
+      "default": "below_content",
+      "options": [
+        { "value": "overlay", "label": "Overlay (on image hover)" },
+        { "value": "below_content", "label": "Below title/price" },
+        { "value": "both", "label": "Both" },
+        { "value": "none", "label": "None" }
+      ]
+    },
+
+    { "type": "header", "content": "Action row (bottom buttons)" },
+    { "type": "checkbox", "id": "show_action_row", "label": "Show always-visible action row", "default": false },
+    { "type": "checkbox", "id": "show_secondary_row_cta", "label": "Show Learn more in row", "default": true },
+    { "type": "checkbox", "id": "show_row_quick_view", "label": "Show Quick view in row", "default": true },
+
+    { "type": "header", "content": "Color overrides" },
+    { "type": "checkbox", "id": "enable_color_overrides", "label": "Enable color overrides (per-section)", "default": false },
+
+    { "type": "color", "id": "card_bg", "label": "Card background", "default": "#ffffff" },
+    { "type": "color", "id": "card_border", "label": "Card border", "default": "#e6e6e6" },
+    { "type": "color", "id": "title_color", "label": "Title color", "default": "#111111" },
+    { "type": "color", "id": "meta_color", "label": "Meta color", "default": "#6b7280" },
+    { "type": "color", "id": "price_color", "label": "Price color", "default": "#111111" },
+    { "type": "color", "id": "compare_price_color", "label": "Compare price color", "default": "#9ca3af" },
+
+    { "type": "color", "id": "badge_bg", "label": "Badge background", "default": "#111111" },
+    { "type": "color", "id": "badge_text", "label": "Badge text", "default": "#ffffff" },
+    { "type": "color", "id": "badge_border", "label": "Badge border (outline)", "default": "#111111" },
+
+    { "type": "color", "id": "btn_bg", "label": "Button background", "default": "#111111" },
+    { "type": "color", "id": "btn_text", "label": "Button text", "default": "#ffffff" },
+    { "type": "color", "id": "btn_border", "label": "Button border", "default": "#111111" },
+    { "type": "color", "id": "btn_bg_hover", "label": "Button background (hover)", "default": "#000000" },
+    { "type": "color", "id": "btn_text_hover", "label": "Button text (hover)", "default": "#ffffff" },
+
+    { "type": "color", "id": "hover_overlay_color", "label": "Hover overlay color", "default": "#000000" },
+
+    { "type": "header", "content": "Empty states" },
+    { "type": "text", "id": "empty_title", "label": "No source title", "default": "Nothing to show" },
+    { "type": "text", "id": "empty_text", "label": "No source text", "default": "Choose a source in the section settings." },
+    { "type": "text", "id": "no_products_title", "label": "No products title", "default": "No products found" },
+    { "type": "text", "id": "no_products_text", "label": "No products text", "default": "Try a different collection or adjust filters." }
+  ],
+  "presets": [
+    { "name": "Feeds - Products", "category": "Content Feeds" }
+  ]
+}
+{% endschema %}
