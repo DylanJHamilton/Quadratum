@@ -1,354 +1,615 @@
 {% comment %}
-  Quadratum — Product Card (Canonical)
+  Quadratum — Product Card (shared)
   File: snippets/product-card.liquid
 
-  Required input:
-  • product
-
-  Supported inputs (from feeds):
-  • show_badges (bool)
-  • badge_sale, badge_new, badge_tags, badge_fulfilled (bool)
-  • price_mode: 'simple' | 'range'
-  • enable_quick_add (bool)
-  • enable_quick_view (bool)
-
-  "New" badge (merchant-controlled, safe):
-  • shows when tags contain: 'new' or 'New' or 'badge:new'
+  PATCH (per our convo):
+  • Hover + overlay actions are now bound to the MEDIA AREA only (image hover), not the whole card.
+  • No invalid nesting: overlay buttons/forms are NOT inside any <a>.
+  • Image + title are link targets (clean + accessible). Action row + overlay are separate.
 {% endcomment %}
 
 {%- liquid
   assign p = product
+  if p == blank
+    break
+  endif
 
-  assign show_badges = show_badges | default: true
-  assign badge_sale = badge_sale | default: true
-  assign badge_new = badge_new | default: true
-  assign badge_tags = badge_tags | default: false
-  assign badge_fulfilled = badge_fulfilled | default: false
+  assign card_preset = card_preset | default: 'catalog'
+
+  assign media_mode = media_mode | default: 'single'
+  assign scroll_gallery_limit = scroll_gallery_limit | default: 6
+  assign media_fit = media_fit | default: 'cover'
+  assign media_ratio = media_ratio | default: 100
+  assign image_zoom = image_zoom
+
+  assign hover_treatment = hover_treatment | default: 'overlay_actions'
+  assign hover_overlay_opacity = hover_overlay_opacity | default: 15
+  assign hover_actions_visibility = hover_actions_visibility | default: 'desktop_only'
+  assign actions_layout = actions_layout | default: 'stack'
+
+  assign enable_quick_add = enable_quick_add
+  assign enable_quick_view = enable_quick_view
+  assign quick_add_mode = quick_add_mode | default: 'button'
+  assign quick_view_mode = quick_view_mode | default: 'drawer'
 
   assign price_mode = price_mode | default: 'simple'
-  assign enable_quick_add = enable_quick_add | default: true
-  assign enable_quick_view = enable_quick_view | default: false
 
-  assign is_on_sale = false
-  if p.compare_at_price > p.price
-    assign is_on_sale = true
+  assign show_badges = show_badges
+  assign badge_sale = badge_sale
+
+  assign text_align = text_align | default: 'left'
+  assign title_size = title_size | default: 16
+  assign title_weight = title_weight | default: '600'
+  assign price_size = price_size | default: 15
+  assign price_weight = price_weight | default: '600'
+
+  assign badge_style = badge_style | default: 'pill'
+  assign badge_fill = badge_fill | default: 'filled'
+  assign badge_position = badge_position | default: 'top_left'
+
+  assign button_style = button_style | default: 'filled'
+  assign button_size = button_size | default: 'md'
+  assign button_full_width = button_full_width
+  assign button_hover_strength = button_hover_strength | default: 40
+
+  comment
+    CTA controls
+  endcomment
+
+  assign show_action_row = show_action_row
+  if show_action_row == nil
+    assign show_action_row = false
   endif
 
-  assign is_new = false
-  if p.tags contains 'new' or p.tags contains 'New' or p.tags contains 'badge:new'
-    assign is_new = true
+  assign show_secondary_row_cta = show_secondary_row_cta
+  if show_secondary_row_cta == nil
+    assign show_secondary_row_cta = true
   endif
 
-  assign show_price_range = false
-  if price_mode == 'range' and p.price_varies
-    assign show_price_range = true
+  assign show_row_quick_view = show_row_quick_view
+  if show_row_quick_view == nil
+    assign show_row_quick_view = true
   endif
 
-  assign v = p.selected_or_first_available_variant
-  assign can_add = false
-  if v and v.available
-    assign can_add = true
+  assign quick_view_placement = quick_view_placement | default: 'overlay'
+  assign primary_cta_label = primary_cta_label | default: 'Add to cart'
+  assign secondary_cta_label = secondary_cta_label | default: 'Learn more'
+  assign qv_label = qv_label | default: 'Quick view'
+  assign label_select_options = label_select_options | default: 'Select options'
+  assign label_sold_out = label_sold_out | default: 'Sold out'
+
+  assign v_first = p.selected_or_first_available_variant
+  if v_first == blank and p.variants.size > 0
+    assign v_first = p.variants.first
   endif
 
-  assign savings_amount = 0
-  if is_on_sale
-    assign savings_amount = p.compare_at_price | minus: p.price
+  assign has_real_variants = false
+  if p.options.size > 1
+    assign has_real_variants = true
+  elsif p.options.size == 1 and p.options.first != 'Title'
+    assign has_real_variants = true
+  endif
+
+  assign featured_img = ''
+  if v_first and v_first.featured_media and v_first.featured_media.preview_image
+    assign featured_img = v_first.featured_media.preview_image
+  elsif p.featured_media and p.featured_media.preview_image
+    assign featured_img = p.featured_media.preview_image
+  elsif p.featured_image
+    assign featured_img = p.featured_image
+  endif
+
+  assign has_second = false
+  assign second_img = ''
+  if p.media and p.media.size > 1
+    assign second_candidate = p.media[1]
+    if second_candidate and second_candidate.preview_image
+      assign has_second = true
+      assign second_img = second_candidate.preview_image
+    endif
+  endif
+
+  assign zoom_scale = 1.06
+  if image_zoom != true
+    assign zoom_scale = 1.0
+  endif
+
+  assign money_price = ''
+  assign money_compare = ''
+  if v_first
+    assign money_price = v_first.price | money
+    if v_first.compare_at_price and v_first.compare_at_price > v_first.price
+      assign money_compare = v_first.compare_at_price | money
+    endif
+  endif
+
+  assign show_sale_badge = false
+  if show_badges and badge_sale and money_compare != blank
+    assign show_sale_badge = true
+  endif
+
+  assign size_option_index = -1
+  if has_real_variants
+    for opt in p.options
+      assign o_down = opt | downcase
+      if o_down == 'size' or o_down contains 'size'
+        assign size_option_index = forloop.index0
+        break
+      endif
+    endfor
+  endif
+
+  assign use_sizes_ui = false
+  if quick_add_mode == 'sizes' and has_real_variants and size_option_index != -1
+    assign use_sizes_ui = true
+  endif
+
+  assign use_dropdown_ui = false
+  if quick_add_mode == 'dropdown' and has_real_variants
+    assign use_dropdown_ui = true
+  endif
+
+  assign can_direct_add = false
+  if has_real_variants == false and v_first
+    assign can_direct_add = true
+  endif
+
+  assign card_class = 'q-product-card'
+
+  assign preset_class = 'q-product-card--' | append: card_preset
+  assign mode_class = 'q-product-card--media-' | append: media_mode
+  assign fit_class = 'q-product-card--fit-' | append: media_fit
+  assign align_class = 'q-product-card--align-' | append: text_align
+
+  assign hover_class = 'q-product-card--hover-' | append: hover_treatment
+  assign actions_vis_class = 'q-product-card--actions-' | append: hover_actions_visibility
+  assign actions_layout_class = 'q-product-card--actions-layout-' | append: actions_layout
+
+  assign badge_pos_class = 'q-product-card--badge-' | append: badge_position
+  assign badge_style_class = 'q-product-card--badge-style-' | append: badge_style
+  assign badge_fill_class = 'q-product-card--badge-fill-' | append: badge_fill
+
+  assign btn_style_class = 'q-product-card--btn-' | append: button_style
+  assign btn_size_class = 'q-product-card--btnsize-' | append: button_size
+  assign btn_full_class = ''
+  if button_full_width
+    assign btn_full_class = 'q-product-card--btnfull'
+  endif
+
+  assign card_style = ''
+  assign card_style = card_style | append: '--q-card-media-ratio:' | append: media_ratio | append: '%;'
+  assign card_style = card_style | append: '--q-card-image-zoom:' | append: zoom_scale | append: ';'
+  assign card_style = card_style | append: '--q-card-hover-overlay:' | append: hover_overlay_opacity | append: '%;'
+  assign card_style = card_style | append: '--q-card-title-size:' | append: title_size | append: 'px;'
+  assign card_style = card_style | append: '--q-card-title-weight:' | append: title_weight | append: ';'
+  assign card_style = card_style | append: '--q-card-price-size:' | append: price_size | append: 'px;'
+  assign card_style = card_style | append: '--q-card-price-weight:' | append: price_weight | append: ';'
+  assign card_style = card_style | append: '--q-card-btn-hover:' | append: button_hover_strength | append: '%;'
+
+  assign overlay_allowed = false
+  if hover_treatment == 'overlay_actions'
+    assign overlay_allowed = true
+  endif
+
+  assign show_overlay = false
+  if overlay_allowed
+    if enable_quick_add or enable_quick_view
+      if quick_view_placement == 'overlay' or quick_view_placement == 'both' or enable_quick_add
+        assign show_overlay = true
+      endif
+    endif
+  endif
+
+  assign show_qv_below = false
+  if enable_quick_view
+    if quick_view_placement == 'below_content' or quick_view_placement == 'both'
+      assign show_qv_below = true
+    endif
   endif
 -%}
 
-<style>
-  /* Quadratum Product Card — token-driven, safe defaults */
-  .q-product-card{
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    border: 1px solid var(--q-border, rgba(0,0,0,.12));
-    border-radius: var(--q-radius, 16px);
-    overflow: hidden;
-    background: var(--q-card-bg, var(--q-surface, #fff));
-    box-shadow: var(--q-shadow, none);
-    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-  }
-  .q-product-card:focus-within{
-    outline: 2px solid var(--q-focus, rgba(37,99,235,.55));
-    outline-offset: 2px;
-  }
-  .q-product-card:hover{
-    transform: translateY(-2px);
-    border-color: var(--q-border-strong, rgba(0,0,0,.2));
-    box-shadow: var(--q-shadow-hover, 0 10px 30px rgba(0,0,0,.08));
-  }
-
-  .q-product-card__media{
-    position: relative;
-    display: block;
-    background: var(--q-media-bg, rgba(0,0,0,.03));
-  }
-  .q-product-card__media::before{
-    content: "";
-    display: block;
-    /* Consistent listing ratio (Elementor-like) */
-    padding-top: var(--q-card-media-ratio, 100%);
-  }
-  .q-product-card__image,
-  .q-product-card__placeholder{
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-  }
-  .q-product-card__image{
-    object-fit: cover;
-    object-position: center;
-    display: block;
-  }
-  .q-product-card__placeholder{
-    background: linear-gradient(135deg, rgba(0,0,0,.04), rgba(0,0,0,.02));
-  }
-
-  .q-product-card__badges{
-    position: absolute;
-    top: var(--q-gap-sm, 10px);
-    left: var(--q-gap-sm, 10px);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    z-index: 2;
-  }
-  .q-badge{
-    display: inline-flex;
-    align-items: center;
-    height: 26px;
-    padding: 0 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: .02em;
-    border: 1px solid rgba(0,0,0,.08);
-    background: rgba(255,255,255,.92);
-    color: var(--q-text, #111);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-  }
-  .q-badge--sale{
-    background: var(--q-sale-bg, #dc2626);
-    color: var(--q-sale-fg, #fff);
-    border-color: transparent;
-  }
-  .q-badge--new{
-    background: var(--q-new-bg, #111827);
-    color: var(--q-new-fg, #fff);
-    border-color: transparent;
-  }
-  .q-badge--tag{
-    background: rgba(255,255,255,.92);
-  }
-
-  .q-product-card__body{
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: var(--q-card-pad, 14px);
-  }
-
-  .q-product-card__title{
-    margin: 0;
-    font-size: var(--q-card-title-fs, 16px);
-    line-height: 1.25;
-    font-weight: 700;
-  }
-  .q-product-card__title a{
-    color: var(--q-text, #111);
-    text-decoration: none;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .q-product-card__meta{
-    display: flex;
-    gap: 10px;
-    align-items: baseline;
-    flex-wrap: wrap;
-    opacity: .85;
-    font-size: 13px;
-  }
-  .q-product-card__vendor{
-    font-weight: 600;
-  }
-
-  .q-product-card__price-row{
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .q-product-card__price{
-    font-size: var(--q-card-price-fs, 16px);
-    font-weight: 800;
-    color: var(--q-price, var(--q-text, #111));
-  }
-  .q-product-card__compare{
-    margin-left: 8px;
-    font-weight: 600;
-    opacity: .6;
-    text-decoration: line-through;
-  }
-  .q-product-card__savings{
-    font-size: 12px;
-    font-weight: 700;
-    padding: 6px 10px;
-    border-radius: 999px;
-    background: var(--q-savings-bg, rgba(16,185,129,.12));
-    color: var(--q-savings-fg, #065f46);
-  }
-
-  .q-product-card__actions{
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-top: 2px;
-  }
-
-  .q-btn{
-    appearance: none;
-    border: 1px solid transparent;
-    border-radius: var(--q-btn-radius, 12px);
-    padding: var(--q-btn-py, 12px) var(--q-btn-px, 14px);
-    font: inherit;
-    font-weight: 700;
-    cursor: pointer;
-    text-align: center;
-    text-decoration: none;
-    line-height: 1;
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    transition: transform .12s ease, opacity .12s ease, background .12s ease, border-color .12s ease;
-  }
-  .q-btn:active{ transform: scale(.98); }
-
-  .q-btn--primary{
-    background: var(--q-btn-primary-bg, #111827);
-    color: var(--q-btn-primary-fg, #fff);
-  }
-  .q-btn--primary[disabled],
-  .q-btn--primary[aria-disabled="true"]{
-    opacity: .55;
-    cursor: not-allowed;
-  }
-
-  .q-btn--secondary{
-    background: transparent;
-    border-color: var(--q-border, rgba(0,0,0,.18));
-    color: var(--q-text, #111);
-  }
-
-  .q-product-card__quickview{
-    margin-top: 8px;
-    width: 100%;
-  }
-
-  @media (max-width: 749px){
-    .q-product-card__actions{ grid-template-columns: 1fr; }
-  }
-</style>
-
-<article class="q-product-card" data-product-handle="{{ p.handle }}">
-  <a class="q-product-card__media" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
-    {%- if show_badges -%}
-      <div class="q-product-card__badges">
-        {%- if badge_sale and is_on_sale -%}
-          <span class="q-badge q-badge--sale">Sale</span>
+<article
+  class="{{ card_class }} {{ preset_class }} {{ mode_class }} {{ fit_class }} {{ align_class }} {{ hover_class }} {{ actions_vis_class }} {{ actions_layout_class }} {{ badge_pos_class }} {{ badge_style_class }} {{ badge_fill_class }} {{ btn_style_class }} {{ btn_size_class }} {{ btn_full_class }}"
+  style="{{ card_style }}"
+  data-product-card
+  data-has-secondary="{% if has_second %}true{% else %}false{% endif %}"
+>
+  {%- comment -%} MEDIA (hover hit-area lives here) {%- endcomment -%}
+  <div class="q-product-card__media-wrap" data-pc-mediawrap>
+    <a class="q-product-card__media-link" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
+      <div class="q-product-card__media" data-pc-media>
+        {%- if show_sale_badge -%}
+          <span class="q-product-card__badge q-product-card__badge--sale">Sale</span>
         {%- endif -%}
-        {%- if badge_new and is_new -%}
-          <span class="q-badge q-badge--new">New</span>
-        {%- endif -%}
-        {%- if badge_tags -%}
-          {%- for t in p.tags limit: 1 -%}
-            <span class="q-badge q-badge--tag">{{ t }}</span>
-          {%- endfor -%}
-        {%- endif -%}
-      </div>
-    {%- endif -%}
 
-    {%- if p.featured_media -%}
-      {{ p.featured_media
-        | image_url: width: 900
-        | image_tag:
-          loading: 'lazy',
-          class: 'q-product-card__image',
-          alt: p.featured_media.alt | default: p.title | escape
-      }}
-    {%- else -%}
-      <div class="q-product-card__placeholder" aria-hidden="true"></div>
-    {%- endif -%}
-  </a>
+        {%- if featured_img != blank -%}
+          <div class="q-product-card__media-inner">
+            <img
+              class="q-product-card__img q-product-card__img--primary"
+              src="{{ featured_img | image_url: width: 900 }}"
+              alt="{{ featured_img.alt | default: p.title | escape }}"
+              loading="lazy"
+              width="{{ featured_img.width | default: 900 }}"
+              height="{{ featured_img.height | default: 900 }}"
+            />
 
-  <div class="q-product-card__body">
-    <h3 class="q-product-card__title">
-      <a href="{{ p.url }}">{{ p.title }}</a>
-    </h3>
+            {%- if media_mode == 'swap' and has_second -%}
+              <img
+                class="q-product-card__img q-product-card__img--secondary"
+                src="{{ second_img | image_url: width: 900 }}"
+                alt="{{ second_img.alt | default: p.title | escape }}"
+                loading="lazy"
+                width="{{ second_img.width | default: 900 }}"
+                height="{{ second_img.height | default: 900 }}"
+              />
+            {%- endif -%}
 
-    <div class="q-product-card__meta">
-      {%- if p.vendor != blank -%}
-        <span class="q-product-card__vendor">{{ p.vendor }}</span>
-      {%- endif -%}
-    </div>
-
-    <div class="q-product-card__price-row">
-      <div class="q-product-card__price">
-        {%- if show_price_range -%}
-          {{ p.price_min | money }} – {{ p.price_max | money }}
+            {%- if media_mode == 'scroll' and p.media and p.media.size > 1 -%}
+              <div class="q-product-card__scroll" aria-hidden="true">
+                {%- for m in p.media limit: scroll_gallery_limit -%}
+                  {%- if m.preview_image -%}
+                    <img
+                      class="q-product-card__scroll-img"
+                      src="{{ m.preview_image | image_url: width: 700 }}"
+                      alt=""
+                      loading="lazy"
+                      width="{{ m.preview_image.width | default: 700 }}"
+                      height="{{ m.preview_image.height | default: 700 }}"
+                    />
+                  {%- endif -%}
+                {%- endfor -%}
+              </div>
+            {%- endif -%}
+          </div>
         {%- else -%}
-          {{ p.price | money }}
-        {%- endif -%}
-        {%- if is_on_sale -%}
-          <span class="q-product-card__compare">{{ p.compare_at_price | money }}</span>
+          <div class="q-product-card__media-placeholder" aria-hidden="true"></div>
         {%- endif -%}
       </div>
+    </a>
 
-      {%- if is_on_sale and savings_amount > 0 -%}
-        <div class="q-product-card__savings">
-          Save {{ savings_amount | money }}
-        </div>
-      {%- endif -%}
-    </div>
+    {%- comment -%}
+      Overlay actions (NOT inside <a>) — positioned over the media area.
+    {%- endcomment -%}
+    {%- if show_overlay -%}
+      <div class="q-product-card__hover" data-pc-hover>
+        <div class="q-product-card__hover-inner">
+          {%- if enable_quick_add -%}
+            <div class="q-product-card__quickadd" data-pc-quickadd>
+              {%- if use_sizes_ui -%}
+                <div class="q-product-card__sizes" role="group" aria-label="Choose a size">
+                  {%- assign seen = '' -%}
+                  {%- for v in p.variants -%}
+                    {%- assign val = v.options[size_option_index] -%}
+                    {%- assign token = '||' | append: val | append: '||' -%}
+                    {%- if val == blank -%}{%- continue -%}{%- endif -%}
+                    {%- if seen contains token -%}{%- continue -%}{%- endif -%}
+                    {%- assign seen = seen | append: token -%}
 
-    <div class="q-product-card__actions">
-      {%- if enable_quick_add -%}
-        {%- if can_add -%}
-          <form method="post" action="/cart/add" class="q-product-card__add">
-            <input type="hidden" name="id" value="{{ v.id }}">
-            <button type="submit" class="q-btn q-btn--primary">
-              Add to cart
+                    {%- assign target_variant = blank -%}
+                    {%- for vv in p.variants -%}
+                      {%- if vv.options[size_option_index] == val -%}
+                        {%- assign target_variant = vv -%}
+                        {%- break -%}
+                      {%- endif -%}
+                    {%- endfor -%}
+
+                    {%- if target_variant -%}
+                      <form method="post" action="/cart/add" class="q-product-card__sizeform">
+                        <input type="hidden" name="id" value="{{ target_variant.id }}">
+                        <input type="hidden" name="quantity" value="1">
+                        <button
+                          type="submit"
+                          class="q-product-card__sizebtn"
+                          {% unless target_variant.available %}disabled aria-disabled="true"{% endunless %}
+                        >
+                          {{ val }}
+                        </button>
+                      </form>
+                    {%- endif -%}
+                  {%- endfor -%}
+                </div>
+              {%- elsif use_dropdown_ui -%}
+                <form method="post" action="/cart/add" class="q-product-card__dropdownform">
+                  <select class="q-product-card__select" name="id" aria-label="Choose an option">
+                    {%- for v in p.variants -%}
+                      <option value="{{ v.id }}" {% unless v.available %}disabled{% endunless %}>
+                        {{ v.title }}{% unless v.available %} — {{ label_sold_out }}{% endunless %}
+                      </option>
+                    {%- endfor -%}
+                  </select>
+                  <button type="submit" class="q-product-card__action q-product-card__action--qa">
+                    {{ primary_cta_label }}
+                  </button>
+                </form>
+              {%- else -%}
+                {%- if can_direct_add and v_first -%}
+                  <form method="post" action="/cart/add" class="q-product-card__addform">
+                    <input type="hidden" name="id" value="{{ v_first.id }}">
+                    <input type="hidden" name="quantity" value="1">
+                    <button
+                      type="submit"
+                      class="q-product-card__action q-product-card__action--qa"
+                      {% unless v_first.available %}disabled aria-disabled="true"{% endunless %}
+                    >
+                      {%- if v_first.available -%}{{ primary_cta_label }}{%- else -%}{{ label_sold_out }}{%- endif -%}
+                    </button>
+                  </form>
+                {%- else -%}
+                  <a class="q-product-card__action q-product-card__action--qa" href="{{ p.url }}">
+                    {{ label_select_options }}
+                  </a>
+                {%- endif -%}
+              {%- endif -%}
+            </div>
+          {%- endif -%}
+
+          {%- if enable_quick_view and quick_view_placement != 'none' and quick_view_placement != 'below_content' -%}
+            <button
+              type="button"
+              class="q-product-card__action q-product-card__action--qv"
+              data-quick-view
+              data-product-handle="{{ p.handle }}"
+              data-quick-view-mode="{{ quick_view_mode }}"
+            >
+              {{ qv_label }}
             </button>
-          </form>
-        {%- else -%}
-          <button type="button" class="q-btn q-btn--primary" disabled aria-disabled="true">
-            Sold out
-          </button>
-        {%- endif -%}
-      {%- else -%}
-        <a class="q-btn q-btn--primary" href="{{ p.url }}">View</a>
-      {%- endif -%}
+          {%- endif -%}
+        </div>
+      </div>
+    {%- endif -%}
+  </div>
 
-      <a class="q-btn q-btn--secondary" href="{{ p.url }}">
-        More info
-      </a>
+  {%- comment -%} CONTENT (title is link; no wrapping of overlay/buttons) {%- endcomment -%}
+  <div class="q-product-card__content">
+    <a class="q-product-card__title-link" href="{{ p.url }}">
+      <h3 class="q-product-card__title">{{ p.title }}</h3>
+    </a>
+
+    <div class="q-product-card__price">
+      {%- if money_price != blank -%}
+        <span class="q-product-card__price-main">{{ money_price }}</span>
+      {%- endif -%}
+      {%- if money_compare != blank -%}
+        <span class="q-product-card__price-compare">{{ money_compare }}</span>
+      {%- endif -%}
     </div>
 
-    {%- if enable_quick_view -%}
+    {%- if show_qv_below -%}
       <button
         type="button"
-        class="q-btn q-btn--secondary q-product-card__quickview"
+        class="q-product-card__below-qv"
         data-quick-view
         data-product-handle="{{ p.handle }}"
-        aria-label="Quick view: {{ p.title | escape }}"
+        data-quick-view-mode="{{ quick_view_mode }}"
       >
-        Quick view
+        {{ qv_label }}
       </button>
     {%- endif -%}
   </div>
+
+  {%- if show_action_row -%}
+    <div class="q-product-card__actions-row" data-pc-actions-row>
+      {%- if can_direct_add and v_first -%}
+        <form method="post" action="/cart/add" class="q-product-card__rowform">
+          <input type="hidden" name="id" value="{{ v_first.id }}">
+          <input type="hidden" name="quantity" value="1">
+          <button
+            type="submit"
+            class="q-product-card__rowbtn q-product-card__rowbtn--primary"
+            {% unless v_first.available %}disabled aria-disabled="true"{% endunless %}
+          >
+            {%- if v_first.available -%}{{ primary_cta_label }}{%- else -%}{{ label_sold_out }}{%- endif -%}
+          </button>
+        </form>
+      {%- else -%}
+        <a class="q-product-card__rowbtn q-product-card__rowbtn--primary" href="{{ p.url }}">
+          {{ label_select_options }}
+        </a>
+      {%- endif -%}
+
+      {%- if show_secondary_row_cta -%}
+        <a class="q-product-card__rowbtn q-product-card__rowbtn--secondary" href="{{ p.url }}">
+          {{ secondary_cta_label }}
+        </a>
+      {%- endif -%}
+
+      {%- if enable_quick_view and show_row_quick_view and quick_view_placement != 'none' -%}
+        <button
+          type="button"
+          class="q-product-card__rowbtn q-product-card__rowbtn--tertiary"
+          data-quick-view
+          data-product-handle="{{ p.handle }}"
+          data-quick-view-mode="{{ quick_view_mode }}"
+        >
+          {{ qv_label }}
+        </button>
+      {%- endif -%}
+    </div>
+  {%- endif -%}
+
+  <style>
+    .q-product-card{
+      position: relative;
+      background: var(--q-card-bg, transparent);
+      border: 1px solid var(--q-card-border, rgba(0,0,0,.10));
+      border-radius: var(--q-radius, 12px);
+      overflow: hidden;
+    }
+
+    /* Links */
+    .q-product-card__media-link{ display:block; color:inherit; text-decoration:none; }
+    .q-product-card__title-link{ display:inline-block; color:inherit; text-decoration:none; }
+    .q-product-card__title-link:hover{ text-decoration:none; }
+
+    /* Media wrap = hover hit area */
+    .q-product-card__media-wrap{ position: relative; }
+    .q-product-card__media{ position: relative; overflow:hidden; }
+    .q-product-card__media-inner{ position: relative; padding-top: var(--q-card-media-ratio, 100%); height: 0; }
+    .q-product-card__img{ position:absolute; inset:0; width:100%; height:100%; object-fit: cover; display:block; }
+    .q-product-card--fit-contain .q-product-card__img{ object-fit: contain; }
+
+    /* overlay dim only on media area */
+    .q-product-card__media::after{
+      content:"";
+      position:absolute; inset:0;
+      background: var(--q-hover-overlay-color, #000000);
+      opacity: 0;
+      pointer-events:none;
+      transition: opacity .2s ease;
+    }
+
+    @media (hover:hover) and (pointer:fine){
+      .q-product-card--hover-media_dim .q-product-card__media-wrap:hover .q-product-card__media::after{ opacity: calc(var(--q-card-hover-overlay, 15%) / 100); }
+      .q-product-card--hover-overlay_actions .q-product-card__media-wrap:hover .q-product-card__media::after{ opacity: calc(var(--q-card-hover-overlay, 15%) / 100); }
+      .q-product-card--hover-media_zoom .q-product-card__media-wrap:hover .q-product-card__img--primary{ transform: scale(var(--q-card-image-zoom, 1.06)); }
+      .q-product-card__img--primary{ transition: transform .25s ease, opacity .2s ease; transform: scale(1); }
+    }
+
+    .q-product-card__img--secondary{ opacity:0; transition: opacity .2s ease; }
+    @media (hover:hover) and (pointer:fine){
+      .q-product-card[data-has-secondary="true"].q-product-card--media-swap .q-product-card__media-wrap:hover .q-product-card__img--primary{ opacity:0; }
+      .q-product-card[data-has-secondary="true"].q-product-card--media-swap .q-product-card__media-wrap:hover .q-product-card__img--secondary{ opacity:1; }
+      .q-product-card[data-has-secondary="false"] .q-product-card__img--primary{ opacity: 1 !important; }
+    }
+
+    /* Hover actions are positioned over MEDIA ONLY */
+    .q-product-card__hover{
+      position:absolute; inset:0;
+      display:flex; align-items:flex-end;
+      padding: .75rem;
+      opacity:0;
+      transition: opacity .2s ease;
+      pointer-events:none;
+      z-index: 4;
+    }
+    .q-product-card__hover-inner{
+      width:100%;
+      display:flex;
+      gap:.5rem;
+      flex-wrap:wrap;
+      border-radius: 12px;
+      padding:.6rem;
+      backdrop-filter: blur(6px);
+      pointer-events:auto;
+      background: rgba(0,0,0, calc(var(--q-card-hover-overlay, 15%) / 100));
+    }
+
+    /* KEY FIX: show overlay ONLY when hovering the image area */
+    @media (hover:hover) and (pointer:fine){
+      .q-product-card--actions-desktop_only .q-product-card__media-wrap:hover .q-product-card__hover{ opacity:1; pointer-events:auto; }
+    }
+    .q-product-card--actions-always .q-product-card__hover{ opacity:1; pointer-events:auto; }
+    .q-product-card--actions-never .q-product-card__hover{ display:none; }
+
+    .q-product-card--actions-layout-split .q-product-card__hover-inner{ justify-content: space-between; }
+    .q-product-card--actions-layout-stack .q-product-card__hover-inner{ flex-direction: column; }
+
+    /* Buttons */
+    .q-product-card__action,
+    .q-product-card__rowbtn,
+    .q-product-card__below-qv{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:.35rem;
+      border-radius: 12px;
+      padding:.55rem .75rem;
+      text-decoration:none;
+      border:1px solid var(--q-btn-border, rgba(0,0,0,.15));
+      color: var(--q-btn-text, inherit);
+      background: var(--q-btn-bg, rgba(255,255,255,.10));
+      width: auto;
+      cursor:pointer;
+      font: inherit;
+    }
+    .q-product-card__below-qv{
+      margin-top: .6rem;
+      width: 100%;
+    }
+
+    @media (hover:hover) and (pointer:fine){
+      .q-product-card__action:hover,
+      .q-product-card__rowbtn:hover,
+      .q-product-card__below-qv:hover{
+        background: var(--q-btn-bg-hover, var(--q-btn-bg, rgba(255,255,255,.10)));
+        color: var(--q-btn-text-hover, var(--q-btn-text, inherit));
+        transform: translateY(-1px);
+        filter: brightness(calc(1 + (var(--q-card-btn-hover, 40%) / 250)));
+      }
+    }
+
+    .q-product-card__action[disabled],
+    .q-product-card__rowbtn[disabled]{ opacity:.5; cursor:not-allowed; }
+
+    /* Content */
+    .q-product-card__content{ padding: .85rem .9rem; text-align: left; }
+    .q-product-card--align-center .q-product-card__content{ text-align:center; }
+
+    .q-product-card__title{
+      margin:0;
+      font-size: var(--q-card-title-size, 16px);
+      font-weight: var(--q-card-title-weight, 600);
+      color: var(--q-title-color, inherit);
+      font-family: var(--q-card-title-ff, inherit);
+      letter-spacing: var(--q-card-title-ls, normal);
+    }
+
+    .q-product-card__price{
+      margin-top:.35rem;
+      display:flex;
+      gap:.5rem;
+      align-items:baseline;
+      justify-content:flex-start;
+      color: var(--q-price-color, inherit);
+    }
+    .q-product-card--align-center .q-product-card__price{ justify-content:center; }
+
+    .q-product-card__price-main{
+      font-size: var(--q-card-price-size, 15px);
+      font-weight: var(--q-card-price-weight, 600);
+    }
+    .q-product-card__price-compare{
+      font-size: calc(var(--q-card-price-size, 15px) - 1px);
+      opacity:.75;
+      text-decoration: line-through;
+      color: var(--q-compare-color, currentColor);
+    }
+
+    /* Badge */
+    .q-product-card__badge{
+      position:absolute;
+      z-index: 5;
+      top:.6rem; left:.6rem;
+      padding:.25rem .5rem;
+      font-size:.75rem;
+      border-radius: 999px;
+      background: var(--q-badge-bg, #111);
+      color: var(--q-badge-text, #fff);
+      border: 1px solid var(--q-badge-border, transparent);
+    }
+
+    /* Row actions */
+    .q-product-card__actions-row{
+      display:flex;
+      gap: .5rem;
+      padding: .75rem .9rem .9rem .9rem;
+      flex-wrap:wrap;
+      align-items:center;
+      border-top: 1px solid var(--q-card-border, rgba(0,0,0,.10));
+      background: var(--q-card-bg, transparent);
+    }
+
+    /* Sizes */
+    .q-product-card__sizes{ display:flex; gap:.4rem; flex-wrap:wrap; }
+    .q-product-card__sizebtn{
+      border-radius: 10px;
+      border:1px solid var(--q-btn-border, rgba(0,0,0,.15));
+      background: var(--q-btn-bg, rgba(255,255,255,.10));
+      color: var(--q-btn-text, inherit);
+      padding:.45rem .55rem;
+      cursor:pointer;
+      font: inherit;
+    }
+    .q-product-card__sizebtn[disabled]{ opacity:.45; cursor:not-allowed; }
+  </style>
 </article>
