@@ -1,0 +1,257 @@
+{%- comment -%}
+  Quadratum — q-deal (canonical promo renderer)
+  File: snippets/q-deal.liquid
+
+  Contract:
+  {% render 'q-deal', section: section, block: block, mode: 'hero'|'card', bg_mode: bg_mode, now_ts: now_ts %}
+
+  Notes:
+  - This snippet MUST output markup directly. No capture shim.
+  - Promo-first, but can render product-card if block.settings.product exists (once schema supports it).
+{%- endcomment -%}
+
+{%- liquid
+  assign title = block.settings.title | strip
+  assign desc  = block.settings.description | strip
+  assign badge = block.settings.badge | strip
+  assign href  = block.settings.link
+  assign cta   = block.settings.cta_label | strip
+  if cta == blank
+    assign cta = 'Learn more'
+  endif
+
+  assign start_raw = block.settings.start_date | strip
+  assign end_raw   = block.settings.end_date | strip
+
+  assign end_ts = blank
+  if end_raw != blank
+    assign end_ts = end_raw | date: '%s'
+    if end_ts != blank
+      assign end_ts = end_ts | plus: 0
+    endif
+  endif
+
+  assign show_expiry = false
+  if end_ts != blank and end_ts >= now_ts
+    assign show_expiry = true
+  endif
+
+  assign expiry_label = block.settings.expiry_prefix | strip
+  if expiry_label == blank
+    assign expiry_label = 'Expires on'
+  endif
+
+  assign is_per_deal = false
+  if bg_mode == 'per_deal'
+    assign is_per_deal = true
+  endif
+
+  assign card_bg = block.settings.bg_color
+  assign card_fg = block.settings.fg_color
+  assign ov_col  = block.settings.overlay_color
+  assign ov_a    = block.settings.overlay_opacity | divided_by: 100.0
+
+  assign pad_y = block.settings.pad_y
+  assign pad_x = block.settings.pad_x
+
+  comment
+    Product support (only works once the Deal block schema includes a `product` picker).
+    Shopify stores product setting as a product object, so we can use it directly.
+  endcomment
+  assign deal_product = block.settings.product
+  assign has_product = false
+  if deal_product != blank
+    assign has_product = true
+  endif
+-%}
+
+<article
+  class="q-promo q-promo--{{ mode }} {% if has_product %}q-promo--has-product{% endif %}"
+  {{ block.shopify_attributes }}
+  style="
+    --q-promo-pad-y: {{ pad_y }}px;
+    --q-promo-pad-x: {{ pad_x }}px;
+    {%- if is_per_deal -%}
+      --q-promo-bg: {{ card_bg }};
+      --q-promo-fg: {{ card_fg }};
+      --q-promo-overlay: {{ ov_col }};
+      --q-promo-overlay-a: {{ ov_a }};
+    {%- endif -%}
+  "
+>
+  {%- if is_per_deal and block.settings.bg_image != blank -%}
+    <div class="q-promo__bg" aria-hidden="true">
+      {{ block.settings.bg_image | image_url: width: 2000 | image_tag: loading: 'lazy', sizes: '100vw', class: 'q-promo__bg-img' }}
+    </div>
+    <div class="q-promo__bg-overlay" aria-hidden="true"></div>
+  {%- endif -%}
+
+  {%- if has_product -%}
+    <div class="q-promo__product">
+      {%- render 'product-card',
+        product: deal_product,
+
+        card_preset: section.settings.product_card_preset,
+        media_mode: section.settings.product_media_mode,
+        media_fit: section.settings.product_media_fit,
+        media_ratio: section.settings.product_media_ratio,
+        image_zoom: section.settings.product_image_zoom,
+
+        hover_treatment: section.settings.product_hover_treatment,
+        hover_overlay_opacity: section.settings.product_hover_overlay_opacity,
+        hover_actions_visibility: section.settings.product_hover_actions_visibility,
+        actions_layout: section.settings.product_actions_layout,
+
+        enable_quick_add: section.settings.product_enable_quick_add,
+        enable_quick_view: section.settings.product_enable_quick_view,
+        quick_add_mode: section.settings.product_quick_add_mode,
+        quick_view_mode: section.settings.product_quick_view_mode,
+        quick_view_placement: section.settings.product_quick_view_placement,
+
+        show_badges: section.settings.product_show_badges,
+        badge_sale: section.settings.product_badge_sale,
+
+        text_align: section.settings.product_text_align,
+        title_size: section.settings.product_title_size,
+        title_weight: section.settings.product_title_weight,
+        price_size: section.settings.product_price_size,
+        price_weight: section.settings.product_price_weight,
+
+        button_style: section.settings.product_button_style,
+        button_size: section.settings.product_button_size,
+        button_full_width: section.settings.product_button_full_width,
+        button_hover_strength: section.settings.product_button_hover_strength,
+
+        primary_cta_label: section.settings.product_primary_cta_label,
+        secondary_cta_label: section.settings.product_secondary_cta_label,
+        qv_label: section.settings.product_qv_label,
+        label_select_options: section.settings.product_label_select_options,
+        label_sold_out: section.settings.product_label_sold_out
+      -%}
+    </div>
+  {%- endif -%}
+
+  <div class="q-promo__content">
+    {%- if badge != blank -%}
+      <div class="q-promo__badge">{{ badge }}</div>
+    {%- endif -%}
+
+    {%- if title != blank -%}
+      <h3 class="q-promo__title">{{ title }}</h3>
+    {%- endif -%}
+
+    {%- if desc != blank -%}
+      <p class="q-promo__desc">{{ desc }}</p>
+    {%- endif -%}
+
+    {%- if show_expiry -%}
+      <p class="q-promo__expiry">
+        {{ expiry_label }} {{ end_raw | date: "%B %e, %Y" }}
+      </p>
+    {%- endif -%}
+
+    {%- if href != blank -%}
+      <div class="q-promo__actions">
+        <a class="q-promo__btn" href="{{ href }}">{{ cta }}</a>
+      </div>
+    {%- endif -%}
+  </div>
+
+  <style>
+    /* Execution layer only — defaults are section-driven vars */
+    .q-promo{
+      position: relative;
+      border-radius: var(--q-promos-radius, 16px);
+      border: var(--q-promos-border-w, 1px) solid var(--q-promos-border-color, rgba(0,0,0,.12));
+      overflow: hidden;
+      background: var(--q-promos-card-bg, rgba(255,255,255,0.06));
+      color: var(--q-promos-card-fg, inherit);
+      box-shadow: 0 var(--q-promos-shadow-y, 10px) var(--q-promos-shadow-blur, 28px) rgba(0,0,0,var(--q-promos-shadow-alpha, .12));
+    }
+
+    .q-promo__bg{ position:absolute; inset:0; z-index:0; }
+    .q-promo__bg-img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .q-promo__bg-overlay{
+      position:absolute; inset:0; z-index:1;
+      background: var(--q-promo-overlay, var(--q-promos-card-overlay, #000));
+      opacity: var(--q-promo-overlay-a, var(--q-promos-card-overlay-a, .2));
+      pointer-events:none;
+    }
+
+    .q-promo__product{ position:relative; z-index:2; }
+    .q-promo__content{
+      position:relative; z-index:2;
+      padding: var(--q-promo-pad-y, 18px) var(--q-promo-pad-x, 18px);
+    }
+
+    .q-promo__badge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius: var(--q-promos-badge-radius, 999px);
+      padding: var(--q-promos-badge-pad-y, 4px) var(--q-promos-badge-pad-x, 10px);
+      font-size: var(--q-promos-badge-fs, 12px);
+      font-weight: var(--q-promos-badge-fw, 700);
+      line-height: var(--q-promos-badge-lh, 1.2);
+      letter-spacing: var(--q-promos-badge-ls, .06em);
+      background: var(--q-promos-badge-bg, rgba(125,211,252,.10));
+      color: var(--q-promos-badge-fg, #7dd3fc);
+      border: 1px solid var(--q-promos-badge-border, rgba(125,211,252,.35));
+      margin-bottom: .6rem;
+    }
+
+    .q-promo__title{
+      margin:0;
+      color: var(--q-promos-deal-title-color, inherit);
+      font-size: var(--q-promos-deal-title-fs, 22px);
+      font-weight: var(--q-promos-deal-title-fw, 700);
+      line-height: var(--q-promos-deal-title-lh, 1.2);
+      letter-spacing: var(--q-promos-deal-title-ls, normal);
+    }
+
+    .q-promo__desc{
+      margin:.55rem 0 0 0;
+      color: var(--q-promos-deal-desc-color, inherit);
+      font-size: var(--q-promos-deal-desc-fs, 15px);
+      font-weight: var(--q-promos-deal-desc-fw, 400);
+      line-height: var(--q-promos-deal-desc-lh, 1.6);
+      letter-spacing: var(--q-promos-deal-desc-ls, normal);
+    }
+
+    .q-promo__expiry{
+      margin:.6rem 0 0 0;
+      color: var(--q-promos-expiry-color, inherit);
+      font-size: var(--q-promos-expiry-fs, 13px);
+      font-weight: var(--q-promos-expiry-fw, 600);
+      line-height: var(--q-promos-expiry-lh, 1.4);
+      letter-spacing: var(--q-promos-expiry-ls, normal);
+    }
+
+    .q-promo__actions{ margin-top: .85rem; }
+    .q-promo__btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius: var(--q-promos-btn-radius, 12px);
+      padding: var(--q-promos-btn-pad-y, 10px) var(--q-promos-btn-pad-x, 16px);
+      font-size: var(--q-promos-btn-fs, 14px);
+      font-weight: var(--q-promos-btn-fw, 700);
+      line-height: var(--q-promos-btn-lh, 1.2);
+      letter-spacing: var(--q-promos-btn-ls, .02em);
+      text-decoration:none;
+
+      background: var(--q-promos-btn-bg, #fff);
+      color: var(--q-promos-btn-fg, #0b1220);
+      border: 1px solid var(--q-promos-btn-border, rgba(0,0,0,0));
+    }
+
+    @media (hover:hover) and (pointer:fine){
+      .q-promo__btn:hover{
+        background: var(--q-promos-btn-bg-hover, #b6c6ff);
+        color: var(--q-promos-btn-fg-hover, #0b1220);
+        border-color: var(--q-promos-btn-border-hover, rgba(0,0,0,0));
+        transform: translateY(-1px);
+      }
+    }
+  </style>
+</article>
