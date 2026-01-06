@@ -1,0 +1,700 @@
+{% comment %}
+  Quadratum — Section: Featured · Blog Highlights
+  File: sections/featured-content-blog-spotlight.liquid
+
+  IMPORTANT:
+  - Reuses snippets/blog-card.liquid without modifications.
+  - Full styling control is achieved via wrapper selectors + section-scoped CSS variables.
+  - No complex boolean expressions in {% if %} conditions (precomputed flags).
+
+  Blog-card contract used as-is:
+  {% render 'blog-card',
+    article: a,
+    heading_level: 3,
+    show_image: true/false,
+    show_author: true/false,
+    show_date: true/false,
+    show_read_time: true/false,
+    show_tags: true/false,
+    show_excerpt: true/false,
+    excerpt_text: '...',
+    cta_label: 'Read more'
+  %}
+{% endcomment %}
+
+{%- liquid
+  assign source_mode = section.settings.source_mode
+  assign layout_style = section.settings.layout_style
+  assign density = section.settings.density
+
+  assign show_header = section.settings.show_header
+  assign show_view_all = section.settings.show_view_all
+  assign view_all_label = section.settings.view_all_label
+  assign view_all_link = section.settings.view_all_link
+
+  assign blog_obj = section.settings.blog
+  assign auto_limit = section.settings.auto_limit
+  assign tag_filter = section.settings.tag_filter | strip
+
+  assign show_image = section.settings.show_image
+  assign show_author = section.settings.show_author
+  assign show_date = section.settings.show_date
+  assign show_read_time = section.settings.show_read_time
+  assign show_tags = section.settings.show_tags
+  assign show_excerpt = section.settings.show_excerpt
+  assign excerpt_words = section.settings.excerpt_words
+
+  assign columns_mobile = section.settings.columns_mobile
+  assign columns_tablet = section.settings.columns_tablet
+  assign columns_desktop = section.settings.columns_desktop
+
+  assign use_custom_colors = section.settings.use_custom_colors
+  assign shadow_strength = section.settings.shadow_strength
+
+  assign resolved_view_all_link = view_all_link
+  if resolved_view_all_link == blank and source_mode == 'auto' and blog_obj != blank
+    assign resolved_view_all_link = blog_obj.url
+  endif
+
+  assign has_header_content = false
+  if section.settings.kicker != blank or section.settings.heading != blank or section.settings.subheading != blank
+    assign has_header_content = true
+  endif
+
+  assign has_view_all = false
+  if show_view_all and resolved_view_all_link != blank
+    assign has_view_all = true
+  endif
+
+ assign show_section_header = false
+if show_header
+  if has_header_content
+    assign show_section_header = true
+  endif
+  if has_view_all
+    assign show_section_header = true
+  endif
+endif
+
+  comment
+    Collect article handles (manual preserves block order; auto preserves newest order).
+  endcomment
+  assign handles_csv = ''
+-%}
+
+{%- if source_mode == 'manual' -%}
+  {%- for block in section.blocks -%}
+    {%- assign a = block.settings.article -%}
+    {%- if a != blank -%}
+      {%- if handles_csv != blank -%}{%- assign handles_csv = handles_csv | append: ',' -%}{%- endif -%}
+      {%- assign handles_csv = handles_csv | append: a.handle -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- else -%}
+  {%- if blog_obj != blank -%}
+    {%- assign picked = 0 -%}
+    {%- for a in blog_obj.articles -%}
+      {%- if picked >= auto_limit -%}{%- break -%}{%- endif -%}
+
+      {%- if tag_filter != blank -%}
+        {%- unless a.tags contains tag_filter -%}
+          {%- continue -%}
+        {%- endunless -%}
+      {%- endif -%}
+
+      {%- if handles_csv != blank -%}{%- assign handles_csv = handles_csv | append: ',' -%}{%- endif -%}
+      {%- assign handles_csv = handles_csv | append: a.handle -%}
+      {%- assign picked = picked | plus: 1 -%}
+    {%- endfor -%}
+  {%- endif -%}
+{%- endif -%}
+
+{%- assign handles = handles_csv | split: ',' -%}
+{%- assign has_articles = false -%}
+{%- if handles_csv != blank and handles.size > 0 -%}
+  {%- assign has_articles = true -%}
+{%- endif -%}
+
+{%- capture section_vars -%}
+  --q-bhs-pad-y: {{ section.settings.pad_y }}px;
+  --q-bhs-pad-x: {{ section.settings.pad_x }}px;
+  --q-bhs-maxw: {{ section.settings.max_width }}px;
+  --q-bhs-gap: {{ section.settings.gap }}px;
+
+  --q-bhs-cols-m: {{ columns_mobile }};
+  --q-bhs-cols-t: {{ columns_tablet }};
+  --q-bhs-cols-d: {{ columns_desktop }};
+
+  --q-bhs-shadow: {{ shadow_strength }};
+
+  --q-bhs-kicker-fs: {{ section.settings.kicker_fs }}px;
+  --q-bhs-kicker-ls: {{ section.settings.kicker_ls }}em;
+  --q-bhs-heading-fs: {{ section.settings.heading_fs }}px;
+  --q-bhs-subheading-fs: {{ section.settings.subheading_fs }}px;
+
+  --q-bhs-card-radius: {{ section.settings.card_radius }}px;
+  --q-bhs-card-pad: {{ section.settings.card_pad }}px;
+  --q-bhs-card-border-w: {{ section.settings.card_border_w }}px;
+
+  --q-bhs-title-fs: {{ section.settings.title_fs }}px;
+  --q-bhs-title-lh: {{ section.settings.title_lh }};
+  --q-bhs-title-fs-featured: {{ section.settings.title_fs_featured }}px;
+
+  --q-bhs-meta-fs: {{ section.settings.meta_fs }}px;
+  --q-bhs-excerpt-fs: {{ section.settings.excerpt_fs }}px;
+
+  --q-bhs-tag-fs: {{ section.settings.tag_fs }}px;
+  --q-bhs-tag-radius: {{ section.settings.tag_radius }}px;
+  --q-bhs-tag-pad-y: {{ section.settings.tag_pad_y }}px;
+  --q-bhs-tag-pad-x: {{ section.settings.tag_pad_x }}px;
+  --q-bhs-tag-border-w: {{ section.settings.tag_border_w }}px;
+
+  --q-bhs-cta-fs: {{ section.settings.cta_fs }}px;
+  --q-bhs-cta-radius: {{ section.settings.cta_radius }}px;
+  --q-bhs-cta-pad-y: {{ section.settings.cta_pad_y }}px;
+  --q-bhs-cta-pad-x: {{ section.settings.cta_pad_x }}px;
+  --q-bhs-cta-border-w: {{ section.settings.cta_border_w }}px;
+
+  --q-bhs-featured-split: {{ section.settings.featured_split }}%;
+  --q-bhs-scroll-col: {{ section.settings.scroll_card_min }}px;
+  --q-bhs-scroll-peek: {{ section.settings.scroll_peek }}%;
+
+  {%- if use_custom_colors -%}
+    --q-bhs-bg: {{ section.settings.color_background }};
+    --q-bhs-text: {{ section.settings.color_text }};
+    --q-bhs-muted: {{ section.settings.color_muted }};
+    --q-bhs-accent: {{ section.settings.color_accent }};
+
+    --q-bhs-card-bg: {{ section.settings.color_card_bg }};
+    --q-bhs-card-border: {{ section.settings.color_card_border }};
+
+    --q-bhs-tag-bg: {{ section.settings.color_tag_bg }};
+    --q-bhs-tag-text: {{ section.settings.color_tag_text }};
+    --q-bhs-tag-border: {{ section.settings.color_tag_border }};
+
+    --q-bhs-cta-bg: {{ section.settings.color_cta_bg }};
+    --q-bhs-cta-text: {{ section.settings.color_cta_text }};
+    --q-bhs-cta-border: {{ section.settings.color_cta_border }};
+  {%- endif -%}
+{%- endcapture -%}
+
+<section class="q-bhs q-bhs--density-{{ density }} q-bhs--cta-{{ section.settings.cta_style }}" style="{{ section_vars | strip | strip_newlines }}">
+  <div class="q-bhs__inner">
+    {%- if show_section_header -%}
+      <header class="q-bhs__header q-bhs__header--{{ section.settings.header_align }}">
+        <div class="q-bhs__headcopy">
+          {%- if section.settings.kicker != blank -%}
+            <p class="q-bhs__kicker">{{ section.settings.kicker }}</p>
+          {%- endif -%}
+
+          {%- if section.settings.heading != blank -%}
+            <h2 class="q-bhs__heading">{{ section.settings.heading }}</h2>
+          {%- endif -%}
+
+          {%- if section.settings.subheading != blank -%}
+            <div class="q-bhs__subheading rte">{{ section.settings.subheading }}</div>
+          {%- endif -%}
+        </div>
+
+        {%- if has_view_all -%}
+          <div class="q-bhs__globalCta">
+            <a class="q-bhs__viewAll" href="{{ resolved_view_all_link }}">{{ view_all_label }}</a>
+          </div>
+        {%- endif -%}
+      </header>
+    {%- endif -%}
+
+    {%- if has_articles -%}
+      {%- if layout_style == 'featured' -%}
+        {%- assign first_handle = handles[0] -%}
+        {%- assign featured_article = articles[first_handle] -%}
+
+        <div class="q-bhs__layout q-bhs__layout--featured">
+          {%- if featured_article != blank -%}
+            <div class="q-bhs__featured">
+              {% render 'blog-card',
+                article: featured_article,
+                heading_level: 2,
+                show_image: show_image,
+                show_author: show_author,
+                show_date: show_date,
+                show_read_time: show_read_time,
+                show_tags: show_tags,
+                show_excerpt: show_excerpt,
+                excerpt_text: featured_article.excerpt_or_content | strip_html | strip | truncatewords: excerpt_words, '…',
+                cta_label: section.settings.cta_label_featured
+              %}
+            </div>
+          {%- endif -%}
+
+          {%- if handles.size > 1 -%}
+            <div class="q-bhs__supporting">
+              {%- for h in handles offset: 1 -%}
+                {%- assign a = articles[h] -%}
+                {%- if a == blank -%}{%- continue -%}{%- endif -%}
+                <div class="q-bhs__item">
+                  {% render 'blog-card',
+                    article: a,
+                    heading_level: 3,
+                    show_image: show_image,
+                    show_author: show_author,
+                    show_date: show_date,
+                    show_read_time: show_read_time,
+                    show_tags: show_tags,
+                    show_excerpt: show_excerpt,
+                    excerpt_text: a.excerpt_or_content | strip_html | strip | truncatewords: excerpt_words, '…',
+                    cta_label: section.settings.cta_label_supporting
+                  %}
+                </div>
+              {%- endfor -%}
+            </div>
+          {%- endif -%}
+        </div>
+
+      {%- elsif layout_style == 'scroll' -%}
+        <div class="q-bhs__layout q-bhs__layout--scroll">
+          <div class="q-bhs__scroller" role="region" aria-label="{{ section.settings.heading | escape }}">
+            {%- for h in handles -%}
+              {%- assign a = articles[h] -%}
+              {%- if a == blank -%}{%- continue -%}{%- endif -%}
+              <div class="q-bhs__slide">
+                {% render 'blog-card',
+                  article: a,
+                  heading_level: 3,
+                  show_image: show_image,
+                  show_author: show_author,
+                  show_date: show_date,
+                  show_read_time: show_read_time,
+                  show_tags: show_tags,
+                  show_excerpt: show_excerpt,
+                  excerpt_text: a.excerpt_or_content | strip_html | strip | truncatewords: excerpt_words, '…',
+                  cta_label: section.settings.cta_label_supporting
+                %}
+              </div>
+            {%- endfor -%}
+          </div>
+        </div>
+
+      {%- else -%}
+        <div class="q-bhs__layout q-bhs__layout--grid">
+          {%- for h in handles -%}
+            {%- assign a = articles[h] -%}
+            {%- if a == blank -%}{%- continue -%}{%- endif -%}
+            <div class="q-bhs__gridItem">
+              {% render 'blog-card',
+                article: a,
+                heading_level: 3,
+                show_image: show_image,
+                show_author: show_author,
+                show_date: show_date,
+                show_read_time: show_read_time,
+                show_tags: show_tags,
+                show_excerpt: show_excerpt,
+                excerpt_text: a.excerpt_or_content | strip_html | strip | truncatewords: excerpt_words, '…',
+                cta_label: section.settings.cta_label_supporting
+              %}
+            </div>
+          {%- endfor -%}
+        </div>
+      {%- endif -%}
+
+    {%- else -%}
+      <div class="q-bhs__empty">
+        <div class="q-bhs__emptyCard">
+          <p class="q-bhs__kicker">{{ section.settings.kicker | default: 'From the blog' }}</p>
+          <h3 class="q-bhs__emptyHeading">{{ section.settings.empty_heading }}</h3>
+          <p class="q-bhs__emptyText">{{ section.settings.empty_text }}</p>
+          {%- if has_view_all -%}
+            <a class="q-bhs__viewAll" href="{{ resolved_view_all_link }}">{{ view_all_label }}</a>
+          {%- endif -%}
+        </div>
+      </div>
+    {%- endif -%}
+  </div>
+
+  <style>
+    /* ===== Section shell ===== */
+    .q-bhs{
+      background: var(--q-bhs-bg, transparent);
+      color: var(--q-bhs-text, inherit);
+    }
+    .q-bhs__inner{
+      max-width: var(--q-bhs-maxw, 1200px);
+      margin: 0 auto;
+      padding: var(--q-bhs-pad-y, 48px) var(--q-bhs-pad-x, 24px);
+    }
+
+    .q-bhs--density-compact .q-bhs__inner{
+      padding-top: calc(var(--q-bhs-pad-y, 48px) * 0.75);
+      padding-bottom: calc(var(--q-bhs-pad-y, 48px) * 0.75);
+    }
+
+    /* ===== Header ===== */
+    .q-bhs__header{
+      display:flex;
+      gap: var(--q-bhs-gap, 16px);
+      margin-bottom: var(--q-bhs-gap, 16px);
+      align-items:flex-end;
+      justify-content:space-between;
+    }
+    .q-bhs__header--center{
+      text-align:center;
+      flex-direction:column;
+      align-items:center;
+    }
+    .q-bhs__header--left{
+      text-align:left;
+    }
+
+    .q-bhs__kicker{
+      margin:0 0 6px 0;
+      font-size: var(--q-bhs-kicker-fs, 12px);
+      letter-spacing: var(--q-bhs-kicker-ls, .08em);
+      text-transform:uppercase;
+      color: var(--q-bhs-muted, currentColor);
+    }
+    .q-bhs__heading{
+      margin:0;
+      font-size: var(--q-bhs-heading-fs, 28px);
+      line-height:1.1;
+      color: var(--q-bhs-text, inherit);
+    }
+    .q-bhs__subheading{
+      margin-top: 8px;
+      max-width: 70ch;
+      font-size: var(--q-bhs-subheading-fs, 16px);
+      color: var(--q-bhs-muted, currentColor);
+    }
+    .q-bhs__viewAll{
+      display:inline-flex;
+      align-items:center;
+      gap:.4em;
+      text-decoration:none;
+      font-weight:600;
+      color: var(--q-bhs-accent, currentColor);
+      white-space:nowrap;
+    }
+    .q-bhs__viewAll:hover{ text-decoration:underline; }
+
+    /* ===== Layout ===== */
+    .q-bhs__layout--featured{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: var(--q-bhs-gap, 16px);
+    }
+    .q-bhs__supporting{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: var(--q-bhs-gap, 16px);
+    }
+    @media (min-width: 750px){
+      .q-bhs__layout--featured{
+        grid-template-columns: minmax(0, calc(var(--q-bhs-featured-split, 58) * 1%)) minmax(0, 1fr);
+        align-items:start;
+      }
+    }
+
+    .q-bhs__layout--grid{
+      display:grid;
+      gap: var(--q-bhs-gap, 16px);
+      grid-template-columns: repeat(var(--q-bhs-cols-m, 1), minmax(0, 1fr));
+    }
+    @media (min-width: 750px){
+      .q-bhs__layout--grid{ grid-template-columns: repeat(var(--q-bhs-cols-t, 2), minmax(0, 1fr)); }
+    }
+    @media (min-width: 990px){
+      .q-bhs__layout--grid{ grid-template-columns: repeat(var(--q-bhs-cols-d, 3), minmax(0, 1fr)); }
+    }
+
+    .q-bhs__scroller{
+      display:grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(var(--q-bhs-scroll-col, 280px), 1fr);
+      gap: var(--q-bhs-gap, 16px);
+      overflow-x:auto;
+      padding-bottom: 6px;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+    .q-bhs__slide{ scroll-snap-align: start; }
+    @media (max-width: 749px){
+      .q-bhs__scroller{
+        grid-auto-columns: minmax(calc(var(--q-bhs-scroll-peek, 78) * 1%), 1fr);
+      }
+    }
+
+    /* ===== Override blog-card styles (full control) =====
+       We intentionally use wrapper specificity to override snippet-embedded CSS.
+    */
+    .q-bhs .q-blogcard{
+      border-radius: var(--q-bhs-card-radius, 16px) !important;
+      background: var(--q-bhs-card-bg, var(--q-surface, #fff)) !important;
+      border: var(--q-bhs-card-border-w, 1px) solid var(--q-bhs-card-border, var(--q-border, rgba(0,0,0,.12))) !important;
+      box-shadow: 0 10px 28px rgba(0,0,0, calc(var(--q-bhs-shadow, 0.2) * 0.14));
+    }
+    .q-bhs .q-blogcard__body{
+      padding: var(--q-bhs-card-pad, 16px) !important;
+      gap: calc(var(--q-bhs-gap, 16px) * 0.6) !important;
+    }
+
+    .q-bhs .q-blogcard__title{
+      font-size: var(--q-bhs-title-fs, 18px) !important;
+      line-height: var(--q-bhs-title-lh, 1.2) !important;
+    }
+    .q-bhs .q-blogcard__meta{
+      font-size: var(--q-bhs-meta-fs, 14px) !important;
+      color: var(--q-bhs-muted, currentColor);
+    }
+    .q-bhs .q-blogcard__excerpt{
+      font-size: var(--q-bhs-excerpt-fs, 16px) !important;
+      color: var(--q-bhs-text, inherit);
+      opacity: .92;
+    }
+
+    /* Featured emphasis (no snippet changes) */
+    .q-bhs__featured .q-blogcard__title{
+      font-size: var(--q-bhs-title-fs-featured, 24px) !important;
+      letter-spacing: -0.01em;
+    }
+    .q-bhs__featured .q-blogcard{
+      box-shadow: 0 14px 36px rgba(0,0,0, calc(var(--q-bhs-shadow, 0.2) * 0.18));
+    }
+
+    /* Tags: full control */
+    .q-bhs .q-blogcard__tag{
+      font-size: var(--q-bhs-tag-fs, 12px) !important;
+      padding: var(--q-bhs-tag-pad-y, 4px) var(--q-bhs-tag-pad-x, 10px) !important;
+      border-radius: var(--q-bhs-tag-radius, 999px) !important;
+      border: var(--q-bhs-tag-border-w, 1px) solid var(--q-bhs-tag-border, var(--q-border, rgba(0,0,0,.12))) !important;
+      background: var(--q-bhs-tag-bg, transparent) !important;
+      color: var(--q-bhs-tag-text, currentColor) !important;
+      opacity: 1 !important;
+    }
+
+    /* CTA styling options */
+    .q-bhs .q-blogcard__link{
+      font-size: var(--q-bhs-cta-fs, 14px) !important;
+      color: var(--q-bhs-accent, currentColor) !important;
+    }
+
+    .q-bhs--cta-link .q-blogcard__link{
+      text-decoration: none !important;
+      font-weight: 600;
+    }
+    .q-bhs--cta-link .q-blogcard__link:hover{
+      text-decoration: underline !important;
+    }
+
+    .q-bhs--cta-button .q-blogcard__cta{ margin-top: calc(var(--q-bhs-gap, 16px) * 0.5) !important; }
+    .q-bhs--cta-button .q-blogcard__link{
+      display:inline-flex !important;
+      align-items:center;
+      justify-content:center;
+      padding: var(--q-bhs-cta-pad-y, 10px) var(--q-bhs-cta-pad-x, 14px) !important;
+      border-radius: var(--q-bhs-cta-radius, 12px) !important;
+      border: var(--q-bhs-cta-border-w, 1px) solid var(--q-bhs-cta-border, var(--q-bhs-accent, currentColor)) !important;
+      background: var(--q-bhs-cta-bg, transparent) !important;
+      color: var(--q-bhs-cta-text, var(--q-bhs-accent, currentColor)) !important;
+      text-decoration:none !important;
+      font-weight: 700;
+    }
+    .q-bhs--cta-button .q-blogcard__link:after{ display:none !important; }
+
+    /* Empty state */
+    .q-bhs__emptyCard{
+      border-radius: var(--q-bhs-card-radius, 16px);
+      padding: var(--q-bhs-card-pad, 16px);
+      border: var(--q-bhs-card-border-w, 1px) solid var(--q-bhs-card-border, rgba(0,0,0,.12));
+      background: var(--q-bhs-card-bg, var(--q-surface, #fff));
+      box-shadow: 0 10px 28px rgba(0,0,0, calc(var(--q-bhs-shadow, 0.2) * 0.14));
+    }
+    .q-bhs__emptyHeading{ margin: 6px 0 8px 0; font-size: 18px; line-height: 1.2; }
+    .q-bhs__emptyText{ margin: 0; color: var(--q-bhs-muted, currentColor); max-width: 70ch; }
+  </style>
+</section>
+
+{% schema %}
+{
+  "name": "Featured Blog",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "header", "content": "Source" },
+    {
+      "type": "select",
+      "id": "source_mode",
+      "label": "Source mode",
+      "default": "manual",
+      "options": [
+        { "value": "manual", "label": "Manual (selected articles)" },
+        { "value": "auto", "label": "Automatic (latest from blog)" }
+      ]
+    },
+    { "type": "blog", "id": "blog", "label": "Blog (for Automatic mode)" },
+    { "type": "range", "id": "auto_limit", "label": "Number of posts (Automatic)", "min": 2, "max": 6, "step": 1, "default": 4 },
+    { "type": "text", "id": "tag_filter", "label": "Tag filter (optional, Automatic)",  },
+
+    { "type": "header", "content": "Header" },
+    { "type": "checkbox", "id": "show_header", "label": "Show header", "default": true },
+    {
+      "type": "select",
+      "id": "header_align",
+      "label": "Header alignment",
+      "default": "left",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" }
+      ]
+    },
+    { "type": "text", "id": "kicker", "label": "Kicker", "default": "From the blog" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Latest insights" },
+    { "type": "richtext", "id": "subheading", "label": "Subtitle", "default": "<p>Helpful reading to guide confident decisions — quick, relevant, and worth your time.</p>" },
+
+    { "type": "header", "content": "Global CTA (View all)" },
+    { "type": "checkbox", "id": "show_view_all", "label": "Show “View all”", "default": true },
+    { "type": "text", "id": "view_all_label", "label": "Label", "default": "View all articles" },
+    { "type": "url", "id": "view_all_link", "label": "Link (optional override)" },
+
+    { "type": "header", "content": "Layout" },
+    {
+      "type": "select",
+      "id": "layout_style",
+      "label": "Layout style",
+      "default": "featured",
+      "options": [
+        { "value": "featured", "label": "A) 1 Featured + Small" },
+        { "value": "grid", "label": "B) Simple Grid / Row" },
+        { "value": "scroll", "label": "C) Horizontal Scroll" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "density",
+      "label": "Density",
+      "default": "comfortable",
+      "options": [
+        { "value": "comfortable", "label": "Comfortable" },
+        { "value": "compact", "label": "Compact" }
+      ]
+    },
+
+    { "type": "header", "content": "Container & spacing" },
+    { "type": "range", "id": "pad_y", "label": "Section padding (Y)", "min": 0, "max": 120, "step": 2, "default": 48 },
+    { "type": "range", "id": "pad_x", "label": "Section padding (X)", "min": 0, "max": 80, "step": 2, "default": 24 },
+    { "type": "range", "id": "max_width", "label": "Max width", "min": 720, "max": 1600, "step": 20, "default": 1200 },
+    { "type": "range", "id": "gap", "label": "Gap", "min": 6, "max": 48, "step": 2, "default": 16 },
+
+    { "type": "header", "content": "Featured & scroll tuning" },
+    { "type": "range", "id": "featured_split", "label": "Featured split (featured column %)", "min": 45, "max": 70, "step": 1, "default": 58 },
+    { "type": "range", "id": "scroll_card_min", "label": "Scroll card min width (px)", "min": 220, "max": 520, "step": 10, "default": 280 },
+    { "type": "range", "id": "scroll_peek", "label": "Scroll peek (mobile %)", "min": 60, "max": 92, "step": 1, "default": 78 },
+
+    { "type": "header", "content": "Grid columns (Grid mode)" },
+    { "type": "range", "id": "columns_mobile", "label": "Columns (mobile)", "min": 1, "max": 3, "step": 1, "default": 1 },
+    { "type": "range", "id": "columns_tablet", "label": "Columns (tablet)", "min": 1, "max": 3, "step": 1, "default": 2 },
+    { "type": "range", "id": "columns_desktop", "label": "Columns (desktop)", "min": 2, "max": 4, "step": 1, "default": 3 },
+
+    { "type": "header", "content": "Card toggles" },
+    { "type": "checkbox", "id": "show_image", "label": "Featured image", "default": true },
+    { "type": "checkbox", "id": "show_author", "label": "Author", "default": false },
+    { "type": "checkbox", "id": "show_date", "label": "Publish date", "default": true },
+    { "type": "checkbox", "id": "show_read_time", "label": "Estimated read time", "default": false },
+    { "type": "checkbox", "id": "show_tags", "label": "Tags / categories", "default": false },
+    { "type": "checkbox", "id": "show_excerpt", "label": "Excerpt", "default": true },
+    { "type": "range", "id": "excerpt_words", "label": "Excerpt length (words)", "min": 10, "max": 90, "step": 2, "default": 24 },
+
+    { "type": "header", "content": "Typography" },
+    { "type": "range", "id": "kicker_fs", "label": "Kicker font size", "min": 10, "max": 18, "step": 1, "default": 12 },
+    { "type": "range", "id": "kicker_ls", "label": "Kicker letter spacing (x100)", "min": 0, "max": 20, "step": 1, "default": 8 },
+    { "type": "range", "id": "heading_fs", "label": "Heading font size", "min": 18, "max": 56, "step": 1, "default": 28 },
+    { "type": "range", "id": "subheading_fs", "label": "Subheading font size", "min": 12, "max": 22, "step": 1, "default": 16 },
+
+    { "type": "range", "id": "title_fs", "label": "Card title size", "min": 14, "max": 30, "step": 1, "default": 18 },
+    { "type": "range", "id": "title_fs_featured", "label": "Featured title size", "min": 18, "max": 44, "step": 1, "default": 24 },
+    { "type": "range", "id": "title_lh", "label": "Title line-height (x10)", "min": 10, "max": 18, "step": 1, "default": 12 },
+
+    { "type": "range", "id": "meta_fs", "label": "Meta font size", "min": 11, "max": 18, "step": 1, "default": 14 },
+    { "type": "range", "id": "excerpt_fs", "label": "Excerpt font size", "min": 12, "max": 22, "step": 1, "default": 16 },
+
+    { "type": "header", "content": "Card container styling" },
+    { "type": "range", "id": "card_radius", "label": "Card radius", "min": 0, "max": 40, "step": 1, "default": 16 },
+    { "type": "range", "id": "card_pad", "label": "Card padding", "min": 8, "max": 40, "step": 1, "default": 16 },
+    { "type": "range", "id": "card_border_w", "label": "Card border width", "min": 0, "max": 4, "step": 1, "default": 1 },
+
+    { "type": "header", "content": "Tag styling" },
+    { "type": "range", "id": "tag_fs", "label": "Tag font size", "min": 10, "max": 16, "step": 1, "default": 12 },
+    { "type": "range", "id": "tag_radius", "label": "Tag radius", "min": 0, "max": 100, "step": 1, "default": 100 },
+    { "type": "range", "id": "tag_pad_y", "label": "Tag padding (Y)", "min": 0, "max": 12, "step": 1, "default": 4 },
+    { "type": "range", "id": "tag_pad_x", "label": "Tag padding (X)", "min": 0, "max": 18, "step": 1, "default": 10 },
+    { "type": "range", "id": "tag_border_w", "label": "Tag border width", "min": 0, "max": 3, "step": 1, "default": 1 },
+
+    { "type": "header", "content": "CTA styling" },
+    {
+      "type": "select",
+      "id": "cta_style",
+      "label": "CTA style",
+      "default": "link",
+      "options": [
+        { "value": "link", "label": "Text link" },
+        { "value": "button", "label": "Button" }
+      ]
+    },
+    { "type": "range", "id": "cta_fs", "label": "CTA font size", "min": 11, "max": 18, "step": 1, "default": 14 },
+    { "type": "range", "id": "cta_radius", "label": "CTA radius (button)", "min": 0, "max": 40, "step": 1, "default": 12 },
+    { "type": "range", "id": "cta_pad_y", "label": "CTA padding Y (button)", "min": 6, "max": 18, "step": 1, "default": 10 },
+    { "type": "range", "id": "cta_pad_x", "label": "CTA padding X (button)", "min": 8, "max": 26, "step": 1, "default": 14 },
+    { "type": "range", "id": "cta_border_w", "label": "CTA border width (button)", "min": 0, "max": 4, "step": 1, "default": 1 },
+
+    { "type": "header", "content": "CTA labels" },
+    { "type": "text", "id": "cta_label_featured", "label": "Featured CTA label", "default": "Read the story" },
+    { "type": "text", "id": "cta_label_supporting", "label": "Supporting CTA label", "default": "Read more" },
+
+    { "type": "header", "content": "Colors & shadow" },
+    { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors", "default": false },
+
+    { "type": "color", "id": "color_background", "label": "Section background", "default": "#ffffff" },
+    { "type": "color", "id": "color_text", "label": "Text", "default": "#111111" },
+    { "type": "color", "id": "color_muted", "label": "Muted text", "default": "#6b7280" },
+    { "type": "color", "id": "color_accent", "label": "Accent", "default": "#111111" },
+
+    { "type": "color", "id": "color_card_bg", "label": "Card background", "default": "#ffffff" },
+    { "type": "color", "id": "color_card_border", "label": "Card border", "default": "#e5e7eb" },
+
+    { "type": "color", "id": "color_tag_bg", "label": "Tag background", "default": "rgba(0,0,0,0)" },
+    { "type": "color", "id": "color_tag_text", "label": "Tag text", "default": "#111111" },
+    { "type": "color", "id": "color_tag_border", "label": "Tag border", "default": "#e5e7eb" },
+
+    { "type": "color", "id": "color_cta_bg", "label": "CTA background (button)", "default": "rgba(0,0,0,0)" },
+    { "type": "color", "id": "color_cta_text", "label": "CTA text (button)", "default": "#111111" },
+    { "type": "color", "id": "color_cta_border", "label": "CTA border (button)", "default": "#111111" },
+
+    { "type": "range", "id": "shadow_strength", "label": "Shadow strength", "min": 0, "max": 1, "step": 0.1, "default": 0.2 },
+
+    { "type": "header", "content": "Empty state" },
+    { "type": "text", "id": "empty_heading", "label": "Empty heading", "default": "No articles yet" },
+    { "type": "text", "id": "empty_text", "label": "Empty text", "default": "Publish posts to see highlights appear here. This module stays editorial — not a full feed." }
+  ],
+  "blocks": [
+    {
+      "type": "article",
+      "name": "Article",
+      "settings": [
+        { "type": "article", "id": "article", "label": "Article" }
+      ]
+    }
+  ],
+  "max_blocks": 6,
+  "presets": [
+    {
+      "name": "Featured - Blog Highlight",
+      "category": "Featured Content",
+      "blocks": [
+        { "type": "article" },
+        { "type": "article" },
+        { "type": "article" },
+        { "type": "article" }
+      ]
+    }
+  ]
+}
+{% endschema %}

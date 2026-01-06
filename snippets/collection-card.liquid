@@ -2,11 +2,15 @@
   Quadratum — Collection Card (shared)
   File: snippets/collection-card.liquid
 
-  Goals:
-  • One collection card system used across the theme
-  • Token-driven styling via CSS vars
-  • No invalid nesting (no buttons inside <a>)
-  • Optional overlay text (contrast-safe)
+  NON-BREAKING PATCH:
+  - Adds optional params:
+    subtitle, body, cta_label, cta_url, featured, modifier
+    cta_style (string, optional)
+    cta_use_custom_colors (bool)
+    cta_bg, cta_text, cta_border
+    cta_bg_hover, cta_text_hover, cta_border_hover
+  - CTA rendered outside main <a> to avoid nested interactive elements
+  - If new params are not provided, output matches prior behavior
 {% endcomment %}
 
 {%- liquid
@@ -38,7 +42,6 @@
     assign overlay_text_enabled = false
   endif
 
-
   assign overlay_text_source = overlay_text_source | default: 'title'
   assign overlay_custom_text = overlay_custom_text | default: ''
 
@@ -52,6 +55,54 @@
   assign meta_opacity = meta_opacity | default: 0.82
 
   assign enable_color_overrides = enable_color_overrides
+
+  assign subtitle = subtitle
+  if subtitle == nil
+    assign subtitle = ''
+  endif
+
+  assign body = body
+  if body == nil
+    assign body = ''
+  endif
+
+  assign cta_label = cta_label
+  if cta_label == nil
+    assign cta_label = ''
+  endif
+
+  assign cta_url = cta_url
+  if cta_url == nil
+    assign cta_url = ''
+  endif
+
+  assign cta_style = cta_style
+  if cta_style == nil
+    assign cta_style = ''
+  endif
+
+  assign cta_use_custom_colors = cta_use_custom_colors
+  if cta_use_custom_colors == nil
+    assign cta_use_custom_colors = false
+  endif
+
+  assign cta_bg = cta_bg | default: ''
+  assign cta_text = cta_text | default: ''
+  assign cta_border = cta_border | default: ''
+
+  assign cta_bg_hover = cta_bg_hover | default: ''
+  assign cta_text_hover = cta_text_hover | default: ''
+  assign cta_border_hover = cta_border_hover | default: ''
+
+  assign featured = featured
+  if featured == nil
+    assign featured = false
+  endif
+
+  assign modifier = modifier
+  if modifier == nil
+    assign modifier = ''
+  endif
 
   assign card_style = ''
   assign card_style = card_style | append: '--q-cc-title-size:' | append: title_size | append: 'px;'
@@ -68,10 +119,42 @@
     assign card_style = card_style | append: '--q-cc-overlay-text:' | append: overlay_text_color | append: ';'
   endif
 
+  assign cta_style_attr = ''
+  if cta_use_custom_colors
+    if cta_bg != blank
+      assign cta_style_attr = cta_style_attr | append: '--q-cc-cta-bg:' | append: cta_bg | append: ';'
+    endif
+    if cta_text != blank
+      assign cta_style_attr = cta_style_attr | append: '--q-cc-cta-text:' | append: cta_text | append: ';'
+    endif
+    if cta_border != blank
+      assign cta_style_attr = cta_style_attr | append: '--q-cc-cta-border:' | append: cta_border | append: ';'
+    endif
+    if cta_bg_hover != blank
+      assign cta_style_attr = cta_style_attr | append: '--q-cc-cta-bg-hover:' | append: cta_bg_hover | append: ';'
+    endif
+    if cta_text_hover != blank
+      assign cta_style_attr = cta_style_attr | append: '--q-cc-cta-text-hover:' | append: cta_text_hover | append: ';'
+    endif
+    if cta_border_hover != blank
+      assign cta_style_attr = cta_style_attr | append: '--q-cc-cta-border-hover:' | append: cta_border_hover | append: ';'
+    endif
+  endif
+
   assign preset_class = 'q-collection-card--' | append: card_preset
   assign density_class = 'q-collection-card--density-' | append: density
   assign align_class = 'q-collection-card--align-' | append: text_align
   assign aspect_class = 'q-collection-card--aspect-' | append: image_aspect
+
+  assign modifier_class = ''
+  if modifier != blank
+    assign modifier_class = 'q-collection-card--' | append: modifier
+  endif
+
+  assign featured_class = ''
+  if featured
+    assign featured_class = 'q-collection-card--featured'
+  endif
 
   assign has_image = false
   assign img = nil
@@ -95,9 +178,18 @@
   if show_count
     assign count_label = c.products_count | append: ' products'
   endif
+
+  assign resolved_cta_url = cta_url
+  if resolved_cta_url == blank
+    assign resolved_cta_url = c.url
+  endif
 -%}
 
-<article class="q-collection-card {{ preset_class }} {{ density_class }} {{ align_class }} {{ aspect_class }}" style="{{ card_style }}" data-collection-card>
+<article
+  class="q-collection-card {{ preset_class }} {{ density_class }} {{ align_class }} {{ aspect_class }} {{ featured_class }} {{ modifier_class }}"
+  style="{{ card_style }}"
+  data-collection-card
+>
   <a class="q-collection-card__link" href="{{ c.url }}" aria-label="{{ c.title | escape }}">
     {%- if show_image -%}
       <div class="q-collection-card__media" aria-hidden="true">
@@ -129,8 +221,16 @@
     <div class="q-collection-card__content">
       <h3 class="q-collection-card__title">{{ c.title }}</h3>
 
+      {%- if subtitle != blank -%}
+        <div class="q-collection-card__subtitle">{{ subtitle }}</div>
+      {%- endif -%}
+
       {%- if show_count and count_label != blank -%}
         <div class="q-collection-card__meta">{{ count_label }}</div>
+      {%- endif -%}
+
+      {%- if body != blank -%}
+        <div class="q-collection-card__body">{{ body }}</div>
       {%- endif -%}
 
       {%- if show_description and c.description != blank -%}
@@ -138,6 +238,17 @@
       {%- endif -%}
     </div>
   </a>
+
+  {%- if cta_label != blank -%}
+    <div class="q-collection-card__cta" style="{{ cta_style_attr }}">
+      <a
+        class="q-button q-collection-card__cta-link{% if cta_style != blank %} q-button--{{ cta_style }}{% endif %}"
+        href="{{ resolved_cta_url }}"
+      >
+        {{ cta_label }}
+      </a>
+    </div>
+  {%- endif -%}
 
   <style>
     .q-collection-card{
@@ -147,6 +258,7 @@
       border-radius: var(--q-radius, 12px);
       overflow: hidden;
     }
+
     .q-collection-card__link{
       display:block;
       color: inherit;
@@ -161,7 +273,6 @@
     .q-collection-card__media{ position: relative; overflow:hidden; }
     .q-collection-card__media-inner{ position: relative; }
 
-    /* aspect ratios affect media container only */
     .q-collection-card--aspect-auto .q-collection-card__media-inner{ padding-top: var(--q-cc-media-auto, 62%); height: 0; }
     .q-collection-card--aspect-square .q-collection-card__media-inner{ padding-top: 100%; height: 0; }
     .q-collection-card--aspect-landscape .q-collection-card__media-inner{ padding-top: 66.666%; height: 0; }
@@ -172,7 +283,7 @@
       inset:0;
       width:100%;
       height:100%;
-      object-fit: cover;
+      object-fit: var(--q-cc-media-fit, cover);
       display:block;
       background: rgba(0,0,0,.04);
     }
@@ -214,11 +325,20 @@
       letter-spacing: var(--q-cc-title-ls, normal);
     }
 
+    .q-collection-card__subtitle,
     .q-collection-card__meta{
       margin-top: .35rem;
       font-size: var(--q-cc-meta-size, 13px);
       opacity: var(--q-cc-meta-opacity, .82);
       color: var(--q-cc-meta-color, inherit);
+    }
+
+    .q-collection-card__body{
+      margin-top: .45rem;
+      font-size: var(--q-cc-body-size, var(--q-body-fs, 1rem));
+      opacity: .95;
+      color: var(--q-cc-meta-color, inherit);
+      line-height: 1.35;
     }
 
     .q-collection-card__desc{
@@ -228,7 +348,41 @@
       color: var(--q-cc-meta-color, inherit);
     }
 
+    .q-collection-card__cta{
+      padding: 0 .95rem .95rem;
+    }
+
+    /* HARD GUARANTEE: CTA looks like a button even if global q-button CSS is missing */
+    .q-collection-card__cta-link{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 44px;
+      padding: .72rem 1rem;
+      border-radius: 999px;
+      border: 1px solid var(--q-cc-cta-border, rgba(0,0,0,.14));
+      background: var(--q-cc-cta-bg, rgba(0,0,0,.06));
+      color: var(--q-cc-cta-text, currentColor);
+      text-decoration: none;
+      font-weight: 600;
+      line-height: 1.1;
+      transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+    }
+    .q-collection-card__cta-link:hover{
+      background: var(--q-cc-cta-bg-hover, var(--q-cc-cta-bg, rgba(0,0,0,.08)));
+      color: var(--q-cc-cta-text-hover, var(--q-cc-cta-text, currentColor));
+      border-color: var(--q-cc-cta-border-hover, var(--q-cc-cta-border, rgba(0,0,0,.18)));
+      transform: translateY(-1px);
+    }
+    .q-collection-card__cta-link:focus-visible{
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(0,0,0,.18);
+    }
+
     .q-collection-card--density-compact .q-collection-card__content{ padding: .8rem .9rem; }
     .q-collection-card--density-comfortable .q-collection-card__content{ padding: 1rem 1rem; }
+    .q-collection-card--density-compact .q-collection-card__cta{ padding: 0 .9rem .9rem; }
+    .q-collection-card--density-comfortable .q-collection-card__cta{ padding: 0 1rem 1rem; }
   </style>
 </article>

@@ -1,0 +1,723 @@
+{% comment %}
+  Quadratum — Featured · Deals & Promotions (CANONICAL)
+  File: sections/featured-content-sale-highlight.liquid
+
+  REQUIRED DEPENDENCY:
+  - snippets/q-deal.liquid
+
+  Render contract:
+  {% render 'q-deal', section: section, block: block, mode: 'hero'|'card', bg_mode: bg_mode, now_ts: now_ts %}
+
+  Doctrine:
+  - Content modes: hero (single) / cards (2–4 max rendered)
+  - Layouts: strip / grid / stacked
+  - Soft time visibility: start_date/end_date compared to now (YYYY-MM-DD expected)
+  - Fully styleable: all visible elements sourced from schema → CSS variables
+{% endcomment %}
+
+{%- liquid
+  assign mode = section.settings.mode
+  assign layout = section.settings.layout
+  assign bg_mode = section.settings.background_mode
+
+  assign now_ts = 'now' | date: '%s' | plus: 0
+
+  assign visible_count = 0
+  assign hero_block = nil
+
+  assign max_cards = section.settings.max_cards | plus: 0
+  if max_cards < 2
+    assign max_cards = 2
+  endif
+  if max_cards > 4
+    assign max_cards = 4
+  endif
+
+  assign has_header_content = false
+  if section.settings.kicker != blank or section.settings.heading != blank or section.settings.subheading != blank
+    assign has_header_content = true
+  endif
+-%}
+
+{%- comment -%} Pre-scan blocks to count visibility + pick first visible as hero {%- endcomment -%}
+{%- for block in section.blocks -%}
+  {%- liquid
+    if block.type != 'deal'
+      continue
+    endif
+
+    assign start_raw = block.settings.start_date | strip
+    assign end_raw   = block.settings.end_date | strip
+
+    assign start_ts = blank
+    assign end_ts = blank
+
+    if start_raw != blank
+      assign start_ts = start_raw | date: '%s'
+      if start_ts != blank
+        assign start_ts = start_ts | plus: 0
+      endif
+    endif
+
+    if end_raw != blank
+      assign end_ts = end_raw | date: '%s'
+      if end_ts != blank
+        assign end_ts = end_ts | plus: 0
+      endif
+    endif
+
+    assign is_visible = true
+    if start_ts != blank and start_ts > now_ts
+      assign is_visible = false
+    endif
+    if end_ts != blank and end_ts < now_ts
+      assign is_visible = false
+    endif
+
+    if is_visible
+      assign visible_count = visible_count | plus: 1
+      if hero_block == nil
+        assign hero_block = block
+      endif
+    endif
+  -%}
+{%- endfor -%}
+
+{%- liquid
+  assign should_render = true
+  if visible_count == 0 and section.settings.hide_if_empty
+    assign should_render = false
+  endif
+-%}
+
+{%- if should_render -%}
+<section
+  id="q-promos-{{ section.id }}"
+  class="q-section q-promos q-promos--mode-{{ mode }} q-promos--layout-{{ layout }} q-promos--bg-{{ bg_mode }}"
+  style="
+    --q-promos-maxw: {{ section.settings.max_width }}px;
+
+    --q-promos-pad-y: {{ section.settings.pad_y }}px;
+    --q-promos-pad-x: {{ section.settings.pad_x }}px;
+    --q-promos-gap: {{ section.settings.gap }}px;
+
+    --q-promos-radius: {{ section.settings.radius }}px;
+    --q-promos-border-w: {{ section.settings.border_w }}px;
+    --q-promos-border-color: {{ section.settings.border_color }};
+    --q-promos-shadow-y: {{ section.settings.shadow_y }}px;
+    --q-promos-shadow-blur: {{ section.settings.shadow_blur }}px;
+    --q-promos-shadow-alpha: {{ section.settings.shadow_alpha | divided_by: 100.0 }};
+
+    --q-promos-section-bg: {{ section.settings.section_bg }};
+    --q-promos-section-fg: {{ section.settings.section_fg }};
+    --q-promos-section-overlay: {{ section.settings.section_overlay_color }};
+    --q-promos-section-overlay-a: {{ section.settings.section_overlay_opacity | divided_by: 100.0 }};
+
+    --q-promos-card-bg: {{ section.settings.card_bg }};
+    --q-promos-card-fg: {{ section.settings.card_fg }};
+    --q-promos-card-overlay: {{ section.settings.card_overlay_color }};
+    --q-promos-card-overlay-a: {{ section.settings.card_overlay_opacity | divided_by: 100.0 }};
+
+    --q-promos-kicker-color: {{ section.settings.kicker_color }};
+    --q-promos-heading-color: {{ section.settings.heading_color }};
+    --q-promos-subheading-color: {{ section.settings.subheading_color }};
+
+    --q-promos-kicker-fs: {{ section.settings.kicker_fs }}px;
+    --q-promos-kicker-fw: {{ section.settings.kicker_fw }};
+    --q-promos-kicker-lh: {{ section.settings.kicker_lh }};
+    --q-promos-kicker-ls: {{ section.settings.kicker_ls | divided_by: 100.0 }}em;
+
+    --q-promos-heading-fs: {{ section.settings.heading_fs }}px;
+    --q-promos-heading-fw: {{ section.settings.heading_fw }};
+    --q-promos-heading-lh: {{ section.settings.heading_lh }};
+    --q-promos-heading-ls: {{ section.settings.heading_ls | divided_by: 100.0 }}em;
+
+    --q-promos-subheading-fs: {{ section.settings.subheading_fs }}px;
+    --q-promos-subheading-fw: {{ section.settings.subheading_fw }};
+    --q-promos-subheading-lh: {{ section.settings.subheading_lh }};
+    --q-promos-subheading-ls: {{ section.settings.subheading_ls | divided_by: 100.0 }}em;
+
+    --q-promos-deal-title-fs: {{ section.settings.deal_title_fs }}px;
+    --q-promos-deal-title-fw: {{ section.settings.deal_title_fw }};
+    --q-promos-deal-title-lh: {{ section.settings.deal_title_lh }};
+    --q-promos-deal-title-ls: {{ section.settings.deal_title_ls | divided_by: 100.0 }}em;
+    --q-promos-deal-title-color: {{ section.settings.deal_title_color }};
+
+    --q-promos-deal-desc-fs: {{ section.settings.deal_desc_fs }}px;
+    --q-promos-deal-desc-fw: {{ section.settings.deal_desc_fw }};
+    --q-promos-deal-desc-lh: {{ section.settings.deal_desc_lh }};
+    --q-promos-deal-desc-ls: {{ section.settings.deal_desc_ls | divided_by: 100.0 }}em;
+    --q-promos-deal-desc-color: {{ section.settings.deal_desc_color }};
+
+    --q-promos-expiry-fs: {{ section.settings.expiry_fs }}px;
+    --q-promos-expiry-fw: {{ section.settings.expiry_fw }};
+    --q-promos-expiry-lh: {{ section.settings.expiry_lh }};
+    --q-promos-expiry-ls: {{ section.settings.expiry_ls | divided_by: 100.0 }}em;
+    --q-promos-expiry-color: {{ section.settings.expiry_color }};
+
+    --q-promos-badge-fs: {{ section.settings.badge_fs }}px;
+    --q-promos-badge-fw: {{ section.settings.badge_fw }};
+    --q-promos-badge-lh: {{ section.settings.badge_lh }};
+    --q-promos-badge-ls: {{ section.settings.badge_ls | divided_by: 100.0 }}em;
+    --q-promos-badge-radius: {{ section.settings.badge_radius }}px;
+    --q-promos-badge-pad-y: {{ section.settings.badge_pad_y }}px;
+    --q-promos-badge-pad-x: {{ section.settings.badge_pad_x }}px;
+    --q-promos-badge-bg: {{ section.settings.badge_bg }};
+    --q-promos-badge-fg: {{ section.settings.badge_fg }};
+    --q-promos-badge-border: {{ section.settings.badge_border }};
+
+    --q-promos-btn-fs: {{ section.settings.btn_fs }}px;
+    --q-promos-btn-fw: {{ section.settings.btn_fw }};
+    --q-promos-btn-lh: {{ section.settings.btn_lh }};
+    --q-promos-btn-ls: {{ section.settings.btn_ls | divided_by: 100.0 }}em;
+    --q-promos-btn-radius: {{ section.settings.btn_radius }}px;
+    --q-promos-btn-pad-y: {{ section.settings.btn_pad_y }}px;
+    --q-promos-btn-pad-x: {{ section.settings.btn_pad_x }}px;
+    --q-promos-btn-bg: {{ section.settings.btn_bg }};
+    --q-promos-btn-fg: {{ section.settings.btn_fg }};
+    --q-promos-btn-border: {{ section.settings.btn_border }};
+    --q-promos-btn-bg-hover: {{ section.settings.btn_bg_hover }};
+    --q-promos-btn-fg-hover: {{ section.settings.btn_fg_hover }};
+    --q-promos-btn-border-hover: {{ section.settings.btn_border_hover }};
+
+    --q-promos-align: {{ section.settings.text_align }};
+
+    --q-promos-grid-m: {{ section.settings.columns_mobile }};
+    --q-promos-grid-t: {{ section.settings.columns_tablet }};
+    --q-promos-grid-d: {{ section.settings.columns_desktop }};
+  "
+>
+  {%- if bg_mode == 'shared' and section.settings.section_bg_image != blank -%}
+    <div class="q-promos__bg" aria-hidden="true">
+      {{ section.settings.section_bg_image | image_url: width: 2400 | image_tag: loading: 'lazy', sizes: '100vw', class: 'q-promos__bg-img' }}
+    </div>
+  {%- endif -%}
+
+  <div class="q-promos__overlay" aria-hidden="true"></div>
+
+  <div class="q-promos__inner">
+    {%- if section.settings.show_header and has_header_content -%}
+      <header class="q-promos__header">
+        {%- if section.settings.kicker != blank -%}
+          <p class="q-promos__kicker">{{ section.settings.kicker }}</p>
+        {%- endif -%}
+
+        {%- if section.settings.heading != blank -%}
+          <h2 class="q-promos__heading">{{ section.settings.heading }}</h2>
+        {%- endif -%}
+
+        {%- if section.settings.subheading != blank -%}
+          <div class="q-promos__subheading rte">{{ section.settings.subheading }}</div>
+        {%- endif -%}
+      </header>
+    {%- endif -%}
+
+    {%- if mode == 'hero' -%}
+      {%- if hero_block != nil -%}
+        {%- render 'q-deal',
+          section: section,
+          block: hero_block,
+          mode: 'hero',
+          bg_mode: bg_mode,
+          now_ts: now_ts
+        -%}
+      {%- elsif section.settings.show_empty_state -%}
+        <div class="q-promos__empty rte">{{ section.settings.empty_state }}</div>
+      {%- endif -%}
+    {%- else -%}
+      <div class="q-promos__list" role="list">
+        {%- liquid
+          assign rendered = 0
+        -%}
+
+        {%- for block in section.blocks -%}
+          {%- liquid
+            if block.type != 'deal'
+              continue
+            endif
+            if rendered >= max_cards
+              break
+            endif
+
+            assign start_raw = block.settings.start_date | strip
+            assign end_raw   = block.settings.end_date | strip
+
+            assign start_ts = blank
+            assign end_ts = blank
+
+            if start_raw != blank
+              assign start_ts = start_raw | date: '%s'
+              if start_ts != blank
+                assign start_ts = start_ts | plus: 0
+              endif
+            endif
+
+            if end_raw != blank
+              assign end_ts = end_raw | date: '%s'
+              if end_ts != blank
+                assign end_ts = end_ts | plus: 0
+              endif
+            endif
+
+            assign is_visible = true
+            if start_ts != blank and start_ts > now_ts
+              assign is_visible = false
+            endif
+            if end_ts != blank and end_ts < now_ts
+              assign is_visible = false
+            endif
+          -%}
+
+          {%- if is_visible -%}
+            {%- render 'q-deal',
+              section: section,
+              block: block,
+              mode: 'card',
+              bg_mode: bg_mode,
+              now_ts: now_ts
+            -%}
+            {%- assign rendered = rendered | plus: 1 -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+        {%- if rendered == 0 and section.settings.show_empty_state -%}
+          <div class="q-promos__empty rte">{{ section.settings.empty_state }}</div>
+        {%- endif -%}
+      </div>
+    {%- endif -%}
+  </div>
+</section>
+
+<style>
+  /* ===== Quadratum Promos — execution layer only (all decisions via CSS vars) ===== */
+
+  #q-promos-{{ section.id }}{
+    position: relative;
+    background: var(--q-promos-section-bg);
+    color: var(--q-promos-section-fg);
+    padding: var(--q-promos-pad-y) var(--q-promos-pad-x);
+  }
+
+  #q-promos-{{ section.id }} .q-promos__bg{
+    position:absolute;
+    inset:0;
+    overflow:hidden;
+    z-index:0;
+  }
+  #q-promos-{{ section.id }} .q-promos__bg-img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+  }
+
+  #q-promos-{{ section.id }} .q-promos__overlay{
+    position:absolute;
+    inset:0;
+    background: var(--q-promos-section-overlay);
+    opacity: var(--q-promos-section-overlay-a);
+    z-index:1;
+    pointer-events:none;
+  }
+
+  #q-promos-{{ section.id }} .q-promos__inner{
+    position:relative;
+    z-index:2;
+    max-width: var(--q-promos-maxw);
+    margin: 0 auto;
+    text-align: var(--q-promos-align);
+    display:grid;
+    gap: var(--q-promos-gap);
+  }
+
+  #q-promos-{{ section.id }} .q-promos__kicker{
+    margin:0 0 calc(var(--q-promos-gap) * 0.4) 0;
+    color: var(--q-promos-kicker-color);
+    font-size: var(--q-promos-kicker-fs);
+    font-weight: var(--q-promos-kicker-fw);
+    line-height: var(--q-promos-kicker-lh);
+    letter-spacing: var(--q-promos-kicker-ls);
+  }
+
+  #q-promos-{{ section.id }} .q-promos__heading{
+    margin:0;
+    color: var(--q-promos-heading-color);
+    font-size: var(--q-promos-heading-fs);
+    font-weight: var(--q-promos-heading-fw);
+    line-height: var(--q-promos-heading-lh);
+    letter-spacing: var(--q-promos-heading-ls);
+  }
+
+  #q-promos-{{ section.id }} .q-promos__subheading{
+    margin-top: calc(var(--q-promos-gap) * 0.5);
+    color: var(--q-promos-subheading-color);
+    font-size: var(--q-promos-subheading-fs);
+    font-weight: var(--q-promos-subheading-fw);
+    line-height: var(--q-promos-subheading-lh);
+    letter-spacing: var(--q-promos-subheading-ls);
+  }
+
+  #q-promos-{{ section.id }} .q-promos__list{
+    display:grid;
+    gap: var(--q-promos-gap);
+  }
+
+  /* Layout shaping (presentation only) */
+  #q-promos-{{ section.id }}.q-promos--layout-stacked .q-promos__list{
+    grid-template-columns: 1fr;
+  }
+
+  #q-promos-{{ section.id }}.q-promos--layout-strip .q-promos__list{
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 990px){
+    #q-promos-{{ section.id }}.q-promos--layout-strip .q-promos__list{
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: stretch;
+    }
+  }
+
+  /* Grid columns are editor-controlled */
+  #q-promos-{{ section.id }}.q-promos--layout-grid .q-promos__list{
+    grid-template-columns: repeat(var(--q-promos-grid-m), minmax(0, 1fr));
+  }
+  @media (min-width: 750px){
+    #q-promos-{{ section.id }}.q-promos--layout-grid .q-promos__list{
+      grid-template-columns: repeat(var(--q-promos-grid-t), minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 990px){
+    #q-promos-{{ section.id }}.q-promos--layout-grid .q-promos__list{
+      grid-template-columns: repeat(var(--q-promos-grid-d), minmax(0, 1fr));
+    }
+  }
+
+  #q-promos-{{ section.id }} .q-promos__empty{
+    padding: calc(var(--q-promos-gap) * 0.85);
+    border-radius: var(--q-promos-radius);
+    border: var(--q-promos-border-w) solid var(--q-promos-border-color);
+    background: transparent;
+  }
+</style>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Featured Promos",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "header", "content": "Mode" },
+    {
+      "type": "select",
+      "id": "mode",
+      "label": "Content mode",
+      "default": "hero",
+      "options": [
+        { "value": "hero", "label": "Single Hero Deal" },
+        { "value": "cards", "label": "Multi-Deal Cards (2–4)" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout variant",
+      "default": "grid",
+      "options": [
+        { "value": "strip", "label": "Strip / Banner" },
+        { "value": "grid", "label": "Grid" },
+        { "value": "stacked", "label": "Stacked" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "max_cards",
+      "label": "Max cards rendered (cards mode)",
+      "min": 2,
+      "max": 4,
+      "step": 1,
+      "default": 4
+    },
+    {
+      "type": "checkbox",
+      "id": "hide_if_empty",
+      "label": "Hide section if no deals are visible",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_empty_state",
+      "label": "Show empty state when visible deals = 0",
+      "default": false
+    },
+    {
+      "type": "richtext",
+      "id": "empty_state",
+      "label": "Empty state content",
+      "default": "<p>No active promotions right now.</p>"
+    },
+
+    { "type": "header", "content": "Header" },
+    {
+      "type": "checkbox",
+      "id": "show_header",
+      "label": "Show header",
+      "default": true
+    },
+    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Limited-time offers" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Deals & Promotions" },
+    {
+      "type": "richtext",
+      "id": "subheading",
+      "label": "Subheading",
+      "default": "<p>Highlight what matters right now — sales, bundles, financing, and seasonal offers.</p>"
+    },
+    {
+      "type": "select",
+      "id": "text_align",
+      "label": "Text alignment",
+      "default": "left",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ]
+    },
+
+    { "type": "header", "content": "Layout & spacing" },
+    { "type": "range", "id": "max_width", "label": "Max width", "min": 720, "max": 1600, "step": 10, "default": 1200 },
+    { "type": "range", "id": "pad_y", "label": "Section padding Y", "min": 0, "max": 120, "step": 2, "default": 48 },
+    { "type": "range", "id": "pad_x", "label": "Section padding X", "min": 0, "max": 120, "step": 2, "default": 24 },
+    { "type": "range", "id": "gap", "label": "Internal gap", "min": 6, "max": 64, "step": 2, "default": 18 },
+
+    { "type": "range", "id": "columns_mobile", "label": "Grid columns (mobile)", "min": 1, "max": 3, "step": 1, "default": 1 },
+    { "type": "range", "id": "columns_tablet", "label": "Grid columns (tablet)", "min": 1, "max": 3, "step": 1, "default": 2 },
+    { "type": "range", "id": "columns_desktop", "label": "Grid columns (desktop)", "min": 2, "max": 4, "step": 1, "default": 4 },
+
+    { "type": "range", "id": "radius", "label": "Card radius", "min": 0, "max": 32, "step": 1, "default": 16 },
+    { "type": "range", "id": "border_w", "label": "Border width", "min": 0, "max": 6, "step": 1, "default": 1 },
+
+    { "type": "text", "id": "border_color", "label": "Border color (supports rgba)", "default": "rgba(255,255,255,0.18)" },
+
+    { "type": "range", "id": "shadow_y", "label": "Shadow Y", "min": 0, "max": 30, "step": 1, "default": 10 },
+    { "type": "range", "id": "shadow_blur", "label": "Shadow blur", "min": 0, "max": 60, "step": 1, "default": 28 },
+    { "type": "range", "id": "shadow_alpha", "label": "Shadow opacity", "min": 0, "max": 40, "step": 1, "default": 14 },
+
+    { "type": "header", "content": "Backgrounds" },
+    {
+      "type": "select",
+      "id": "background_mode",
+      "label": "Background strategy",
+      "default": "shared",
+      "options": [
+        { "value": "shared", "label": "Shared background (section)" },
+        { "value": "per_deal", "label": "Per-deal background (cards)" }
+      ]
+    },
+    { "type": "image_picker", "id": "section_bg_image", "label": "Section background image (shared mode)" },
+    { "type": "color", "id": "section_bg", "label": "Section background color", "default": "#0B1220" },
+    { "type": "color", "id": "section_fg", "label": "Section text color", "default": "#FFFFFF" },
+    { "type": "color", "id": "section_overlay_color", "label": "Section overlay color", "default": "#000000" },
+    { "type": "range", "id": "section_overlay_opacity", "label": "Section overlay opacity", "min": 0, "max": 90, "step": 1, "default": 35 },
+
+    { "type": "color", "id": "card_bg", "label": "Card background color", "default": "#111B2E" },
+    { "type": "color", "id": "card_fg", "label": "Card text color", "default": "#FFFFFF" },
+    { "type": "color", "id": "card_overlay_color", "label": "Card overlay color (per-deal mode)", "default": "#000000" },
+    { "type": "range", "id": "card_overlay_opacity", "label": "Card overlay opacity (per-deal mode)", "min": 0, "max": 90, "step": 1, "default": 30 },
+
+    { "type": "header", "content": "Header typography" },
+    { "type": "color", "id": "kicker_color", "label": "Kicker color", "default": "#B6C6FF" },
+    { "type": "color", "id": "heading_color", "label": "Heading color", "default": "#FFFFFF" },
+    { "type": "color", "id": "subheading_color", "label": "Subheading color", "default": "#D0D7E6" },
+
+    { "type": "range", "id": "kicker_fs", "label": "Kicker font size", "min": 10, "max": 26, "step": 1, "default": 13 },
+    { "type": "range", "id": "kicker_fw", "label": "Kicker font weight", "min": 300, "max": 900, "step": 100, "default": 600 },
+    { "type": "range", "id": "kicker_lh", "label": "Kicker line height", "min": 1, "max": 2, "step": 0.1, "default": 1.4 },
+    { "type": "range", "id": "kicker_ls", "label": "Kicker letter spacing (x100 em)", "min": -10, "max": 30, "step": 1, "default": 8 },
+
+    { "type": "range", "id": "heading_fs", "label": "Heading font size", "min": 18, "max": 72, "step": 1, "default": 40 },
+    { "type": "range", "id": "heading_fw", "label": "Heading font weight", "min": 300, "max": 900, "step": 100, "default": 700 },
+    { "type": "range", "id": "heading_lh", "label": "Heading line height", "min": 1, "max": 2, "step": 0.1, "default": 1.1 },
+    { "type": "range", "id": "heading_ls", "label": "Heading letter spacing (x100 em)", "min": -10, "max": 30, "step": 1, "default": -2 },
+
+    { "type": "range", "id": "subheading_fs", "label": "Subheading font size", "min": 12, "max": 28, "step": 1, "default": 16 },
+    { "type": "range", "id": "subheading_fw", "label": "Subheading font weight", "min": 300, "max": 900, "step": 100, "default": 400 },
+    { "type": "range", "id": "subheading_lh", "label": "Subheading line height", "min": 1, "max": 2, "step": 0.1, "default": 1.6 },
+    { "type": "range", "id": "subheading_ls", "label": "Subheading letter spacing (x100 em)", "min": -10, "max": 30, "step": 1, "default": 0 },
+
+    { "type": "header", "content": "Deal typography" },
+    { "type": "color", "id": "deal_title_color", "label": "Deal title color", "default": "#FFFFFF" },
+    { "type": "color", "id": "deal_desc_color", "label": "Deal description color", "default": "#D0D7E6" },
+
+    { "type": "range", "id": "deal_title_fs", "label": "Deal title font size", "min": 14, "max": 44, "step": 1, "default": 22 },
+    { "type": "range", "id": "deal_title_fw", "label": "Deal title font weight", "min": 300, "max": 900, "step": 100, "default": 700 },
+    { "type": "range", "id": "deal_title_lh", "label": "Deal title line height", "min": 1, "max": 2, "step": 0.1, "default": 1.2 },
+    { "type": "range", "id": "deal_title_ls", "label": "Deal title letter spacing (x100 em)", "min": -10, "max": 30, "step": 1, "default": -1 },
+
+    { "type": "range", "id": "deal_desc_fs", "label": "Deal description font size", "min": 12, "max": 26, "step": 1, "default": 15 },
+    { "type": "range", "id": "deal_desc_fw", "label": "Deal description font weight", "min": 300, "max": 900, "step": 100, "default": 400 },
+    { "type": "range", "id": "deal_desc_lh", "label": "Deal description line height", "min": 1, "max": 2, "step": 0.1, "default": 1.6 },
+    { "type": "range", "id": "deal_desc_ls", "label": "Deal description letter spacing (x100 em)", "min": -10, "max": 30, "step": 1, "default": 0 },
+
+    { "type": "header", "content": "Expiry text" },
+    { "type": "color", "id": "expiry_color", "label": "Expiry color", "default": "#B6C6FF" },
+    { "type": "range", "id": "expiry_fs", "label": "Expiry font size", "min": 10, "max": 22, "step": 1, "default": 13 },
+    { "type": "range", "id": "expiry_fw", "label": "Expiry font weight", "min": 300, "max": 900, "step": 100, "default": 600 },
+    { "type": "range", "id": "expiry_lh", "label": "Expiry line height", "min": 1, "max": 2, "step": 0.1, "default": 1.4 },
+    { "type": "range", "id": "expiry_ls", "label": "Expiry letter spacing (x100 em)", "min": -10, "max": 30, "step": 1, "default": 4 },
+
+    { "type": "header", "content": "Badge" },
+    { "type": "color", "id": "badge_bg", "label": "Badge background", "default": "#B6C6FF" },
+    { "type": "color", "id": "badge_fg", "label": "Badge text", "default": "#0B1220" },
+    { "type": "color", "id": "badge_border", "label": "Badge border", "default": "#B6C6FF" },
+    { "type": "range", "id": "badge_fs", "label": "Badge font size", "min": 10, "max": 22, "step": 1, "default": 12 },
+    { "type": "range", "id": "badge_fw", "label": "Badge font weight", "min": 300, "max": 900, "step": 100, "default": 700 },
+    { "type": "range", "id": "badge_lh", "label": "Badge line height", "min": 1, "max": 2, "step": 0.1, "default": 1.2 },
+    { "type": "range", "id": "badge_ls", "label": "Badge letter spacing (x100 em)", "min": -10, "max": 30, "step": 1, "default": 6 },
+    { "type": "range", "id": "badge_radius", "label": "Badge radius", "min": 0, "max": 32, "step": 1, "default": 32 },
+    { "type": "range", "id": "badge_pad_y", "label": "Badge padding Y", "min": 0, "max": 18, "step": 1, "default": 6 },
+    { "type": "range", "id": "badge_pad_x", "label": "Badge padding X", "min": 0, "max": 24, "step": 1, "default": 10 },
+
+    { "type": "header", "content": "Button" },
+    { "type": "color", "id": "btn_bg", "label": "Button background", "default": "#FFFFFF" },
+    { "type": "color", "id": "btn_fg", "label": "Button text", "default": "#0B1220" },
+    { "type": "color", "id": "btn_border", "label": "Button border", "default": "#FFFFFF" },
+    { "type": "color", "id": "btn_bg_hover", "label": "Button background hover", "default": "#B6C6FF" },
+    { "type": "color", "id": "btn_fg_hover", "label": "Button text hover", "default": "#0B1220" },
+    { "type": "color", "id": "btn_border_hover", "label": "Button border hover", "default": "#B6C6FF" },
+    { "type": "range", "id": "btn_fs", "label": "Button font size", "min": 10, "max": 22, "step": 1, "default": 14 },
+    { "type": "range", "id": "btn_fw", "label": "Button font weight", "min": 300, "max": 900, "step": 100, "default": 700 },
+    { "type": "range", "id": "btn_lh", "label": "Button line height", "min": 1, "max": 2, "step": 0.1, "default": 1.2 },
+    { "type": "range", "id": "btn_ls", "label": "Button letter spacing (x100 em)", "min": -10, "max": 30, "step": 1, "default": 2 },
+    { "type": "range", "id": "btn_radius", "label": "Button radius", "min": 0, "max": 32, "step": 1, "default": 32 },
+    { "type": "range", "id": "btn_pad_y", "label": "Button padding Y", "min": 0, "max": 18, "step": 1, "default": 10 },
+    { "type": "range", "id": "btn_pad_x", "label": "Button padding X", "min": 0, "max": 32, "step": 1, "default": 16 },
+
+    { "type": "header", "content": "Product card (when Deal has a Product)" },
+    { "type": "select", "id": "product_card_preset", "label": "Card preset", "default": "catalog", "options": [
+      { "value": "catalog", "label": "Catalog" },
+      { "value": "editorial", "label": "Editorial" }
+    ]},
+    { "type": "select", "id": "product_media_mode", "label": "Media mode", "default": "single", "options": [
+      { "value": "single", "label": "Single" },
+      { "value": "swap", "label": "Swap on hover" },
+      { "value": "scroll", "label": "Scroll gallery" }
+    ]},
+    { "type": "select", "id": "product_media_fit", "label": "Media fit", "default": "cover", "options": [
+      { "value": "cover", "label": "Cover" },
+      { "value": "contain", "label": "Contain" }
+    ]},
+    { "type": "range", "id": "product_media_ratio", "label": "Media ratio (%)", "min": 60, "max": 160, "step": 1, "default": 100 },
+    { "type": "checkbox", "id": "product_image_zoom", "label": "Image zoom on hover", "default": true },
+
+    { "type": "select", "id": "product_hover_treatment", "label": "Hover treatment", "default": "overlay_actions", "options": [
+      { "value": "overlay_actions", "label": "Overlay actions" },
+      { "value": "media_dim", "label": "Media dim" },
+      { "value": "media_zoom", "label": "Media zoom" }
+    ]},
+    { "type": "range", "id": "product_hover_overlay_opacity", "label": "Hover overlay opacity (%)", "min": 0, "max": 80, "step": 1, "default": 15 },
+    { "type": "select", "id": "product_hover_actions_visibility", "label": "Actions visibility", "default": "desktop_only", "options": [
+      { "value": "desktop_only", "label": "Desktop only" },
+      { "value": "always", "label": "Always" },
+      { "value": "never", "label": "Never" }
+    ]},
+    { "type": "select", "id": "product_actions_layout", "label": "Actions layout", "default": "stack", "options": [
+      { "value": "stack", "label": "Stack" },
+      { "value": "split", "label": "Split" }
+    ]},
+
+    { "type": "checkbox", "id": "product_enable_quick_add", "label": "Enable quick add", "default": false },
+    { "type": "checkbox", "id": "product_enable_quick_view", "label": "Enable quick view", "default": true },
+    { "type": "select", "id": "product_quick_add_mode", "label": "Quick add mode", "default": "button", "options": [
+      { "value": "button", "label": "Button" },
+      { "value": "sizes", "label": "Sizes" },
+      { "value": "dropdown", "label": "Dropdown" }
+    ]},
+    { "type": "select", "id": "product_quick_view_mode", "label": "Quick view mode", "default": "drawer", "options": [
+      { "value": "drawer", "label": "Drawer" },
+      { "value": "modal", "label": "Modal" }
+    ]},
+    { "type": "select", "id": "product_quick_view_placement", "label": "Quick view placement", "default": "overlay", "options": [
+      { "value": "overlay", "label": "Overlay" },
+      { "value": "below_content", "label": "Below content" },
+      { "value": "both", "label": "Both" },
+      { "value": "none", "label": "None" }
+    ]},
+
+    { "type": "checkbox", "id": "product_show_badges", "label": "Show product badges", "default": true },
+    { "type": "checkbox", "id": "product_badge_sale", "label": "Show sale badge", "default": true },
+
+    { "type": "select", "id": "product_text_align", "label": "Product text alignment", "default": "left", "options": [
+      { "value": "left", "label": "Left" },
+      { "value": "center", "label": "Center" }
+    ]},
+    { "type": "range", "id": "product_title_size", "label": "Product title size", "min": 12, "max": 28, "step": 1, "default": 16 },
+    { "type": "text", "id": "product_title_weight", "label": "Product title weight", "default": "600" },
+    { "type": "range", "id": "product_price_size", "label": "Product price size", "min": 12, "max": 28, "step": 1, "default": 15 },
+    { "type": "text", "id": "product_price_weight", "label": "Product price weight", "default": "600" },
+
+    { "type": "select", "id": "product_button_style", "label": "Button style", "default": "filled", "options": [
+      { "value": "filled", "label": "Filled" },
+      { "value": "outline", "label": "Outline" }
+    ]},
+    { "type": "select", "id": "product_button_size", "label": "Button size", "default": "md", "options": [
+      { "value": "sm", "label": "Small" },
+      { "value": "md", "label": "Medium" },
+      { "value": "lg", "label": "Large" }
+    ]},
+    { "type": "checkbox", "id": "product_button_full_width", "label": "Buttons full width", "default": false },
+    { "type": "range", "id": "product_button_hover_strength", "label": "Button hover strength", "min": 0, "max": 80, "step": 1, "default": 40 },
+
+    { "type": "text", "id": "product_primary_cta_label", "label": "Primary CTA label", "default": "Add to cart" },
+    { "type": "text", "id": "product_secondary_cta_label", "label": "Secondary CTA label", "default": "Learn more" },
+    { "type": "text", "id": "product_qv_label", "label": "Quick view label", "default": "Preview" },
+    { "type": "text", "id": "product_label_select_options", "label": "Select options label", "default": "Select options" },
+    { "type": "text", "id": "product_label_sold_out", "label": "Sold out label", "default": "Sold out" }
+  ],
+  "blocks": [
+    {
+      "type": "deal",
+      "name": "Deal",
+      "limit": 12,
+      "settings": [
+        { "type": "header", "content": "Content" },
+
+        { "type": "product", "id": "product", "label": "Product (optional)" },
+
+        { "type": "text", "id": "title", "label": "Title", "default": "Spring Sale" },
+        { "type": "textarea", "id": "description", "label": "Short description", "default": "Save on best-selling items for a limited time." },
+        { "type": "text", "id": "badge", "label": "Badge / label", "default": "Limited time" },
+        { "type": "text", "id": "cta_label", "label": "Button label", "default": "Shop now" },
+        { "type": "url", "id": "link", "label": "Link (internal or external)" },
+
+        { "type": "header", "content": "Time awareness (YYYY-MM-DD)" },
+        { "type": "text", "id": "start_date", "label": "Start date (hide before this date)" },
+        { "type": "text", "id": "end_date", "label": "End date (hide after this date)" },
+        { "type": "text", "id": "expiry_prefix", "label": "Expiry prefix", "default": "Expires on" },
+
+        { "type": "header", "content": "Per-deal background" },
+        { "type": "image_picker", "id": "bg_image", "label": "Background image" },
+        { "type": "color", "id": "bg_color", "label": "Background color override", "default": "#111B2E" },
+        { "type": "color", "id": "fg_color", "label": "Text color override", "default": "#FFFFFF" },
+        { "type": "color", "id": "overlay_color", "label": "Overlay color override", "default": "#000000" },
+        { "type": "range", "id": "overlay_opacity", "label": "Overlay opacity override", "min": 0, "max": 90, "step": 1, "default": 30 },
+
+        { "type": "header", "content": "Per-deal spacing (advanced)" },
+        { "type": "range", "id": "pad_y", "label": "Card padding Y", "min": 8, "max": 64, "step": 1, "default": 18 },
+        { "type": "range", "id": "pad_x", "label": "Card padding X", "min": 8, "max": 64, "step": 1, "default": 18 }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Featured - Deals & Promotions",
+      "category": "Featured Content",
+      "blocks": [
+        { "type": "deal" },
+        { "type": "deal" },
+        { "type": "deal" }
+      ]
+    }
+  ]
+}
+{% endschema %}
