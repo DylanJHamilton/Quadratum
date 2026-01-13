@@ -1,0 +1,735 @@
+{%- comment -%}
+  Quadratum — Interactive · Location Info Panels (Multi-Location Details)
+  File: sections/interactive-content-helper-location-info-panels.liquid
+
+  Goals:
+  - Text-first, map-companion multi-location detail UI (no maps, no JS)
+  - Premium by default, designer-configurable via scoped CSS variables
+  - Defensive rendering (omit missing rows, no placeholders, no reserved gaps)
+  - SEO + a11y: <h2>, <h3>, <ul>/<li>, <address>, tel:/mailto:
+  - Resilient styling: token-first, safe fallbacks prevent “unstyled dump”
+{%- endcomment -%}
+
+{%- liquid
+  assign sid = section.id
+  assign s = section.settings
+  assign layout = s.layout | default: 'grid'
+  assign show_tags = s.show_tags
+
+  assign locations = section.blocks | where: 'type', 'location'
+  assign count = locations.size
+
+  if count == 0
+    break
+  endif
+
+  assign is_single = false
+  if count == 1
+    assign is_single = true
+  endif
+
+  assign cols_desktop = s.columns_desktop | default: 3
+  assign cols_tablet = s.columns_tablet | default: 2
+  assign cols_mobile = s.columns_mobile | default: 1
+
+  assign max_width = s.max_width | default: 1200
+  assign pad_y = s.pad_y | default: 64
+
+  assign use_custom_colors = s.use_custom_colors
+-%}
+
+<section
+  class="q-locpanels q-locpanels--{{ layout }}{% if is_single %} is-single{% endif %}"
+  style="
+    --q-locpanels-maxw: {{ max_width }}px;
+    --q-locpanels-pad-y: {{ pad_y }}px;
+
+    --q-locpanels-cols-mobile: {{ cols_mobile }};
+    --q-locpanels-cols-tablet: {{ cols_tablet }};
+    --q-locpanels-cols-desktop: {{ cols_desktop }};
+
+    --q-locpanels-row-gap: {{ s.row_gap | default: 10 }}px;
+
+    /* Radius / Border / Shadow (token-first, safe fallback-last) */
+    --q-locpanels-radius: var(--q-radius-card, var(--q-radius-lg, 1rem));
+
+    --q-locpanels-border: var(
+      --q-border-subtle,
+      var(
+        --q-color-border,
+        color-mix(in oklab, rgb(var(--color-foreground, 0 0 0)) 14%, transparent)
+      )
+    );
+
+    --q-locpanels-shadow: var(
+      --q-shadow-2,
+      var(
+        --q-shadow-card,
+        0 0 0 1px color-mix(in oklab, rgb(var(--color-foreground, 0 0 0)) 8%, transparent)
+      )
+    );
+
+    /* Surfaces */
+    --q-locpanels-card-bg: var(
+      --q-surface-1,
+      var(
+        --q-color-surface-1,
+        rgb(var(--color-background, 255 255 255))
+      )
+    );
+
+    --q-locpanels-tag-bg: var(
+      --q-surface-2,
+      var(
+        --q-color-surface-2,
+        color-mix(in oklab, rgb(var(--color-foreground, 0 0 0)) 6%, transparent)
+      )
+    );
+
+    --q-locpanels-tag-text: var(
+      --q-text-2,
+      var(
+        --q-color-text-2,
+        color-mix(in oklab, rgb(var(--color-foreground, 0 0 0)) 80%, transparent)
+      )
+    );
+
+    /* Typography */
+    --q-locpanels-title-size: var(--q-text-2xl, var(--q-h2-size, 1.5rem));
+    --q-locpanels-title-weight: var(--q-font-weight-semibold, var(--q-font-weight-600, 600));
+    --q-locpanels-card-title-size: var(--q-text-lg, var(--q-h3-size, 1.125rem));
+    --q-locpanels-card-title-weight: var(--q-font-weight-semibold, var(--q-font-weight-600, 600));
+  "
+  {% if use_custom_colors %}
+    data-custom-colors="true"
+  {% endif %}
+>
+  {%- if use_custom_colors -%}
+    <style>
+      #shopify-section-{{ sid }} .q-locpanels{
+        {% if s.section_bg != blank %}--q-locpanels-section-bg: {{ s.section_bg }};{% endif %}
+        {% if s.card_bg != blank %}--q-locpanels-card-bg: {{ s.card_bg }};{% endif %}
+        {% if s.border_color != blank %}--q-locpanels-border: {{ s.border_color }};{% endif %}
+        {% if s.tag_bg != blank %}--q-locpanels-tag-bg: {{ s.tag_bg }};{% endif %}
+        {% if s.tag_text != blank %}--q-locpanels-tag-text: {{ s.tag_text }};{% endif %}
+
+        {% if s.shadow_strength != blank %}
+          {% case s.shadow_strength %}
+            {% when 0 %}--q-locpanels-shadow: none;
+            {% when 1 %}--q-locpanels-shadow: var(--q-shadow-1, var(--q-shadow-sm, 0 8px 20px rgba(0,0,0,.06)));
+            {% when 2 %}--q-locpanels-shadow: var(--q-shadow-2, var(--q-shadow-md, 0 12px 28px rgba(0,0,0,.08)));
+            {% when 3 %}--q-locpanels-shadow: var(--q-shadow-3, var(--q-shadow-lg, 0 18px 42px rgba(0,0,0,.10)));
+          {% endcase %}
+        {% endif %}
+
+        {% if s.radius_style != blank %}
+          {% case s.radius_style %}
+            {% when 'sm' %}--q-locpanels-radius: var(--q-radius-sm, .75rem);
+            {% when 'md' %}--q-locpanels-radius: var(--q-radius-md, .9rem);
+            {% when 'lg' %}--q-locpanels-radius: var(--q-radius-lg, 1rem);
+            {% when 'xl' %}--q-locpanels-radius: var(--q-radius-xl, 1.25rem);
+          {% endcase %}
+        {% endif %}
+
+        {% if s.title_size != blank %}
+          {% case s.title_size %}
+            {% when 'sm' %}--q-locpanels-title-size: var(--q-text-xl, 1.375rem);
+            {% when 'md' %}--q-locpanels-title-size: var(--q-text-2xl, 1.5rem);
+            {% when 'lg' %}--q-locpanels-title-size: var(--q-text-3xl, 1.75rem);
+          {% endcase %}
+        {% endif %}
+
+        {% if s.title_weight != blank %}
+          {% case s.title_weight %}
+            {% when 'regular' %}--q-locpanels-title-weight: var(--q-font-weight-regular, 400);
+            {% when 'medium' %}--q-locpanels-title-weight: var(--q-font-weight-medium, 500);
+            {% when 'semibold' %}--q-locpanels-title-weight: var(--q-font-weight-semibold, 600);
+            {% when 'bold' %}--q-locpanels-title-weight: var(--q-font-weight-bold, 700);
+          {% endcase %}
+        {% endif %}
+      }
+    </style>
+  {%- endif -%}
+
+  <style>
+    /* NOTE:
+      Container query conditions cannot reliably use CSS variables (var(--q-bp-*)).
+      That’s why your grid stayed stuck at the mobile column count and looked “stacked”.
+      Fix: use stable @media breakpoints for the column switching. (No schema changes.)
+    */
+
+    #shopify-section-{{ sid }}{ container-type: inline-size; }
+
+    #shopify-section-{{ sid }} .q-locpanels{
+      padding-block: var(--q-locpanels-pad-y);
+      background: var(--q-locpanels-section-bg, transparent);
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__inner{
+      width: 100%;
+      max-width: var(--q-locpanels-maxw);
+      margin-inline: auto;
+      padding-inline: var(--q-container-pad-x, var(--q-pad-x, 1rem));
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__head{
+      display: grid;
+      gap: var(--q-space-3, var(--q-gap-sm, .75rem));
+      margin-block-end: var(--q-space-6, var(--q-gap-lg, 1.5rem));
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__title{
+      margin: 0;
+      font-size: var(--q-locpanels-title-size);
+      font-weight: var(--q-locpanels-title-weight);
+      letter-spacing: var(--q-letterspacing-tight, normal);
+      line-height: var(--q-leading-tight, 1.2);
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__subtitle{
+      margin: 0;
+      color: var(--q-text-2, var(--q-color-text-2, color-mix(in oklab, rgb(var(--color-foreground,0 0 0)) 80%, transparent)));
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__list{
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: var(--q-space-5, var(--q-gap-lg, 1.25rem));
+    }
+
+    /* GRID: mobile default */
+    #shopify-section-{{ sid }} .q-locpanels--grid .q-locpanels__list{
+      grid-template-columns: repeat(var(--q-locpanels-cols-mobile), minmax(0, 1fr));
+    }
+
+    /* GRID: tablet */
+    @media (min-width: 48rem){
+      #shopify-section-{{ sid }} .q-locpanels--grid .q-locpanels__list{
+        grid-template-columns: repeat(var(--q-locpanels-cols-tablet), minmax(0, 1fr));
+      }
+    }
+
+    /* GRID: desktop */
+    @media (min-width: 64rem){
+      #shopify-section-{{ sid }} .q-locpanels--grid .q-locpanels__list{
+        grid-template-columns: repeat(var(--q-locpanels-cols-desktop), minmax(0, 1fr));
+      }
+    }
+
+    /* STACKED always stacks */
+    #shopify-section-{{ sid }} .q-locpanels--stacked .q-locpanels__list{
+      grid-template-columns: 1fr;
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__item{ min-width: 0; }
+
+    #shopify-section-{{ sid }} .q-locpanels__card{
+      background: var(--q-locpanels-card-bg);
+      border: 1px solid var(--q-locpanels-border);
+      border-radius: var(--q-locpanels-radius);
+      box-shadow: var(--q-locpanels-shadow);
+
+      padding: var(--q-space-6, var(--q-card-pad, 1.25rem));
+      display: grid;
+      gap: var(--q-space-4, var(--q-gap-md, 1rem));
+      min-width: 0;
+      overflow: clip;
+      transform: translateZ(0);
+    }
+
+    /* Single-location: intentional panel feel */
+    #shopify-section-{{ sid }} .q-locpanels.is-single .q-locpanels__list{
+      grid-template-columns: 1fr;
+    }
+    #shopify-section-{{ sid }} .q-locpanels.is-single .q-locpanels__card{
+      padding: var(--q-space-7, var(--q-card-pad-lg, 1.5rem));
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__cardTitle{
+      margin: 0;
+      font-size: var(--q-locpanels-card-title-size);
+      font-weight: var(--q-locpanels-card-title-weight);
+      line-height: var(--q-leading-snug, 1.3);
+      letter-spacing: var(--q-letterspacing-tight, normal);
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__address{
+      margin: 0;
+      color: var(--q-text-1, var(--q-color-text-1, rgb(var(--color-foreground,0 0 0))));
+      font-style: normal;
+      display: grid;
+      gap: var(--q-space-1, var(--q-gap-xs, .5rem));
+      overflow-wrap: anywhere;
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__meta{
+      display: grid;
+      gap: var(--q-locpanels-row-gap);
+      min-width: 0;
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__contact{
+      display: grid;
+      gap: var(--q-space-2, var(--q-gap-sm, .75rem));
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__contactRow{
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--q-space-2, var(--q-gap-sm, .75rem));
+      align-items: baseline;
+      min-width: 0;
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__link{
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: var(--q-underline-offset, .15em);
+      overflow-wrap: anywhere;
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__hours{
+      color: var(--q-text-2, var(--q-color-text-2, color-mix(in oklab, rgb(var(--color-foreground,0 0 0)) 80%, transparent)));
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__tags{
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--q-space-2, var(--q-gap-sm, .75rem));
+      align-items: center;
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__tagsLabel{
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__tag{
+      display: inline-flex;
+      align-items: center;
+      padding: var(--q-space-1, var(--q-pill-pad-y, .4rem)) var(--q-space-3, var(--q-pill-pad-x, .75rem));
+      border-radius: var(--q-radius-pill, 999px);
+      background: var(--q-locpanels-tag-bg);
+      color: var(--q-locpanels-tag-text);
+      border: 1px solid var(--q-locpanels-border);
+      font-size: var(--q-text-sm, var(--q-font-size-sm, .875rem));
+      line-height: var(--q-leading-tight, 1.2);
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__ctaWrap{
+      display: flex;
+      justify-content: flex-start;
+    }
+
+    /* Stacked CTA alignment on desktop (no container query vars) */
+    @media (min-width: 64rem){
+      #shopify-section-{{ sid }} .q-locpanels--stacked .q-locpanels__card{
+        grid-template-columns: 1fr auto;
+        align-items: start;
+        column-gap: var(--q-space-6, var(--q-gap-lg, 1.5rem));
+      }
+      #shopify-section-{{ sid }} .q-locpanels--stacked .q-locpanels__ctaWrap{
+        justify-content: flex-end;
+        align-self: center;
+      }
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__btn{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--q-space-2, var(--q-gap-sm, .75rem));
+      padding: var(--q-space-3, var(--q-btn-pad-y, .65rem)) var(--q-space-5, var(--q-btn-pad-x, 1rem));
+      border-radius: var(--q-radius-btn, var(--q-radius-md, .9rem));
+      border: 1px solid var(--q-locpanels-border);
+      text-decoration: none;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+
+    #shopify-section-{{ sid }} .q-locpanels__btn[data-variant="primary"]{
+      background: var(--q-btn-primary-bg, var(--q-accent, var(--q-color-accent, rgb(var(--color-foreground,0 0 0)))));
+      color: var(--q-btn-primary-text, var(--q-on-accent, var(--q-color-on-accent, rgb(var(--color-background,255 255 255)))));
+      border-color: transparent;
+    }
+    #shopify-section-{{ sid }} .q-locpanels__btn[data-variant="secondary"]{
+      background: var(--q-btn-secondary-bg, transparent);
+      color: var(--q-btn-secondary-text, inherit);
+    }
+    #shopify-section-{{ sid }} .q-locpanels__btn[data-variant="ghost"]{
+      background: transparent;
+      color: inherit;
+      border-color: transparent;
+      text-decoration: underline;
+      padding-inline: 0;
+    }
+  </style>
+
+  <div class="q-locpanels__inner">
+    <header class="q-locpanels__head">
+      <h2 class="q-locpanels__title">{{ s.title | default: 'Our Locations' | escape }}</h2>
+      {%- if s.subtitle != blank -%}
+        <div class="q-locpanels__subtitle rte">
+          {{ s.subtitle }}
+        </div>
+      {%- endif -%}
+    </header>
+
+    <ul class="q-locpanels__list" role="list" aria-label="{{ s.title | default: 'Our Locations' | escape }}">
+      {%- for block in locations -%}
+        {%- liquid
+          assign b = block.settings
+          assign name = b.name
+          assign address = b.address
+          assign phone = b.phone
+          assign email = b.email
+          assign hours = b.hours
+          assign tags_raw = b.tags
+          assign cta_label = b.cta_label
+          assign cta_url = b.cta_url
+
+          assign has_contact = false
+          if phone != blank or email != blank
+            assign has_contact = true
+          endif
+
+          assign tags_list = '' | split: ''
+          if tags_raw != blank
+            assign tags_list = tags_raw | split: ','
+          endif
+
+          assign has_tags = false
+          if show_tags and tags_raw != blank
+            assign has_tags = true
+          endif
+
+          assign has_cta = false
+          if cta_label != blank and cta_url != blank
+            assign has_cta = true
+          endif
+
+          assign phone_href = ''
+          if phone != blank
+            assign phone_href = phone | strip
+            assign phone_href = phone_href | remove: ' ' | remove: '(' | remove: ')' | remove: '-' | remove: '.'
+          endif
+        -%}
+
+        <li class="q-locpanels__item" {{ block.shopify_attributes }}>
+          <article class="q-locpanels__card" aria-label="{{ name | escape }}">
+            <div class="q-locpanels__content">
+              <h3 class="q-locpanels__cardTitle">{{ name | escape }}</h3>
+
+              {%- if address != blank -%}
+                <address class="q-locpanels__address">
+                  {{ address | newline_to_br }}
+                </address>
+              {%- endif -%}
+
+              <div class="q-locpanels__meta">
+                {%- if has_contact -%}
+                  <div class="q-locpanels__contact" aria-label="Contact">
+                    {%- if phone != blank -%}
+                      <div class="q-locpanels__contactRow">
+                        <a class="q-locpanels__link" href="tel:{{ phone_href }}">
+                          {{ phone | escape }}
+                        </a>
+                      </div>
+                    {%- endif -%}
+
+                    {%- if email != blank -%}
+                      <div class="q-locpanels__contactRow">
+                        <a class="q-locpanels__link" href="mailto:{{ email | strip }}">
+                          {{ email | escape }}
+                        </a>
+                      </div>
+                    {%- endif -%}
+                  </div>
+                {%- endif -%}
+
+                {%- if hours != blank -%}
+                  <div class="q-locpanels__hours rte" aria-label="Hours">
+                    {{ hours }}
+                  </div>
+                {%- endif -%}
+
+                {%- if has_tags -%}
+                  <div class="q-locpanels__tags" role="group" aria-label="Location tags">
+                    <span class="q-locpanels__tagsLabel">Tags</span>
+                    {%- for t in tags_list -%}
+                      {%- assign tag = t | strip -%}
+                      {%- if tag != blank -%}
+                        <span class="q-locpanels__tag">{{ tag | escape }}</span>
+                      {%- endif -%}
+                    {%- endfor -%}
+                  </div>
+                {%- endif -%}
+              </div>
+            </div>
+
+            {%- if has_cta -%}
+              <div class="q-locpanels__ctaWrap">
+                <a
+                  class="q-locpanels__btn"
+                  data-variant="{{ s.cta_style | default: 'primary' }}"
+                  href="{{ cta_url }}"
+                  aria-label="{{ cta_label | escape }}"
+                >
+                  {{ cta_label | escape }}
+                </a>
+              </div>
+            {%- endif -%}
+          </article>
+        </li>
+      {%- endfor -%}
+    </ul>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Location Info Panels",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "grid",
+      "options": [
+        { "value": "grid", "label": "Grid" },
+        { "value": "stacked", "label": "Stacked" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "columns_desktop",
+      "label": "Columns (desktop)",
+      "min": 2,
+      "max": 4,
+      "step": 1,
+      "default": 3
+    },
+    {
+      "type": "range",
+      "id": "columns_tablet",
+      "label": "Columns (tablet)",
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "default": 2
+    },
+    {
+      "type": "range",
+      "id": "columns_mobile",
+      "label": "Columns (mobile)",
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "default": 1
+    },
+    {
+      "type": "checkbox",
+      "id": "show_tags",
+      "label": "Show tags",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title",
+      "default": "Our Locations"
+    },
+    {
+      "type": "richtext",
+      "id": "subtitle",
+      "label": "Subtitle"
+    },
+    {
+      "type": "range",
+      "id": "max_width",
+      "label": "Max width",
+      "min": 720,
+      "max": 1600,
+      "step": 20,
+      "default": 1200
+    },
+    {
+      "type": "range",
+      "id": "pad_y",
+      "label": "Vertical padding",
+      "min": 0,
+      "max": 160,
+      "step": 4,
+      "default": 64
+    },
+    {
+      "type": "range",
+      "id": "row_gap",
+      "label": "Spacing between info rows",
+      "min": 6,
+      "max": 24,
+      "step": 1,
+      "default": 10
+    },
+    {
+      "type": "select",
+      "id": "cta_style",
+      "label": "CTA style hook",
+      "default": "primary",
+      "options": [
+        { "value": "primary", "label": "Primary" },
+        { "value": "secondary", "label": "Secondary" },
+        { "value": "ghost", "label": "Ghost" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "title_size",
+      "label": "Heading size",
+      "default": "md",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "title_weight",
+      "label": "Heading weight",
+      "default": "semibold",
+      "options": [
+        { "value": "regular", "label": "Regular" },
+        { "value": "medium", "label": "Medium" },
+        { "value": "semibold", "label": "Semibold" },
+        { "value": "bold", "label": "Bold" }
+      ]
+    },
+
+    {
+      "type": "checkbox",
+      "id": "use_custom_colors",
+      "label": "Use custom colors (scoped)",
+      "default": false
+    },
+    {
+      "type": "color",
+      "id": "section_bg",
+      "label": "Section background",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "card_bg",
+      "label": "Card background",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "border_color",
+      "label": "Border color",
+      "default": "#e5e5e5"
+    },
+    {
+      "type": "color",
+      "id": "tag_bg",
+      "label": "Tag pill background",
+      "default": "#f2f2f2"
+    },
+    {
+      "type": "color",
+      "id": "tag_text",
+      "label": "Tag pill text",
+      "default": "#222222"
+    },
+    {
+      "type": "select",
+      "id": "radius_style",
+      "label": "Radius",
+      "default": "lg",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" },
+        { "value": "xl", "label": "Extra large" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "shadow_strength",
+      "label": "Shadow strength",
+      "min": 0,
+      "max": 3,
+      "step": 1,
+      "default": 2
+    }
+  ],
+  "blocks": [
+    {
+      "type": "location",
+      "name": "Location",
+      "settings": [
+        {
+          "type": "text",
+          "id": "name",
+          "label": "Location name",
+        },
+        {
+          "type": "textarea",
+          "id": "address",
+          "label": "Address (multi-line)",
+        },
+        {
+          "type": "text",
+          "id": "phone",
+          "label": "Phone",
+        },
+        {
+          "type": "text",
+          "id": "email",
+          "label": "Email",
+        },
+        {
+          "type": "richtext",
+          "id": "hours",
+          "label": "Hours"
+        },
+        {
+          "type": "text",
+          "id": "tags",
+          "label": "Tags (comma-separated)",
+        },
+        {
+          "type": "text",
+          "id": "cta_label",
+          "label": "CTA label",
+        },
+        {
+          "type": "url",
+          "id": "cta_url",
+          "label": "CTA URL"
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Interactive Content Helpers - Location Info Panels",
+      "category": "Interactive Content Helpers"
+    }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,1240 @@
+{% comment %}
+  Quadratum — Interactive · Countdown & Progress (Single-File) — v1.1 Refinement Pass
+  File: sections/interactive-content-helper-countdown-and-progress.liquid
+
+  Refinements included:
+  - Schema-safe (no invalid setting types, <=101 steps per range)
+  - Designer knobs (surface toggle/padding, typography, unit style/sizing, bar height, step padding, connector fill)
+  - A11Y upgrades (aria-current, hidden state text, labeled timer units, tabular nums)
+  - Progressive enhancement (static end date line always present when valid)
+  - Reduced motion respected (no animated transitions)
+{% endcomment %}
+
+{%- liquid
+  assign mode = section.settings.mode
+
+  assign use_custom_colors = section.settings.use_custom_colors
+  assign maxw = section.settings.max_width
+  assign pad_y = section.settings.pad_y
+  assign pad_x = section.settings.pad_x
+  assign gap = section.settings.gap
+
+  assign surface_enabled = section.settings.surface_enabled
+  assign surface_pad = section.settings.surface_padding
+
+  assign radius = section.settings.radius
+  assign shadow_strength = section.settings.shadow_strength
+
+  assign title = section.settings.title
+  assign subtitle = section.settings.subtitle
+
+  assign title_size = section.settings.title_size
+  assign subtitle_size = section.settings.subtitle_size
+
+  assign should_render = true
+
+  comment
+    PROGRESS STEPS: require at least 1 step block
+  endcomment
+  assign step_blocks = section.blocks | where: 'type', 'step'
+  assign steps_count = step_blocks.size
+  if mode == 'progress_steps' and steps_count == 0
+    assign should_render = false
+  endif
+
+  comment
+    PROGRESS BAR: clamp in Liquid + invalidate if max_value <= 0 (v1 default hide)
+  endcomment
+  assign pb_current = section.settings.current_value | default: 0
+  assign pb_max = section.settings.max_value | default: 0
+  assign pb_label = section.settings.label
+  assign pb_show_percentage = section.settings.show_percentage
+  assign pb_show_values = section.settings.show_values
+  assign pb_value_suffix = section.settings.value_suffix
+  assign pb_percent = 0
+  assign pb_bar_height = section.settings.bar_height
+
+  if mode == 'progress_bar'
+    if pb_max <= 0
+      assign should_render = false
+    else
+      if pb_current < 0
+        assign pb_current = 0
+      endif
+      if pb_current > pb_max
+        assign pb_current = pb_max
+      endif
+      assign pb_percent = pb_current | times: 100.0 | divided_by: pb_max
+      if pb_percent < 0
+        assign pb_percent = 0
+      endif
+      if pb_percent > 100
+        assign pb_percent = 100
+      endif
+    endif
+  endif
+
+  comment
+    COUNTDOWN: schema has no "date" field. Accept text YYYY-MM-DD.
+    Validate date + HH:MM (24h). If invalid -> hide or show message.
+  endcomment
+  assign cd_target_date = section.settings.target_date | default: ''
+  assign cd_target_time = section.settings.target_time | default: '23:59'
+  assign cd_timezone_mode = section.settings.timezone_mode
+  assign cd_show_seconds = section.settings.show_seconds
+  assign cd_unit_style = section.settings.unit_style
+  assign cd_unit_minw = section.settings.unit_min_width
+  assign cd_unit_pad_y = section.settings.unit_pad_y
+  assign cd_unit_pad_x = section.settings.unit_pad_x
+  assign cd_unit_num_size = section.settings.unit_num_size
+  assign cd_unit_label_size = section.settings.unit_label_size
+
+  assign cd_expired_behavior = section.settings.expired_behavior
+  assign cd_expired_message = section.settings.expired_message
+  assign cd_on_invalid = section.settings.on_invalid_datetime
+  assign cd_invalid_message = section.settings.invalid_message
+
+  assign cd_is_valid = true
+
+  assign cd_date_parts = cd_target_date | strip | split: '-'
+  if cd_target_date == blank
+    assign cd_is_valid = false
+  endif
+  if cd_date_parts.size != 3
+    assign cd_is_valid = false
+  endif
+
+  assign cd_y = 0
+  assign cd_mo = 0
+  assign cd_d = 0
+  if cd_is_valid
+    assign cd_y_str = cd_date_parts[0] | strip
+    assign cd_mo_str = cd_date_parts[1] | strip
+    assign cd_d_str = cd_date_parts[2] | strip
+
+    if cd_y_str == blank or cd_mo_str == blank or cd_d_str == blank
+      assign cd_is_valid = false
+    else
+      assign cd_y = cd_y_str | plus: 0
+      assign cd_mo = cd_mo_str | plus: 0
+      assign cd_d = cd_d_str | plus: 0
+
+      if cd_y < 1970
+        assign cd_is_valid = false
+      endif
+      if cd_mo < 1 or cd_mo > 12
+        assign cd_is_valid = false
+      endif
+      if cd_d < 1 or cd_d > 31
+        assign cd_is_valid = false
+      endif
+    endif
+  endif
+
+  assign cd_time_parts = cd_target_time | strip | split: ':'
+  if cd_time_parts.size != 2
+    assign cd_is_valid = false
+  endif
+
+  assign cd_h = 0
+  assign cd_min = 0
+  if cd_is_valid
+    assign cd_h_str = cd_time_parts[0] | strip
+    assign cd_min_str = cd_time_parts[1] | strip
+
+    if cd_h_str == blank or cd_min_str == blank
+      assign cd_is_valid = false
+    else
+      assign cd_h = cd_h_str | plus: 0
+      assign cd_min = cd_min_str | plus: 0
+
+      if cd_h < 0 or cd_h > 23
+        assign cd_is_valid = false
+      endif
+      if cd_min < 0 or cd_min > 59
+        assign cd_is_valid = false
+      endif
+    endif
+  endif
+
+  assign cd_epoch = blank
+  assign cd_display_date = cd_target_date
+  if mode == 'countdown'
+    if cd_is_valid
+      assign cd_datetime_str = cd_target_date | append: ' ' | append: cd_target_time | append: ':00'
+      if cd_timezone_mode == 'utc'
+        assign cd_datetime_str = cd_datetime_str | append: ' UTC'
+      endif
+      assign cd_epoch = cd_datetime_str | date: '%s'
+      if cd_epoch == blank
+        assign cd_is_valid = false
+      endif
+
+      assign cd_display_date_try = cd_target_date | date: '%b %d, %Y'
+      if cd_display_date_try != blank and cd_display_date_try != cd_target_date
+        assign cd_display_date = cd_display_date_try
+      endif
+    endif
+
+    if cd_is_valid == false
+      if cd_on_invalid == 'hide_section'
+        assign should_render = false
+      endif
+    endif
+  endif
+
+  comment
+    PROGRESS STEPS: clamp current_step_index (1-based) to [1..steps_count]
+  endcomment
+  assign ps_show_numbers = section.settings.show_step_numbers
+  assign ps_current_index = section.settings.current_step_index | default: 1
+  assign ps_show_inline_bar = section.settings.show_inline_progress_bar
+  assign ps_show_connector_fill = section.settings.show_connector_fill
+  assign ps_step_pad = section.settings.step_card_padding
+  assign ps_percent = 0
+
+  if mode == 'progress_steps' and steps_count > 0
+    if ps_current_index < 1
+      assign ps_current_index = 1
+    endif
+    if ps_current_index > steps_count
+      assign ps_current_index = steps_count
+    endif
+
+    if steps_count > 1
+      assign ps_n = ps_current_index | minus: 1
+      assign ps_d = steps_count | minus: 1
+      assign ps_percent = ps_n | times: 100.0 | divided_by: ps_d
+    else
+      assign ps_percent = 0
+    endif
+
+    if ps_percent < 0
+      assign ps_percent = 0
+    endif
+    if ps_percent > 100
+      assign ps_percent = 100
+    endif
+  endif
+-%}
+
+{%- if should_render -%}
+<section
+  id="q-campaign-{{ section.id }}"
+  class="q-campaign q-campaign--mode-{{ mode }}"
+  data-q-campaign
+  data-mode="{{ mode }}"
+  {% if mode == 'countdown' %}
+    data-target-epoch="{{ cd_epoch }}"
+    data-show-seconds="{% if cd_show_seconds %}true{% else %}false{% endif %}"
+    data-expired-behavior="{{ cd_expired_behavior }}"
+  {% endif %}
+  style="
+    --q-maxw: {{ maxw }}px;
+    --q-pad-y: {{ pad_y }}px;
+    --q-pad-x: {{ pad_x }}px;
+    --q-gap: {{ gap }}px;
+
+    --q-radius: {{ radius }}px;
+    --q-shadow-strength: {{ shadow_strength }};
+
+    --q-surface-pad: {{ surface_pad }}px;
+
+    --q-title-size: {{ title_size }}px;
+    --q-subtitle-size: {{ subtitle_size }}px;
+
+    --q-cd-unit-minw: {{ cd_unit_minw }}px;
+    --q-cd-unit-pad-y: {{ cd_unit_pad_y }}px;
+    --q-cd-unit-pad-x: {{ cd_unit_pad_x }}px;
+    --q-cd-unit-num-size: {{ cd_unit_num_size }}px;
+    --q-cd-unit-label-size: {{ cd_unit_label_size }}px;
+
+    --q-bar-h: {{ pb_bar_height }}px;
+
+    --q-step-pad: {{ ps_step_pad }}px;
+    --q-steps-pct: {{ ps_percent }}%;
+
+    {% if use_custom_colors %}
+      --q-bg: {{ section.settings.bg_color }};
+      --q-text: {{ section.settings.text_color }};
+      --q-muted: {{ section.settings.muted_color }};
+      --q-accent: {{ section.settings.accent_color }};
+      --q-surface: {{ section.settings.surface_color }};
+      --q-border: {{ section.settings.border_color }};
+    {% endif %}
+  "
+>
+  <div class="q-campaign__wrap">
+    <div class="q-campaign__inner">
+      {%- if title != blank or subtitle != blank -%}
+        <header class="q-campaign__head">
+          {%- if title != blank -%}
+            <h2 class="q-campaign__title">{{ title }}</h2>
+          {%- endif -%}
+          {%- if subtitle != blank -%}
+            <div class="q-campaign__subtitle">{{ subtitle }}</div>
+          {%- endif -%}
+        </header>
+      {%- endif -%}
+
+      {%- if surface_enabled -%}
+        <div class="q-campaign__surface" data-q-surface>
+      {%- endif -%}
+
+        {%- case mode -%}
+
+          {%- when 'countdown' -%}
+            {%- if cd_is_valid == false -%}
+              {%- if cd_on_invalid == 'show_message' -%}
+                <div class="q-campaign__message q-campaign__message--invalid" data-q-invalid role="note">
+                  {{ cd_invalid_message }}
+                </div>
+              {%- endif -%}
+            {%- else -%}
+              <div class="q-countdown q-countdown--{{ cd_unit_style }}" data-q-countdown>
+                <div class="q-countdown__static" data-q-static>
+                  <span class="q-countdown__static-label">Ends on</span>
+                  <span class="q-countdown__static-dt">
+                    {{ cd_display_date }} at {{ cd_target_time }}{%- if cd_timezone_mode == 'utc' -%} UTC{%- endif -%}
+                  </span>
+                </div>
+
+                <div class="q-countdown__grid" role="group" aria-label="Countdown">
+                  <div class="q-unit" data-q-unit="days">
+                    <div class="q-unit__num" data-q-num aria-label="Days remaining">0</div>
+                    <div class="q-unit__label">Days</div>
+                    <span class="q-visually-hidden" data-q-state></span>
+                  </div>
+                  <div class="q-unit" data-q-unit="hours">
+                    <div class="q-unit__num" data-q-num aria-label="Hours remaining">00</div>
+                    <div class="q-unit__label">Hours</div>
+                    <span class="q-visually-hidden" data-q-state></span>
+                  </div>
+                  <div class="q-unit" data-q-unit="minutes">
+                    <div class="q-unit__num" data-q-num aria-label="Minutes remaining">00</div>
+                    <div class="q-unit__label">Minutes</div>
+                    <span class="q-visually-hidden" data-q-state></span>
+                  </div>
+                  <div class="q-unit" data-q-unit="seconds" data-q-seconds>
+                    <div class="q-unit__num" data-q-num aria-label="Seconds remaining">00</div>
+                    <div class="q-unit__label">Seconds</div>
+                    <span class="q-visually-hidden" data-q-state></span>
+                  </div>
+                </div>
+
+                <div class="q-campaign__message q-campaign__message--expired" data-q-expired-message hidden role="note">
+                  {{ cd_expired_message }}
+                </div>
+              </div>
+            {%- endif -%}
+
+          {%- when 'progress_bar' -%}
+            <div class="q-progressbar" data-q-progressbar>
+              <div class="q-progressbar__row">
+                <div class="q-progressbar__label">{{ pb_label }}</div>
+                {%- if pb_show_percentage -%}
+                  <div class="q-progressbar__pct">{{ pb_percent | round }}%</div>
+                {%- endif -%}
+              </div>
+
+              <div class="q-progressbar__track"
+                role="progressbar"
+                aria-valuemin="0"
+                aria-valuemax="{{ pb_max }}"
+                aria-valuenow="{{ pb_current }}"
+                aria-label="{{ pb_label }}"
+              >
+                <div class="q-progressbar__fill" style="width: {{ pb_percent }}%;"></div>
+              </div>
+
+              {%- if pb_show_values -%}
+                <div class="q-progressbar__values">
+                  <span class="q-progressbar__v">{{ pb_current }}</span>
+                  <span class="q-progressbar__sep">/</span>
+                  <span class="q-progressbar__m">{{ pb_max }}</span>
+                  {%- if pb_value_suffix != blank -%}
+                    <span class="q-progressbar__suffix">{{ pb_value_suffix }}</span>
+                  {%- endif -%}
+                </div>
+              {%- endif -%}
+            </div>
+
+          {%- when 'progress_steps' -%}
+            <div
+              class="q-steps"
+              data-q-steps
+              data-current="{{ ps_current_index }}"
+              data-count="{{ steps_count }}"
+            >
+              {%- if ps_show_inline_bar and steps_count > 1 -%}
+                <div class="q-steps__inlinebar" aria-hidden="true">
+                  <div class="q-steps__inlinebar-fill" style="width: {{ ps_percent }}%;"></div>
+                </div>
+              {%- endif -%}
+
+              <ol class="q-steps__list" role="list" aria-label="Progress steps">
+                {%- for block in step_blocks -%}
+                  {%- liquid
+                    assign i = forloop.index
+                    assign state = 'upcoming'
+                    if i < ps_current_index
+                      assign state = 'done'
+                    elsif i == ps_current_index
+                      assign state = 'current'
+                    endif
+                  -%}
+
+                  <li
+                    class="q-step q-step--{{ state }}"
+                    {% if state == 'current' %}aria-current="step"{% endif %}
+                    {{ block.shopify_attributes }}
+                  >
+                    <div class="q-step__marker" aria-hidden="true">
+                      <span class="q-step__dot"></span>
+                      <span class="q-step__check">✓</span>
+                    </div>
+
+                    <div class="q-step__body">
+                      <div class="q-step__top">
+                        {%- if ps_show_numbers -%}
+                          <span class="q-step__num">{{ i }}</span>
+                        {%- endif -%}
+                        <span class="q-step__label">{{ block.settings.label }}</span>
+                        <span class="q-visually-hidden">
+                          {%- if state == 'done' -%}Completed{%- elsif state == 'current' -%}Current step{%- else -%}Upcoming{%- endif -%}
+                        </span>
+                      </div>
+
+                      {%- if block.settings.description != blank -%}
+                        <div class="q-step__desc">{{ block.settings.description }}</div>
+                      {%- endif -%}
+                    </div>
+                  </li>
+                {%- endfor -%}
+              </ol>
+            </div>
+
+        {%- endcase -%}
+
+      {%- if surface_enabled -%}
+        </div>
+      {%- endif -%}
+    </div>
+  </div>
+
+  <style>
+    /* ====== Base + tokens (scoped) ====== */
+    #q-campaign-{{ section.id }}{
+      /* Default vars (inherit if custom colors off) */
+      --q-bg: var(--color-background, transparent);
+      --q-text: var(--color-foreground, currentColor);
+      --q-muted: rgba(0,0,0,.65);
+      --q-accent: var(--color-accent, currentColor);
+      --q-surface: rgba(255,255,255,.06);
+      --q-border: rgba(0,0,0,.14);
+
+      --q-success: var(--q-accent);
+      --q-shadow: 0 1px 2px rgba(0,0,0,.10);
+
+      background: var(--q-bg);
+      color: var(--q-text);
+      padding: var(--q-pad-y) var(--q-pad-x);
+    }
+
+    #q-campaign-{{ section.id }} .q-visually-hidden{
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0,0,0,0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+
+    #q-campaign-{{ section.id }} .q-campaign__wrap{ max-width: var(--q-maxw); margin: 0 auto; }
+    #q-campaign-{{ section.id }} .q-campaign__inner{ display: grid; gap: calc(var(--q-gap) * 1px); }
+    #q-campaign-{{ section.id }} .q-campaign__head{ display: grid; gap: 8px; }
+
+    #q-campaign-{{ section.id }} .q-campaign__title{
+      margin: 0;
+      line-height: 1.15;
+      font-size: clamp(18px, 2.2vw, var(--q-title-size));
+      letter-spacing: -0.02em;
+    }
+    #q-campaign-{{ section.id }} .q-campaign__subtitle{
+      color: var(--q-muted);
+      font-size: clamp(13px, 1.4vw, var(--q-subtitle-size));
+      line-height: 1.45;
+    }
+
+    /* Shadow strength scaler */
+    #q-campaign-{{ section.id }}{
+      --q-shadow: 0 1px calc(2px + (var(--q-shadow-strength) * 1px)) rgba(0,0,0, calc(0.06 + (var(--q-shadow-strength) * 0.01)));
+    }
+
+    /* Optional surface */
+    #q-campaign-{{ section.id }} .q-campaign__surface{
+      border: 1px solid var(--q-border);
+      border-radius: var(--q-radius);
+      background: var(--q-surface);
+      padding: var(--q-surface-pad);
+      box-shadow: var(--q-shadow);
+      position: relative;
+      overflow: clip;
+
+      /* subtle premium edge highlight */
+      outline: 1px solid rgba(255,255,255,.06);
+      outline-offset: -2px;
+    }
+
+    /* Messages */
+    #q-campaign-{{ section.id }} .q-campaign__message{
+      padding: 12px 14px;
+      border-radius: calc(var(--q-radius) - 2px);
+      border: 1px dashed var(--q-border);
+      color: var(--q-muted);
+      background: rgba(0,0,0,.03);
+    }
+    #q-campaign-{{ section.id }} .q-campaign__message--expired{ border-style: solid; }
+
+    /* ====== Countdown ====== */
+    #q-campaign-{{ section.id }} .q-countdown{
+      display: grid;
+      gap: 14px;
+    }
+    #q-campaign-{{ section.id }} .q-countdown__static{
+      color: var(--q-muted);
+      font-size: 14px;
+      line-height: 1.35;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: baseline;
+    }
+
+    #q-campaign-{{ section.id }} .q-countdown__grid{
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    #q-campaign-{{ section.id }} .q-unit{
+      min-width: var(--q-cd-unit-minw);
+      border: 1px solid var(--q-border);
+      border-radius: calc(var(--q-radius) - 2px);
+      padding: var(--q-cd-unit-pad-y) var(--q-cd-unit-pad-x);
+      text-align: center;
+      display: grid;
+      gap: 6px;
+    }
+
+    /* Styles: cards vs pills */
+    #q-campaign-{{ section.id }} .q-countdown--cards .q-unit{
+      background: rgba(255,255,255,.03);
+    }
+    #q-campaign-{{ section.id }} .q-countdown--pills .q-unit{
+      background: rgba(255,255,255,.02);
+      border-radius: 999px;
+    }
+
+    #q-campaign-{{ section.id }} .q-unit__num{
+      font-size: clamp(20px, 3.2vw, var(--q-cd-unit-num-size));
+      line-height: 1;
+      font-weight: 750;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    #q-campaign-{{ section.id }} .q-unit__label{
+      font-size: var(--q-cd-unit-label-size);
+      color: var(--q-muted);
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    /* Expired state styling */
+    #q-campaign-{{ section.id }}.q-campaign--expired .q-unit{
+      opacity: 0.7;
+      border-style: dashed;
+    }
+    #q-campaign-{{ section.id }}.q-campaign--expired .q-unit__num{
+      color: var(--q-muted);
+    }
+
+    /* Hide seconds when disabled */
+    #q-campaign-{{ section.id }}.q-campaign--no-seconds [data-q-seconds]{ display: none; }
+
+    /* Mobile countdown stacking */
+    @media (max-width: 640px){
+      #q-campaign-{{ section.id }} .q-countdown__grid{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      #q-campaign-{{ section.id }} .q-unit{
+        min-width: 0; /* allow grid to size naturally on small screens */
+      }
+    }
+
+    /* ====== Progress bar ====== */
+    #q-campaign-{{ section.id }} .q-progressbar{
+      display: grid;
+      gap: 10px;
+    }
+    #q-campaign-{{ section.id }} .q-progressbar__row{
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: baseline;
+    }
+    #q-campaign-{{ section.id }} .q-progressbar__label{
+      font-weight: 650;
+      letter-spacing: -0.01em;
+    }
+    #q-campaign-{{ section.id }} .q-progressbar__pct{
+      color: var(--q-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    #q-campaign-{{ section.id }} .q-progressbar__track{
+      height: var(--q-bar-h);
+      border-radius: 999px;
+      border: 1px solid var(--q-border);
+      background: rgba(0,0,0,.06);
+      overflow: hidden;
+      position: relative;
+    }
+    #q-campaign-{{ section.id }} .q-progressbar__fill{
+      height: 100%;
+      width: 0%;
+      background: var(--q-accent);
+      border-radius: 999px;
+      transform-origin: left;
+    }
+    #q-campaign-{{ section.id }} .q-progressbar__values{
+      color: var(--q-muted);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      display: flex;
+      gap: 6px;
+      align-items: baseline;
+      flex-wrap: wrap;
+    }
+
+    /* ====== Progress steps ====== */
+    #q-campaign-{{ section.id }} .q-steps{
+      display: grid;
+      gap: 14px;
+      position: relative;
+    }
+
+    #q-campaign-{{ section.id }} .q-steps__inlinebar{
+      height: 6px;
+      border-radius: 999px;
+      border: 1px solid var(--q-border);
+      background: rgba(0,0,0,.06);
+      overflow: hidden;
+    }
+    #q-campaign-{{ section.id }} .q-steps__inlinebar-fill{
+      height: 100%;
+      width: 0%;
+      background: var(--q-accent);
+      border-radius: 999px;
+    }
+
+    #q-campaign-{{ section.id }} .q-steps__list{
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 12px;
+    }
+
+    #q-campaign-{{ section.id }} .q-step{
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    #q-campaign-{{ section.id }} .q-step__marker{
+      position: relative;
+      width: 28px;
+      display: grid;
+      place-items: center;
+    }
+
+    #q-campaign-{{ section.id }} .q-step__dot{
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      border: 2px solid var(--q-border);
+      background: rgba(255,255,255,.02);
+      display: inline-grid;
+      place-items: center;
+    }
+
+    #q-campaign-{{ section.id }} .q-step__check{
+      display: none;
+      font-size: 12px;
+      line-height: 1;
+      color: var(--q-surface);
+      position: absolute;
+    }
+
+    #q-campaign-{{ section.id }} .q-step__body{
+      border: 1px solid var(--q-border);
+      border-radius: calc(var(--q-radius) - 2px);
+      background: rgba(255,255,255,.02);
+      padding: var(--q-step-pad);
+      display: grid;
+      gap: 6px;
+    }
+
+    #q-campaign-{{ section.id }} .q-step__top{
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+      flex-wrap: wrap;
+    }
+
+    #q-campaign-{{ section.id }} .q-step__num{
+      color: var(--q-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    #q-campaign-{{ section.id }} .q-step__label{
+      font-weight: 650;
+      letter-spacing: -0.01em;
+    }
+
+    #q-campaign-{{ section.id }} .q-step__desc{
+      color: var(--q-muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    /* State styles */
+    #q-campaign-{{ section.id }} .q-step--done .q-step__dot{
+      border-color: var(--q-success);
+      background: var(--q-success);
+    }
+    #q-campaign-{{ section.id }} .q-step--done .q-step__check{
+      display: inline;
+    }
+
+    #q-campaign-{{ section.id }} .q-step--current .q-step__dot{
+      border-color: var(--q-accent);
+      box-shadow: 0 0 0 4px rgba(0,0,0,.06);
+    }
+
+    #q-campaign-{{ section.id }} .q-step--upcoming .q-step__body{
+      opacity: 0.88;
+    }
+
+    /* Desktop horizontal steps */
+    @media (min-width: 900px){
+      #q-campaign-{{ section.id }} .q-steps__list{
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+        gap: 12px;
+        align-items: stretch;
+      }
+
+      #q-campaign-{{ section.id }} .q-step{
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      #q-campaign-{{ section.id }} .q-step__marker{
+        width: 100%;
+        justify-content: center;
+        padding-top: 2px;
+      }
+
+      #q-campaign-{{ section.id }} .q-step__body{
+        height: 100%;
+      }
+
+      /* Connector line behind markers */
+      #q-campaign-{{ section.id }} .q-steps{
+        --q-connector-y: 10px;
+      }
+      #q-campaign-{{ section.id }} .q-steps::before{
+        content: "";
+        position: absolute;
+        left: 18px;
+        right: 18px;
+        top: var(--q-connector-y);
+        height: 2px;
+        background: var(--q-border);
+        opacity: 0.9;
+        pointer-events: none;
+      }
+
+      /* Optional filled connector */
+      #q-campaign-{{ section.id }} .q-steps.q-steps--fill::after{
+        content: "";
+        position: absolute;
+        left: 18px;
+        top: var(--q-connector-y);
+        height: 2px;
+        width: calc((100% - 36px) * (var(--q-steps-pct) / 100));
+        background: var(--q-accent);
+        opacity: 0.95;
+        pointer-events: none;
+      }
+    }
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce){
+      #q-campaign-{{ section.id }} *{
+        scroll-behavior: auto !important;
+        transition: none !important;
+        animation: none !important;
+      }
+    }
+  </style>
+
+  <script>
+    (function () {
+      var root = document.getElementById('q-campaign-{{ section.id }}');
+      if (!root) return;
+
+      // Steps connector fill toggle (CSS class only)
+      if (root.getAttribute('data-mode') === 'progress_steps') {
+        var shouldFill = {{ ps_show_connector_fill | json }};
+        var stepsEl = root.querySelector('.q-steps');
+        if (stepsEl && shouldFill) stepsEl.classList.add('q-steps--fill');
+      }
+
+      // Countdown initializer
+      var mode = root.getAttribute('data-mode');
+      if (mode !== 'countdown') return;
+
+      var targetEpochStr = root.getAttribute('data-target-epoch');
+      var showSeconds = root.getAttribute('data-show-seconds') === 'true';
+      var expiredBehavior = root.getAttribute('data-expired-behavior') || 'hide_section';
+
+      if (!showSeconds) root.classList.add('q-campaign--no-seconds');
+
+      var countdown = root.querySelector('[data-q-countdown]');
+      if (!countdown) return;
+
+      // If invalid message is rendered, do nothing (already handled)
+      if (root.querySelector('[data-q-invalid]')) return;
+
+      // Avoid stacking timers on re-render
+      if (root.__qCampaignTimer) {
+        clearInterval(root.__qCampaignTimer);
+        root.__qCampaignTimer = null;
+      }
+
+      var expiredMsg = root.querySelector('[data-q-expired-message]');
+      var grid = countdown.querySelector('.q-countdown__grid');
+      var stat = countdown.querySelector('[data-q-static]');
+
+      function pad2(n) { n = Math.max(0, n|0); return (n < 10 ? '0' : '') + n; }
+
+      function setUnitState(stateText) {
+        // Keep screen readers informed without live spam (no aria-live).
+        var nodes = countdown.querySelectorAll('[data-q-state]');
+        if (!nodes || !nodes.length) return;
+        nodes.forEach(function (n) { n.textContent = stateText || ''; });
+      }
+
+      function setNums(d, h, m, s) {
+        var days = countdown.querySelector('[data-q-unit="days"] [data-q-num]');
+        var hours = countdown.querySelector('[data-q-unit="hours"] [data-q-num]');
+        var mins = countdown.querySelector('[data-q-unit="minutes"] [data-q-num]');
+        var secs = countdown.querySelector('[data-q-unit="seconds"] [data-q-num]');
+
+        if (days) days.textContent = String(d);
+        if (hours) hours.textContent = pad2(h);
+        if (mins) mins.textContent = pad2(m);
+        if (showSeconds && secs) secs.textContent = pad2(s);
+      }
+
+      var targetEpoch = parseInt(targetEpochStr, 10);
+      if (!targetEpochStr || isNaN(targetEpoch)) {
+        if (expiredMsg) {
+          expiredMsg.hidden = false;
+          expiredMsg.textContent = (expiredMsg.textContent || '').trim() || 'Promotion timing unavailable.';
+        }
+        return;
+      }
+
+      function onExpired() {
+        setUnitState('Ended');
+        if (expiredBehavior === 'hide_section') {
+          root.style.display = 'none';
+          return;
+        }
+        if (expiredBehavior === 'show_message') {
+          if (grid) grid.hidden = true;
+          if (stat) stat.hidden = true;
+          if (expiredMsg) expiredMsg.hidden = false;
+          return;
+        }
+        // show_expired_state
+        root.classList.add('q-campaign--expired');
+        setNums(0, 0, 0, 0);
+      }
+
+      function tick() {
+        var now = Math.floor(Date.now() / 1000);
+        var diff = targetEpoch - now;
+
+        if (diff <= 0) {
+          onExpired();
+          return;
+        }
+
+        var days = Math.floor(diff / 86400);
+        diff -= days * 86400;
+        var hours = Math.floor(diff / 3600);
+        diff -= hours * 3600;
+        var mins = Math.floor(diff / 60);
+        var secs = diff - mins * 60;
+
+        if (!showSeconds) secs = 0;
+
+        setUnitState('In progress');
+        setNums(days, hours, mins, secs);
+      }
+
+      tick();
+      var intervalMs = showSeconds ? 1000 : 60000;
+      root.__qCampaignTimer = setInterval(tick, intervalMs);
+    })();
+  </script>
+</section>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Interactive Countdown",
+  "settings": [
+    {
+      "type": "select",
+      "id": "mode",
+      "label": "Mode",
+      "default": "countdown",
+      "options": [
+        { "value": "countdown", "label": "Countdown" },
+        { "value": "progress_bar", "label": "Progress bar" },
+        { "value": "progress_steps", "label": "Progress steps" }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title",
+      "default": "Limited-time offer"
+    },
+    {
+      "type": "richtext",
+      "id": "subtitle",
+      "label": "Subtitle",
+      "default": "<p>Don’t miss this — ends soon.</p>"
+    },
+
+    {
+      "type": "header",
+      "content": "Layout & spacing"
+    },
+    {
+      "type": "range",
+      "id": "max_width",
+      "label": "Max width (px)",
+      "min": 600,
+      "max": 1600,
+      "step": 50,
+      "default": 1200
+    },
+    {
+      "type": "range",
+      "id": "pad_y",
+      "label": "Vertical padding (px)",
+      "min": 0,
+      "max": 80,
+      "step": 4,
+      "default": 32
+    },
+    {
+      "type": "range",
+      "id": "pad_x",
+      "label": "Horizontal padding (px)",
+      "min": 0,
+      "max": 64,
+      "step": 4,
+      "default": 20
+    },
+    {
+      "type": "range",
+      "id": "gap",
+      "label": "Gap (px)",
+      "min": 8,
+      "max": 48,
+      "step": 2,
+      "default": 16
+    },
+
+    {
+      "type": "header",
+      "content": "Surface"
+    },
+    {
+      "type": "checkbox",
+      "id": "surface_enabled",
+      "label": "Enable surface frame",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "surface_padding",
+      "label": "Surface padding (px)",
+      "min": 8,
+      "max": 40,
+      "step": 2,
+      "default": 18
+    },
+
+    {
+      "type": "header",
+      "content": "Typography"
+    },
+    {
+      "type": "range",
+      "id": "title_size",
+      "label": "Title max size (px)",
+      "min": 18,
+      "max": 48,
+      "step": 2,
+      "default": 30
+    },
+    {
+      "type": "range",
+      "id": "subtitle_size",
+      "label": "Subtitle max size (px)",
+      "min": 12,
+      "max": 22,
+      "step": 1,
+      "default": 16
+    },
+
+    {
+      "type": "header",
+      "content": "Colors"
+    },
+    {
+      "type": "checkbox",
+      "id": "use_custom_colors",
+      "label": "Use custom colors",
+      "default": false
+    },
+    { "type": "color", "id": "bg_color", "label": "Background", "default": "#000000" },
+    { "type": "color", "id": "text_color", "label": "Text", "default": "#FFFFFF" },
+    { "type": "color", "id": "muted_color", "label": "Muted", "default": "#B8B8B8" },
+    { "type": "color", "id": "accent_color", "label": "Accent", "default": "#5EF2C2" },
+    { "type": "color", "id": "surface_color", "label": "Surface", "default": "#111111" },
+    { "type": "color", "id": "border_color", "label": "Border", "default": "#2A2A2A" },
+
+    {
+      "type": "header",
+      "content": "Style"
+    },
+    {
+      "type": "range",
+      "id": "radius",
+      "label": "Radius (px)",
+      "min": 0,
+      "max": 32,
+      "step": 2,
+      "default": 16
+    },
+    {
+      "type": "range",
+      "id": "shadow_strength",
+      "label": "Shadow strength",
+      "min": 0,
+      "max": 24,
+      "step": 1,
+      "default": 8
+    },
+
+    {
+      "type": "header",
+      "content": "Countdown"
+    },
+    {
+      "type": "text",
+      "id": "target_date",
+      "label": "Target date (YYYY-MM-DD)",
+      "default": "2026-12-31"
+    },
+    {
+      "type": "text",
+      "id": "target_time",
+      "label": "Target time (HH:MM, 24-hour)",
+      "default": "23:59"
+    },
+    {
+      "type": "select",
+      "id": "timezone_mode",
+      "label": "Timezone mode",
+      "default": "store",
+      "options": [
+        { "value": "store", "label": "Store" },
+        { "value": "utc", "label": "UTC" }
+      ]
+    },
+    {
+      "type": "checkbox",
+      "id": "show_seconds",
+      "label": "Show seconds",
+      "default": true
+    },
+    {
+      "type": "select",
+      "id": "unit_style",
+      "label": "Unit style",
+      "default": "cards",
+      "options": [
+        { "value": "cards", "label": "Cards" },
+        { "value": "pills", "label": "Pills" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "unit_min_width",
+      "label": "Unit min width (px)",
+      "min": 90,
+      "max": 160,
+      "step": 10,
+      "default": 110
+    },
+    {
+      "type": "range",
+      "id": "unit_pad_y",
+      "label": "Unit padding Y (px)",
+      "min": 8,
+      "max": 20,
+      "step": 2,
+      "default": 12
+    },
+    {
+      "type": "range",
+      "id": "unit_pad_x",
+      "label": "Unit padding X (px)",
+      "min": 8,
+      "max": 20,
+      "step": 2,
+      "default": 10
+    },
+    {
+      "type": "range",
+      "id": "unit_num_size",
+      "label": "Unit number max size (px)",
+      "min": 20,
+      "max": 60,
+      "step": 2,
+      "default": 34
+    },
+    {
+      "type": "range",
+      "id": "unit_label_size",
+      "label": "Unit label size (px)",
+      "min": 10,
+      "max": 16,
+      "step": 1,
+      "default": 12
+    },
+    {
+      "type": "select",
+      "id": "expired_behavior",
+      "label": "Expired behavior",
+      "default": "hide_section",
+      "options": [
+        { "value": "hide_section", "label": "Hide section" },
+        { "value": "show_message", "label": "Show message" },
+        { "value": "show_expired_state", "label": "Show expired state" }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "expired_message",
+      "label": "Expired message",
+      "default": "This offer has ended."
+    },
+    {
+      "type": "select",
+      "id": "on_invalid_datetime",
+      "label": "On invalid date/time",
+      "default": "hide_section",
+      "options": [
+        { "value": "hide_section", "label": "Hide section" },
+        { "value": "show_message", "label": "Show message" }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "invalid_message",
+      "label": "Invalid message",
+      "default": "Promotion timing unavailable."
+    },
+
+    {
+      "type": "header",
+      "content": "Progress bar"
+    },
+    { "type": "number", "id": "current_value", "label": "Current value", "default": 40 },
+    { "type": "number", "id": "max_value", "label": "Max value", "default": 100 },
+    { "type": "text", "id": "label", "label": "Label", "default": "Progress" },
+    { "type": "checkbox", "id": "show_percentage", "label": "Show percentage", "default": true },
+    { "type": "checkbox", "id": "show_values", "label": "Show values (e.g., 40 / 100)", "default": false },
+    { "type": "text", "id": "value_suffix", "label": "Value suffix (optional)" },
+    {
+      "type": "range",
+      "id": "bar_height",
+      "label": "Bar height (px)",
+      "min": 8,
+      "max": 20,
+      "step": 1,
+      "default": 12
+    },
+
+    {
+      "type": "header",
+      "content": "Progress steps"
+    },
+    { "type": "checkbox", "id": "show_step_numbers", "label": "Show step numbers", "default": true },
+    { "type": "number", "id": "current_step_index", "label": "Current step index (1-based)", "default": 1 },
+    { "type": "checkbox", "id": "show_inline_progress_bar", "label": "Show inline progress bar", "default": true },
+    { "type": "checkbox", "id": "show_connector_fill", "label": "Fill desktop connector line", "default": true },
+    {
+      "type": "range",
+      "id": "step_card_padding",
+      "label": "Step card padding (px)",
+      "min": 10,
+      "max": 24,
+      "step": 2,
+      "default": 12
+    }
+  ],
+  "blocks": [
+    {
+      "type": "step",
+      "name": "Step",
+      "settings": [
+        { "type": "text", "id": "label", "label": "Label", "default": "Step label" },
+        { "type": "text", "id": "description", "label": "Description"}
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Interactive Content Helpers - Countdown & Progress",
+      "category": "Interactive Content Helpers"
+    }
+  ]
+}
+{% endschema %}

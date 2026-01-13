@@ -1,0 +1,896 @@
+{%- comment -%}
+  Quadratum — Interactive · Pricing & Data Table
+  File: sections/interactive-content-pricing-data-table.liquid
+
+  One section, three modes:
+  - price_list (service menu)
+  - pricing_table (plan comparison + highlight + CTA)
+  - data_table (generic table)
+
+  Non-negotiables:
+  - Tokenized + scoped CSS vars (no hard-coded colors/typography/spacing)
+  - Progressive enhancement (no JS required)
+  - Premium defaults (not raw HTML table vibes)
+
+  Highlight index convention (designer-friendly):
+  - highlight_column_index is 1-based
+  - 0 = none
+  - out of range => ignored silently
+
+  IMPORTANT LIQUID RULES (Shopify):
+  - No comparisons inside {{ }} output tags (only in {% %})
+  - Avoid parentheses in boolean expressions; use nested ifs
+{%- endcomment -%}
+
+{%- liquid
+  assign mode = section.settings.mode
+
+  assign show_header = section.settings.show_header
+  assign heading = section.settings.heading | default: ''
+  assign subheading = section.settings.subheading | default: ''
+
+  assign has_header = false
+  if show_header
+    if heading != blank or subheading != blank
+      assign has_header = true
+    endif
+  endif
+
+  assign blocks = section.blocks
+  assign block_count = blocks.size
+
+  assign render_section = true
+  if block_count == 0
+    assign render_section = false
+  endif
+
+  assign responsive_behavior = section.settings.responsive_behavior
+
+  assign highlight_raw = section.settings.highlight_column_index | default: 0
+  assign highlight_idx = highlight_raw | minus: 1
+  if highlight_raw == 0
+    assign highlight_idx = -1
+  endif
+
+  assign density = section.settings.density
+
+  assign max_width = section.settings.max_width
+  assign pad_y = section.settings.pad_y
+  assign pad_x = section.settings.pad_x
+  assign gap = section.settings.gap
+
+  assign border_radius = section.settings.border_radius
+  assign cell_padding = section.settings.cell_padding
+  assign row_dividers = section.settings.row_dividers
+
+  assign use_custom_colors = section.settings.use_custom_colors
+
+  assign col_1_label = section.settings.col_1_label
+  assign col_2_label = section.settings.col_2_label
+  assign col_3_label = section.settings.col_3_label
+  assign col_4_label = section.settings.col_4_label
+  assign col_5_label = section.settings.col_5_label
+  assign col_6_label = section.settings.col_6_label
+
+  assign show_heading_row = section.settings.show_heading_row
+
+  assign mobile_pricing_layout = section.settings.mobile_pricing_layout
+  assign highlight_style = section.settings.highlight_style
+
+  assign ty_scale = section.settings.ty_scale
+-%}
+
+{%- if render_section -%}
+<section
+  id="q-{{ section.id }}"
+  class="q-pricing-data q-pricing-data--{{ mode }} q-density--{{ density }} q-ty--{{ ty_scale }}"
+  data-mode="{{ mode }}"
+  data-responsive="{{ responsive_behavior }}"
+  style="
+    --q-wrap-max: {{ max_width }}px;
+    --q-pad-y: {{ pad_y }}px;
+    --q-pad-x: {{ pad_x }}px;
+    --q-gap: {{ gap }}px;
+    --q-radius: {{ border_radius }}px;
+    --q-cell-pad: {{ cell_padding }}px;
+    --q-row-dividers: {%- if row_dividers -%}1{%- else -%}0{%- endif -%};
+
+    {%- if use_custom_colors -%}
+      --q-bg: {{ section.settings.bg }};
+      --q-text: {{ section.settings.text }};
+      --q-muted: {{ section.settings.muted }};
+      --q-accent: {{ section.settings.accent }};
+      --q-surface: {{ section.settings.surface }};
+      --q-border: {{ section.settings.border }};
+      --q-th-bg: {{ section.settings.th_bg }};
+      --q-th-text: {{ section.settings.th_text }};
+      --q-row-hover: {{ section.settings.row_hover_bg }};
+      --q-highlight-bg: {{ section.settings.highlight_bg }};
+      --q-highlight-border: {{ section.settings.highlight_border }};
+      --q-badge-bg: {{ section.settings.badge_bg }};
+      --q-badge-text: {{ section.settings.badge_text }};
+    {%- endif -%}
+  "
+>
+  <div class="q-pricing-data__wrap">
+    {%- if has_header -%}
+      <header class="q-pricing-data__header">
+        {%- if heading != blank -%}
+          <h2 class="q-pricing-data__heading">{{ heading }}</h2>
+        {%- endif -%}
+        {%- if subheading != blank -%}
+          <div class="q-pricing-data__subheading rte">{{ subheading }}</div>
+        {%- endif -%}
+      </header>
+    {%- endif -%}
+
+    {%- case mode -%}
+
+      {%- when 'price_list' -%}
+        <div class="q-price-list" role="list">
+          {%- for block in blocks -%}
+            {%- if block.type == 'item' -%}
+              {%- liquid
+                assign t = block.settings.title
+                assign d = block.settings.description
+                assign p = block.settings.price_label
+                assign b = block.settings.badge
+              -%}
+              <article class="q-price-list__item" role="listitem" {{ block.shopify_attributes }}>
+                <div class="q-price-list__main">
+                  <div class="q-price-list__topline">
+                    {%- if t != blank -%}<h3 class="q-price-list__title">{{ t }}</h3>{%- endif -%}
+                    {%- if b != blank -%}<span class="q-badge">{{ b }}</span>{%- endif -%}
+                  </div>
+                  {%- if d != blank -%}<div class="q-price-list__desc rte">{{ d }}</div>{%- endif -%}
+                </div>
+                {%- if p != blank -%}
+                  <div class="q-price-list__price" aria-label="Price">{{ p }}</div>
+                {%- endif -%}
+              </article>
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+
+      {%- when 'pricing_table' -%}
+        {%- liquid
+          assign plans = blocks | where: 'type', 'plan_column'
+          assign plan_count = plans.size
+
+          if plan_count <= 1
+            assign highlight_idx = -1
+          endif
+
+          if highlight_idx >= plan_count
+            assign highlight_idx = -1
+          endif
+
+          assign scroll_mode = false
+          if mobile_pricing_layout == 'scroll_horizontally'
+            assign scroll_mode = true
+          endif
+
+          assign show_cta = section.settings.show_cta
+          assign hide_cta_if_no_url = section.settings.hide_cta_if_no_url
+        -%}
+
+        <div class="q-pricing-table {% if scroll_mode %}q-pricing-table--scroll{% else %}q-pricing-table--stack{% endif %}" data-highlight-style="{{ highlight_style }}">
+          <div class="q-pricing-table__rail">
+            <div class="q-pricing-table__grid" style="--q-plan-count: {{ plan_count }};">
+              {%- for block in plans -%}
+                {%- liquid
+                  assign i0 = forloop.index0
+                  assign is_highlight = false
+                  if i0 == highlight_idx
+                    assign is_highlight = true
+                  endif
+
+                  assign plan_name = block.settings.plan_name
+                  assign price_label = block.settings.price_label
+                  assign billing_cycle = block.settings.billing_cycle
+                  assign features = block.settings.features
+                  assign cta_label = block.settings.cta_label
+                  assign cta_url = block.settings.cta_url
+                  assign badge = block.settings.badge
+
+                  assign has_url = false
+                  if cta_url != blank
+                    assign has_url = true
+                  endif
+
+                  assign should_hide_cta = false
+                  if hide_cta_if_no_url and has_url == false
+                    assign should_hide_cta = true
+                  endif
+                -%}
+
+                <article class="q-plan {% if is_highlight %}is-highlight{% endif %}" {{ block.shopify_attributes }}>
+                  <div class="q-plan__inner">
+                    <div class="q-plan__head">
+                      <div class="q-plan__name-row">
+                        {%- if plan_name != blank -%}<h3 class="q-plan__name">{{ plan_name }}</h3>{%- endif -%}
+                        {%- if badge != blank -%}<span class="q-badge q-badge--plan">{{ badge }}</span>{%- endif -%}
+                      </div>
+
+                      {%- if price_label != blank -%}
+                        <div class="q-plan__price">
+                          <span class="q-plan__price-label">{{ price_label }}</span>
+                          {%- if billing_cycle != blank -%}
+                            <span class="q-plan__billing">{{ billing_cycle }}</span>
+                          {%- endif -%}
+                        </div>
+                      {%- endif -%}
+                    </div>
+
+                    {%- if features != blank -%}
+                      <div class="q-plan__features rte">{{ features }}</div>
+                    {%- endif -%}
+
+                    {%- if show_cta -%}
+                      {%- unless should_hide_cta -%}
+                        <div class="q-plan__cta">
+                          {%- if has_url -%}
+                            <a class="q-btn" href="{{ cta_url }}">{{ cta_label | default: 'Choose plan' }}</a>
+                          {%- else -%}
+                            <span class="q-btn q-btn--disabled" aria-disabled="true">{{ cta_label | default: 'Choose plan' }}</span>
+                          {%- endif -%}
+                        </div>
+                      {%- endunless -%}
+                    {%- endif -%}
+                  </div>
+                </article>
+              {%- endfor -%}
+            </div>
+          </div>
+        </div>
+
+      {%- when 'data_table' -%}
+        {%- liquid
+          assign cols = '' | split: '|'
+          if col_1_label != blank
+            assign cols = cols | push: col_1_label
+          endif
+          if col_2_label != blank
+            assign cols = cols | push: col_2_label
+          endif
+          if col_3_label != blank
+            assign cols = cols | push: col_3_label
+          endif
+          if col_4_label != blank
+            assign cols = cols | push: col_4_label
+          endif
+          if col_5_label != blank
+            assign cols = cols | push: col_5_label
+          endif
+          if col_6_label != blank
+            assign cols = cols | push: col_6_label
+          endif
+
+          assign col_count = cols.size
+
+          assign rows = blocks | where: 'type', 'row'
+          assign row_count = rows.size
+
+          assign render_table = true
+          if col_count == 0 or row_count == 0
+            assign render_table = false
+          endif
+
+          assign stack_rows = false
+          if responsive_behavior == 'stack_rows'
+            assign stack_rows = true
+          endif
+        -%}
+
+        {%- if render_table -%}
+          {%- if stack_rows -%}
+            <div class="q-data-cards" role="list">
+              {%- for block in rows -%}
+                {%- liquid
+                  assign cells = '' | split: '|'
+                  assign cells = cells | push: block.settings.cell_1
+                  assign cells = cells | push: block.settings.cell_2
+                  assign cells = cells | push: block.settings.cell_3
+                  assign cells = cells | push: block.settings.cell_4
+                  assign cells = cells | push: block.settings.cell_5
+                  assign cells = cells | push: block.settings.cell_6
+                -%}
+                <article class="q-data-card" role="listitem" {{ block.shopify_attributes }}>
+                  <dl class="q-data-card__dl">
+                    {%- for col_label in cols -%}
+                      {%- assign i = forloop.index0 -%}
+                      {%- assign v = cells[i] -%}
+                      <div class="q-data-card__row">
+                        <dt class="q-data-card__dt">{{ col_label }}</dt>
+                        <dd class="q-data-card__dd">
+                          {%- if v != blank -%}
+                            <span class="q-cell">{{ v }}</span>
+                          {%- else -%}
+                            <span class="q-cell q-cell--empty">—</span>
+                          {%- endif -%}
+                        </dd>
+                      </div>
+                    {%- endfor -%}
+                  </dl>
+                </article>
+              {%- endfor -%}
+            </div>
+          {%- else -%}
+            <div class="q-table-scroll" tabindex="0" aria-label="Scrollable table">
+              <table class="q-table" role="table">
+                {%- if show_heading_row -%}
+                  <thead class="q-table__head">
+                    <tr>
+                      {%- for col_label in cols -%}
+                        <th scope="col" class="q-th">{{ col_label }}</th>
+                      {%- endfor -%}
+                    </tr>
+                  </thead>
+                {%- endif -%}
+                <tbody class="q-table__body">
+                  {%- for block in rows -%}
+                    {%- liquid
+                      assign cells = '' | split: '|'
+                      assign cells = cells | push: block.settings.cell_1
+                      assign cells = cells | push: block.settings.cell_2
+                      assign cells = cells | push: block.settings.cell_3
+                      assign cells = cells | push: block.settings.cell_4
+                      assign cells = cells | push: block.settings.cell_5
+                      assign cells = cells | push: block.settings.cell_6
+                    -%}
+                    <tr class="q-tr" {{ block.shopify_attributes }}>
+                      {%- for col_label in cols -%}
+                        {%- assign i = forloop.index0 -%}
+                        {%- assign v = cells[i] -%}
+                        <td class="q-td">
+                          {%- if v != blank -%}
+                            <span class="q-cell">{{ v }}</span>
+                          {%- else -%}
+                            <span class="q-cell q-cell--empty">—</span>
+                          {%- endif -%}
+                        </td>
+                      {%- endfor -%}
+                    </tr>
+                  {%- endfor -%}
+                </tbody>
+              </table>
+            </div>
+          {%- endif -%}
+        {%- endif -%}
+
+    {%- endcase -%}
+  </div>
+</section>
+
+
+  <style>
+    /* ========= Quadratum — Interactive · Pricing & Data Table (FULL STYLESHEET) =========
+   Drop-in replacement for the <style> block inside the section.
+   Fix focus: pricing_table NEVER causes page-level horizontal overflow on mobile.
+*/
+
+#q-{{ section.id }}{
+  --q-bg: var(--q-section-bg, transparent);
+  --q-text: var(--q-color-text, currentColor);
+  --q-muted: var(--q-color-muted, color-mix(in srgb, var(--q-text) 70%, transparent));
+  --q-accent: var(--q-color-accent, var(--q-text));
+  --q-surface: var(--q-color-surface, color-mix(in srgb, var(--q-text) 6%, transparent));
+  --q-border: var(--q-color-border, color-mix(in srgb, var(--q-text) 14%, transparent));
+
+  --q-th-bg: var(--q-surface);
+  --q-th-text: var(--q-text);
+  --q-row-hover: color-mix(in srgb, var(--q-text) 4%, transparent);
+
+  --q-highlight-bg: color-mix(in srgb, var(--q-accent) 10%, transparent);
+  --q-highlight-border: color-mix(in srgb, var(--q-accent) 35%, transparent);
+
+  --q-badge-bg: color-mix(in srgb, var(--q-accent) 14%, transparent);
+  --q-badge-text: var(--q-text);
+
+  --q-shadow: var(--q-shadow-md, 0 10px 30px rgba(0,0,0,.08));
+  --q-shadow-sm: var(--q-shadow-sm, 0 8px 20px rgba(0,0,0,.06));
+
+  --q-focus: var(--q-focus-ring, 0 0 0 3px color-mix(in srgb, var(--q-accent) 35%, transparent));
+
+  color: var(--q-text);
+  background: var(--q-bg);
+
+  /* CRITICAL: prevent section from creating page-level horizontal scroll */
+  overflow-x: clip; /* safe modern; prevents mobile "off page" */
+}
+
+/* Older Safari fallback */
+@supports not (overflow: clip){
+  #q-{{ section.id }}{ overflow-x: hidden; }
+}
+
+/* Ensure all containers can shrink (prevents grid children from forcing overflow) */
+#q-{{ section.id }} *,
+#q-{{ section.id }} *::before,
+#q-{{ section.id }} *::after{
+  box-sizing: border-box;
+}
+
+#q-{{ section.id }} .q-pricing-data__wrap{
+  max-width: var(--q-wrap-max);
+  margin: 0 auto;
+  padding: var(--q-pad-y) var(--q-pad-x);
+  display: grid;
+  gap: var(--q-gap);
+  min-width: 0; /* CRITICAL */
+}
+
+/* ========= Typography scale ========= */
+#q-{{ section.id }}.q-ty--sm{ --q-h2: 1.35rem; --q-h3: 1.05rem; --q-body: .98rem; --q-fine: .9rem; }
+#q-{{ section.id }}.q-ty--md{ --q-h2: 1.6rem;  --q-h3: 1.15rem; --q-body: 1rem;   --q-fine: .92rem; }
+#q-{{ section.id }}.q-ty--lg{ --q-h2: 1.85rem; --q-h3: 1.25rem; --q-body: 1.05rem; --q-fine: .95rem; }
+
+#q-{{ section.id }} .q-pricing-data__heading{
+  font-size: var(--q-h2);
+  line-height: 1.15;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+#q-{{ section.id }} .q-pricing-data__subheading{
+  color: var(--q-muted);
+  font-size: var(--q-body);
+}
+#q-{{ section.id }} .rte > :first-child{ margin-top: 0; }
+#q-{{ section.id }} .rte > :last-child{ margin-bottom: 0; }
+
+/* ========= Badge primitive ========= */
+#q-{{ section.id }} .q-badge{
+  display: inline-flex;
+  align-items: center;
+  gap: .35em;
+  padding: .35em .6em;
+  border-radius: 999px;
+  background: var(--q-badge-bg);
+  color: var(--q-badge-text);
+  font-size: var(--q-fine);
+  line-height: 1;
+  border: 1px solid color-mix(in srgb, var(--q-badge-text) 12%, transparent);
+  white-space: nowrap;
+}
+
+/* ========= Button primitive ========= */
+#q-{{ section.id }} .q-btn{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  padding: .8em 1.05em;
+  border-radius: calc(var(--q-radius) + 6px);
+  border: 1px solid var(--q-border);
+  background: var(--q-surface);
+  color: var(--q-text);
+  font-size: var(--q-body);
+  line-height: 1;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+  max-width: 100%;
+}
+#q-{{ section.id }} .q-btn:hover{ box-shadow: var(--q-shadow-sm); transform: translateY(-1px); }
+#q-{{ section.id }} .q-btn:focus-visible{ outline: none; box-shadow: var(--q-focus); }
+#q-{{ section.id }} .q-btn--disabled{ opacity: .55; cursor: not-allowed; }
+
+/* ========= Density ========= */
+#q-{{ section.id }}.q-density--comfortable{ --q-item-pad-y: 18px; --q-item-pad-x: 18px; --q-inner-gap: 12px; }
+#q-{{ section.id }}.q-density--compact{ --q-item-pad-y: 12px; --q-item-pad-x: 14px; --q-inner-gap: 10px; }
+
+/* ========= Price list ========= */
+#q-{{ section.id }} .q-price-list{
+  display: grid;
+  gap: calc(var(--q-gap) * .55);
+}
+#q-{{ section.id }} .q-price-list__item{
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--q-inner-gap);
+  padding: var(--q-item-pad-y) var(--q-item-pad-x);
+  border-radius: var(--q-radius);
+  background: var(--q-surface);
+  border: 1px solid var(--q-border);
+  box-shadow: var(--q-shadow-sm);
+  min-width: 0;
+}
+#q-{{ section.id }} .q-price-list__topline{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+#q-{{ section.id }} .q-price-list__title{ margin: 0; font-size: var(--q-h3); line-height: 1.2; }
+#q-{{ section.id }} .q-price-list__desc{ color: var(--q-muted); font-size: var(--q-body); }
+#q-{{ section.id }} .q-price-list__price{
+  font-size: var(--q-h3);
+  line-height: 1.1;
+  font-weight: 650;
+  align-self: start;
+  white-space: nowrap;
+  text-align: right;
+}
+@media (max-width: 740px){
+  #q-{{ section.id }} .q-price-list__item{ grid-template-columns: 1fr; }
+  #q-{{ section.id }} .q-price-list__price{ text-align: left; }
+}
+
+/* ========= Pricing table (plans) — MOBILE OVERFLOW FIXES ========= */
+/* The #1 rule: any grid child must be allowed to shrink: min-width:0 on rails/grids/cards */
+#q-{{ section.id }} .q-pricing-table,
+#q-{{ section.id }} .q-pricing-table__rail,
+#q-{{ section.id }} .q-pricing-table__grid{
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Default grid for desktop */
+#q-{{ section.id }} .q-pricing-table__grid{
+  display: grid;
+  gap: calc(var(--q-gap) * .65);
+  grid-template-columns: repeat(var(--q-plan-count), minmax(0, 1fr));
+  align-items: stretch;
+  width: 100%;
+}
+
+/* Plan card */
+#q-{{ section.id }} .q-plan{
+  border-radius: var(--q-radius);
+  background: var(--q-surface);
+  border: 1px solid var(--q-border);
+  box-shadow: var(--q-shadow-sm);
+  overflow: hidden;
+  min-width: 0; /* CRITICAL */
+}
+#q-{{ section.id }} .q-plan__inner{
+  padding: var(--q-item-pad-y) var(--q-item-pad-x);
+  display: grid;
+  gap: 14px;
+  height: 100%;
+  min-width: 0;
+}
+#q-{{ section.id }} .q-plan__name-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+#q-{{ section.id }} .q-plan__name{ margin: 0; font-size: var(--q-h3); line-height: 1.2; }
+#q-{{ section.id }} .q-plan__price{ display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+#q-{{ section.id }} .q-plan__price-label{
+  font-size: calc(var(--q-h2) * .95);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+#q-{{ section.id }} .q-plan__billing{ color: var(--q-muted); font-size: var(--q-fine); }
+#q-{{ section.id }} .q-plan__features{ color: var(--q-text); font-size: var(--q-body); min-width: 0; }
+#q-{{ section.id }} .q-plan__features ul{ margin: 0; padding-left: 1.2em; }
+#q-{{ section.id }} .q-plan__features li{ margin: .35em 0; color: var(--q-muted); }
+#q-{{ section.id }} .q-plan__cta{ margin-top: auto; }
+
+/* Highlight styles */
+#q-{{ section.id }} .q-pricing-table[data-highlight-style="surface"] .q-plan.is-highlight{
+  background: var(--q-highlight-bg);
+  border-color: var(--q-highlight-border);
+}
+#q-{{ section.id }} .q-pricing-table[data-highlight-style="outline"] .q-plan.is-highlight{
+  border-width: 2px;
+  border-color: var(--q-highlight-border);
+  background: var(--q-surface);
+}
+#q-{{ section.id }} .q-pricing-table[data-highlight-style="shadow"] .q-plan.is-highlight{
+  border-color: var(--q-highlight-border);
+  box-shadow: var(--q-shadow);
+}
+
+/* Mobile: ALWAYS stop page overflow.
+   - stack mode: force single column at ALL mobile widths
+   - scroll mode: rail becomes the only scroll container (not the page)
+*/
+@media (max-width: 860px){
+  /* Stack mode: single column, no overflow */
+  #q-{{ section.id }} .q-pricing-table--stack .q-pricing-table__grid{
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Scroll mode: rail is the scroll container; prevent body scroll */
+  #q-{{ section.id }} .q-pricing-table--scroll{
+    max-width: 100%;
+  }
+  #q-{{ section.id }} .q-pricing-table--scroll .q-pricing-table__rail{
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+    border-radius: var(--q-radius);
+    padding-bottom: 6px; /* space for scrollbar */
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain; /* prevent "drag the whole page" on mobile */
+  }
+  #q-{{ section.id }} .q-pricing-table--scroll .q-pricing-table__grid{
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(260px, 85%); /* key: never wider than viewport */
+    grid-template-columns: none !important;
+    width: max-content; /* only the rail scrolls */
+    scroll-snap-align: start;
+  }
+  #q-{{ section.id }} .q-pricing-table--scroll .q-plan{
+    scroll-snap-align: start;
+  }
+}
+
+/* Extra-small devices: reduce min card width so nothing forces overflow */
+@media (max-width: 420px){
+  #q-{{ section.id }} .q-pricing-table--scroll .q-pricing-table__grid{
+    grid-auto-columns: minmax(220px, 92%);
+  }
+}
+
+/* ========= Data table primitives ========= */
+#q-{{ section.id }} .q-table-scroll{
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--q-radius);
+  outline: none;
+  max-width: 100%;
+}
+#q-{{ section.id }} .q-table-scroll:focus-visible{ box-shadow: var(--q-focus); }
+
+#q-{{ section.id }} .q-table{
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--q-surface);
+  border: 1px solid var(--q-border);
+  border-radius: var(--q-radius);
+  overflow: hidden;
+}
+#q-{{ section.id }} .q-th{
+  text-align: left;
+  font-size: var(--q-fine);
+  letter-spacing: .01em;
+  font-weight: 650;
+  padding: var(--q-cell-pad);
+  background: var(--q-th-bg);
+  color: var(--q-th-text);
+  border-bottom: 1px solid var(--q-border);
+  white-space: nowrap;
+}
+#q-{{ section.id }} .q-td{
+  padding: var(--q-cell-pad);
+  font-size: var(--q-body);
+  color: var(--q-text);
+  vertical-align: top;
+  border-bottom: calc(1px * var(--q-row-dividers)) solid var(--q-border);
+}
+#q-{{ section.id }} .q-tr:hover .q-td{ background: var(--q-row-hover); }
+#q-{{ section.id }} .q-table__body tr:last-child .q-td{ border-bottom: none; }
+#q-{{ section.id }} .q-cell--empty{ color: var(--q-muted); }
+
+/* ========= Data cards (stack_rows) ========= */
+#q-{{ section.id }} .q-data-cards{
+  display: grid;
+  gap: calc(var(--q-gap) * .55);
+}
+#q-{{ section.id }} .q-data-card{
+  padding: var(--q-item-pad-y) var(--q-item-pad-x);
+  border-radius: var(--q-radius);
+  background: var(--q-surface);
+  border: 1px solid var(--q-border);
+  box-shadow: var(--q-shadow-sm);
+}
+#q-{{ section.id }} .q-data-card__dl{
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+#q-{{ section.id }} .q-data-card__row{
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 10px;
+  padding-bottom: calc(10px * var(--q-row-dividers));
+  border-bottom: calc(1px * var(--q-row-dividers)) solid var(--q-border);
+}
+#q-{{ section.id }} .q-data-card__row:last-child{ padding-bottom: 0; border-bottom: none; }
+#q-{{ section.id }} .q-data-card__dt{ font-size: var(--q-fine); color: var(--q-muted); margin: 0; }
+#q-{{ section.id }} .q-data-card__dd{
+  margin: 0;
+  font-size: var(--q-body);
+  color: var(--q-text);
+  text-align: right;
+  word-break: break-word;
+}
+@media (max-width: 520px){
+  #q-{{ section.id }} .q-data-card__row{ grid-template-columns: 1fr; }
+  #q-{{ section.id }} .q-data-card__dd{ text-align: left; }
+}
+
+  </style>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Interactive Pricing Table",
+  "tag": "section",
+  "class": "section q-section q-section--pricing-data",
+  "settings": [
+    { "type": "header", "content": "Mode" },
+    {
+      "type": "select",
+      "id": "mode",
+      "label": "Mode",
+      "default": "price_list",
+      "options": [
+        { "value": "price_list", "label": "Price list (service menu)" },
+        { "value": "pricing_table", "label": "Pricing table (plans)" },
+        { "value": "data_table", "label": "Data table (generic)" }
+      ]
+    },
+
+    { "type": "header", "content": "Header" },
+    { "type": "checkbox", "id": "show_header", "label": "Show header", "default": true },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Pricing & details" },
+    {
+      "type": "richtext",
+      "id": "subheading",
+      "label": "Subheading",
+      "default": "<p>Present prices, plans, or comparison data with a clean, premium layout.</p>"
+    },
+
+    { "type": "header", "content": "Layout & spacing" },
+    { "type": "range", "id": "max_width", "label": "Max width", "min": 720, "max": 1600, "step": 20, "default": 1200 },
+    { "type": "range", "id": "pad_y", "label": "Vertical padding", "min": 0, "max": 140, "step": 4, "default": 56 },
+    { "type": "range", "id": "pad_x", "label": "Horizontal padding", "min": 0, "max": 72, "step": 2, "default": 18 },
+    { "type": "range", "id": "gap", "label": "Section gap", "min": 8, "max": 64, "step": 2, "default": 22 },
+
+    { "type": "header", "content": "Table behavior" },
+    { "type": "checkbox", "id": "show_heading_row", "label": "Show heading row (tables)", "default": true },
+    {
+      "type": "select",
+      "id": "responsive_behavior",
+      "label": "Responsive behavior (tables)",
+      "default": "stack_rows",
+      "options": [
+        { "value": "stack_rows", "label": "Stack rows (cards)" },
+        { "value": "scroll_horizontally", "label": "Scroll horizontally" }
+      ]
+    },
+
+    { "type": "header", "content": "Pricing table options" },
+    {
+      "type": "range",
+      "id": "highlight_column_index",
+      "label": "Highlight column (1-based). 0 = none",
+      "min": 0,
+      "max": 8,
+      "step": 1,
+      "default": 0,
+      "info": "1 = first plan, 2 = second plan, etc. If out of range, highlight is ignored."
+    },
+    {
+      "type": "select",
+      "id": "highlight_style",
+      "label": "Highlight style",
+      "default": "surface",
+      "options": [
+        { "value": "surface", "label": "Surface" },
+        { "value": "outline", "label": "Outline" },
+        { "value": "shadow", "label": "Shadow" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "mobile_pricing_layout",
+      "label": "Mobile pricing layout",
+      "default": "stack_plan_cards",
+      "options": [
+        { "value": "stack_plan_cards", "label": "Stack plan cards" },
+        { "value": "scroll_horizontally", "label": "Scroll horizontally" }
+      ]
+    },
+    { "type": "checkbox", "id": "show_cta", "label": "Show plan CTA", "default": true },
+    { "type": "checkbox", "id": "hide_cta_if_no_url", "label": "Hide CTA if URL is blank (recommended)", "default": true },
+
+    { "type": "header", "content": "Data table columns (v1 fixed columns)" },
+    { "type": "text", "id": "col_1_label", "label": "Column 1 label", "default": "Feature" },
+    { "type": "text", "id": "col_2_label", "label": "Column 2 label", "default": "Basic" },
+    { "type": "text", "id": "col_3_label", "label": "Column 3 label", "default": "Pro" },
+    { "type": "text", "id": "col_4_label", "label": "Column 4 label",  },
+    { "type": "text", "id": "col_5_label", "label": "Column 5 label",  },
+    { "type": "text", "id": "col_6_label", "label": "Column 6 label",  },
+
+    { "type": "header", "content": "Styling" },
+    {
+      "type": "select",
+      "id": "density",
+      "label": "Density",
+      "default": "comfortable",
+      "options": [
+        { "value": "comfortable", "label": "Comfortable" },
+        { "value": "compact", "label": "Compact" }
+      ]
+    },
+    { "type": "checkbox", "id": "row_dividers", "label": "Row dividers", "default": true },
+    { "type": "range", "id": "cell_padding", "label": "Cell padding", "min": 8, "max": 24, "step": 1, "default": 14 },
+    { "type": "range", "id": "border_radius", "label": "Border radius", "min": 0, "max": 32, "step": 1, "default": 18 },
+    {
+      "type": "select",
+      "id": "ty_scale",
+      "label": "Typography scale",
+      "default": "md",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
+
+    { "type": "header", "content": "Custom colors (scoped)" },
+    { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors", "default": false },
+    { "type": "color", "id": "bg", "label": "Background", "default": "#000000" },
+    { "type": "color", "id": "text", "label": "Text", "default": "#ffffff" },
+    { "type": "color", "id": "muted", "label": "Muted text", "default": "#bfbfbf" },
+    { "type": "color", "id": "accent", "label": "Accent", "default": "#ffffff" },
+    { "type": "color", "id": "surface", "label": "Surface", "default": "#101010" },
+    { "type": "color", "id": "border", "label": "Border", "default": "#2a2a2a" },
+    { "type": "color", "id": "th_bg", "label": "Table header background", "default": "#151515" },
+    { "type": "color", "id": "th_text", "label": "Table header text", "default": "#ffffff" },
+    { "type": "color", "id": "row_hover_bg", "label": "Row hover background", "default": "#141414" },
+    { "type": "color", "id": "highlight_bg", "label": "Highlight background", "default": "#1a1a1a" },
+    { "type": "color", "id": "highlight_border", "label": "Highlight border", "default": "#444444" },
+    { "type": "color", "id": "badge_bg", "label": "Badge background", "default": "#1b1b1b" },
+    { "type": "color", "id": "badge_text", "label": "Badge text", "default": "#ffffff" }
+  ],
+  "blocks": [
+    {
+      "type": "item",
+      "name": "Price list item",
+      "settings": [
+        { "type": "text", "id": "title", "label": "Title", "default": "Standard Service" },
+        { "type": "richtext", "id": "description", "label": "Description", "default": "<p>Short details about what’s included and who it’s for.</p>" },
+        { "type": "text", "id": "price_label", "label": "Price label", "default": "$199" },
+        { "type": "text", "id": "badge", "label": "Badge (optional)",  }
+      ]
+    },
+    {
+      "type": "plan_column",
+      "name": "Plan column",
+      "settings": [
+        { "type": "text", "id": "plan_name", "label": "Plan name", "default": "Pro" },
+        { "type": "text", "id": "price_label", "label": "Price label", "default": "$49" },
+        { "type": "text", "id": "billing_cycle", "label": "Billing cycle (fine print)", "default": "/month" },
+        { "type": "richtext", "id": "features", "label": "Features", "default": "<ul><li>Core feature</li><li>Another benefit</li><li>Support level</li></ul>" },
+        { "type": "text", "id": "cta_label", "label": "CTA label", "default": "Choose plan" },
+        { "type": "url", "id": "cta_url", "label": "CTA URL" },
+        { "type": "text", "id": "badge", "label": "Badge (optional)", }
+      ]
+    },
+    {
+      "type": "row",
+      "name": "Data row",
+      "settings": [
+        { "type": "text", "id": "cell_1", "label": "Cell 1", "default": "Shipping" },
+        { "type": "text", "id": "cell_2", "label": "Cell 2", "default": "Standard" },
+        { "type": "text", "id": "cell_3", "label": "Cell 3", "default": "Priority" },
+        { "type": "text", "id": "cell_4", "label": "Cell 4", },
+        { "type": "text", "id": "cell_5", "label": "Cell 5", },
+        { "type": "text", "id": "cell_6", "label": "Cell 6",  }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Interactive - Pricing & Data Table",
+      "category": "Interactive Content Helpers",
+      "blocks": [
+        { "type": "item" },
+        { "type": "item" },
+        { "type": "item" }
+      ]
+    }
+  ]
+}
+{% endschema %}

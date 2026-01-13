@@ -1,0 +1,715 @@
+{%- comment -%}
+  Quadratum — Interactive · 3D Tour & Media Showcase (Owned 3D Model Viewer v2)
+  File: sections/interactive-content-helper-3d-tour-media-showcase.liquid
+
+  This section supports self-hosted 3D (GLB + optional USDZ) using <model-viewer>.
+  NOTE: Rendering 3D requires JS. We load an owned local asset:
+    assets/q-model-viewer.min.js
+
+  Graceful degradation:
+  - Poster image always renders (if provided)
+  - If GLB missing: show fallback message (optional)
+  - Supporting media renders regardless of JS
+
+  Accessibility:
+  - Poster has alt
+  - Supporting media is keyboard navigable; links render only when URL exists
+{%- endcomment -%}
+
+{%- liquid
+  assign sid = section.id
+  assign s = section.settings
+
+  assign layout = s.layout | default: 'viewer_primary_gallery_below'
+  assign title = s.title | default: 'Explore the space'
+  assign subtitle = s.subtitle | default: '<p>Inspect the space in 3D—interactive, premium, and fully self-hosted.</p>'
+
+  assign glb_url = s.model_glb_url | default: ''
+  assign usdz_url = s.model_usdz_url | default: ''
+  assign poster = s.poster_image
+
+  assign has_glb = false
+  if glb_url != blank
+    assign has_glb = true
+  endif
+
+  assign has_poster = false
+  if poster != blank
+    assign has_poster = true
+  endif
+
+  assign show_fallback_message = s.show_fallback_message
+  assign fallback_message = s.fallback_message | default: 'Interactive 3D unavailable. Please view the images below.'
+
+  assign aspect = s.viewer_aspect_ratio | default: '16:9'
+  assign aspect_pad = '56.25%'
+  if aspect == '4:3'
+    assign aspect_pad = '75%'
+  elsif aspect == '1:1'
+    assign aspect_pad = '100%'
+  elsif aspect == 'custom'
+    assign aspect_pad = '56.25%'
+  endif
+
+  assign media_blocks = section.blocks | where: 'type', 'supporting_media'
+  assign media_count = media_blocks.size
+  assign has_media = false
+  if media_count > 0
+    assign has_media = true
+  endif
+
+  assign enable_ar = s.enable_ar
+  if usdz_url == blank
+    assign enable_ar = false
+  endif
+
+  assign camera_controls = s.camera_controls
+  assign auto_rotate = s.auto_rotate
+  assign show_loading_ui = s.show_loading_ui
+  assign poster_fit = s.poster_fit | default: 'cover'
+
+  assign MV_ASSET = 'q-model-viewer.min.js'
+
+  assign should_render = true
+  if has_glb == false and has_poster == false and has_media == false
+    assign should_render = false
+  endif
+-%}
+
+{%- if should_render -%}
+<section
+  id="q-3d-model-{{ sid }}"
+  class="q-3dmv"
+  data-layout="{{ layout }}"
+  data-media-count="{{ media_count }}"
+  data-loading-ui="{% if show_loading_ui %}true{% else %}false{% endif %}"
+  style="
+    --q-3dmv-section-bg: {{ s.section_bg }};
+    --q-3dmv-surface-bg: {{ s.surface_bg }};
+    --q-3dmv-surface-border: {{ s.surface_border_color }};
+    --q-3dmv-surface-radius: {{ s.surface_radius }};
+    --q-3dmv-surface-shadow: {{ s.surface_shadow }};
+    --q-3dmv-viewer-max: {{ s.viewer_max_width }};
+    --q-3dmv-gallery-gap: {{ s.gallery_gap }};
+    --q-3dmv-thumb-radius: {{ s.thumbnail_radius }};
+    --q-3dmv-thumb-ratio: {{ s.thumbnail_aspect_ratio }};
+    --q-3dmv-title-size: {{ s.title_font_size }};
+    --q-3dmv-subtitle-size: {{ s.subtitle_font_size }};
+    --q-3dmv-subtitle-opacity: {{ s.subtitle_opacity }};
+    --q-3dmv-aspect-pad: {{ aspect_pad }};
+    --q-3dmv-loading-h: {{ s.loading_bar_height }};
+    --q-3dmv-loading-fill: {{ s.loading_fill_color }};
+    --q-3dmv-loading-track: {{ s.loading_track_color }};
+  "
+>
+  <style>
+    #q-3d-model-{{ sid }}{
+      background: var(--q-3dmv-section-bg, transparent);
+      width: 100%;
+      container-type: inline-size;
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__inner{
+      margin-inline: auto;
+      max-width: var(--q-3dmv-viewer-max, var(--q-container, 1200px));
+      padding: var(--q-pad-y, 56px) var(--q-pad-x, 18px);
+      display: grid;
+      gap: 18px;
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__header{
+      display: grid;
+      gap: 10px;
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__title{
+      margin: 0;
+      font-size: var(--q-3dmv-title-size, 32px);
+      line-height: 1.15;
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__subtitle{
+      font-size: var(--q-3dmv-subtitle-size, 16px);
+      line-height: 1.55;
+      opacity: var(--q-3dmv-subtitle-opacity, 0.85);
+    }
+    #q-3d-model-{{ sid }} .q-3dmv__subtitle :first-child{ margin-top: 0; }
+    #q-3d-model-{{ sid }} .q-3dmv__subtitle :last-child{ margin-bottom: 0; }
+
+    /* Intrinsic layout: stacks by default; split uses auto-fit (no fixed breakpoints) */
+    #q-3d-model-{{ sid }} .q-3dmv__layout{
+      display: grid;
+      gap: 18px;
+      grid-template-columns: 1fr;
+    }
+    #q-3d-model-{{ sid }}[data-layout="split_viewer_and_content"] .q-3dmv__layout{
+      grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+      align-items: start;
+    }
+
+    /* Premium surface frame */
+    #q-3d-model-{{ sid }} .q-3dmv__surface{
+      background: var(--q-3dmv-surface-bg, rgba(0,0,0,.03));
+      border: 1px solid var(--q-3dmv-surface-border, rgba(0,0,0,.12));
+      border-radius: var(--q-3dmv-surface-radius, 18px);
+      box-shadow: var(--q-3dmv-surface-shadow, none);
+      padding: 14px;
+      overflow: hidden;
+    }
+
+    /* Viewer wrapper with fixed aspect ratio */
+    #q-3d-model-{{ sid }} .q-3dmv__viewer{
+      position: relative;
+      width: 100%;
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__aspect{
+      position: relative;
+      width: 100%;
+      padding-top: var(--q-3dmv-aspect-pad, 56.25%);
+      overflow: hidden;
+      border-radius: calc(var(--q-3dmv-surface-radius, 18px) - 8px);
+      background: rgba(0,0,0,0.02);
+    }
+
+    /* Poster baseline */
+    #q-3d-model-{{ sid }} .q-3dmv__poster{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: {{ poster_fit }};
+    }
+
+    /* model-viewer fills */
+    #q-3d-model-{{ sid }} model-viewer.q-3dmv__mv{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: transparent;
+      outline: none;
+    }
+
+    /* Loading UI */
+    #q-3d-model-{{ sid }} .q-3dmv__loading{
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      display: none;
+      pointer-events: none;
+    }
+    #q-3d-model-{{ sid }}[data-loading-ui="true"] .q-3dmv__loading{
+      display: block;
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__loading-bar{
+      height: var(--q-3dmv-loading-h, 8px);
+      background: var(--q-3dmv-loading-track, rgba(0,0,0,.12));
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__loading-fill{
+      height: 100%;
+      width: 0%;
+      background: var(--q-3dmv-loading-fill, rgba(0,0,0,.65));
+      border-radius: 999px;
+      transition: width 180ms linear;
+    }
+
+    /* Friendly message */
+    #q-3d-model-{{ sid }} .q-3dmv__message{
+      margin-top: 12px;
+      font-size: var(--q-3dmv-subtitle-size, 16px);
+      line-height: 1.55;
+      opacity: var(--q-3dmv-subtitle-opacity, 0.85);
+    }
+
+    /* Supporting media */
+    #q-3d-model-{{ sid }} .q-3dmv__media{
+      display: grid;
+      gap: 12px;
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__strip{
+      display: flex;
+      gap: var(--q-3dmv-gallery-gap, 12px);
+      overflow-x: auto;
+      padding-bottom: 6px;
+      -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x mandatory;
+    }
+
+    /* Gallery-below allows wrap */
+    #q-3d-model-{{ sid }}[data-layout="viewer_primary_gallery_below"] .q-3dmv__strip{
+      flex-wrap: wrap;
+      overflow-x: visible;
+      scroll-snap-type: none;
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__thumb{
+      flex: 0 0 auto;
+      width: min(220px, 80vw);
+      scroll-snap-align: start;
+      text-decoration: none;
+      color: inherit;
+      outline-offset: 3px;
+    }
+
+    /* Single media: composed card */
+    #q-3d-model-{{ sid }}[data-media-count="1"] .q-3dmv__thumb{
+      width: 100%;
+      max-width: 520px;
+    }
+    #q-3d-model-{{ sid }}[data-media-count="1"] .q-3dmv__strip{
+      overflow: visible;
+      flex-wrap: nowrap;
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__thumb-surface{
+      border: 1px solid var(--q-3dmv-surface-border, rgba(0,0,0,.12));
+      border-radius: var(--q-3dmv-thumb-radius, 14px);
+      overflow: hidden;
+      background: rgba(0,0,0,0.02);
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__thumb-media{
+      aspect-ratio: var(--q-3dmv-thumb-ratio, 1 / 1);
+      width: 100%;
+      display: block;
+      overflow: hidden;
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__thumb-media img{
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__thumb-meta{
+      padding: 10px;
+      display: grid;
+      gap: 6px;
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__thumb-title{
+      margin: 0;
+      font-size: calc(var(--q-3dmv-subtitle-size, 16px) * 1.05);
+      line-height: 1.25;
+    }
+
+    #q-3d-model-{{ sid }} .q-3dmv__thumb-desc{
+      margin: 0;
+      font-size: var(--q-3dmv-subtitle-size, 16px);
+      line-height: 1.45;
+      opacity: var(--q-3dmv-subtitle-opacity, 0.85);
+    }
+  </style>
+
+  <div class="q-3dmv__inner">
+    <header class="q-3dmv__header">
+      <h2 class="q-3dmv__title">{{ title | escape }}</h2>
+      <div class="q-3dmv__subtitle">{{ subtitle }}</div>
+    </header>
+
+    <div class="q-3dmv__layout">
+      <div class="q-3dmv__surface q-3dmv__viewer">
+        <div class="q-3dmv__aspect">
+          {%- if has_poster -%}
+            <img
+              class="q-3dmv__poster"
+              src="{{ poster | image_url: width: 2400 }}"
+              alt="{{ poster.alt | default: title | escape }}"
+              loading="lazy"
+              width="{{ poster.width }}"
+              height="{{ poster.height }}"
+            >
+          {%- endif -%}
+
+          {%- if has_glb -%}
+            <model-viewer
+              class="q-3dmv__mv"
+              data-q-model-viewer
+              src="{{ glb_url | escape }}"
+              {%- if usdz_url != blank -%} ios-src="{{ usdz_url | escape }}"{%- endif -%}
+              {%- if enable_ar -%} ar{%- endif -%}
+              {%- if camera_controls -%} camera-controls{%- endif -%}
+              {%- if auto_rotate -%} auto-rotate{%- endif -%}
+              loading="lazy"
+              alt="{{ title | escape }}"
+              aria-label="{{ title | escape }}"
+              disable-pan
+            ></model-viewer>
+
+            {%- if show_loading_ui -%}
+              <div class="q-3dmv__loading" aria-hidden="true">
+                <div class="q-3dmv__loading-bar">
+                  <div class="q-3dmv__loading-fill" data-q-loading-fill></div>
+                </div>
+              </div>
+            {%- endif -%}
+          {%- endif -%}
+        </div>
+
+        {%- if has_glb == false and show_fallback_message -%}
+          <div class="q-3dmv__message">{{ fallback_message | escape }}</div>
+        {%- endif -%}
+      </div>
+
+      {%- if has_media -%}
+        <div class="q-3dmv__media">
+          <div class="q-3dmv__strip" role="list" aria-label="Supporting media">
+            {%- for block in media_blocks -%}
+              {%- liquid
+                assign b = block.settings
+                assign img = b.image
+                if img == blank
+                  continue
+                endif
+
+                assign m_title = b.title
+                assign m_desc = b.description
+                assign m_url = b.link_url
+
+                assign alt_text = img.alt
+                if alt_text == blank
+                  if m_title != blank
+                    assign alt_text = m_title
+                  else
+                    assign alt_text = title
+                  endif
+                endif
+
+                assign is_link = false
+                if m_url != blank
+                  assign is_link = true
+                endif
+              -%}
+
+              {%- if is_link -%}
+                <a class="q-3dmv__thumb" href="{{ m_url }}" role="listitem" {{ block.shopify_attributes }}>
+                  <div class="q-3dmv__thumb-surface">
+                    <div class="q-3dmv__thumb-media">
+                      <img
+                        src="{{ img | image_url: width: 1200 }}"
+                        alt="{{ alt_text | escape }}"
+                        loading="lazy"
+                        width="{{ img.width }}"
+                        height="{{ img.height }}"
+                      >
+                    </div>
+                    {%- if m_title != blank or m_desc != blank -%}
+                      <div class="q-3dmv__thumb-meta">
+                        {%- if m_title != blank -%}
+                          <h3 class="q-3dmv__thumb-title">{{ m_title | escape }}</h3>
+                        {%- endif -%}
+                        {%- if m_desc != blank -%}
+                          <p class="q-3dmv__thumb-desc">{{ m_desc | escape }}</p>
+                        {%- endif -%}
+                      </div>
+                    {%- endif -%}
+                  </div>
+                </a>
+              {%- else -%}
+                <div class="q-3dmv__thumb" role="listitem" tabindex="0" {{ block.shopify_attributes }}>
+                  <div class="q-3dmv__thumb-surface">
+                    <div class="q-3dmv__thumb-media">
+                      <img
+                        src="{{ img | image_url: width: 1200 }}"
+                        alt="{{ alt_text | escape }}"
+                        loading="lazy"
+                        width="{{ img.width }}"
+                        height="{{ img.height }}"
+                      >
+                    </div>
+                    {%- if m_title != blank or m_desc != blank -%}
+                      <div class="q-3dmv__thumb-meta">
+                        {%- if m_title != blank -%}
+                          <h3 class="q-3dmv__thumb-title">{{ m_title | escape }}</h3>
+                        {%- endif -%}
+                        {%- if m_desc != blank -%}
+                          <p class="q-3dmv__thumb-desc">{{ m_desc | escape }}</p>
+                        {%- endif -%}
+                      </div>
+                    {%- endif -%}
+                  </div>
+                </div>
+              {%- endif -%}
+            {%- endfor -%}
+          </div>
+        </div>
+      {%- endif -%}
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      var root = document.getElementById('q-3d-model-{{ sid }}');
+      if(!root) return;
+
+      var mv = root.querySelector('model-viewer[data-q-model-viewer]');
+      if(!mv) return;
+
+      function bindLoadingUI(){
+        var fill = root.querySelector('[data-q-loading-fill]');
+        if(!fill) return;
+
+        function setPct(p){
+          var pct = Math.max(0, Math.min(100, Math.round(p * 100)));
+          fill.style.width = pct + '%';
+        }
+
+        try{
+          var obs = new MutationObserver(function(){
+            var p = mv.getAttribute('progress');
+            if(p){
+              var n = parseFloat(p);
+              if(!isNaN(n)) setPct(n);
+            }
+          });
+          obs.observe(mv, { attributes: true, attributeFilter: ['progress'] });
+        }catch(e){}
+
+        mv.addEventListener('load', function(){ setPct(1); });
+      }
+
+      if(window.customElements && window.customElements.get('model-viewer')){
+        bindLoadingUI();
+        return;
+      }
+
+      var s = document.createElement('script');
+      s.src = {{ MV_ASSET | asset_url | json }};
+      s.defer = true;
+      s.onload = function(){ bindLoadingUI(); };
+      document.head.appendChild(s);
+    })();
+  </script>
+</section>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "3D Tour - Media Showcase",
+  "settings": [
+    { "type": "header", "content": "Layout" },
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "viewer_primary_gallery_below",
+      "options": [
+        { "value": "viewer_primary_gallery_below", "label": "3D viewer primary + gallery below" },
+        { "value": "split_viewer_and_content", "label": "Split viewer and content" }
+      ]
+    },
+
+    { "type": "header", "content": "Header" },
+    { "type": "text", "id": "title", "label": "Title", "default": "Explore the space" },
+    {
+      "type": "richtext",
+      "id": "subtitle",
+      "label": "Subtitle",
+      "default": "<p>Inspect the space in 3D—interactive, premium, and fully self-hosted.</p>"
+    },
+
+    { "type": "header", "content": "3D model (self-hosted)" },
+    {
+      "type": "text",
+      "id": "model_glb_url",
+      "label": "Model GLB URL (required for 3D)",
+      "info": "Upload a .glb to Shopify Files and paste the URL here."
+    },
+    {
+      "type": "text",
+      "id": "model_usdz_url",
+      "label": "Model USDZ URL (optional for iOS AR)",
+      "info": "Upload a .usdz to Shopify Files and paste the URL here."
+    },
+    {
+      "type": "image_picker",
+      "id": "poster_image",
+      "label": "Poster image (fallback)"
+    },
+    {
+      "type": "select",
+      "id": "viewer_aspect_ratio",
+      "label": "Viewer aspect ratio",
+      "default": "16:9",
+      "options": [
+        { "value": "16:9", "label": "16:9" },
+        { "value": "4:3", "label": "4:3" },
+        { "value": "1:1", "label": "1:1" },
+        { "value": "custom", "label": "Custom (future-proof)" }
+      ]
+    },
+
+    { "type": "header", "content": "Viewer behavior" },
+    { "type": "checkbox", "id": "camera_controls", "label": "Enable camera controls", "default": true },
+    { "type": "checkbox", "id": "auto_rotate", "label": "Auto rotate", "default": false },
+    { "type": "checkbox", "id": "enable_ar", "label": "Enable AR (requires USDZ)", "default": false },
+    { "type": "checkbox", "id": "show_loading_ui", "label": "Show loading bar", "default": true },
+    {
+      "type": "select",
+      "id": "poster_fit",
+      "label": "Poster image fit",
+      "default": "cover",
+      "options": [
+        { "value": "cover", "label": "Cover" },
+        { "value": "contain", "label": "Contain" }
+      ]
+    },
+
+    { "type": "header", "content": "Fallback messaging" },
+    { "type": "checkbox", "id": "show_fallback_message", "label": "Show message when no GLB provided", "default": true },
+    { "type": "text", "id": "fallback_message", "label": "Fallback message", "default": "Interactive 3D unavailable. Please view the images below." },
+
+    { "type": "header", "content": "Styling (scoped variables)" },
+    { "type": "color", "id": "section_bg", "label": "Section background", "default": "#FFFFFF" },
+    { "type": "color", "id": "surface_bg", "label": "Surface background", "default": "#F7F7F7" },
+    { "type": "color", "id": "surface_border_color", "label": "Surface border color", "default": "#E2E2E2" },
+    {
+      "type": "select",
+      "id": "surface_radius",
+      "label": "Surface radius",
+      "default": "18px",
+      "options": [
+        { "value": "12px", "label": "Small" },
+        { "value": "18px", "label": "Medium" },
+        { "value": "24px", "label": "Large" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "surface_shadow",
+      "label": "Surface shadow strength",
+      "default": "0 10px 30px rgba(0,0,0,0.08)",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "0 6px 18px rgba(0,0,0,0.06)", "label": "Soft" },
+        { "value": "0 10px 30px rgba(0,0,0,0.08)", "label": "Medium" },
+        { "value": "0 14px 44px rgba(0,0,0,0.10)", "label": "Strong" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "viewer_max_width",
+      "label": "Viewer max width",
+      "default": "1200px",
+      "options": [
+        { "value": "960px", "label": "Narrow" },
+        { "value": "1200px", "label": "Standard" },
+        { "value": "1440px", "label": "Wide" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "gallery_gap",
+      "label": "Gallery gap",
+      "default": "12px",
+      "options": [
+        { "value": "10px", "label": "Tight" },
+        { "value": "12px", "label": "Standard" },
+        { "value": "16px", "label": "Spacious" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "thumbnail_radius",
+      "label": "Thumbnail radius",
+      "default": "14px",
+      "options": [
+        { "value": "10px", "label": "Small" },
+        { "value": "14px", "label": "Medium" },
+        { "value": "18px", "label": "Large" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "thumbnail_aspect_ratio",
+      "label": "Thumbnail aspect ratio",
+      "default": "1 / 1",
+      "options": [
+        { "value": "1 / 1", "label": "1:1" },
+        { "value": "4 / 3", "label": "4:3" },
+        { "value": "16 / 9", "label": "16:9" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "title_font_size",
+      "label": "Title font size",
+      "default": "32px",
+      "options": [
+        { "value": "26px", "label": "Small" },
+        { "value": "32px", "label": "Medium" },
+        { "value": "38px", "label": "Large" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "subtitle_font_size",
+      "label": "Subtitle font size",
+      "default": "16px",
+      "options": [
+        { "value": "14px", "label": "Small" },
+        { "value": "16px", "label": "Medium" },
+        { "value": "18px", "label": "Large" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "subtitle_opacity",
+      "label": "Subtitle opacity",
+      "default": "0.85",
+      "options": [
+        { "value": "1", "label": "100%" },
+        { "value": "0.9", "label": "90%" },
+        { "value": "0.85", "label": "85%" },
+        { "value": "0.75", "label": "75%" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "loading_bar_height",
+      "label": "Loading bar height",
+      "default": "8px",
+      "options": [
+        { "value": "6px", "label": "Thin" },
+        { "value": "8px", "label": "Medium" },
+        { "value": "10px", "label": "Thick" }
+      ]
+    },
+    { "type": "color", "id": "loading_fill_color", "label": "Loading fill color", "default": "#111111" },
+    { "type": "color", "id": "loading_track_color", "label": "Loading track color", "default": "#CFCFCF" }
+  ],
+  "blocks": [
+    {
+      "type": "supporting_media",
+      "name": "Supporting media",
+      "settings": [
+        { "type": "image_picker", "id": "image", "label": "Image (required)" },
+        { "type": "text", "id": "title", "label": "Title (optional)" },
+        { "type": "text", "id": "description", "label": "Description (optional)" },
+        { "type": "url", "id": "link_url", "label": "Link URL (optional)" }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Interactive · 3D Tour & Media Showcase",
+      "category": "Interactive Content Helpers",
+      "blocks": [
+        { "type": "supporting_media" },
+        { "type": "supporting_media" },
+        { "type": "supporting_media" }
+      ]
+    }
+  ]
+}
+{% endschema %}

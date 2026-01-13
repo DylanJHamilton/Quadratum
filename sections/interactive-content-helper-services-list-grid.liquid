@@ -1,0 +1,875 @@
+{%- comment -%}
+  Quadratum — Interactive · Services List (Grid & List)
+  File: sections/interactive-content-helper-services-list.liquid
+
+  - No JS
+  - Semantic <ul>/<li>
+  - SEO: <h2> section title, <h3> per service
+  - Defensive: no placeholders, no fabricated pricing/CTAs
+  - Icons: assets/icons/{library}/{name}.svg (lucide + tabler)
+
+  v1.1 update:
+  - List layout image clamp via setting: list_image_max_h_px
+  - Uses object-fit: cover to avoid ugly tall images in list layout
+{%- endcomment -%}
+
+{%- liquid
+  assign s = section.settings
+  assign blocks = section.blocks | where: 'type', 'service'
+  assign count = blocks.size
+  if count == 0
+    break
+  endif
+
+  assign layout = s.layout | default: 'list'
+
+  assign show_price_column = s.show_price_column
+  assign show_cta_per_service = s.show_cta_per_service
+
+  assign has_global_cta = false
+  if s.global_cta_label != blank and s.global_cta_url != blank
+    assign has_global_cta = true
+  endif
+
+  comment
+    Max-width workaround (avoid Shopify range>100 limitations):
+    - px uses number input (can exceed 100)
+    - rem/%/vw use ranges <= 100
+  endcomment
+
+  assign maxw_css = '100%'
+  if s.max_width_unit == 'px'
+    if s.max_width_px != blank and s.max_width_px > 0
+      assign maxw_css = s.max_width_px | append: 'px'
+    endif
+  elsif s.max_width_unit == 'rem'
+    assign maxw_css = s.max_width_rem | append: 'rem'
+  elsif s.max_width_unit == 'vw'
+    assign maxw_css = s.max_width_vw | append: 'vw'
+  else
+    assign maxw_css = s.max_width_percent | append: '%'
+  endif
+
+  assign cols_d = s.columns_desktop | default: 3
+  assign cols_t = s.columns_tablet | default: 2
+  assign cols_m = s.columns_mobile | default: 1
+-%}
+
+<section
+  class="q-section q-svcs q-svcs--{{ layout }}"
+  style="
+    --q-svcs-maxw: {{ maxw_css }};
+    --q-svcs-pad-y: {{ s.pad_y_px }}px;
+    --q-svcs-pad-x: {{ s.pad_x_px }}px;
+    --q-svcs-gap: {{ s.gap_px }}px;
+
+    --q-svcs-card-bg: {{ s.card_bg }};
+    --q-svcs-border: {{ s.border_color }};
+    --q-svcs-radius: {{ s.radius_px }}px;
+    --q-svcs-shadow: {{ s.shadow_strength }};
+
+    --q-svcs-media-size: {{ s.media_size_px }}px;
+
+    --q-svcs-name-size: {{ s.name_font_size_px }}px;
+    --q-svcs-name-weight: {{ s.name_font_weight }};
+    --q-svcs-desc-size: {{ s.desc_font_size_px }}px;
+    --q-svcs-price-size: {{ s.price_font_size_px }}px;
+    --q-svcs-price-weight: {{ s.price_font_weight }};
+
+    --q-svcs-list-img-h: {{ s.list_image_max_h_px }}px;
+
+    --q-btn-bg: {{ s.btn_bg }};
+    --q-btn-text: {{ s.btn_text }};
+    --q-btn-border: {{ s.btn_border }};
+    --q-btn-bg-hover: {{ s.btn_bg_hover }};
+    --q-btn-text-hover: {{ s.btn_text_hover }};
+    --q-btn-border-hover: {{ s.btn_border_hover }};
+    --q-btn-radius: {{ s.btn_radius_px }}px;
+    --q-btn-font-size: {{ s.btn_font_size_px }}px;
+    --q-btn-pad-y: {{ s.btn_pad_y_px }}px;
+    --q-btn-pad-x: {{ s.btn_pad_x_px }}px;
+    --q-btn-border-w: {{ s.btn_border_w_px }}px;
+
+    --q-grid-cols-d: {{ cols_d }};
+    --q-grid-cols-t: {{ cols_t }};
+    --q-grid-cols-m: {{ cols_m }};
+  "
+  data-custom-colors="{% if s.use_custom_colors %}1{% else %}0{% endif %}"
+>
+  <div class="q-svcs__inner">
+    <header class="q-svcs__header">
+      {%- if s.title != blank -%}
+        <h2 class="q-svcs__title">{{ s.title | escape }}</h2>
+      {%- endif -%}
+
+      {%- if s.subtitle != blank -%}
+        <div class="q-svcs__subtitle rte">
+          {{ s.subtitle }}
+        </div>
+      {%- endif -%}
+    </header>
+
+    <ul class="q-svcs__list" role="list">
+      {%- for block in blocks -%}
+        {%- liquid
+          assign b = block.settings
+
+          assign has_name = false
+          if b.name != blank
+            assign has_name = true
+          endif
+          if has_name == false
+            continue
+          endif
+
+          assign has_desc = false
+          if b.short_description != blank
+            assign has_desc = true
+          endif
+
+          assign has_price = false
+          if b.price_label != blank
+            assign has_price = true
+          endif
+
+          assign has_service_cta = false
+          if show_cta_per_service and b.service_cta_label != blank and b.service_cta_url != blank
+            assign has_service_cta = true
+          endif
+
+          assign icon_asset = blank
+          if b.icon_library != blank and b.icon_name != blank
+            assign icon_asset = 'icons/' | append: b.icon_library | append: '/' | append: b.icon_name | append: '.svg'
+          endif
+
+          assign has_icon = false
+          if icon_asset != blank
+            assign has_icon = true
+          endif
+
+          assign has_image = false
+          if b.image != blank
+            assign has_image = true
+          endif
+        -%}
+
+        <li class="q-svc" {{ block.shopify_attributes }}>
+          {%- if layout == 'list' -%}
+            <div class="q-svc__row">
+              <div class="q-svc__left">
+                {%- if has_image or has_icon -%}
+                  <div class="q-svc__media">
+                    {%- if has_image -%}
+                      {{ b.image
+                        | image_url: width: 900
+                        | image_tag:
+                          class: 'q-svc__img',
+                          loading: 'lazy',
+                          alt: b.name
+                      }}
+                    {%- else -%}
+                      <img
+                        class="q-svc__icon"
+                        src="{{ icon_asset | asset_url }}"
+                        loading="lazy"
+                        alt="{{ b.name | escape }}"
+                        width="{{ s.media_size_px }}"
+                        height="{{ s.media_size_px }}"
+                      >
+                    {%- endif -%}
+                  </div>
+                {%- endif -%}
+
+                <h3 class="q-svc__name">{{ b.name | escape }}</h3>
+
+                {%- if has_desc -%}
+                  <div class="q-svc__desc rte">
+                    {{ b.short_description }}
+                  </div>
+                {%- endif -%}
+              </div>
+
+              <div class="q-svc__right" data-price-col="{% if show_price_column %}1{% else %}0{% endif %}">
+                {%- if show_price_column -%}
+                  {%- if has_price -%}
+                    <div class="q-svc__price">
+                      <span class="q-svc__priceText">{{ b.price_label | escape }}</span>
+                    </div>
+                  {%- else -%}
+                    <div class="q-svc__price q-svc__price--empty" aria-hidden="true"></div>
+                  {%- endif -%}
+                {%- endif -%}
+
+                {%- if has_service_cta -%}
+                  <a
+                    class="q-button q-svc__cta"
+                    href="{{ b.service_cta_url }}"
+                    aria-label="{{ b.service_cta_label | escape }} — {{ b.name | escape }}"
+                  >
+                    <span class="q-button__label">{{ b.service_cta_label | escape }}</span>
+                  </a>
+                {%- endif -%}
+              </div>
+            </div>
+
+          {%- else -%}
+            <article class="q-svc__card">
+              {%- if has_image or has_icon -%}
+                <div class="q-svc__media">
+                  {%- if has_image -%}
+                    {{ b.image
+                      | image_url: width: 900
+                      | image_tag:
+                        class: 'q-svc__img',
+                        loading: 'lazy',
+                        alt: b.name
+                    }}
+                  {%- else -%}
+                    <img
+                      class="q-svc__icon"
+                      src="{{ icon_asset | asset_url }}"
+                      loading="lazy"
+                      alt="{{ b.name | escape }}"
+                      width="{{ s.media_size_px }}"
+                      height="{{ s.media_size_px }}"
+                    >
+                  {%- endif -%}
+                </div>
+              {%- endif -%}
+
+              <div class="q-svc__body">
+                <h3 class="q-svc__name">{{ b.name | escape }}</h3>
+
+                {%- if has_desc -%}
+                  <div class="q-svc__desc rte">
+                    {{ b.short_description }}
+                  </div>
+                {%- endif -%}
+
+                {%- if has_price -%}
+                  <div class="q-svc__price">
+                    <span class="q-svc__priceText">{{ b.price_label | escape }}</span>
+                  </div>
+                {%- endif -%}
+
+                {%- if has_service_cta -%}
+                  <a
+                    class="q-button q-svc__cta"
+                    href="{{ b.service_cta_url }}"
+                    aria-label="{{ b.service_cta_label | escape }} — {{ b.name | escape }}"
+                  >
+                    <span class="q-button__label">{{ b.service_cta_label | escape }}</span>
+                  </a>
+                {%- endif -%}
+              </div>
+            </article>
+          {%- endif -%}
+        </li>
+      {%- endfor -%}
+    </ul>
+
+    {%- if has_global_cta -%}
+      <div class="q-svcs__globalCta">
+        <a class="q-button q-svcs__globalBtn" href="{{ s.global_cta_url }}" aria-label="{{ s.global_cta_label | escape }}">
+          <span class="q-button__label">{{ s.global_cta_label | escape }}</span>
+        </a>
+      </div>
+    {%- endif -%}
+  </div>
+
+  <style>
+    .q-svcs { padding: var(--q-svcs-pad-y) var(--q-svcs-pad-x); }
+
+    .q-svcs__inner {
+      max-width: var(--q-svcs-maxw);
+      margin: 0 auto;
+      display: grid;
+      gap: var(--q-svcs-gap);
+    }
+
+    .q-svcs__header { display: grid; gap: 10px; }
+    .q-svcs__title { margin: 0; }
+    .q-svcs__subtitle { margin: 0; }
+
+    .q-svcs__list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: var(--q-svcs-gap);
+    }
+
+    /* LIST layout */
+    .q-svcs--list .q-svc {
+      background: var(--q-svcs-card-bg);
+      border: 1px solid var(--q-svcs-border);
+      border-radius: var(--q-svcs-radius);
+      box-shadow: var(--q-svcs-shadow);
+      overflow: hidden;
+    }
+
+    .q-svcs--list .q-svc__row {
+      display: flex;
+      align-items: stretch;
+      justify-content: space-between;
+      gap: var(--q-svcs-gap);
+      padding: var(--q-svcs-gap);
+      flex-wrap: wrap;
+    }
+
+    .q-svcs--list .q-svc__left {
+      flex: 1 1 360px;
+      min-width: 0;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .q-svcs--list .q-svc__right {
+      flex: 0 1 260px;
+      min-width: 220px;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+      justify-items: end;
+      text-align: right;
+    }
+
+    @media (max-width: 749px) {
+      .q-svcs--list .q-svc__right {
+        flex: 1 1 100%;
+        min-width: 0;
+        justify-items: start;
+        text-align: left;
+      }
+    }
+
+    /* GRID layout */
+    .q-svcs--grid .q-svcs__list { grid-template-columns: repeat(var(--q-grid-cols-m), minmax(0, 1fr)); }
+    @media (min-width: 750px) {
+      .q-svcs--grid .q-svcs__list { grid-template-columns: repeat(var(--q-grid-cols-t), minmax(0, 1fr)); }
+    }
+    @media (min-width: 990px) {
+      .q-svcs--grid .q-svcs__list { grid-template-columns: repeat(var(--q-grid-cols-d), minmax(0, 1fr)); }
+    }
+
+    .q-svcs--grid .q-svc__card {
+      height: 100%;
+      background: var(--q-svcs-card-bg);
+      border: 1px solid var(--q-svcs-border);
+      border-radius: var(--q-svcs-radius);
+      box-shadow: var(--q-svcs-shadow);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    /* Media sits above heading text (list + grid) */
+    .q-svc__media {
+      padding: var(--q-svcs-gap);
+      display: grid;
+      justify-items: start;
+      gap: 10px;
+    }
+
+    .q-svc__img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: calc(var(--q-svcs-radius) * 0.75);
+    }
+
+    /* NEW: Clamp list layout images so they don’t dominate */
+    .q-svcs--list .q-svc__media .q-svc__img {
+      width: 100%;
+      max-height: var(--q-svcs-list-img-h);
+      object-fit: cover;
+      display: block;
+    }
+
+    .q-svc__icon {
+      width: var(--q-svcs-media-size);
+      height: var(--q-svcs-media-size);
+      display: block;
+    }
+
+    .q-svcs--grid .q-svc__body {
+      padding: var(--q-svcs-gap);
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .q-svc__name {
+      margin: 0;
+      font-size: var(--q-svcs-name-size);
+      font-weight: var(--q-svcs-name-weight);
+    }
+
+    .q-svc__desc {
+      margin: 0;
+      font-size: var(--q-svcs-desc-size);
+    }
+
+    .q-svc__price {
+      font-size: var(--q-svcs-price-size);
+      font-weight: var(--q-svcs-price-weight);
+      min-height: 1.2em;
+    }
+
+    .q-svc__price--empty {
+      opacity: 0;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* q-button hook + fully customizable via scoped vars */
+    .q-svcs .q-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+
+      border-radius: var(--q-btn-radius);
+      font-size: var(--q-btn-font-size);
+      padding: var(--q-btn-pad-y) var(--q-btn-pad-x);
+
+      background: var(--q-btn-bg);
+      color: var(--q-btn-text);
+      border: var(--q-btn-border-w) solid var(--q-btn-border);
+
+      transition: background-color .15s ease, color .15s ease, border-color .15s ease, transform .15s ease;
+      max-width: 100%;
+      text-align: center;
+    }
+
+    .q-svcs .q-button:hover,
+    .q-svcs .q-button:focus-visible {
+      background: var(--q-btn-bg-hover);
+      color: var(--q-btn-text-hover);
+      border-color: var(--q-btn-border-hover);
+      transform: translateY(-1px);
+      outline: none;
+    }
+
+    .q-svcs__globalCta {
+      display: flex;
+      justify-content: flex-start;
+      margin-top: 6px;
+    }
+
+    .q-svc,
+    .q-svc__row,
+    .q-svc__left,
+    .q-svc__right,
+    .q-svc__body { min-width: 0; }
+
+    .q-svcs a { word-break: break-word; }
+  </style>
+</section>
+
+{% schema %}
+{
+  "name": "Services List",
+  "tag": "section",
+  "class": "q-section--interactive-services-list",
+  "settings": [
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "list",
+      "options": [
+        { "value": "list", "label": "List" },
+        { "value": "grid", "label": "Grid" }
+      ]
+    },
+
+    {
+      "type": "header",
+      "content": "Grid columns (grid only)"
+    },
+    {
+      "type": "range",
+      "id": "columns_desktop",
+      "label": "Columns (desktop)",
+      "min": 2,
+      "max": 4,
+      "step": 1,
+      "default": 3
+    },
+    {
+      "type": "range",
+      "id": "columns_tablet",
+      "label": "Columns (tablet)",
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "default": 2
+    },
+    {
+      "type": "range",
+      "id": "columns_mobile",
+      "label": "Columns (mobile)",
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "default": 1
+    },
+
+    {
+      "type": "header",
+      "content": "Display options"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_price_column",
+      "label": "Show price column (list layout)",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_cta_per_service",
+      "label": "Show CTA per service",
+      "default": true
+    },
+
+    {
+      "type": "header",
+      "content": "Section header"
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title",
+      "default": "Our Services"
+    },
+    {
+      "type": "richtext",
+      "id": "subtitle",
+      "label": "Subtitle",
+    },
+
+    {
+      "type": "header",
+      "content": "Global CTA (optional)"
+    },
+    {
+      "type": "text",
+      "id": "global_cta_label",
+      "label": "Global CTA label",
+    },
+    {
+      "type": "url",
+      "id": "global_cta_url",
+      "label": "Global CTA URL",
+    },
+
+    {
+      "type": "header",
+      "content": "Standard controls (max width + padding)"
+    },
+    {
+      "type": "select",
+      "id": "max_width_unit",
+      "label": "Max width unit",
+      "default": "px",
+      "options": [
+        { "value": "px", "label": "px" },
+        { "value": "rem", "label": "rem" },
+        { "value": "percent", "label": "%" },
+        { "value": "vw", "label": "vw" }
+      ]
+    },
+    {
+      "type": "number",
+      "id": "max_width_px",
+      "label": "Max width (px) — used when unit is px",
+      "default": 1200
+    },
+    {
+      "type": "range",
+      "id": "max_width_rem",
+      "label": "Max width (rem) — used when unit is rem",
+      "min": 20,
+      "max": 100,
+      "step": 1,
+      "default": 72
+    },
+    {
+      "type": "range",
+      "id": "max_width_percent",
+      "label": "Max width (%) — used when unit is %",
+      "min": 50,
+      "max": 100,
+      "step": 1,
+      "default": 100
+    },
+    {
+      "type": "range",
+      "id": "max_width_vw",
+      "label": "Max width (vw) — used when unit is vw",
+      "min": 50,
+      "max": 100,
+      "step": 1,
+      "default": 100
+    },
+    {
+      "type": "number",
+      "id": "pad_y_px",
+      "label": "Padding Y (px)",
+      "default": 56
+    },
+    {
+      "type": "number",
+      "id": "pad_x_px",
+      "label": "Padding X (px)",
+      "default": 18
+    },
+    {
+      "type": "number",
+      "id": "gap_px",
+      "label": "Gap (px)",
+      "default": 18
+    },
+
+    {
+      "type": "header",
+      "content": "Media"
+    },
+    {
+      "type": "number",
+      "id": "media_size_px",
+      "label": "Icon size (px)",
+      "default": 34
+    },
+    {
+      "type": "number",
+      "id": "list_image_max_h_px",
+      "label": "List image max height (px)",
+      "default": 140
+    },
+
+    {
+      "type": "header",
+      "content": "Design system"
+    },
+    {
+      "type": "checkbox",
+      "id": "use_custom_colors",
+      "label": "Use custom colors (scoped variables)",
+      "default": true
+    },
+    {
+      "type": "color",
+      "id": "card_bg",
+      "label": "Service background",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "border_color",
+      "label": "Border color",
+      "default": "#e6e6e6"
+    },
+    {
+      "type": "number",
+      "id": "radius_px",
+      "label": "Radius (px)",
+      "default": 16
+    },
+    {
+      "type": "text",
+      "id": "shadow_strength",
+      "label": "Shadow strength (CSS box-shadow value)",
+      "default": "0 10px 30px rgba(0,0,0,.06)"
+    },
+
+    {
+      "type": "header",
+      "content": "Typography"
+    },
+    {
+      "type": "number",
+      "id": "name_font_size_px",
+      "label": "Service name font size (px)",
+      "default": 18
+    },
+    {
+      "type": "range",
+      "id": "name_font_weight",
+      "label": "Service name font weight",
+      "min": 400,
+      "max": 800,
+      "step": 50,
+      "default": 650
+    },
+    {
+      "type": "number",
+      "id": "desc_font_size_px",
+      "label": "Description font size (px)",
+      "default": 14
+    },
+    {
+      "type": "number",
+      "id": "price_font_size_px",
+      "label": "Price font size (px)",
+      "default": 14
+    },
+    {
+      "type": "range",
+      "id": "price_font_weight",
+      "label": "Price font weight",
+      "min": 400,
+      "max": 800,
+      "step": 50,
+      "default": 650
+    },
+
+    {
+      "type": "header",
+      "content": "Button (q-button) — fully customizable"
+    },
+    {
+      "type": "color",
+      "id": "btn_bg",
+      "label": "Button background",
+      "default": "#111111"
+    },
+    {
+      "type": "color",
+      "id": "btn_text",
+      "label": "Button text",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "btn_border",
+      "label": "Button border",
+      "default": "#111111"
+    },
+    {
+      "type": "color",
+      "id": "btn_bg_hover",
+      "label": "Button background (hover)",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "btn_text_hover",
+      "label": "Button text (hover)",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "btn_border_hover",
+      "label": "Button border (hover)",
+      "default": "#000000"
+    },
+    {
+      "type": "number",
+      "id": "btn_radius_px",
+      "label": "Button radius (px)",
+      "default": 999
+    },
+    {
+      "type": "number",
+      "id": "btn_font_size_px",
+      "label": "Button font size (px)",
+      "default": 14
+    },
+    {
+      "type": "number",
+      "id": "btn_pad_y_px",
+      "label": "Button padding Y (px)",
+      "default": 10
+    },
+    {
+      "type": "number",
+      "id": "btn_pad_x_px",
+      "label": "Button padding X (px)",
+      "default": 16
+    },
+    {
+      "type": "number",
+      "id": "btn_border_w_px",
+      "label": "Button border width (px)",
+      "default": 1
+    }
+  ],
+  "blocks": [
+    {
+      "type": "service",
+      "name": "Service",
+      "settings": [
+        {
+          "type": "header",
+          "content": "Media (optional)"
+        },
+        {
+          "type": "select",
+          "id": "icon_library",
+          "label": "Icon library (asset folder)",
+          "default": "lucide",
+          "options": [
+            { "value": "lucide", "label": "Lucide" },
+            { "value": "tabler", "label": "Tabler" }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "icon_name",
+          "label": "Icon name (SVG filename without .svg)",
+          "info": "Uses assets/icons/{library}/{name}.svg. Leave blank to hide icon.",
+        },
+        {
+          "type": "image_picker",
+          "id": "image",
+          "label": "Image (optional)"
+        },
+        {
+          "type": "header",
+          "content": "Content"
+        },
+        {
+          "type": "text",
+          "id": "name",
+          "label": "Service name",
+        },
+        {
+          "type": "richtext",
+          "id": "short_description",
+          "label": "Short description",
+        },
+        {
+          "type": "text",
+          "id": "price_label",
+          "label": "Price label (optional)",
+        },
+        {
+          "type": "header",
+          "content": "Service CTA (optional)"
+        },
+        {
+          "type": "text",
+          "id": "service_cta_label",
+          "label": "CTA label",
+        },
+        {
+          "type": "url",
+          "id": "service_cta_url",
+          "label": "CTA URL",
+
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Interactive Content Helpers - Services List (Grid & List)",
+      "category": "Interactive Content Helpers"
+    }
+  ]
+}
+{% endschema %}
