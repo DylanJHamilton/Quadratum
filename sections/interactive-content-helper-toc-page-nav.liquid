@@ -1,0 +1,558 @@
+{% comment %}
+  Quadratum — Interactive · Table of Contents & In-Page Nav
+  File: sections/interactive-content-helper-toc-page-nav.liquid
+
+  Premium by default:
+  - token + CSS-var driven, scoped styles
+  - accessible disclosure + focus
+  - progressive enhancement: works without JS
+  - auto mode: JS DOM scan for H2/H3 (optional)
+{% endcomment %}
+
+{%- liquid
+  assign mode = section.settings.mode
+  assign position = section.settings.position
+  assign collapse_on_mobile = section.settings.collapse_on_mobile
+
+  assign blocks = section.blocks | where: 'type', 'item'
+  assign item_count = blocks.size
+
+  assign should_render = false
+  if mode == 'manual' and item_count > 0
+    assign should_render = true
+  elsif mode == 'auto_blog_headings'
+    assign should_render = true
+  endif
+
+  if should_render == false
+    break
+  endif
+
+  assign title = section.settings.title
+  if title == blank
+    assign title = 'On this page'
+  endif
+
+  assign shadow_strength = section.settings.shadow_strength | default: 1
+-%}
+
+<section
+  class="q-section q-toc q-toc--{{ position }}"
+  data-q-toc
+  data-q-toc-mode="{{ mode }}"
+  data-q-toc-max-depth="{{ section.settings.max_depth }}"
+  data-q-toc-offset="{{ section.settings.scroll_offset }}"
+  data-q-toc-smooth="{{ section.settings.enable_smooth_scroll }}"
+  data-q-toc-active="{{ section.settings.enable_active_highlight }}"
+  style="
+    /* layout */
+    --q-toc-maxw: {{ section.settings.max_width }}px;
+    --q-toc-pad-y: {{ section.settings.pad_y }}px;
+    --q-toc-pad-x: {{ section.settings.pad_x }}px;
+    --q-toc-gap: {{ section.settings.gap }}px;
+    --q-toc-indent-step: {{ section.settings.indent_step }}px;
+    --q-toc-radius: {{ section.settings.radius }}px;
+
+    /* type */
+    --q-toc-title-fs: {{ section.settings.title_fs }}px;
+    --q-toc-title-fw: {{ section.settings.title_fw }};
+    --q-toc-item-fs: {{ section.settings.item_fs }}px;
+    --q-toc-item-fw: {{ section.settings.item_fw }};
+
+    /* shadow */
+    --q-toc-shadow-strength: {{ shadow_strength }};
+
+    {% if section.settings.use_custom_colors %}
+      --q-toc-bg: {{ section.settings.c_bg }};
+      --q-toc-text: {{ section.settings.c_text }};
+      --q-toc-muted: {{ section.settings.c_muted }};
+      --q-toc-accent: {{ section.settings.c_accent }};
+      --q-toc-border: {{ section.settings.c_border }};
+    {% endif %}
+  "
+>
+  <style>
+    /* ------------------------------
+      Quadratum TOC — Scoped Premium UI
+      Nothing global. Everything lives under .q-toc.
+    -------------------------------- */
+
+    .q-toc {
+      /* fallbacks to Quadratum tokens */
+      --q-toc-bg: var(--q-surface, transparent);
+      --q-toc-text: var(--q-text, currentColor);
+      --q-toc-muted: var(--q-muted, rgba(0,0,0,.65));
+      --q-toc-accent: var(--q-accent, currentColor);
+      --q-toc-border: var(--q-border, rgba(0,0,0,.12));
+
+      --q-toc-ring: color-mix(in srgb, var(--q-toc-accent) 28%, transparent);
+      --q-toc-hover: color-mix(in srgb, var(--q-toc-accent) 8%, transparent);
+      --q-toc-active: color-mix(in srgb, var(--q-toc-accent) 12%, transparent);
+
+      color: var(--q-toc-text);
+    }
+
+    .q-toc__inner {
+      max-width: var(--q-toc-maxw);
+      margin: 0 auto;
+      padding: var(--q-toc-pad-y) var(--q-toc-pad-x);
+
+      background: var(--q-toc-bg);
+      border: 1px solid var(--q-toc-border);
+      border-radius: var(--q-toc-radius);
+      overflow: clip;
+    }
+
+    /* premium shadow tiers */
+    .q-toc__inner {
+      box-shadow: none;
+    }
+    .q-toc[style*="--q-toc-shadow-strength: 1"] .q-toc__inner {
+      box-shadow: var(--q-shadow-1, 0 10px 30px rgba(0,0,0,.08));
+    }
+    .q-toc[style*="--q-toc-shadow-strength: 2"] .q-toc__inner {
+      box-shadow: var(--q-shadow-2, 0 14px 40px rgba(0,0,0,.12));
+    }
+    .q-toc[style*="--q-toc-shadow-strength: 3"] .q-toc__inner {
+      box-shadow: var(--q-shadow-3, 0 18px 54px rgba(0,0,0,.16));
+    }
+
+    /* header */
+    .q-toc__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .q-toc__title {
+      font-size: var(--q-toc-title-fs);
+      font-weight: var(--q-toc-title-fw);
+      letter-spacing: var(--q-heading-ls, 0);
+      line-height: 1.2;
+    }
+
+    /* nav list */
+    .q-toc__nav { margin-top: 10px; }
+
+    .q-toc__list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+
+      display: flex;
+      flex-direction: column;
+      gap: var(--q-toc-gap);
+    }
+
+    .q-toc__item { margin: 0; padding: 0; }
+
+    .q-toc__link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+
+      padding: 10px 12px;
+      border-radius: calc(var(--q-toc-radius) - 4px);
+
+      text-decoration: none;
+      color: var(--q-toc-text);
+
+      font-size: var(--q-toc-item-fs);
+      font-weight: var(--q-toc-item-fw);
+      line-height: 1.25;
+
+      border: 1px solid transparent;
+      background: transparent;
+
+      transition: background .15s ease, border-color .15s ease, transform .15s ease;
+      transform: translateZ(0);
+    }
+
+    .q-toc__link:hover {
+      background: var(--q-toc-hover);
+      border-color: color-mix(in srgb, var(--q-toc-border) 70%, transparent);
+    }
+
+    .q-toc__link:active {
+      transform: scale(.99);
+    }
+
+    .q-toc__link:focus-visible {
+      outline: none;
+      border-color: var(--q-toc-accent);
+      box-shadow: 0 0 0 3px var(--q-toc-ring);
+      background: var(--q-toc-hover);
+    }
+
+    /* active indicator (premium: left rail + dot) */
+    .q-toc__link.is-active {
+      background: var(--q-toc-active);
+      border-color: color-mix(in srgb, var(--q-toc-accent) 45%, var(--q-toc-border));
+      position: relative;
+    }
+
+    .q-toc__link.is-active::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--q-toc-accent);
+      flex: 0 0 auto;
+    }
+
+    .q-toc__link.is-active::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 10px;
+      bottom: 10px;
+      width: 3px;
+      border-radius: 999px;
+      background: var(--q-toc-accent);
+      opacity: .9;
+    }
+
+    /* indentation */
+    .q-toc__item.q-indent--0 .q-toc__link { padding-left: 12px; }
+    .q-toc__item.q-indent--1 .q-toc__link { padding-left: calc(12px + var(--q-toc-indent-step)); }
+    .q-toc__item.q-indent--2 .q-toc__link { padding-left: calc(12px + (var(--q-toc-indent-step) * 2)); }
+
+    /* disclosure */
+    .q-toc__disclosure { border: 0; padding: 0; margin: 0; }
+
+    .q-toc__summary {
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+
+      padding: 10px 2px;
+      border-radius: calc(var(--q-toc-radius) - 6px);
+    }
+    .q-toc__summary::-webkit-details-marker { display: none; }
+
+    .q-toc__toggle {
+      font-size: var(--q-toc-item-fs);
+      color: var(--q-toc-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .q-toc__toggle-open { display: inline; }
+    .q-toc__toggle-close { display: none; }
+    .q-toc__disclosure[open] .q-toc__toggle-open { display: none; }
+    .q-toc__disclosure[open] .q-toc__toggle-close { display: inline; }
+
+    .q-toc__panel { margin-top: 10px; }
+
+    /* sticky sidebar */
+    .q-toc--sticky_sidebar .q-toc__inner {
+      position: sticky;
+      top: var(--q-sticky-top, 16px);
+    }
+
+    @media (max-width: 749px) {
+      .q-toc__inner { max-width: 100%; }
+      /* in sidebar modes, still looks like a premium inline block */
+    }
+  </style>
+
+  <div class="q-toc__inner">
+    {%- capture toc_list -%}
+      <nav class="q-toc__nav" aria-label="{{ title | escape }}">
+        <ul class="q-toc__list" role="list" data-q-toc-list>
+          {%- if mode == 'manual' -%}
+            {%- for block in blocks -%}
+              {%- liquid
+                assign label = block.settings.label
+                assign anchor_id = block.settings.anchor_id
+                assign indent = block.settings.indent_level
+                if label == blank or anchor_id == blank
+                  continue
+                endif
+              -%}
+              <li class="q-toc__item q-indent--{{ indent }}" {{ block.shopify_attributes }}>
+                <a
+                  class="q-toc__link"
+                  href="#{{ anchor_id | strip | escape }}"
+                  data-q-toc-link
+                  data-q-toc-target="{{ anchor_id | strip | escape }}"
+                >
+                  <span class="q-toc__label">{{ label }}</span>
+                </a>
+              </li>
+            {%- endfor -%}
+          {%- endif -%}
+        </ul>
+      </nav>
+    {%- endcapture -%}
+
+    {%- if collapse_on_mobile -%}
+      <details class="q-toc__disclosure" data-q-toc-disclosure>
+        <summary class="q-toc__summary">
+          <span class="q-toc__title">{{ title }}</span>
+          <span class="q-toc__toggle">
+            <span class="q-toc__toggle-open">{{ section.settings.mobile_toggle_label }}</span>
+            <span class="q-toc__toggle-close">{{ section.settings.mobile_toggle_label_close }}</span>
+          </span>
+        </summary>
+        <div class="q-toc__panel">
+          {{ toc_list }}
+        </div>
+      </details>
+    {%- else -%}
+      <div class="q-toc__header">
+        <div class="q-toc__title">{{ title }}</div>
+      </div>
+      {{ toc_list }}
+    {%- endif -%}
+
+    <noscript>
+      {%- if mode == 'auto_blog_headings' -%}
+        <style>
+          .q-toc[data-q-toc-mode="auto_blog_headings"] { display:none !important; }
+        </style>
+      {%- endif -%}
+    </noscript>
+  </div>
+
+  <script>
+  (function () {
+    function slugify(str) {
+      return String(str || "")
+        .trim()
+        .toLowerCase()
+        .replace(/['"]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    }
+
+    function init(section) {
+      var mode = section.getAttribute("data-q-toc-mode") || "manual";
+      var offset = parseInt(section.getAttribute("data-q-toc-offset") || "0", 10) || 0;
+      var smooth = section.getAttribute("data-q-toc-smooth") === "true";
+      var active = section.getAttribute("data-q-toc-active") === "true";
+      var maxDepth = section.getAttribute("data-q-toc-max-depth") || "h2";
+
+      var list = section.querySelector("[data-q-toc-list]");
+      if (!list) return;
+
+      var targets = [];
+
+      if (mode === "auto_blog_headings") {
+        list.innerHTML = "";
+
+        var scope =
+          document.querySelector("main") ||
+          document.querySelector('[role="main"]') ||
+          document;
+
+        var selector = (maxDepth === "h2_h3") ? "h2, h3" : "h2";
+        var headings = Array.prototype.slice.call(scope.querySelectorAll(selector))
+          .filter(function(h){ return h && h.textContent && h.textContent.trim().length; });
+
+        headings.forEach(function (h) {
+          var level = (h.tagName === "H3") ? 1 : 0;
+
+          if (!h.id) {
+            var base = slugify(h.textContent);
+            if (!base) return;
+
+            var id = base;
+            var i = 2;
+            while (document.getElementById(id)) {
+              id = base + "-" + i++;
+            }
+            h.id = id;
+          }
+
+          var li = document.createElement("li");
+          li.className = "q-toc__item q-indent--" + Math.min(2, level);
+
+          var a = document.createElement("a");
+          a.className = "q-toc__link";
+          a.href = "#" + h.id;
+          a.setAttribute("data-q-toc-link", "");
+          a.setAttribute("data-q-toc-target", h.id);
+
+          var span = document.createElement("span");
+          span.className = "q-toc__label";
+          span.textContent = h.textContent.trim();
+
+          a.appendChild(span);
+          li.appendChild(a);
+          list.appendChild(li);
+
+          targets.push(h.id);
+        });
+
+        if (!targets.length) {
+          section.style.display = "none";
+          return;
+        }
+      } else {
+        var links = section.querySelectorAll("[data-q-toc-target]");
+        Array.prototype.forEach.call(links, function (a) {
+          var id = a.getAttribute("data-q-toc-target");
+          if (id) targets.push(id);
+        });
+        if (!targets.length) {
+          section.style.display = "none";
+          return;
+        }
+      }
+
+      if (smooth) {
+        section.addEventListener("click", function (e) {
+          var link = e.target && e.target.closest ? e.target.closest("[data-q-toc-link]") : null;
+          if (!link) return;
+
+          var id = link.getAttribute("data-q-toc-target");
+          if (!id) return;
+
+          var target = document.getElementById(id);
+          if (!target) return; /* degrade: normal anchor will still work */
+
+          e.preventDefault();
+
+          var y = target.getBoundingClientRect().top + window.pageYOffset - offset;
+          window.history.pushState(null, "", "#" + id);
+          window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+        });
+      }
+
+      if (active && "IntersectionObserver" in window) {
+        var tocLinks = section.querySelectorAll("[data-q-toc-link]");
+        var map = {};
+        Array.prototype.forEach.call(tocLinks, function (l) {
+          var id = l.getAttribute("data-q-toc-target");
+          if (id) map[id] = l;
+        });
+
+        function setActive(id) {
+          Array.prototype.forEach.call(tocLinks, function (l) { l.classList.remove("is-active"); });
+          if (map[id]) map[id].classList.add("is-active");
+        }
+
+        var io = new IntersectionObserver(function (entries) {
+          var visible = entries
+            .filter(function(en){ return en.isIntersecting; })
+            .sort(function(a,b){ return a.boundingClientRect.top - b.boundingClientRect.top; });
+
+          if (visible.length) setActive(visible[0].target.id);
+        }, {
+          root: null,
+          rootMargin: (-offset) + "px 0px -70% 0px",
+          threshold: [0.01, 0.1, 0.25]
+        });
+
+        targets.forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) io.observe(el);
+        });
+      }
+    }
+
+    var sections = document.querySelectorAll("[data-q-toc]");
+    Array.prototype.forEach.call(sections, init);
+  })();
+  </script>
+</section>
+
+{% schema %}
+{
+  "name": "Content - TOC/Nav",
+  "settings": [
+    { "type": "header", "content": "Mode" },
+    {
+      "type": "select",
+      "id": "mode",
+      "label": "Mode",
+      "default": "manual",
+      "options": [
+        { "value": "manual", "label": "Manual (blocks)" },
+        { "value": "auto_blog_headings", "label": "Auto (scan H2/H3 on page)" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "position",
+      "label": "Position / layout",
+      "default": "inline",
+      "options": [
+        { "value": "inline", "label": "Inline" },
+        { "value": "sidebar", "label": "Sidebar" },
+        { "value": "sticky_sidebar", "label": "Sticky sidebar" }
+      ]
+    },
+    { "type": "text", "id": "title", "label": "Title", "default": "On this page" },
+
+    { "type": "header", "content": "Mobile" },
+    { "type": "checkbox", "id": "collapse_on_mobile", "label": "Collapse on mobile", "default": true },
+    { "type": "text", "id": "mobile_toggle_label", "label": "Mobile toggle label (closed)", "default": "Show sections" },
+    { "type": "text", "id": "mobile_toggle_label_close", "label": "Mobile toggle label (open)", "default": "Hide sections" },
+
+    { "type": "header", "content": "Auto mode" },
+    {
+      "type": "select",
+      "id": "max_depth",
+      "label": "Max depth",
+      "default": "h2",
+      "options": [
+        { "value": "h2", "label": "H2 only" },
+        { "value": "h2_h3", "label": "H2 + H3" }
+      ]
+    },
+
+    { "type": "header", "content": "Scroll + Active" },
+    { "type": "range", "id": "scroll_offset", "label": "Scroll offset (px)", "min": 0, "max": 200, "step": 4, "default": 80 },
+    { "type": "checkbox", "id": "enable_smooth_scroll", "label": "Enable smooth scroll (JS)", "default": true },
+    { "type": "checkbox", "id": "enable_active_highlight", "label": "Enable active highlight (JS)", "default": true },
+
+    { "type": "header", "content": "Frame + spacing" },
+    { "type": "range", "id": "max_width", "label": "Max width (px)", "min": 320, "max": 1600, "step": 20, "default": 1100 },
+    { "type": "range", "id": "pad_y", "label": "Padding Y (px)", "min": 0, "max": 120, "step": 4, "default": 16 },
+    { "type": "range", "id": "pad_x", "label": "Padding X (px)", "min": 0, "max": 120, "step": 4, "default": 16 },
+    { "type": "range", "id": "gap", "label": "Item gap (px)", "min": 6, "max": 28, "step": 2, "default": 10 },
+    { "type": "range", "id": "indent_step", "label": "Indent step per level (px)", "min": 8, "max": 32, "step": 2, "default": 16 },
+
+    { "type": "header", "content": "Colors" },
+    { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors", "default": false },
+    { "type": "color", "id": "c_bg", "label": "Background", "default": "#ffffff" },
+    { "type": "color", "id": "c_text", "label": "Text", "default": "#111111" },
+    { "type": "color", "id": "c_muted", "label": "Muted text", "default": "#666666" },
+    { "type": "color", "id": "c_accent", "label": "Accent", "default": "#1A73E8" },
+    { "type": "color", "id": "c_border", "label": "Border", "default": "#E6E6E6" },
+
+    { "type": "header", "content": "Corners + shadow" },
+    { "type": "range", "id": "radius", "label": "Radius (px)", "min": 0, "max": 32, "step": 1, "default": 16 },
+    { "type": "range", "id": "shadow_strength", "label": "Shadow strength", "min": 0, "max": 3, "step": 1, "default": 1 },
+
+    { "type": "header", "content": "Typography" },
+    { "type": "range", "id": "title_fs", "label": "Title font size (px)", "min": 12, "max": 28, "step": 1, "default": 16 },
+    { "type": "range", "id": "title_fw", "label": "Title font weight", "min": 300, "max": 800, "step": 100, "default": 600 },
+    { "type": "range", "id": "item_fs", "label": "Item font size (px)", "min": 12, "max": 20, "step": 1, "default": 14 },
+    { "type": "range", "id": "item_fw", "label": "Item font weight", "min": 300, "max": 700, "step": 100, "default": 500 }
+  ],
+  "blocks": [
+    {
+      "type": "item",
+      "name": "Item",
+      "settings": [
+        { "type": "text", "id": "label", "label": "Label", "default": "Overview" },
+        { "type": "text", "id": "anchor_id", "label": "Anchor ID", "default": "overview", "info": "Must match an element ID on the page (e.g. overview, pricing, faq-shipping)." },
+        { "type": "range", "id": "indent_level", "label": "Indent level", "min": 0, "max": 2, "step": 1, "default": 0 }
+      ]
+    }
+  ],
+  "presets": [
+    { "name": "Interactive · Table of Contents & In-Page Nav", "category": "Interactive" }
+  ]
+}
+{% endschema %}

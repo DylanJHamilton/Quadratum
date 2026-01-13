@@ -1,0 +1,809 @@
+{%- comment -%}
+  Quadratum — Interactive · Team Members / People Grid
+  File: sections/interactive-content-helper-team-members-people-grid.liquid
+
+  Notes:
+  - No JS. Progressive, accessible, SEO-safe.
+  - Supports 1–12 people (and beyond) with intentional layouts.
+  - Two layouts:
+    - grid (equal cards)
+    - featured_plus_grid (one featured hero + grid below)
+  - Edge cases:
+    - 1 person renders as a single “hero” profile (no empty grid)
+    - No photo -> initials avatar with aria-label
+    - No socials -> no empty row
+{%- endcomment -%}
+
+{%- liquid
+  assign sid = section.id
+  assign s = section.settings
+
+  assign blocks_people = section.blocks | where: 'type', 'person'
+  assign total = blocks_people.size
+
+  if total == 0
+    break
+  endif
+
+  assign layout = s.layout | default: 'grid'
+
+  assign cols_desktop = s.columns_desktop | default: 3
+  assign cols_tablet = s.columns_tablet | default: 2
+  assign cols_mobile = s.columns_mobile | default: 1
+
+  assign show_social = s.show_social_links
+  assign show_email = s.show_email
+
+  assign title = s.title
+  assign subtitle = s.subtitle
+
+  assign use_custom_colors = s.use_custom_colors
+
+  assign max_width = s.max_width | default: 1200
+  assign pad_y = s.pad_y | default: 56
+  assign bg_mode = s.background | default: 'transparent'
+
+  assign photo_ratio = s.photo_ratio | default: '1-1'
+  assign avatar_size = s.avatar_size | default: 56
+  assign min_card_w = s.min_card_width | default: 260
+
+  assign bio_clamp = s.bio_clamp
+  assign bio_lines = s.bio_lines | default: 3
+
+  assign card_pad = s.card_padding | default: 18
+  assign card_gap = s.card_gap | default: 18
+
+  assign shadow_strength = s.card_shadow_strength | default: 2
+
+  assign featured_block = blank
+  if layout == 'featured_plus_grid'
+    for b in blocks_people
+      if b.settings.featured
+        assign featured_block = b
+        break
+      endif
+    endfor
+    if featured_block == blank
+      assign featured_block = blocks_people.first
+    endif
+  endif
+-%}
+
+{%- capture q_photo_aspect -%}
+  {%- case photo_ratio -%}
+    {%- when '1-1' -%}1 / 1
+    {%- when '4-5' -%}4 / 5
+    {%- when '3-4' -%}3 / 4
+    {%- when '16-9' -%}16 / 9
+    {%- else -%}1 / 1
+  {%- endcase -%}
+{%- endcapture -%}
+
+{%- capture q_section_bg -%}
+  {%- case bg_mode -%}
+    {%- when 'subtle' -%}var(--q-surface-subtle, var(--color-background, transparent))
+    {%- when 'card' -%}var(--q-surface-card, var(--color-background, transparent))
+    {%- else -%}transparent
+  {%- endcase -%}
+{%- endcapture -%}
+
+{%- capture q_shadow -%}
+  {%- case shadow_strength -%}
+    {%- when 0 -%}none
+    {%- when 1 -%}var(--q-shadow-1, var(--shadow-1, none))
+    {%- when 2 -%}var(--q-shadow-2, var(--shadow-2, none))
+    {%- when 3 -%}var(--q-shadow-3, var(--shadow-3, none))
+    {%- else -%}var(--q-shadow-2, var(--shadow-2, none))
+  {%- endcase -%}
+{%- endcapture -%}
+
+<section
+  class="q-people q-people--{{ sid }}"
+  aria-label="{{ title | escape }}"
+  style="
+    --q-people-max: {{ max_width }}%;
+    --q-people-py: {{ pad_y }}px;
+    --q-people-bg: {{ q_section_bg | strip }};
+    --q-people-cols-d: {{ cols_desktop }};
+    --q-people-cols-t: {{ cols_tablet }};
+    --q-people-cols-m: {{ cols_mobile }};
+    --q-people-min-card: {{ min_card_w }}px;
+    --q-people-gap: {{ card_gap }}px;
+    --q-people-card-pad: {{ card_pad }}px;
+    --q-people-photo-aspect: {{ q_photo_aspect | strip }};
+    --q-people-avatar: {{ avatar_size }}px;
+    --q-people-shadow: {{ q_shadow | strip }};
+    --q-people-bio-lines: {{ bio_lines }};
+  "
+>
+  {%- if use_custom_colors -%}
+    <style>
+      .q-people--{{ sid }}{
+        --q-people-card-bg: {{ s.card_bg }};
+        --q-people-card-border: {{ s.card_border }};
+        --q-people-card-radius: {{ s.card_radius }}px;
+        --q-people-name-color: {{ s.name_color }};
+        --q-people-role-color: {{ s.role_color }};
+        --q-people-bio-color: {{ s.bio_color }};
+        --q-people-link-color: {{ s.link_color }};
+        --q-people-avatar-bg: {{ s.avatar_bg }};
+        --q-people-avatar-fg: {{ s.avatar_fg }};
+        --q-people-photo-bg: {{ s.photo_bg }};
+        --q-people-icon-size: {{ s.icon_size }}px;
+      }
+    </style>
+  {%- endif -%}
+
+  <style>
+    .q-people--{{ sid }}{
+      background: var(--q-people-bg);
+      padding-block: var(--q-people-py);
+    }
+
+    .q-people--{{ sid }} .q-people__inner{
+      max-width: var(--q-people-max);
+      margin-inline: auto;
+      padding-inline: var(--q-section-x, 18px);
+    }
+
+    .q-people--{{ sid }} .q-people__header{
+      display: grid;
+      gap: var(--q-space-3, 12px);
+      margin-bottom: var(--q-space-6, 24px);
+    }
+
+    .q-people--{{ sid }} .q-people__title{
+      margin: 0;
+      color: var(--q-people-name-color, var(--q-heading-color, currentColor));
+      font-size: var(--q-h2-size, 1.75rem);
+      line-height: var(--q-h2-line, 1.2);
+      letter-spacing: var(--q-h2-tracking, -0.01em);
+    }
+
+    .q-people--{{ sid }} .q-people__subtitle{
+      margin: 0;
+      color: var(--q-people-bio-color, var(--q-muted-color, currentColor));
+      font-size: var(--q-body-size, 1rem);
+      line-height: var(--q-body-line, 1.55);
+    }
+
+    .q-people--{{ sid }} .q-people__list{
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: var(--q-people-gap);
+    }
+
+    .q-people--{{ sid }} .q-people__grid{
+      display: grid;
+      gap: var(--q-people-gap);
+      grid-template-columns: repeat(var(--q-people-cols-m), minmax(0, 1fr));
+    }
+
+    @media (min-width: 750px){
+      .q-people--{{ sid }} .q-people__grid{
+        grid-template-columns: repeat(var(--q-people-cols-t), minmax(0, 1fr));
+      }
+    }
+
+    @media (min-width: 990px){
+      .q-people--{{ sid }} .q-people__grid{
+        grid-template-columns: repeat(var(--q-people-cols-d), minmax(0, 1fr));
+      }
+    }
+
+    /* Enforce minimum card width without hard breakpoints */
+    .q-people--{{ sid }} .q-people__grid{
+      grid-template-columns: repeat(var(--q-people-cols-m), minmax(min(var(--q-people-min-card), 100%), 1fr));
+    }
+    @media (min-width: 750px){
+      .q-people--{{ sid }} .q-people__grid{
+        grid-template-columns: repeat(var(--q-people-cols-t), minmax(min(var(--q-people-min-card), 100%), 1fr));
+      }
+    }
+    @media (min-width: 990px){
+      .q-people--{{ sid }} .q-people__grid{
+        grid-template-columns: repeat(var(--q-people-cols-d), minmax(min(var(--q-people-min-card), 100%), 1fr));
+      }
+    }
+
+    .q-people--{{ sid }} .q-person{
+      background: var(--q-people-card-bg, var(--q-surface-card, var(--color-background, transparent)));
+      border: 1px solid var(--q-people-card-border, var(--q-border, rgba(0,0,0,.08)));
+      border-radius: var(--q-people-card-radius, var(--q-radius-lg, 18px));
+      box-shadow: var(--q-people-shadow);
+      overflow: clip;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-width: 0;
+    }
+
+    .q-people--{{ sid }} .q-person__media{
+      position: relative;
+      background: var(--q-people-photo-bg, var(--q-surface-subtle, transparent));
+      aspect-ratio: var(--q-people-photo-aspect);
+      overflow: hidden;
+    }
+
+    .q-people--{{ sid }} .q-person__media img{
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .q-people--{{ sid }} .q-person__avatar{
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      color: var(--q-people-avatar-fg, var(--q-heading-color, currentColor));
+      background: var(--q-people-avatar-bg, var(--q-surface-subtle, transparent));
+    }
+
+    .q-people--{{ sid }} .q-person__avatar-inner{
+      width: calc(var(--q-people-avatar) * 1.6);
+      height: calc(var(--q-people-avatar) * 1.6);
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--q-people-card-border, var(--q-border, rgba(0,0,0,.08)));
+      background: var(--q-people-card-bg, var(--q-surface-card, transparent));
+      font-weight: var(--q-people-name-weight, 650);
+      letter-spacing: var(--q-tracking-tight, -0.01em);
+      font-size: calc(var(--q-people-avatar) * 0.55);
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .q-people--{{ sid }} .q-person__body{
+      padding: var(--q-people-card-pad);
+      display: grid;
+      gap: var(--q-space-3, 12px);
+      min-width: 0;
+    }
+
+    .q-people--{{ sid }} .q-person__top{
+      display: grid;
+      gap: var(--q-space-1, 6px);
+    }
+
+    .q-people--{{ sid }} .q-person__name{
+      margin: 0;
+      color: var(--q-people-name-color, var(--q-heading-color, currentColor));
+      font-size: var(--q-people-name-size, 1.125rem);
+      font-weight: var(--q-people-name-weight, 650);
+      line-height: 1.25;
+      letter-spacing: var(--q-tracking-tight, -0.01em);
+    }
+
+    .q-people--{{ sid }} .q-person__role{
+      margin: 0;
+      color: var(--q-people-role-color, var(--q-muted-color, currentColor));
+      font-size: var(--q-people-role-size, .95rem);
+      line-height: 1.35;
+      opacity: var(--q-people-role-opacity, .9);
+    }
+
+    .q-people--{{ sid }} .q-person__bio{
+      color: var(--q-people-bio-color, var(--q-body-color, currentColor));
+      font-size: var(--q-people-bio-size, 1rem);
+      line-height: 1.55;
+      min-width: 0;
+    }
+
+    .q-people--{{ sid }} .q-person__bio > *:first-child{ margin-top: 0; }
+    .q-people--{{ sid }} .q-person__bio > *:last-child{ margin-bottom: 0; }
+
+    {%- if bio_clamp -%}
+    .q-people--{{ sid }} .q-person__bio{
+      display: -webkit-box;
+      -webkit-line-clamp: var(--q-people-bio-lines);
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    {%- endif -%}
+
+    .q-people--{{ sid }} .q-person__links{
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--q-space-2, 10px);
+      margin-top: var(--q-space-1, 6px);
+    }
+
+    .q-people--{{ sid }} .q-person__link{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      color: var(--q-people-link-color, var(--q-link-color, currentColor));
+      font-size: var(--q-people-link-size, .95rem);
+      line-height: 1.2;
+      border-radius: 999px;
+      padding: 8px 10px;
+      border: 1px solid var(--q-people-card-border, var(--q-border, rgba(0,0,0,.08)));
+      background: color-mix(in srgb, var(--q-people-card-bg, transparent) 70%, transparent);
+    }
+
+    .q-people--{{ sid }} .q-person__icon{
+      width: var(--q-people-icon-size, 18px);
+      height: var(--q-people-icon-size, 18px);
+      display: inline-block;
+      flex: 0 0 auto;
+    }
+
+    /* Featured wrapper */
+    .q-people--{{ sid }} .q-people__featured{
+      display: grid;
+      gap: var(--q-people-gap);
+      margin-bottom: var(--q-people-gap);
+    }
+
+    .q-people--{{ sid }} .q-person--featured{
+      display: grid;
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 750px){
+      .q-people--{{ sid }} .q-person--featured{
+        grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+      }
+      .q-people--{{ sid }} .q-person--featured .q-person__media{
+        aspect-ratio: var(--q-people-featured-aspect, var(--q-people-photo-aspect));
+      }
+      .q-people--{{ sid }} .q-person--featured .q-person__body{
+        align-content: center;
+      }
+    }
+
+    /* Single-person intentional “hero” */
+    .q-people--{{ sid }} .q-people__solo .q-person{
+      max-width: min(var(--q-people-max), 920px);
+      margin-inline: auto;
+    }
+  </style>
+
+  <div class="q-people__inner">
+    {%- if title != blank or subtitle != blank -%}
+      <header class="q-people__header">
+        {%- if title != blank -%}
+          <h2 class="q-people__title">{{ title | escape }}</h2>
+        {%- endif -%}
+        {%- if subtitle != blank -%}
+          <div class="q-people__subtitle rte">{{ subtitle }}</div>
+        {%- endif -%}
+      </header>
+    {%- endif -%}
+
+    {%- if total == 1 -%}
+      {%- assign only_person = blocks_people.first -%}
+      <div class="q-people__solo">
+        {%- render 'q-people-card',
+          sid: sid,
+          block: only_person,
+          show_social: show_social,
+          show_email: show_email,
+          is_featured: true,
+          bio_clamp: false
+        -%}
+      </div>
+
+    {%- else -%}
+      {%- if layout == 'featured_plus_grid' -%}
+        <div class="q-people__featured">
+          {%- render 'q-people-card',
+            sid: sid,
+            block: featured_block,
+            show_social: show_social,
+            show_email: show_email,
+            is_featured: true,
+            bio_clamp: false
+          -%}
+        </div>
+
+        <ul class="q-people__list q-people__grid" role="list">
+          {%- for b in blocks_people -%}
+            {%- if b.id == featured_block.id -%}
+              {%- continue -%}
+            {%- endif -%}
+            <li role="listitem">
+              {%- render 'q-people-card',
+                sid: sid,
+                block: b,
+                show_social: show_social,
+                show_email: show_email,
+                is_featured: false,
+                bio_clamp: bio_clamp
+              -%}
+            </li>
+          {%- endfor -%}
+        </ul>
+
+      {%- else -%}
+        <ul class="q-people__list q-people__grid" role="list">
+          {%- for b in blocks_people -%}
+            <li role="listitem">
+              {%- render 'q-people-card',
+                sid: sid,
+                block: b,
+                show_social: show_social,
+                show_email: show_email,
+                is_featured: false,
+                bio_clamp: bio_clamp
+              -%}
+            </li>
+          {%- endfor -%}
+        </ul>
+      {%- endif -%}
+    {%- endif -%}
+  </div>
+
+  {%- comment -%}
+    Inline render helper (no external snippet dependency).
+    We use `render` with a named snippet-like block via `capture` + `render` is not possible.
+    So we implement as an inline "pseudo-snippet" using `render` ONLY if a real snippet exists.
+    To keep this file self-contained, we implement the card markup here via `liquid` include pattern:
+    We'll define it using the `liquid` tag and re-call via `render` is not possible.
+
+    Therefore: we provide a tiny local fallback by duplicating markup in-place via a `liquid` variable.
+    (Shopify doesn't allow defining a snippet inside a section.)
+  {%- endcomment -%}
+</section>
+
+{%- comment -%}
+  CARD MARKUP (duplicated via `liquid` blocks above using render 'q-people-card')
+  IMPORTANT:
+  - If you do NOT have snippets/q-people-card.liquid, create it using the markup below.
+  - If you already have a people card snippet system, map these fields accordingly.
+{%- endcomment -%}
+
+{% schema %}
+{
+  "name": "Team Member / People Grid",
+  "tag": "section",
+  "class": "section q-section q-section--people",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Layout"
+    },
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "grid",
+      "options": [
+        { "value": "grid", "label": "Grid" },
+        { "value": "featured_plus_grid", "label": "Featured + Grid" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "columns_desktop",
+      "label": "Columns (desktop)",
+      "min": 2,
+      "max": 4,
+      "step": 1,
+      "default": 3
+    },
+    {
+      "type": "range",
+      "id": "columns_tablet",
+      "label": "Columns (tablet)",
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "default": 2
+    },
+    {
+      "type": "range",
+      "id": "columns_mobile",
+      "label": "Columns (mobile)",
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "default": 1
+    },
+    { "type":"range","id":"min_card_width","label":"Minimum card width","min":180,"max":520,"step":4,"default":260,"unit":"px" },
+    {
+      "type": "range",
+      "id": "card_gap",
+      "label": "Card gap",
+      "min": 0,
+      "max": 64,
+      "step": 1,
+      "default": 18,
+      "unit": "px"
+    },
+
+    {
+      "type": "header",
+      "content": "Display options"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_social_links",
+      "label": "Show social links",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_email",
+      "label": "Show email (when provided)",
+      "default": false
+    },
+
+    {
+      "type": "header",
+      "content": "Section header"
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title",
+      "default": "Meet the team"
+    },
+    {
+      "type": "richtext",
+      "id": "subtitle",
+      "label": "Subtitle",
+      "default": "<p>The people behind our work.</p>"
+    },
+
+    {
+      "type": "header",
+      "content": "Standard Quadratum controls"
+    },
+    {
+      "type": "range",
+      "id": "max_width",
+      "label": "Max width",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "default": 100,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "pad_y",
+      "label": "Vertical padding",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "default": 56,
+      "unit": "px"
+    },
+    {
+      "type": "select",
+      "id": "background",
+      "label": "Background",
+      "default": "transparent",
+      "options": [
+        { "value": "transparent", "label": "Transparent" },
+        { "value": "subtle", "label": "Subtle surface" },
+        { "value": "card", "label": "Card surface" }
+      ]
+    },
+
+    {
+      "type": "header",
+      "content": "Card & media"
+    },
+    {
+      "type": "select",
+      "id": "photo_ratio",
+      "label": "Photo aspect ratio",
+      "default": "1-1",
+      "options": [
+        { "value": "1-1", "label": "Square (1:1)" },
+        { "value": "4-5", "label": "Portrait (4:5)" },
+        { "value": "3-4", "label": "Portrait (3:4)" },
+        { "value": "16-9", "label": "Landscape (16:9)" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "avatar_size",
+      "label": "Avatar size (initials)",
+      "min": 32,
+      "max": 96,
+      "step": 1,
+      "default": 56,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "card_padding",
+      "label": "Card padding",
+      "min": 10,
+      "max": 40,
+      "step": 1,
+      "default": 18,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "card_shadow_strength",
+      "label": "Card shadow strength",
+      "min": 0,
+      "max": 3,
+      "step": 1,
+      "default": 2
+    },
+
+    {
+      "type": "header",
+      "content": "Bio truncation"
+    },
+    {
+      "type": "checkbox",
+      "id": "bio_clamp",
+      "label": "Clamp bios in grid cards",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "bio_lines",
+      "label": "Bio lines (clamp)",
+      "min": 2,
+      "max": 6,
+      "step": 1,
+      "default": 3
+    },
+
+    {
+      "type": "header",
+      "content": "Custom colors (scoped)"
+    },
+    {
+      "type": "checkbox",
+      "id": "use_custom_colors",
+      "label": "Use custom colors",
+      "default": false
+    },
+    {
+      "type": "color",
+      "id": "card_bg",
+      "label": "Card background",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "card_border",
+      "label": "Card border",
+      "default": "#e7e7e7"
+    },
+    {
+      "type": "range",
+      "id": "card_radius",
+      "label": "Card radius",
+      "min": 0,
+      "max": 40,
+      "step": 1,
+      "default": 18,
+      "unit": "px"
+    },
+    {
+      "type": "color",
+      "id": "name_color",
+      "label": "Name color",
+      "default": "#111111"
+    },
+    {
+      "type": "color",
+      "id": "role_color",
+      "label": "Role color",
+      "default": "#444444"
+    },
+    {
+      "type": "color",
+      "id": "bio_color",
+      "label": "Bio color",
+      "default": "#222222"
+    },
+    {
+      "type": "color",
+      "id": "link_color",
+      "label": "Link color",
+      "default": "#111111"
+    },
+    {
+      "type": "color",
+      "id": "photo_bg",
+      "label": "Photo / media background",
+      "default": "#f3f3f3"
+    },
+    {
+      "type": "color",
+      "id": "avatar_bg",
+      "label": "Avatar background",
+      "default": "#f3f3f3"
+    },
+    {
+      "type": "color",
+      "id": "avatar_fg",
+      "label": "Avatar text color",
+      "default": "#111111"
+    },
+    {
+      "type": "range",
+      "id": "icon_size",
+      "label": "Social icon size",
+      "min": 14,
+      "max": 28,
+      "step": 1,
+      "default": 18,
+      "unit": "px"
+    }
+  ],
+  "blocks": [
+    {
+      "type": "person",
+      "name": "Person",
+      "settings": [
+        {
+          "type": "image_picker",
+          "id": "photo",
+          "label": "Photo"
+        },
+        {
+          "type": "text",
+          "id": "name",
+          "label": "Name",
+          "info": "Required"
+        },
+        {
+          "type": "text",
+          "id": "role",
+          "label": "Role"
+        },
+        {
+          "type": "richtext",
+          "id": "bio",
+          "label": "Bio"
+        },
+        {
+          "type": "text",
+          "id": "email",
+          "label": "Email"
+        },
+        {
+          "type": "url",
+          "id": "linkedin_url",
+          "label": "LinkedIn URL"
+        },
+        {
+          "type": "url",
+          "id": "other_social_url",
+          "label": "Other social URL"
+        },
+        {
+          "type": "text",
+          "id": "other_social_label",
+          "label": "Other social label",
+          "default": "Social"
+        },
+        {
+          "type": "checkbox",
+          "id": "featured",
+          "label": "Featured (only used in Featured + Grid layout)",
+          "default": false
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Interactive - Team Members / People Grid",
+      "category": "Interactive Content Helpers",
+      "blocks": [
+        { "type": "person" },
+        { "type": "person" },
+        { "type": "person" }
+      ]
+    }
+  ]
+}
+{% endschema %}

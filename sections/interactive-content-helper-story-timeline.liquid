@@ -1,0 +1,871 @@
+{%- comment -%}
+  Quadratum — Interactive · Story Timeline (Company History Tree) — PREMIUM STANDARD
+  File: sections/interactive-content-helper-story-timeline.liquid
+
+  Fixes applied (smoking guns):
+  - Removed rail "locked" override that broke mobile collapse
+  - Removed contradictory rail item resets (flex vs block wars)
+  - Moved stray CSS vars inside selector (prevents browser dropping CSS)
+  - Horizontal rail is now a coherent flex rail with true snap-stepping arrows
+  - Mobile collapse is deterministic: horizontal -> vertical stack, no overflow
+{%- endcomment -%}
+
+{%- liquid
+  assign sid = section.id
+  assign root_id = 'q-timeline-' | append: sid
+
+  assign items = section.blocks | where: 'type', 'milestone'
+  assign count = items.size
+  if count == 0
+    break
+  endif
+
+  assign orientation = section.settings.orientation | default: 'vertical'
+  assign v_align = section.settings.vertical_alignment | default: 'left'
+  assign show_line = section.settings.show_line_connector
+  assign marker_style = section.settings.marker_style | default: 'dot'
+
+  assign show_labels = section.settings.show_start_end_labels
+  assign start_label = section.settings.start_label
+  assign end_label = section.settings.end_label
+
+  assign card_style = section.settings.card_style | default: 'surface'
+  assign card_media_pos = section.settings.card_media_position | default: 'top'
+  assign show_card_media = section.settings.show_card_media
+  assign show_badges = section.settings.show_badges
+
+  assign max_width = section.settings.max_width
+  assign pad_y = section.settings.pad_y
+  assign pad_x = section.settings.pad_x
+  assign gap = section.settings.gap
+
+  assign use_custom_colors = section.settings.use_custom_colors
+
+  assign is_single = false
+  if count == 1
+    assign is_single = true
+  endif
+
+  assign is_horizontal = false
+  if orientation == 'horizontal'
+    assign is_horizontal = true
+  endif
+-%}
+
+<section
+  id="{{ root_id }}"
+  class="q-tl
+    {% if is_horizontal %} q-tl--horizontal{% else %} q-tl--vertical{% endif %}
+    {% if v_align == 'centered' %} q-tl--v-centered{% elsif v_align == 'alternating' %} q-tl--v-alt{% else %} q-tl--v-left{% endif %}
+    {% if is_single %} q-tl--single{% endif %}
+    {% if card_style == 'minimal' %} q-tl--card-minimal{% else %} q-tl--card-surface{% endif %}
+    {% if card_media_pos == 'left' %} q-tl--media-left{% else %} q-tl--media-top{% endif %}
+    {% if show_line %} q-tl--line-on{% else %} q-tl--line-off{% endif %}
+    {% if show_card_media %} q-tl--card-media-on{% else %} q-tl--card-media-off{% endif %}
+    {% if section.settings.show_accent_bar %} q-tl--accent-bar-on{% else %} q-tl--accent-bar-off{% endif %}
+    q-tl--marker-{{ marker_style }}
+  "
+  style="
+    --q-tl-maxw: {{ max_width }}px;
+    --q-tl-pad-y: {{ pad_y }}px;
+    --q-tl-pad-x: {{ pad_x }}px;
+    --q-tl-gap: {{ gap }}px;
+
+    --q-tl-line-w: {{ section.settings.tl_line_w }}px;
+    --q-tl-marker: {{ section.settings.tl_marker }}px;
+    --q-tl-card-pad: {{ section.settings.card_pad }}px;
+
+    --q-tl-radius: {{ section.settings.radius }}px;
+    --q-tl-shadow: {{ section.settings.shadow_strength }};
+    --q-tl-hover-lift: {{ section.settings.hover_lift }}px;
+
+    --q-tl-date-fs: {{ section.settings.date_fs }}px;
+    --q-tl-date-fw: {{ section.settings.date_fw }};
+    --q-tl-title-fs: {{ section.settings.milestone_title_fs }}px;
+    --q-tl-title-fw: {{ section.settings.milestone_title_fw }};
+    --q-tl-body-fs: {{ section.settings.body_fs }}px;
+    --q-tl-body-lh: {{ section.settings.body_lh }};
+    --q-tl-badge-fs: {{ section.settings.badge_fs }}px;
+
+    --q-tl-card-max: {{ section.settings.card_max_w }}px;
+    --q-tl-rail-card: {{ section.settings.rail_card_w }}px;
+
+    --q-tl-media-max-h: {{ section.settings.media_max_h }}px;
+    --q-tl-accent-bar-h: {{ section.settings.accent_bar_h }}px;
+
+    {% if use_custom_colors %}
+      --q-tl-bg: {{ section.settings.bg_color }};
+      --q-tl-text: {{ section.settings.text_color }};
+      --q-tl-muted: {{ section.settings.muted_color }};
+      --q-tl-accent: {{ section.settings.accent_color }};
+      --q-tl-surface: {{ section.settings.surface_color }};
+      --q-tl-border: {{ section.settings.border_color }};
+
+      --q-tl-line: {{ section.settings.line_color }};
+      --q-tl-marker-border: {{ section.settings.marker_border_color }};
+      --q-tl-marker-fill: {{ section.settings.marker_fill_color }};
+    {% endif %}
+  "
+>
+  <div class="q-tl__wrap">
+    {%- if section.settings.show_heading -%}
+      <header class="q-tl__head">
+        {%- if section.settings.title != blank -%}
+          <h2 class="q-tl__title">{{ section.settings.title }}</h2>
+        {%- endif -%}
+        {%- if section.settings.subtitle != blank -%}
+          <div class="q-tl__subtitle rte">{{ section.settings.subtitle }}</div>
+        {%- endif -%}
+      </header>
+    {%- endif -%}
+
+    {%- if show_labels and start_label != blank and is_single == false -%}
+      <div class="q-tl__cap q-tl__cap--start">{{ start_label }}</div>
+    {%- endif -%}
+
+    {%- if is_horizontal -%}
+      <div class="q-tl__rail" data-q-tl-rail>
+        <div class="q-tl__railTrack" data-q-tl-track role="list">
+          {%- for block in items -%}
+            {%- liquid
+              assign date = block.settings.year_or_date
+              assign ttl = block.settings.title
+              assign desc = block.settings.description
+              assign badge = block.settings.badge
+              assign icon_txt = block.settings.icon
+              assign img = block.settings.image
+              assign link_url = block.settings.link_url
+              assign link_label = block.settings.link_label
+
+              assign has_media = false
+              if marker_style == 'image' and img != blank
+                assign has_media = true
+              elsif marker_style == 'icon' and icon_txt != blank
+                assign has_media = true
+              endif
+            -%}
+
+            <article class="q-tl__item" role="listitem" {{ block.shopify_attributes }}>
+              <div class="q-tl__markerWrap" aria-hidden="true">
+                <span class="q-tl__marker">
+                  {%- if marker_style == 'image' and img != blank -%}
+                    <span class="q-tl__markerMedia">
+                      <img
+                        src="{{ img | image_url: width: 96 }}"
+                        alt=""
+                        loading="lazy"
+                        width="48"
+                        height="48"
+                      >
+                    </span>
+                  {%- elsif marker_style == 'icon' and icon_txt != blank -%}
+                    <span class="q-tl__markerIcon">{{ icon_txt }}</span>
+                  {%- else -%}
+                    <span class="q-tl__markerDot"></span>
+                  {%- endif -%}
+                </span>
+              </div>
+
+              <div class="q-tl__card{% if has_media %} has-media{% endif %}">
+                {%- if show_card_media and has_media -%}
+                  <div class="q-tl__cardMedia" aria-hidden="true">
+                    {%- if marker_style == 'image' and img != blank -%}
+                      <img
+                        src="{{ img | image_url: width: 1200 }}"
+                        alt=""
+                        loading="lazy"
+                        width="1200"
+                        height="800"
+                      >
+                    {%- elsif marker_style == 'icon' and icon_txt != blank -%}
+                      <span class="q-tl__cardIcon">{{ icon_txt }}</span>
+                    {%- endif -%}
+                  </div>
+                {%- endif -%}
+
+                <div class="q-tl__cardBody">
+                  {%- if date != blank -%}<div class="q-tl__date">{{ date }}</div>{%- endif -%}
+                  {%- if ttl != blank -%}<h3 class="q-tl__itemTitle">{{ ttl }}</h3>{%- endif -%}
+                  {%- if show_badges and badge != blank -%}<div class="q-tl__badge">{{ badge }}</div>{%- endif -%}
+                  {%- if desc != blank -%}<div class="q-tl__body rte">{{ desc }}</div>{%- endif -%}
+
+                  {%- if link_url != blank -%}
+                    <div class="q-tl__cta">
+                      <a class="q-tl__link" href="{{ link_url }}">
+                        {%- if link_label != blank -%}{{ link_label }}{%- else -%}Learn more{%- endif -%}
+                      </a>
+                    </div>
+                  {%- endif -%}
+                </div>
+              </div>
+            </article>
+          {%- endfor -%}
+        </div>
+
+        {%- if section.settings.show_horizontal_arrows -%}
+          <div class="q-tl__railNav no-js-hidden">
+            <button class="q-tl__navBtn" type="button" data-q-tl-prev aria-label="Previous milestones">‹</button>
+            <button class="q-tl__navBtn" type="button" data-q-tl-next aria-label="Next milestones">›</button>
+          </div>
+        {%- endif -%}
+      </div>
+
+    {%- else -%}
+      <div class="q-tl__stack">
+        {%- for block in items -%}
+          {%- liquid
+            assign date = block.settings.year_or_date
+            assign ttl = block.settings.title
+            assign desc = block.settings.description
+            assign badge = block.settings.badge
+            assign icon_txt = block.settings.icon
+            assign img = block.settings.image
+            assign link_url = block.settings.link_url
+            assign link_label = block.settings.link_label
+
+            assign is_right = false
+            if v_align == 'alternating'
+              assign mod = forloop.index0 | modulo: 2
+              if mod == 1
+                assign is_right = true
+              endif
+            endif
+
+            assign has_media = false
+            if marker_style == 'image' and img != blank
+              assign has_media = true
+            elsif marker_style == 'icon' and icon_txt != blank
+              assign has_media = true
+            endif
+          -%}
+
+          <article class="q-tl__row{% if is_right %} is-right{% endif %}" {{ block.shopify_attributes }}>
+            <div class="q-tl__markerCol" aria-hidden="true">
+              <span class="q-tl__marker">
+                {%- if marker_style == 'image' and img != blank -%}
+                  <span class="q-tl__markerMedia">
+                    <img
+                      src="{{ img | image_url: width: 96 }}"
+                      alt=""
+                      loading="lazy"
+                      width="48"
+                      height="48"
+                    >
+                  </span>
+                {%- elsif marker_style == 'icon' and icon_txt != blank -%}
+                  <span class="q-tl__markerIcon">{{ icon_txt }}</span>
+                {%- else -%}
+                  <span class="q-tl__markerDot"></span>
+                {%- endif -%}
+              </span>
+            </div>
+
+            <div class="q-tl__cardCol">
+              <div class="q-tl__card{% if has_media %} has-media{% endif %}">
+                {%- if show_card_media and has_media -%}
+                  <div class="q-tl__cardMedia" aria-hidden="true">
+                    {%- if marker_style == 'image' and img != blank -%}
+                      <img
+                        src="{{ img | image_url: width: 1200 }}"
+                        alt=""
+                        loading="lazy"
+                        width="1200"
+                        height="800"
+                      >
+                    {%- elsif marker_style == 'icon' and icon_txt != blank -%}
+                      <span class="q-tl__cardIcon">{{ icon_txt }}</span>
+                    {%- endif -%}
+                  </div>
+                {%- endif -%}
+
+                <div class="q-tl__cardBody">
+                  {%- if date != blank -%}<div class="q-tl__date">{{ date }}</div>{%- endif -%}
+                  {%- if ttl != blank -%}<h3 class="q-tl__itemTitle">{{ ttl }}</h3>{%- endif -%}
+                  {%- if show_badges and badge != blank -%}<div class="q-tl__badge">{{ badge }}</div>{%- endif -%}
+                  {%- if desc != blank -%}<div class="q-tl__body rte">{{ desc }}</div>{%- endif -%}
+
+                  {%- if link_url != blank -%}
+                    <div class="q-tl__cta">
+                      <a class="q-tl__link" href="{{ link_url }}">
+                        {%- if link_label != blank -%}{{ link_label }}{%- else -%}Learn more{%- endif -%}
+                      </a>
+                    </div>
+                  {%- endif -%}
+                </div>
+              </div>
+            </div>
+          </article>
+        {%- endfor -%}
+      </div>
+    {%- endif -%}
+
+    {%- if show_labels and end_label != blank and is_single == false -%}
+      <div class="q-tl__cap q-tl__cap--end">{{ end_label }}</div>
+    {%- endif -%}
+  </div>
+
+  <style>
+    /* ===== Root + safety containment ===== */
+    #{{ root_id }}{
+      --q-tl-bg: var(--q-color-bg, transparent);
+      --q-tl-text: var(--q-color-text, currentColor);
+      --q-tl-muted: var(--q-color-muted, rgba(0,0,0,.65));
+      --q-tl-accent: var(--q-color-accent, currentColor);
+      --q-tl-surface: var(--q-color-surface, rgba(0,0,0,.04));
+      --q-tl-border: var(--q-color-border, rgba(0,0,0,.14));
+
+      --q-tl-line: var(--q-tl-border);
+      --q-tl-marker-border: var(--q-tl-accent);
+      --q-tl-marker-fill: var(--q-tl-accent);
+
+      background: var(--q-tl-bg);
+      color: var(--q-tl-text);
+
+      /* critical: prevent child blowout from causing page overflow */
+      max-width: 100%;
+      overflow: clip;
+    }
+
+    #{{ root_id }} .q-tl__wrap{
+      max-width: var(--q-tl-maxw);
+      margin: 0 auto;
+      padding: var(--q-tl-pad-y) var(--q-tl-pad-x);
+      display: grid;
+      gap: var(--q-tl-gap);
+      min-width: 0;
+    }
+
+    #{{ root_id }} .q-tl__head{ display: grid; gap: 10px; text-align: left; }
+    #{{ root_id }}.q-tl--v-centered .q-tl__head{ text-align: center; justify-items: center; }
+
+    #{{ root_id }} .q-tl__title{ margin: 0; line-height: 1.1; }
+    #{{ root_id }} .q-tl__subtitle{ color: var(--q-tl-muted); }
+
+    #{{ root_id }} .q-tl__cap{ color: var(--q-tl-muted); font-size: 0.95em; letter-spacing: 0.02em; }
+    #{{ root_id }}.q-tl--v-centered .q-tl__cap{ text-align: center; justify-self: center; }
+
+    /* ===== Card ===== */
+    #{{ root_id }} .q-tl__card{
+      border-radius: var(--q-tl-radius);
+      border: 1px solid var(--q-tl-border);
+      background: var(--q-tl-surface);
+      box-shadow: 0 12px 38px rgba(0,0,0, calc(var(--q-tl-shadow) * 0.08));
+      overflow: hidden;
+      display: grid;
+      min-width: 0;
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+      will-change: transform;
+    }
+
+    #{{ root_id }}.q-tl--card-minimal .q-tl__card{ background: transparent; box-shadow: none; }
+
+    #{{ root_id }} .q-tl__card:hover{
+      transform: translateY(calc(var(--q-tl-hover-lift) * -1));
+      box-shadow: 0 16px 44px rgba(0,0,0, calc(var(--q-tl-shadow) * 0.10));
+      border-color: color-mix(in srgb, var(--q-tl-border) 65%, var(--q-tl-accent));
+    }
+
+    #{{ root_id }}.q-tl--accent-bar-on .q-tl__card::before{
+      content: "";
+      display: block;
+      height: var(--q-tl-accent-bar-h);
+      background: color-mix(in srgb, var(--q-tl-accent) 22%, transparent);
+    }
+
+    #{{ root_id }} .q-tl__cardMedia{
+      position: relative;
+      background: color-mix(in srgb, var(--q-tl-surface) 70%, transparent);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+
+    #{{ root_id }}.q-tl--media-top .q-tl__cardMedia{
+      aspect-ratio: 16 / 9;
+      max-height: var(--q-tl-media-max-h);
+    }
+
+    #{{ root_id }}.q-tl--media-left .q-tl__card{ grid-template-columns: 140px 1fr; }
+    #{{ root_id }}.q-tl--media-left .q-tl__cardMedia{ min-height: 100%; }
+
+    #{{ root_id }}.q-tl--card-media-off .q-tl__cardMedia{ display: none; }
+
+    #{{ root_id }} .q-tl__cardMedia img{
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    #{{ root_id }} .q-tl__cardBody{
+      padding: var(--q-tl-card-pad);
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    #{{ root_id }} .q-tl__date{
+      font-size: var(--q-tl-date-fs);
+      font-weight: var(--q-tl-date-fw);
+      color: var(--q-tl-muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    #{{ root_id }} .q-tl__itemTitle{
+      margin: 0;
+      font-size: var(--q-tl-title-fs);
+      font-weight: var(--q-tl-title-fw);
+      line-height: 1.15;
+      overflow-wrap: anywhere;
+    }
+
+    #{{ root_id }} .q-tl__body{
+      font-size: var(--q-tl-body-fs);
+      line-height: var(--q-tl-body-lh);
+      color: var(--q-tl-text);
+      overflow-wrap: anywhere;
+    }
+
+    #{{ root_id }} .q-tl__badge{
+      display: inline-flex;
+      width: fit-content;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: var(--q-tl-badge-fs);
+      line-height: 1.1;
+      border: 1px solid var(--q-tl-border);
+      background: color-mix(in srgb, var(--q-tl-accent) 10%, transparent);
+      color: var(--q-tl-text);
+    }
+
+    #{{ root_id }} .q-tl__link{
+      color: var(--q-tl-accent);
+      text-decoration: none;
+      font-weight: 650;
+    }
+    #{{ root_id }} .q-tl__link:hover{ text-decoration: underline; }
+
+    /* ===== Marker ===== */
+    #{{ root_id }} .q-tl__marker{
+      width: var(--q-tl-marker);
+      height: var(--q-tl-marker);
+      border-radius: 999px;
+      border: 2px solid var(--q-tl-marker-border);
+      background: var(--q-tl-bg);
+      display: grid;
+      place-items: center;
+      box-sizing: border-box;
+      overflow: hidden;
+      flex: none;
+      box-shadow: 0 10px 30px rgba(0,0,0, calc(var(--q-tl-shadow) * 0.05));
+    }
+
+    #{{ root_id }} .q-tl__markerDot{
+      width: calc(var(--q-tl-marker) * 0.38);
+      height: calc(var(--q-tl-marker) * 0.38);
+      border-radius: 999px;
+      background: var(--q-tl-marker-fill);
+      display: block;
+    }
+
+    #{{ root_id }} .q-tl__markerIcon{ font-size: calc(var(--q-tl-marker) * 0.55); line-height: 1; }
+    #{{ root_id }} .q-tl__markerMedia img{ width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    /* ===== Vertical ===== */
+    #{{ root_id }} .q-tl__stack{
+      display: grid;
+      gap: calc(var(--q-tl-gap) * 0.9);
+      position: relative;
+      padding-top: 2px;
+      padding-bottom: 2px;
+      min-width: 0;
+    }
+
+    #{{ root_id }} .q-tl__row{
+      display: grid;
+      grid-template-columns: 54px 1fr;
+      gap: 16px;
+      align-items: start;
+      position: relative;
+      min-width: 0;
+    }
+
+    #{{ root_id }} .q-tl__markerCol{
+      display: grid;
+      justify-items: center;
+      position: relative;
+      padding-top: 6px;
+    }
+
+    #{{ root_id }}.q-tl--vertical.q-tl--line-on .q-tl__stack::before{
+      content: "";
+      position: absolute;
+      left: 27px;
+      top: calc(var(--q-tl-marker) * 0.5);
+      bottom: calc(var(--q-tl-marker) * 0.5);
+      width: var(--q-tl-line-w);
+      background: var(--q-tl-line);
+      opacity: 0.9;
+    }
+
+    #{{ root_id }} .q-tl__cardCol{ max-width: min(var(--q-tl-card-max), 100%); min-width: 0; }
+
+    #{{ root_id }}.q-tl--vertical.q-tl--v-centered .q-tl__row{
+      grid-template-columns: 1fr;
+      justify-items: center;
+      text-align: center;
+    }
+    #{{ root_id }}.q-tl--vertical.q-tl--v-centered.q-tl--line-on .q-tl__stack::before{
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__row{
+      grid-template-columns: 1fr 54px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__markerCol{ grid-column: 2; }
+    #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__cardCol{ grid-column: 1; justify-self: end; }
+    #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__row.is-right .q-tl__cardCol{ grid-column: 3; justify-self: start; }
+    #{{ root_id }}.q-tl--vertical.q-tl--v-alt.q-tl--line-on .q-tl__stack::before{
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    #{{ root_id }}.q-tl--single.q-tl--vertical .q-tl__stack::before{ display: none; content: none; }
+    #{{ root_id }}.q-tl--single .q-tl__row{ grid-template-columns: 1fr; }
+    #{{ root_id }}.q-tl--single .q-tl__markerCol{ display: none; }
+
+    /* ===== Horizontal rail (premium, coherent) ===== */
+    #{{ root_id }} .q-tl__rail{ position: relative; min-width: 0; }
+
+    #{{ root_id }} .q-tl__railTrack{
+      display: flex;
+      gap: var(--q-tl-gap);
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 10px 6px 14px;
+      scroll-snap-type: x mandatory;
+      scroll-padding-left: 6px;
+      scroll-padding-right: 6px;
+      -webkit-overflow-scrolling: touch;
+      align-items: flex-start;
+      max-width: 100%;
+
+      -webkit-mask-image: linear-gradient(to right, transparent 0, #000 36px, #000 calc(100% - 36px), transparent 100%);
+      mask-image: linear-gradient(to right, transparent 0, #000 36px, #000 calc(100% - 36px), transparent 100%);
+    }
+
+    #{{ root_id }} .q-tl__item{
+      flex: 0 0 var(--q-tl-rail-card);
+      min-width: 0;
+      display: grid;
+      gap: 12px;
+      scroll-snap-align: start;
+    }
+
+    #{{ root_id }} .q-tl__markerWrap{ display: block; }
+
+    #{{ root_id }} .q-tl__railNav{
+      display: flex;
+      gap: 10px;
+      position: absolute;
+      right: 0;
+      top: -2px;
+    }
+
+    #{{ root_id }} .q-tl__navBtn{
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+      border: 1px solid var(--q-tl-border);
+      background: var(--q-tl-surface);
+      color: var(--q-tl-text);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 10px 30px rgba(0,0,0, calc(var(--q-tl-shadow) * 0.06));
+      transition: transform 180ms ease, border-color 180ms ease, opacity 180ms ease;
+    }
+    #{{ root_id }} .q-tl__navBtn:hover{
+      transform: translateY(-1px);
+      border-color: color-mix(in srgb, var(--q-tl-border) 65%, var(--q-tl-accent));
+    }
+    #{{ root_id }} .q-tl__navBtn[disabled]{ opacity: 0.45; cursor: default; transform: none; }
+
+    /* ===== Mobile: horizontal becomes vertical stack ===== */
+    @media (max-width: 749px){
+      #{{ root_id }}{ overflow: visible; }
+
+      #{{ root_id }}.q-tl--horizontal .q-tl__railTrack{
+        flex-direction: column;
+        overflow: visible;
+        padding: 0;
+        -webkit-mask-image: none;
+        mask-image: none;
+      }
+
+      #{{ root_id }}.q-tl--horizontal .q-tl__item{
+        flex: 0 0 auto;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      #{{ root_id }}.q-tl--horizontal .q-tl__railNav{ display: none; }
+
+      #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__row,
+      #{{ root_id }}.q-tl--vertical.q-tl--v-centered .q-tl__row{
+        grid-template-columns: 54px 1fr;
+        text-align: left;
+        justify-items: stretch;
+      }
+
+      #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__markerCol{ grid-column: 1; }
+      #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__cardCol,
+      #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__row.is-right .q-tl__cardCol{
+        grid-column: 2;
+        justify-self: stretch;
+      }
+
+      #{{ root_id }}.q-tl--vertical.q-tl--v-alt.q-tl--line-on .q-tl__stack::before,
+      #{{ root_id }}.q-tl--vertical.q-tl--v-centered.q-tl--line-on .q-tl__stack::before{
+        left: 27px;
+        transform: none;
+      }
+
+      #{{ root_id }}.q-tl--media-left .q-tl__card{ grid-template-columns: 1fr; }
+      #{{ root_id }}.q-tl--media-left .q-tl__cardMedia{
+        aspect-ratio: 16 / 9;
+        min-height: 0;
+        height: auto;
+        max-height: var(--q-tl-media-max-h);
+      }
+    }
+
+    /* Progressive enhancement */
+    #{{ root_id }} .no-js-hidden{ display: none; }
+    html.js #{{ root_id }} .no-js-hidden{ display: flex; }
+
+    /* RTE safety */
+    #{{ root_id }} .rte > *:first-child{ margin-top: 0; }
+    #{{ root_id }} .rte > *:last-child{ margin-bottom: 0; }
+  </style>
+
+  <script>
+    (function(){
+      document.documentElement.classList.add('js');
+
+      var root = document.getElementById({{ root_id | json }});
+      if (!root) return;
+
+      var track = root.querySelector('[data-q-tl-track]');
+      if (!track) return;
+
+      var prev = root.querySelector('[data-q-tl-prev]');
+      var next = root.querySelector('[data-q-tl-next]');
+      if (!prev || !next) return;
+
+      function items(){
+        return Array.prototype.slice.call(track.querySelectorAll('.q-tl__item'));
+      }
+
+      function nearestIndex(){
+        var list = items();
+        if (!list.length) return 0;
+        var x = track.scrollLeft;
+        var best = 0;
+        var bestDist = Infinity;
+        for (var i=0;i<list.length;i++){
+          var d = Math.abs(list[i].offsetLeft - x);
+          if (d < bestDist){ bestDist = d; best = i; }
+        }
+        return best;
+      }
+
+      function scrollToIndex(idx){
+        var list = items();
+        if (!list.length) return;
+
+        idx = Math.max(0, Math.min(idx, list.length - 1));
+        track.scrollTo({ left: list[idx].offsetLeft, behavior: 'smooth' });
+
+        // update disabled states shortly after scroll begins
+        window.setTimeout(updateButtons, 220);
+      }
+
+      function updateButtons(){
+        var list = items();
+        if (!list.length) return;
+
+        var i = nearestIndex();
+        prev.disabled = (i <= 0);
+        next.disabled = (i >= list.length - 1);
+      }
+
+      prev.addEventListener('click', function(){
+        scrollToIndex(nearestIndex() - 1);
+      });
+
+      next.addEventListener('click', function(){
+        scrollToIndex(nearestIndex() + 1);
+      });
+
+      track.addEventListener('scroll', function(){
+        // cheap throttle
+        window.clearTimeout(track.__qTlT);
+        track.__qTlT = window.setTimeout(updateButtons, 80);
+      }, { passive: true });
+
+      updateButtons();
+    })();
+  </script>
+</section>
+
+{% schema %}
+{
+  "name": "Story Timeline",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "header", "content": "Content" },
+    { "type": "checkbox", "id": "show_heading", "label": "Show heading", "default": true },
+    { "type": "text", "id": "title", "label": "Title", "default": "Our story" },
+    { "type": "richtext", "id": "subtitle", "label": "Subtitle", "default": "<p>A few milestones that shaped who we are.</p>" },
+
+    { "type": "header", "content": "Layout" },
+    {
+      "type": "select",
+      "id": "orientation",
+      "label": "Orientation",
+      "default": "vertical",
+      "options": [
+        { "value": "vertical", "label": "Vertical" },
+        { "value": "horizontal", "label": "Horizontal (scroll rail)" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "vertical_alignment",
+      "label": "Vertical alignment",
+      "default": "left",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "centered", "label": "Centered" },
+        { "value": "alternating", "label": "Alternating (zig-zag)" }
+      ]
+    },
+    { "type": "checkbox", "id": "show_line_connector", "label": "Show connector line", "default": true },
+    {
+      "type": "select",
+      "id": "marker_style",
+      "label": "Marker style",
+      "default": "dot",
+      "options": [
+        { "value": "dot", "label": "Dot" },
+        { "value": "icon", "label": "Icon (uses block icon)" },
+        { "value": "image", "label": "Image (uses block image)" }
+      ]
+    },
+
+    { "type": "header", "content": "Labels" },
+    { "type": "checkbox", "id": "show_start_end_labels", "label": "Show start/end labels", "default": false },
+    { "type": "text", "id": "start_label", "label": "Start label", "default": "Then" },
+    { "type": "text", "id": "end_label", "label": "End label", "default": "Now" },
+
+    { "type": "header", "content": "Card framing" },
+    {
+      "type": "select",
+      "id": "card_style",
+      "label": "Card style",
+      "default": "surface",
+      "options": [
+        { "value": "surface", "label": "Surface (bg/border)" },
+        { "value": "minimal", "label": "Minimal (text-forward)" }
+      ]
+    },
+    { "type": "checkbox", "id": "show_card_media", "label": "Show media inside card (when available)", "default": true },
+    {
+      "type": "select",
+      "id": "card_media_position",
+      "label": "Card media position",
+      "default": "top",
+      "options": [
+        { "value": "top", "label": "Top" },
+        { "value": "left", "label": "Left" }
+      ]
+    },
+    { "type": "checkbox", "id": "show_badges", "label": "Show badges", "default": true },
+    { "type": "checkbox", "id": "show_horizontal_arrows", "label": "Horizontal arrows (snap stepping)", "default": true },
+
+    { "type": "header", "content": "Premium accents" },
+    { "type": "checkbox", "id": "show_accent_bar", "label": "Show accent bar on cards", "default": true },
+    { "type": "range", "id": "accent_bar_h", "label": "Accent bar height", "min": 2, "max": 12, "step": 1, "default": 6, "unit": "px" },
+
+    { "type": "header", "content": "Layout sizing" },
+    { "type": "range", "id": "max_width", "label": "Max width", "min": 720, "max": 1600, "step": 20, "default": 1200, "unit": "px" },
+    { "type": "range", "id": "pad_y", "label": "Vertical padding", "min": 0, "max": 120, "step": 4, "default": 56, "unit": "px" },
+    { "type": "range", "id": "pad_x", "label": "Horizontal padding", "min": 0, "max": 64, "step": 2, "default": 18, "unit": "px" },
+    { "type": "range", "id": "gap", "label": "Gap", "min": 8, "max": 48, "step": 2, "default": 22, "unit": "px" },
+
+    { "type": "header", "content": "Timeline primitives" },
+    { "type": "range", "id": "tl_line_w", "label": "Connector line thickness", "min": 1, "max": 6, "step": 1, "default": 2, "unit": "px" },
+    { "type": "range", "id": "tl_marker", "label": "Marker size", "min": 18, "max": 48, "step": 2, "default": 28, "unit": "px" },
+
+    { "type": "header", "content": "Card geometry" },
+    { "type": "range", "id": "card_pad", "label": "Card padding", "min": 12, "max": 32, "step": 2, "default": 18, "unit": "px" },
+    { "type": "range", "id": "card_max_w", "label": "Card max width (desktop)", "min": 420, "max": 820, "step": 20, "default": 680, "unit": "px" },
+    { "type": "range", "id": "rail_card_w", "label": "Horizontal card width", "min": 240, "max": 520, "step": 10, "default": 340, "unit": "px" },
+    { "type": "range", "id": "media_max_h", "label": "Media max height", "min": 160, "max": 520, "step": 10, "default": 260, "unit": "px" },
+
+    { "type": "header", "content": "Radius & shadow" },
+    { "type": "range", "id": "radius", "label": "Card radius", "min": 0, "max": 28, "step": 2, "default": 16, "unit": "px" },
+    { "type": "range", "id": "shadow_strength", "label": "Shadow strength", "min": 0, "max": 10, "step": 1, "default": 4 },
+    { "type": "range", "id": "hover_lift", "label": "Hover lift", "min": 0, "max": 8, "step": 1, "default": 2, "unit": "px" },
+
+    { "type": "header", "content": "Typography" },
+    { "type": "range", "id": "date_fs", "label": "Date label size", "min": 10, "max": 18, "step": 1, "default": 12, "unit": "px" },
+    { "type": "range", "id": "date_fw", "label": "Date label weight", "min": 400, "max": 800, "step": 100, "default": 600 },
+    { "type": "range", "id": "milestone_title_fs", "label": "Milestone title size", "min": 16, "max": 34, "step": 1, "default": 22, "unit": "px" },
+    { "type": "range", "id": "milestone_title_fw", "label": "Milestone title weight", "min": 500, "max": 900, "step": 100, "default": 700 },
+    { "type": "range", "id": "body_fs", "label": "Body size", "min": 12, "max": 20, "step": 1, "default": 15, "unit": "px" },
+    { "type": "range", "id": "body_lh", "label": "Body line height", "min": 1.3, "max": 1.9, "step": 0.1, "default": 1.6 },
+    { "type": "range", "id": "badge_fs", "label": "Badge size", "min": 10, "max": 16, "step": 1, "default": 12, "unit": "px" },
+
+    { "type": "header", "content": "Colors (scoped)" },
+    { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors", "default": false },
+    { "type": "color", "id": "bg_color", "label": "Background", "default": "#ffffff" },
+    { "type": "color", "id": "text_color", "label": "Text", "default": "#111111" },
+    { "type": "color", "id": "muted_color", "label": "Muted", "default": "#5a5a5a" },
+    { "type": "color", "id": "accent_color", "label": "Accent", "default": "#7c3aed" },
+    { "type": "color", "id": "surface_color", "label": "Surface", "default": "#f6f6f6" },
+    { "type": "color", "id": "border_color", "label": "Border", "default": "#e5e5e5" },
+
+    { "type": "header", "content": "Timeline colors (scoped)" },
+    { "type": "color", "id": "line_color", "label": "Line color", "default": "#e5e5e5" },
+    { "type": "color", "id": "marker_border_color", "label": "Marker border", "default": "#7c3aed" },
+    { "type": "color", "id": "marker_fill_color", "label": "Marker fill (dot)", "default": "#7c3aed" }
+  ],
+  "blocks": [
+    {
+      "type": "milestone",
+      "name": "Milestone",
+      "settings": [
+        { "type": "text", "id": "year_or_date", "label": "Year or date", "default": "2016" },
+        { "type": "text", "id": "title", "label": "Title", "default": "Founded the company" },
+        { "type": "richtext", "id": "description", "label": "Description", "default": "<p>We started with a small team and a big obsession: making great products that last.</p>" },
+        { "type": "text", "id": "badge", "label": "Badge" },
+        { "type": "text", "id": "icon", "label": "Icon (emoji or short text)" },
+        { "type": "image_picker", "id": "image", "label": "Image" },
+        { "type": "url", "id": "link_url", "label": "Link URL" },
+        { "type": "text", "id": "link_label", "label": "Link label", "default": "Learn more" }
+      ]
+    }
+  ],
+  "presets": [
+    { "name": "Interactive · Story Timeline", "category": "Interactive" }
+  ]
+}
+{% endschema %}

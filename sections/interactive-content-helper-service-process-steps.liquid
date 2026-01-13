@@ -1,0 +1,641 @@
+{%- comment -%}
+  Quadratum — Interactive · Service Process / How It Works Steps (Service + Process Hybrid)
+  File: sections/interactive-content-helper-service-process-steps.liquid
+
+  v2 (hybrid):
+  - Process steps + optional progress bar (Liquid-only)
+  - Service-style cards with optional per-step IMAGE + icon/number indicator
+  - No JS. Fully crawlable. Accessible <ol>/<li> + aria-current + progressbar semantics.
+  - Mobile always stacks. Tablet max 2 columns. Desktop uses selected layout.
+  - NEW: show_progress_meta toggle (hide label + "2 / n" text row)
+{%- endcomment -%}
+
+{%- liquid
+  assign steps = section.blocks | where: 'type', 'step'
+  assign steps_count = steps.size
+  if steps_count == 0
+    break
+  endif
+
+  assign layout = section.settings.layout | default: 'horizontal_steps'
+  assign show_numbers = section.settings.show_numbers
+  assign icon_precedence = section.settings.icon_precedence | default: 'auto'
+  assign equal_height_cards = section.settings.equal_height_cards
+
+  assign enable_progress_bar = section.settings.enable_progress_bar
+  assign raw_current = section.settings.current_step_index | default: 0 | plus: 0
+  assign has_current = false
+  if raw_current > 0
+    assign has_current = true
+  endif
+
+  if has_current
+    assign current_idx = raw_current
+    if current_idx < 1
+      assign current_idx = 1
+    endif
+    if current_idx > steps_count
+      assign current_idx = steps_count
+    endif
+  else
+    assign current_idx = 0
+  endif
+
+  assign title = section.settings.title | default: 'How it works'
+  assign subtitle = section.settings.subtitle | default: '<p>A simple step-by-step process.</p>'
+
+  assign progress_label = section.settings.progress_label | default: 'Progress'
+  assign show_progress_meta = section.settings.show_progress_meta
+
+  assign progress_now = current_idx
+  if progress_now < 1
+    assign progress_now = 1
+  endif
+  if progress_now > steps_count
+    assign progress_now = steps_count
+  endif
+
+  assign progress_pct = 0
+  if steps_count > 0 and has_current
+    assign progress_pct = progress_now | times: 100 | divided_by: steps_count
+  endif
+
+  assign is_single = false
+  if steps_count == 1
+    assign is_single = true
+  endif
+
+  assign button_style = section.settings.button_style | default: 'solid'
+-%}
+
+<section
+  class="q-howitworks"
+  data-q-section="interactive-service-process-steps"
+  data-layout="{{ layout }}"
+  data-has-current="{% if has_current %}true{% else %}false{% endif %}"
+  data-button-style="{{ button_style }}"
+  style="
+    --q-steps-gap: {{ section.settings.gap }}px;
+    --q-steps-card-radius: {{ section.settings.card_radius }}px;
+    --q-steps-card-shadow-strength: {{ section.settings.card_shadow_strength }};
+    --q-steps-border-width: {{ section.settings.card_border_width }}px;
+
+    --q-steps-title-size: {{ section.settings.title_font_size }}px;
+    --q-steps-body-size: {{ section.settings.body_font_size }}px;
+
+    --q-steps-indicator-size: {{ section.settings.step_indicator_size }}px;
+    --q-steps-connector-thickness: {{ section.settings.connector_thickness }}px;
+
+    --q-steps-progress-height: {{ section.settings.progress_height }}px;
+
+    --q-steps-section-bg: {{ section.settings.section_bg }};
+    --q-steps-text: {{ section.settings.text_color }};
+    --q-steps-muted: {{ section.settings.muted_text_color }};
+
+    --q-steps-card-bg: {{ section.settings.card_bg }};
+    --q-steps-card-border: {{ section.settings.card_border_color }};
+
+    --q-steps-accent: {{ section.settings.accent_color }};
+    --q-steps-connector: {{ section.settings.connector_color }};
+
+    --q-steps-progress-fill: {{ section.settings.progress_fill_color }};
+    --q-steps-progress-track: {{ section.settings.progress_track_color }};
+
+    --q-steps-media-radius: {{ section.settings.media_radius }}px;
+    --q-steps-media-aspect: {{ section.settings.media_aspect | default: '16 / 9' }};
+
+    --q-steps-btn-bg: {{ section.settings.button_bg }};
+    --q-steps-btn-text: {{ section.settings.button_text }};
+    --q-steps-btn-border: {{ section.settings.button_border }};
+    --q-steps-btn-bg-hover: {{ section.settings.button_bg_hover }};
+    --q-steps-btn-text-hover: {{ section.settings.button_text_hover }};
+    --q-steps-btn-border-hover: {{ section.settings.button_border_hover }};
+  "
+>
+  <div class="q-howitworks__inner">
+    <header class="q-howitworks__header">
+      <h2 class="q-howitworks__title">{{ title | escape }}</h2>
+      <div class="q-howitworks__subtitle rte">
+        {{ subtitle }}
+      </div>
+    </header>
+
+    {%- if enable_progress_bar and has_current and steps_count > 1 -%}
+      <div class="q-howitworks__progress" aria-label="{{ progress_label | escape }}">
+        {%- if show_progress_meta -%}
+          <div class="q-howitworks__progress-top">
+            <span class="q-howitworks__progress-label">{{ progress_label | escape }}</span>
+            <span class="q-howitworks__progress-meta">{{ current_idx }} / {{ steps_count }}</span>
+          </div>
+        {%- endif -%}
+
+        <div
+          class="q-howitworks__progressbar"
+          role="progressbar"
+          aria-valuemin="1"
+          aria-valuemax="{{ steps_count }}"
+          aria-valuenow="{{ current_idx }}"
+        >
+          <div class="q-howitworks__progressbar-fill" style="width: {{ progress_pct }}%;"></div>
+        </div>
+      </div>
+    {%- endif -%}
+
+    <ol
+      class="q-steps{% if equal_height_cards %} q-steps--equal{% endif %}{% if is_single %} q-steps--single{% endif %}"
+      aria-label="{{ title | escape }}"
+    >
+      {%- for block in steps -%}
+        {%- liquid
+          assign i = forloop.index
+
+          assign state = 'neutral'
+          if has_current
+            if i < current_idx
+              assign state = 'completed'
+            elsif i == current_idx
+              assign state = 'current'
+            else
+              assign state = 'upcoming'
+            endif
+          endif
+
+          assign has_icon = false
+          if block.settings.icon != blank
+            assign has_icon = true
+          endif
+
+          assign has_image = false
+          if block.settings.image != blank
+            assign has_image = true
+          endif
+
+          assign show_indicator = false
+          if icon_precedence == 'numbers_only'
+            if show_numbers
+              assign show_indicator = true
+            endif
+          elsif icon_precedence == 'icons_only'
+            if has_icon
+              assign show_indicator = true
+            endif
+          else
+            if has_icon or show_numbers
+              assign show_indicator = true
+            endif
+          endif
+
+          assign use_icon = false
+          if icon_precedence == 'icons_only'
+            if has_icon
+              assign use_icon = true
+            endif
+          elsif icon_precedence == 'numbers_only'
+            assign use_icon = false
+          else
+            if has_icon
+              assign use_icon = true
+            endif
+          endif
+
+          assign cta_url = block.settings.cta_url
+          assign cta_label = block.settings.cta_label | default: 'Learn more'
+        -%}
+
+        <li
+          class="q-step q-step--{{ state }}"
+          {{ block.shopify_attributes }}
+          {% if state == 'current' %}aria-current="step"{% endif %}
+        >
+          <article class="q-step__card">
+            {%- if has_image -%}
+              <div class="q-step__media" aria-hidden="true">
+                {{ block.settings.image
+                  | image_url: width: 1400
+                  | image_tag: loading: 'lazy', widths: '360, 540, 720, 900, 1200, 1400', sizes: '(min-width: 990px) 33vw, (min-width: 750px) 50vw, 100vw', alt: '' }}
+              </div>
+            {%- endif -%}
+
+            <div class="q-step__top">
+              {%- if show_indicator -%}
+                <div class="q-step__indicator" aria-hidden="true">
+                  {%- if use_icon and has_icon -%}
+                    <span class="q-step__icon">
+                      {{ block.settings.icon | image_url: width: 128 | image_tag: loading: 'lazy', alt: '' }}
+                    </span>
+                  {%- elsif show_numbers -%}
+                    <span class="q-step__number">{{ i }}</span>
+                  {%- endif -%}
+                </div>
+              {%- endif -%}
+
+              <div class="q-step__head">
+                <h3 class="q-step__title">{{ block.settings.title | default: 'Step title' | escape }}</h3>
+              </div>
+            </div>
+
+            <div class="q-step__content">
+              <div class="q-step__desc rte">
+                {{ block.settings.description | default: '<p>Short explanation of this step.</p>' }}
+              </div>
+
+              {%- if cta_url != blank -%}
+                <div class="q-step__cta">
+                  <a class="q-btn" href="{{ cta_url }}">
+                    {{ cta_label | escape }}
+                  </a>
+                </div>
+              {%- endif -%}
+            </div>
+          </article>
+        </li>
+      {%- endfor -%}
+    </ol>
+  </div>
+
+  <style>
+    .q-howitworks {
+      background: var(--q-steps-section-bg);
+      color: var(--q-steps-text);
+      width: 100%;
+    }
+
+    .q-howitworks__inner { width: 100%; }
+
+    .q-howitworks__header { margin-bottom: 1rem; }
+    .q-howitworks__title {
+      font-size: var(--q-steps-title-size);
+      line-height: 1.15;
+      margin: 0 0 .5rem 0;
+    }
+    .q-howitworks__subtitle {
+      font-size: var(--q-steps-body-size);
+      color: var(--q-steps-muted);
+    }
+
+    .q-howitworks__progress { margin: 0 0 1rem 0; }
+    .q-howitworks__progress-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: .75rem;
+      margin-bottom: .5rem;
+      font-size: var(--q-steps-body-size);
+      color: var(--q-steps-muted);
+    }
+    .q-howitworks__progressbar {
+      height: var(--q-steps-progress-height);
+      border-radius: calc(var(--q-steps-progress-height) * 0.75);
+      background: var(--q-steps-progress-track);
+      overflow: hidden;
+      position: relative;
+    }
+    .q-howitworks__progressbar-fill {
+      height: 100%;
+      background: var(--q-steps-progress-fill);
+      width: 0%;
+    }
+
+    .q-steps {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      grid-template-columns: 1fr; /* mobile: always vertical stack */
+      gap: var(--q-steps-gap);
+    }
+
+    .q-step { position: relative; }
+
+    .q-step__card {
+      background: var(--q-steps-card-bg);
+      border: var(--q-steps-border-width) solid var(--q-steps-card-border);
+      border-radius: var(--q-steps-card-radius);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      min-width: 0;
+    }
+
+    /* Shadow strength mapping (0..5) */
+    .q-howitworks {
+      --q-steps-shadow-y: calc(var(--q-steps-card-shadow-strength) * 2px);
+      --q-steps-shadow-blur: calc(var(--q-steps-card-shadow-strength) * 10px);
+      --q-steps-shadow-alpha: calc(var(--q-steps-card-shadow-strength) * 0.05);
+    }
+    .q-step__card {
+      box-shadow: 0 var(--q-steps-shadow-y) var(--q-steps-shadow-blur) rgba(0,0,0,var(--q-steps-shadow-alpha));
+    }
+
+    .q-step__media {
+      width: 100%;
+      aspect-ratio: var(--q-steps-media-aspect);
+      overflow: hidden;
+      border-bottom: var(--q-steps-border-width) solid var(--q-steps-card-border);
+      border-top-left-radius: var(--q-steps-media-radius);
+      border-top-right-radius: var(--q-steps-media-radius);
+    }
+    .q-step__media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .q-step__top {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: .9rem;
+      align-items: center;
+      padding: 1rem 1rem .25rem 1rem;
+      min-width: 0;
+    }
+
+    .q-step__indicator {
+      width: var(--q-steps-indicator-size);
+      height: var(--q-steps-indicator-size);
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      border: var(--q-steps-connector-thickness) solid var(--q-steps-accent);
+      color: var(--q-steps-accent);
+      background: transparent;
+      flex: 0 0 auto;
+    }
+
+    .q-step__number {
+      font-size: calc(var(--q-steps-indicator-size) * 0.42);
+      line-height: 1;
+      font-weight: 700;
+    }
+
+    .q-step__icon img {
+      width: calc(var(--q-steps-indicator-size) * 0.58);
+      height: calc(var(--q-steps-indicator-size) * 0.58);
+      object-fit: contain;
+      display: block;
+    }
+
+    .q-step__title {
+      font-size: calc(var(--q-steps-body-size) * 1.2);
+      line-height: 1.25;
+      margin: 0;
+    }
+
+    .q-step__content {
+      padding: .25rem 1rem 1rem 1rem;
+      min-width: 0;
+    }
+
+    .q-step__desc { font-size: var(--q-steps-body-size); color: var(--q-steps-muted); }
+
+    /* Button */
+    .q-step__cta { margin-top: .85rem; }
+
+    .q-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      text-decoration: none;
+      border-radius: calc(var(--q-steps-card-radius) * 0.6);
+      padding: .65rem 1rem;
+      font-size: var(--q-steps-body-size);
+      line-height: 1.1;
+      border: 1px solid transparent;
+      transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+      min-width: 0;
+    }
+
+    /* Variants, all driven by variables */
+    .q-howitworks[data-button-style="solid"] .q-btn {
+      background: var(--q-steps-btn-bg);
+      color: var(--q-steps-btn-text);
+      border-color: var(--q-steps-btn-border);
+    }
+    .q-howitworks[data-button-style="solid"] .q-btn:hover,
+    .q-howitworks[data-button-style="solid"] .q-btn:focus-visible {
+      background: var(--q-steps-btn-bg-hover);
+      color: var(--q-steps-btn-text-hover);
+      border-color: var(--q-steps-btn-border-hover);
+      outline: none;
+    }
+
+    .q-howitworks[data-button-style="outline"] .q-btn {
+      background: transparent;
+      color: var(--q-steps-btn-text);
+      border-color: var(--q-steps-btn-border);
+    }
+    .q-howitworks[data-button-style="outline"] .q-btn:hover,
+    .q-howitworks[data-button-style="outline"] .q-btn:focus-visible {
+      background: var(--q-steps-btn-bg-hover);
+      color: var(--q-steps-btn-text-hover);
+      border-color: var(--q-steps-btn-border-hover);
+      outline: none;
+    }
+
+    .q-howitworks[data-button-style="link"] .q-btn {
+      background: transparent;
+      color: var(--q-steps-accent);
+      border-color: transparent;
+      padding: 0;
+      border-radius: 0;
+      text-decoration: underline;
+      text-underline-offset: .2em;
+    }
+    .q-howitworks[data-button-style="link"] .q-btn:hover,
+    .q-howitworks[data-button-style="link"] .q-btn:focus-visible {
+      color: var(--q-steps-btn-text-hover);
+      outline: none;
+    }
+
+    /* State styling (process mode) */
+    .q-step--completed .q-step__indicator {
+      background: color-mix(in srgb, var(--q-steps-accent) 14%, transparent);
+    }
+    .q-step--current .q-step__indicator {
+      background: color-mix(in srgb, var(--q-steps-accent) 22%, transparent);
+    }
+
+    /* Tablet: max 2 columns */
+    @media (min-width: 750px) {
+      .q-howitworks[data-layout="horizontal_steps"] .q-steps {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .q-howitworks[data-layout="vertical_steps"] .q-steps {
+        grid-template-columns: 1fr;
+      }
+      .q-howitworks[data-layout="zigzag"] .q-steps {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Desktop: selected layout applies */
+    @media (min-width: 990px) {
+      .q-howitworks[data-layout="horizontal_steps"] .q-steps {
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      }
+      .q-howitworks[data-layout="vertical_steps"] .q-steps {
+        grid-template-columns: 1fr;
+      }
+      .q-howitworks[data-layout="zigzag"] .q-steps {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: calc(var(--q-steps-gap) * 1.25);
+        row-gap: var(--q-steps-gap);
+      }
+      .q-howitworks[data-layout="zigzag"] .q-step:nth-child(odd) { grid-column: 1; }
+      .q-howitworks[data-layout="zigzag"] .q-step:nth-child(even) { grid-column: 2; }
+    }
+
+    /* Equal height cards (grid modes) */
+    .q-steps--equal .q-step { align-self: stretch; }
+    .q-steps--equal .q-step__card { height: 100%; }
+
+    /* Connectors: only when it reads as a process (has_current) and 2+ steps and not single */
+    .q-howitworks[data-has-current="true"] .q-steps:not(.q-steps--single) .q-step::after { content: ""; }
+
+    @media (min-width: 990px) {
+      .q-howitworks[data-has-current="true"][data-layout="horizontal_steps"] .q-steps:not(.q-steps--single) .q-step::after {
+        position: absolute;
+        top: calc((var(--q-steps-indicator-size) / 2) + 1.35rem);
+        right: calc(var(--q-steps-gap) * -0.35);
+        width: calc(var(--q-steps-gap) * 0.7);
+        height: var(--q-steps-connector-thickness);
+        background: var(--q-steps-connector);
+        opacity: 0.45;
+        transform: translateY(-50%);
+      }
+      .q-howitworks[data-has-current="true"][data-layout="horizontal_steps"] .q-steps:not(.q-steps--single) .q-step:last-child::after {
+        display: none;
+      }
+    }
+  </style>
+</section>
+
+{% schema %}
+{
+  "name": "Service Process - List",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "header", "content": "Layout" },
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "horizontal_steps",
+      "options": [
+        { "value": "horizontal_steps", "label": "Horizontal steps" },
+        { "value": "vertical_steps", "label": "Vertical steps" },
+        { "value": "zigzag", "label": "Zigzag" }
+      ]
+    },
+    { "type": "checkbox", "id": "show_numbers", "label": "Show numbers", "default": true },
+    {
+      "type": "select",
+      "id": "icon_precedence",
+      "label": "Icon precedence",
+      "default": "auto",
+      "options": [
+        { "value": "auto", "label": "Auto (icon if provided, else number)" },
+        { "value": "numbers_only", "label": "Numbers only" },
+        { "value": "icons_only", "label": "Icons only" }
+      ]
+    },
+    { "type": "checkbox", "id": "equal_height_cards", "label": "Equal height cards", "default": true },
+
+    { "type": "header", "content": "Progress" },
+    { "type": "checkbox", "id": "enable_progress_bar", "label": "Enable progress bar", "default": false },
+    { "type": "number", "id": "current_step_index", "label": "Current step index (1-based, 0 = not set)", "default": 0 },
+    { "type": "text", "id": "progress_label", "label": "Progress label", "default": "Progress" },
+    { "type": "checkbox", "id": "show_progress_meta", "label": "Show progress text", "default": true },
+
+    { "type": "header", "content": "Section Header" },
+    { "type": "text", "id": "title", "label": "Title", "default": "How it works" },
+    { "type": "richtext", "id": "subtitle", "label": "Subtitle", "default": "<p>A simple step-by-step process.</p>" },
+
+    { "type": "header", "content": "Media" },
+    {
+      "type": "select",
+      "id": "media_aspect",
+      "label": "Image aspect ratio",
+      "default": "16 / 9",
+      "options": [
+        { "value": "16 / 9", "label": "16:9" },
+        { "value": "4 / 3", "label": "4:3" },
+        { "value": "1 / 1", "label": "1:1" },
+        { "value": "3 / 4", "label": "3:4" }
+      ]
+    },
+    { "type": "range", "id": "media_radius", "label": "Image radius", "min": 0, "max": 32, "step": 2, "default": 0 },
+
+    { "type": "header", "content": "Buttons" },
+    {
+      "type": "select",
+      "id": "button_style",
+      "label": "Button style",
+      "default": "solid",
+      "options": [
+        { "value": "solid", "label": "Solid" },
+        { "value": "outline", "label": "Outline" },
+        { "value": "link", "label": "Link" }
+      ]
+    },
+    { "type": "color", "id": "button_bg", "label": "Button background", "default": "#111111" },
+    { "type": "color", "id": "button_text", "label": "Button text", "default": "#ffffff" },
+    { "type": "color", "id": "button_border", "label": "Button border", "default": "#111111" },
+    { "type": "color", "id": "button_bg_hover", "label": "Button background (hover)", "default": "#000000" },
+    { "type": "color", "id": "button_text_hover", "label": "Button text (hover)", "default": "#ffffff" },
+    { "type": "color", "id": "button_border_hover", "label": "Button border (hover)", "default": "#000000" },
+
+    { "type": "header", "content": "Styling" },
+    { "type": "range", "id": "gap", "label": "Card gap", "min": 8, "max": 48, "step": 2, "default": 18 },
+    { "type": "range", "id": "step_indicator_size", "label": "Step number / icon size", "min": 24, "max": 88, "step": 2, "default": 44 },
+    { "type": "range", "id": "connector_thickness", "label": "Connector thickness", "min": 1, "max": 10, "step": 1, "default": 2 },
+
+    { "type": "color", "id": "section_bg", "label": "Section background", "default": "#ffffff" },
+    { "type": "color", "id": "text_color", "label": "Text color", "default": "#111111" },
+    { "type": "color", "id": "muted_text_color", "label": "Muted text color", "default": "#555555" },
+
+    { "type": "color", "id": "accent_color", "label": "Accent color", "default": "#111111" },
+    { "type": "color", "id": "connector_color", "label": "Connector color", "default": "#bdbdbd" },
+
+    { "type": "color", "id": "card_bg", "label": "Card background", "default": "#ffffff" },
+    { "type": "color", "id": "card_border_color", "label": "Card border color", "default": "#e6e6e6" },
+    { "type": "range", "id": "card_border_width", "label": "Card border width", "min": 0, "max": 4, "step": 1, "default": 1 },
+    { "type": "range", "id": "card_radius", "label": "Card radius", "min": 0, "max": 40, "step": 2, "default": 16 },
+    { "type": "range", "id": "card_shadow_strength", "label": "Card shadow strength", "min": 0, "max": 5, "step": 1, "default": 2 },
+
+    { "type": "range", "id": "title_font_size", "label": "Title font size", "min": 18, "max": 56, "step": 1, "default": 28 },
+    { "type": "range", "id": "body_font_size", "label": "Body font size", "min": 12, "max": 24, "step": 1, "default": 16 },
+
+    { "type": "range", "id": "progress_height", "label": "Progress bar height", "min": 4, "max": 18, "step": 1, "default": 8 },
+    { "type": "color", "id": "progress_fill_color", "label": "Progress bar fill", "default": "#111111" },
+    { "type": "color", "id": "progress_track_color", "label": "Progress bar track", "default": "#e6e6e6" }
+  ],
+  "blocks": [
+    {
+      "type": "step",
+      "name": "Step",
+      "settings": [
+        { "type": "image_picker", "id": "image", "label": "Image (optional)" },
+        { "type": "text", "id": "title", "label": "Title", "default": "Step title" },
+        { "type": "richtext", "id": "description", "label": "Description", "default": "<p>Short explanation of this step.</p>" },
+        { "type": "image_picker", "id": "icon", "label": "Icon (optional)" },
+        { "type": "text", "id": "cta_label", "label": "CTA label", "default": "Learn more" },
+        { "type": "url", "id": "cta_url", "label": "CTA URL" }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Interactive · Service Process / How It Works Steps",
+      "blocks": [
+        { "type": "step" },
+        { "type": "step" },
+        { "type": "step" }
+      ]
+    }
+  ]
+}
+{% endschema %}

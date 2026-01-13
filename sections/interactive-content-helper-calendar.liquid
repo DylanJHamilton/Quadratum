@@ -1,0 +1,1282 @@
+{%- comment -%}
+  Quadratum — Interactive · Calendar (Events & Booking)
+  File: sections/interactive-content-helper-calendar.liquid
+
+  v1+ scope:
+  - events_list (polished, no-JS works)
+  - booking_embed (polished, framed)
+  - events_calendar (month grid + day panel; JS enhanced; list is fallback)
+  - Event sources:
+    (A) blocks (default)
+    (B) metaobjects (Option 1)
+    (C) context metafield list of metaobject refs (Option 3)
+    (D) external JSON feed (Option 4) — JS only; list fallback message
+
+  Notes:
+  - Dates stored as ISO text: YYYY-MM-DD
+  - Times stored as text: HH:MM (optional)
+{%- endcomment -%}
+
+{%- liquid
+  assign mode = section.settings.mode
+  assign source = section.settings.source | default: 'blocks'
+  assign now_ts = 'now' | date: '%s' | plus: 0
+  assign use_custom_colors = section.settings.use_custom_colors
+
+  assign sorted_pairs = '' | split: ''
+  assign has_events = 0
+
+  assign blocks_events = section.blocks | where: 'type', 'event'
+
+  if source == 'blocks'
+    assign raw_pairs = '' | split: ''
+
+    for b in blocks_events
+      assign sd = b.settings.start_date | strip
+      if sd == blank
+        continue
+      endif
+
+      assign st = b.settings.start_time | strip
+      if st == blank
+        assign st = '00:00'
+      endif
+
+      assign dt_string = sd | append: ' ' | append: st
+      assign ev_ts = dt_string | date: '%s' | plus: 0
+      if ev_ts <= 0
+        continue
+      endif
+
+      assign is_past = false
+      if ev_ts < now_ts
+        assign is_past = true
+      endif
+
+      if is_past and section.settings.show_past_events == false
+        continue
+      endif
+
+      assign key = ev_ts | append: '' | prepend: '0000000000'
+      assign key = key | slice: -10, 10
+      assign pair = key | append: '::' | append: b.id
+      assign raw_pairs = raw_pairs | push: pair
+    endfor
+
+    assign sorted_pairs = raw_pairs | sort
+    assign has_events = sorted_pairs.size | plus: 0
+
+  elsif source == 'metaobjects'
+    assign selected = section.settings.metaobject_events
+    assign raw_pairs = '' | split: ''
+
+    if selected != blank
+      for ev in selected
+        assign start_at = ev.start_at.value | default: ev.start_at
+        assign start_date = ''
+        assign start_time = ''
+
+        if start_at != blank
+          assign start_date = start_at | date: '%Y-%m-%d'
+          assign start_time = start_at | date: '%H:%M'
+        else
+          assign start_date = ev.start_date.value | default: ev.start_date | default: ''
+          assign start_time = ev.start_time.value | default: ev.start_time | default: ''
+        endif
+
+        assign start_date = start_date | strip
+        assign start_time = start_time | strip
+
+        if start_date == blank
+          continue
+        endif
+
+        if start_time == blank
+          assign start_time = '00:00'
+        endif
+
+        assign dt_string = start_date | append: ' ' | append: start_time
+        assign ev_ts = dt_string | date: '%s' | plus: 0
+        if ev_ts <= 0
+          continue
+        endif
+
+        assign is_past = false
+        if ev_ts < now_ts
+          assign is_past = true
+        endif
+
+        if is_past and section.settings.show_past_events == false
+          continue
+        endif
+
+        assign key = ev_ts | append: '' | prepend: '0000000000'
+        assign key = key | slice: -10, 10
+        assign pair = key | append: '::' | append: ev.id
+        assign raw_pairs = raw_pairs | push: pair
+      endfor
+    endif
+
+    assign sorted_pairs = raw_pairs | sort
+    assign has_events = sorted_pairs.size | plus: 0
+
+  elsif source == 'context_metafield'
+    assign ns = section.settings.context_metafield_namespace | default: 'custom'
+    assign k = section.settings.context_metafield_key | default: 'events'
+
+    assign context_list = blank
+
+    if page and page.metafields[ns][k] != blank
+      assign context_list = page.metafields[ns][k].value
+    elsif product and product.metafields[ns][k] != blank
+      assign context_list = product.metafields[ns][k].value
+    elsif collection and collection.metafields[ns][k] != blank
+      assign context_list = collection.metafields[ns][k].value
+    elsif article and article.metafields[ns][k] != blank
+      assign context_list = article.metafields[ns][k].value
+    elsif blog and blog.metafields[ns][k] != blank
+      assign context_list = blog.metafields[ns][k].value
+    endif
+
+    assign raw_pairs = '' | split: ''
+
+    if context_list != blank
+      for ev in context_list
+        assign start_at = ev.start_at.value | default: ev.start_at
+        assign start_date = ''
+        assign start_time = ''
+
+        if start_at != blank
+          assign start_date = start_at | date: '%Y-%m-%d'
+          assign start_time = start_at | date: '%H:%M'
+        else
+          assign start_date = ev.start_date.value | default: ev.start_date | default: ''
+          assign start_time = ev.start_time.value | default: ev.start_time | default: ''
+        endif
+
+        assign start_date = start_date | strip
+        assign start_time = start_time | strip
+
+        if start_date == blank
+          continue
+        endif
+
+        if start_time == blank
+          assign start_time = '00:00'
+        endif
+
+        assign dt_string = start_date | append: ' ' | append: start_time
+        assign ev_ts = dt_string | date: '%s' | plus: 0
+        if ev_ts <= 0
+          continue
+        endif
+
+        assign is_past = false
+        if ev_ts < now_ts
+          assign is_past = true
+        endif
+
+        if is_past and section.settings.show_past_events == false
+          continue
+        endif
+
+        assign key_sort = ev_ts | append: '' | prepend: '0000000000'
+        assign key_sort = key_sort | slice: -10, 10
+        assign pair = key_sort | append: '::' | append: ev.id
+        assign raw_pairs = raw_pairs | push: pair
+      endfor
+    endif
+
+    assign sorted_pairs = raw_pairs | sort
+    assign has_events = sorted_pairs.size | plus: 0
+
+  else
+    assign has_events = 0
+  endif
+-%}
+
+<section
+  class="qcal"
+  data-section-id="{{ section.id }}"
+  data-mode="{{ mode }}"
+  data-source="{{ source }}"
+  data-calendar-mobile="{{ section.settings.calendar_mobile_mode }}"
+  data-enable-nav="{{ section.settings.enable_month_nav }}"
+>
+  <div class="qcal__outer">
+    <div class="qcal__frame">
+      {%- if section.settings.title != blank or section.settings.subtitle != blank -%}
+        <header class="qcal__header">
+          {%- if section.settings.title != blank -%}
+            <h2 class="qcal__title">{{ section.settings.title | escape }}</h2>
+          {%- endif -%}
+          {%- if section.settings.subtitle != blank -%}
+            <div class="qcal__subtitle rte">{{ section.settings.subtitle }}</div>
+          {%- endif -%}
+        </header>
+      {%- endif -%}
+
+      {%- if mode == 'booking_embed' -%}
+        <div class="qcal__booking">
+          <div class="qcal__bookingIntro">
+            {%- if section.settings.availability_message != blank -%}
+              <div class="rte qcal__msg">{{ section.settings.availability_message }}</div>
+            {%- endif -%}
+          </div>
+
+          {%- assign embed_code = section.settings.embed_code | strip -%}
+          {%- if embed_code != blank -%}
+            <div class="qcal__embed qcal__embed--{{ section.settings.embed_frame_style }}">
+              <div class="qcal__embedInner" style="min-height: {{ section.settings.embed_min_height }}px;">
+                {{ embed_code }}
+              </div>
+            </div>
+          {%- else -%}
+            <div class="qcal__empty qcal__empty--booking" role="status" aria-live="polite">
+              <p class="qcal__emptyTitle">Booking unavailable right now.</p>
+              <p class="qcal__emptyText">Please check back soon, or reach out and we’ll help you schedule.</p>
+              {%- if section.settings.booking_fallback_url != blank and section.settings.booking_fallback_label != blank -%}
+                <a class="qcal__btn" href="{{ section.settings.booking_fallback_url }}">{{ section.settings.booking_fallback_label | escape }}</a>
+              {%- endif -%}
+            </div>
+          {%- endif -%}
+        </div>
+
+      {%- else -%}
+        <div class="qcal__events" data-view="list">
+          {%- if source == 'feed_json' -%}
+            <div class="qcal__empty" role="status" aria-live="polite">
+              <p class="qcal__emptyText">
+                {%- if section.settings.feed_loading_message != blank -%}
+                  {{ section.settings.feed_loading_message | escape }}
+                {%- else -%}
+                  Loading events…
+                {%- endif -%}
+              </p>
+            </div>
+
+          {%- elsif has_events > 0 -%}
+            {%- assign last_month = '' -%}
+
+            {%- if source == 'blocks' -%}
+              {%- for pair in sorted_pairs -%}
+                {%- assign parts = pair | split: '::' -%}
+                {%- assign bid = parts[1] -%}
+
+                {%- assign block_obj = nil -%}
+                {%- for b in blocks_events -%}
+                  {%- if b.id == bid -%}
+                    {%- assign block_obj = b -%}
+                    {%- break -%}
+                  {%- endif -%}
+                {%- endfor -%}
+                {%- if block_obj == nil -%}{%- continue -%}{%- endif -%}
+
+                {%- liquid
+                  assign sd = block_obj.settings.start_date | strip
+                  if sd == blank
+                    continue
+                  endif
+
+                  assign st = block_obj.settings.start_time | strip
+                  if st == blank
+                    assign st = '00:00'
+                  endif
+
+                  assign dt_string = sd | append: ' ' | append: st
+                  assign ev_ts = dt_string | date: '%s' | plus: 0
+
+                  assign is_past = false
+                  if ev_ts < now_ts
+                    assign is_past = true
+                  endif
+
+                  assign month_label = sd | date: '%B %Y'
+                  assign day_label = sd | date: '%b %d'
+                  assign weekday_label = sd | date: '%A'
+                  assign iso_date = sd
+
+                  assign show_cta = false
+                  if section.settings.show_cta and block_obj.settings.cta_url != blank and block_obj.settings.cta_label != blank
+                    assign show_cta = true
+                  endif
+
+                  assign status = block_obj.settings.availability_status | default: 'available'
+                -%}
+
+                {%- if month_label != last_month -%}
+                  <div class="qcal__month" aria-hidden="true">
+                    <span class="qcal__monthText">{{ month_label }}</span>
+                  </div>
+                  {%- assign last_month = month_label -%}
+                {%- endif -%}
+
+                <article class="qcal__card{% if is_past and section.settings.past_events_style == 'muted' %} is-past{% endif %}" {{ block_obj.shopify_attributes }}>
+                  <div class="qcal__cardTop">
+                    <div class="qcal__datePill" aria-label="{{ weekday_label }}, {{ month_label }}, {{ day_label }}">
+                      <span class="qcal__dateDay">{{ day_label }}</span>
+                      <span class="qcal__dateWeek">{{ weekday_label }}</span>
+                    </div>
+
+                    <div class="qcal__cardMain">
+                      <div class="qcal__row">
+                        <h3 class="qcal__eventTitle">{{ block_obj.settings.title | escape }}</h3>
+
+                        {%- if section.settings.show_status_badges -%}
+                          <span class="qcal__badge qcal__badge--{{ status }}">
+                            {%- case status -%}
+                              {%- when 'few_spots_left' -%}Few spots
+                              {%- when 'full' -%}Full
+                              {%- when 'waitlist' -%}Waitlist
+                              {%- else -%}Available
+                            {%- endcase -%}
+                          </span>
+                        {%- endif -%}
+                      </div>
+
+                      <div class="qcal__meta">
+                        <span class="qcal__metaItem">
+                          <time datetime="{{ iso_date }}{% if block_obj.settings.start_time != blank %}T{{ block_obj.settings.start_time | strip }}{% endif %}">
+                            {{ month_label }} · {{ day_label }}
+                          </time>
+                          {%- if block_obj.settings.start_time != blank -%}
+                            <span aria-hidden="true"> · </span><span class="qcal__time">{{ block_obj.settings.start_time | escape }}</span>
+                          {%- endif -%}
+                          {%- if block_obj.settings.end_time != blank -%}
+                            <span aria-hidden="true">–</span><span class="qcal__time">{{ block_obj.settings.end_time | escape }}</span>
+                          {%- endif -%}
+                        </span>
+
+                        {%- if section.settings.show_locations and block_obj.settings.location != blank -%}
+                          <span class="qcal__metaItem qcal__loc">{{ block_obj.settings.location | escape }}</span>
+                        {%- endif -%}
+
+                        {%- if block_obj.settings.spots_label != blank -%}
+                          <span class="qcal__metaItem qcal__spots">{{ block_obj.settings.spots_label | escape }}</span>
+                        {%- endif -%}
+                      </div>
+
+                      {%- if section.settings.show_event_descriptions and block_obj.settings.description != blank -%}
+                        <div class="qcal__desc rte">{{ block_obj.settings.description }}</div>
+                      {%- endif -%}
+
+                      {%- if show_cta -%}
+                        <div class="qcal__cta">
+                          <a class="qcal__btn" href="{{ block_obj.settings.cta_url }}">
+                            {{ block_obj.settings.cta_label | escape }}
+                          </a>
+                        </div>
+                      {%- endif -%}
+                    </div>
+                  </div>
+                </article>
+              {%- endfor -%}
+
+            {%- else -%}
+              {%- assign list_source = blank -%}
+
+              {%- if source == 'metaobjects' -%}
+                {%- assign list_source = section.settings.metaobject_events -%}
+              {%- elsif source == 'context_metafield' -%}
+                {%- assign ns2 = section.settings.context_metafield_namespace | default: 'custom' -%}
+                {%- assign k2 = section.settings.context_metafield_key | default: 'events' -%}
+                {%- if page and page.metafields[ns2][k2] != blank -%}
+                  {%- assign list_source = page.metafields[ns2][k2].value -%}
+                {%- elsif product and product.metafields[ns2][k2] != blank -%}
+                  {%- assign list_source = product.metafields[ns2][k2].value -%}
+                {%- elsif collection and collection.metafields[ns2][k2] != blank -%}
+                  {%- assign list_source = collection.metafields[ns2][k2].value -%}
+                {%- elsif article and article.metafields[ns2][k2] != blank -%}
+                  {%- assign list_source = article.metafields[ns2][k2].value -%}
+                {%- elsif blog and blog.metafields[ns2][k2] != blank -%}
+                  {%- assign list_source = blog.metafields[ns2][k2].value -%}
+                {%- endif -%}
+              {%- endif -%}
+
+              {%- assign last_month2 = '' -%}
+
+              {%- for pair in sorted_pairs -%}
+                {%- assign parts = pair | split: '::' -%}
+                {%- assign eid = parts[1] -%}
+
+                {%- assign ev = nil -%}
+                {%- for item in list_source -%}
+                  {%- if item.id == eid -%}
+                    {%- assign ev = item -%}
+                    {%- break -%}
+                  {%- endif -%}
+                {%- endfor -%}
+                {%- if ev == nil -%}{%- continue -%}{%- endif -%}
+
+                {%- liquid
+                  assign start_at = ev.start_at.value | default: ev.start_at
+                  assign sd = ''
+                  assign st = ''
+
+                  if start_at != blank
+                    assign sd = start_at | date: '%Y-%m-%d'
+                    assign st = start_at | date: '%H:%M'
+                  else
+                    assign sd = ev.start_date.value | default: ev.start_date | default: ''
+                    assign st = ev.start_time.value | default: ev.start_time | default: ''
+                  endif
+
+                  assign sd = sd | strip
+                  assign st = st | strip
+                  if sd == blank
+                    continue
+                  endif
+                  if st == blank
+                    assign st = '00:00'
+                  endif
+
+                  assign dt_string = sd | append: ' ' | append: st
+                  assign ev_ts = dt_string | date: '%s' | plus: 0
+
+                  assign is_past = false
+                  if ev_ts < now_ts
+                    assign is_past = true
+                  endif
+
+                  assign month_label = sd | date: '%B %Y'
+                  assign day_label = sd | date: '%b %d'
+                  assign weekday_label = sd | date: '%A'
+                  assign iso_date = sd
+
+                  assign title = ev.title.value | default: ev.title | default: 'Event'
+                  assign location = ev.location.value | default: ev.location | default: ''
+                  assign spots_label = ev.spots_label.value | default: ev.spots_label | default: ''
+                  assign status = ev.status.value | default: ev.status | default: 'available'
+                  assign cta_label = ev.cta_label.value | default: ev.cta_label | default: ''
+                  assign cta_url = ev.cta_url.value | default: ev.cta_url | default: ''
+
+                  assign show_cta = false
+                  if section.settings.show_cta and cta_url != blank and cta_label != blank
+                    assign show_cta = true
+                  endif
+
+                  assign description = ev.description.value | default: ev.description | default: ''
+                -%}
+
+                {%- if month_label != last_month2 -%}
+                  <div class="qcal__month" aria-hidden="true">
+                    <span class="qcal__monthText">{{ month_label }}</span>
+                  </div>
+                  {%- assign last_month2 = month_label -%}
+                {%- endif -%}
+
+                <article class="qcal__card{% if is_past and section.settings.past_events_style == 'muted' %} is-past{% endif %}">
+                  <div class="qcal__cardTop">
+                    <div class="qcal__datePill" aria-label="{{ weekday_label }}, {{ month_label }}, {{ day_label }}">
+                      <span class="qcal__dateDay">{{ day_label }}</span>
+                      <span class="qcal__dateWeek">{{ weekday_label }}</span>
+                    </div>
+
+                    <div class="qcal__cardMain">
+                      <div class="qcal__row">
+                        <h3 class="qcal__eventTitle">{{ title | escape }}</h3>
+
+                        {%- if section.settings.show_status_badges -%}
+                          <span class="qcal__badge qcal__badge--{{ status }}">
+                            {%- case status -%}
+                              {%- when 'few_spots_left' -%}Few spots
+                              {%- when 'full' -%}Full
+                              {%- when 'waitlist' -%}Waitlist
+                              {%- else -%}Available
+                            {%- endcase -%}
+                          </span>
+                        {%- endif -%}
+                      </div>
+
+                      <div class="qcal__meta">
+                        <span class="qcal__metaItem">
+                          <time datetime="{{ iso_date }}{% if st != blank %}T{{ st }}{% endif %}">
+                            {{ month_label }} · {{ day_label }}
+                          </time>
+                          {%- if st != blank and st != '00:00' -%}
+                            <span aria-hidden="true"> · </span><span class="qcal__time">{{ st | escape }}</span>
+                          {%- endif -%}
+                        </span>
+
+                        {%- if section.settings.show_locations and location != blank -%}
+                          <span class="qcal__metaItem qcal__loc">{{ location | escape }}</span>
+                        {%- endif -%}
+
+                        {%- if spots_label != blank -%}
+                          <span class="qcal__metaItem qcal__spots">{{ spots_label | escape }}</span>
+                        {%- endif -%}
+                      </div>
+
+                      {%- if section.settings.show_event_descriptions and description != blank -%}
+                        <div class="qcal__desc rte">{{ description }}</div>
+                      {%- endif -%}
+
+                      {%- if show_cta -%}
+                        <div class="qcal__cta">
+                          <a class="qcal__btn" href="{{ cta_url }}">{{ cta_label | escape }}</a>
+                        </div>
+                      {%- endif -%}
+                    </div>
+                  </div>
+                </article>
+              {%- endfor -%}
+            {%- endif -%}
+
+          {%- else -%}
+            <div class="qcal__empty" role="status" aria-live="polite">
+              <p class="qcal__emptyText">{{ section.settings.no_events_message | escape }}</p>
+            </div>
+          {%- endif -%}
+        </div>
+
+        {%- if mode == 'events_calendar' -%}
+          <div class="qcal__calendar" data-view="month">
+            <div class="qcal__calHeader">
+              <div class="qcal__calLeft">
+                <div class="qcal__calTitle" aria-live="polite"></div>
+                {%- if section.settings.show_calendar_header -%}
+                  <div class="qcal__calHint">Select a day to view events.</div>
+                {%- endif -%}
+              </div>
+
+              {%- if section.settings.enable_month_nav -%}
+                <div class="qcal__calNav" role="group" aria-label="Calendar navigation">
+                  <button type="button" class="qcal__navBtn" data-cal-prev aria-label="Previous month">‹</button>
+                  <button type="button" class="qcal__navBtn" data-cal-today aria-label="Jump to current month">Today</button>
+                  <button type="button" class="qcal__navBtn" data-cal-next aria-label="Next month">›</button>
+                </div>
+              {%- endif -%}
+            </div>
+
+            <div class="qcal__gridWrap">
+              <div class="qcal__dow" aria-hidden="true">
+                <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+              </div>
+              <div class="qcal__grid" role="grid" aria-label="Month calendar"></div>
+            </div>
+
+            <aside class="qcal__panel" aria-live="polite">
+              <div class="qcal__panelTitle"></div>
+              <div class="qcal__panelBody"></div>
+            </aside>
+          </div>
+
+          <script type="application/json" class="qcal__data">
+            {
+              "sectionId": {{ section.id | json }},
+              "nowTs": {{ now_ts | json }},
+              "source": {{ source | json }},
+              "feed": {
+                "url": {{ section.settings.feed_url | strip | json }},
+                "cacheMinutes": {{ section.settings.feed_cache_minutes | json }},
+                "maxEvents": {{ section.settings.feed_max_events | json }}
+              },
+              "events": [
+                {%- assign first_out = true -%}
+                {%- if source == 'blocks' -%}
+                  {%- for pair in sorted_pairs -%}
+                    {%- assign parts = pair | split: '::' -%}
+                    {%- assign bid = parts[1] -%}
+
+                    {%- assign block_obj = nil -%}
+                    {%- for b in blocks_events -%}
+                      {%- if b.id == bid -%}
+                        {%- assign block_obj = b -%}
+                        {%- break -%}
+                      {%- endif -%}
+                    {%- endfor -%}
+                    {%- if block_obj == nil -%}{%- continue -%}{%- endif -%}
+
+                    {%- assign sd = block_obj.settings.start_date | strip -%}
+                    {%- if sd == blank -%}{%- continue -%}{%- endif -%}
+                    {%- assign st = block_obj.settings.start_time | strip -%}
+                    {%- if st == blank -%}{%- assign st = '00:00' -%}{%- endif -%}
+
+                    {%- assign dt_string = sd | append: ' ' | append: st -%}
+                    {%- assign ev_ts = dt_string | date: '%s' | plus: 0 -%}
+                    {%- if ev_ts <= 0 -%}{%- continue -%}{%- endif -%}
+
+                    {%- unless first_out -%},{%- endunless -%}
+                    {
+                      "id": {{ block_obj.id | json }},
+                      "title": {{ block_obj.settings.title | json }},
+                      "start_date": {{ sd | json }},
+                      "start_time": {{ block_obj.settings.start_time | strip | json }},
+                      "end_date": {{ block_obj.settings.end_date | strip | json }},
+                      "end_time": {{ block_obj.settings.end_time | strip | json }},
+                      "location": {{ block_obj.settings.location | json }},
+                      "description_html": {{ block_obj.settings.description | json }},
+                      "status": {{ block_obj.settings.availability_status | default: 'available' | json }},
+                      "spots_label": {{ block_obj.settings.spots_label | json }},
+                      "cta_label": {{ block_obj.settings.cta_label | json }},
+                      "cta_url": {{ block_obj.settings.cta_url | json }},
+                      "ts": {{ ev_ts | json }}
+                    }
+                    {%- assign first_out = false -%}
+                  {%- endfor -%}
+                {%- endif -%}
+              ]
+            }
+          </script>
+        {%- endif -%}
+      {%- endif -%}
+    </div>
+  </div>
+
+  <style>
+    /* hard safety: prevent page break / overflow */
+    #shopify-section-{{ section.id }} .qcal,
+    #shopify-section-{{ section.id }} .qcal *{ box-sizing: border-box; }
+
+    #shopify-section-{{ section.id }} .qcal{
+      --qcal-max: {{ section.settings.max_width }}px;
+      --qcal-pad-y: {{ section.settings.pad_y }}px;
+      --qcal-pad-x: {{ section.settings.pad_x }}px;
+      --qcal-gap: {{ section.settings.gap }}px;
+      --qcal-radius: {{ section.settings.radius }}px;
+
+      --qcal-title-fs: {{ section.settings.title_fs }}px;
+      --qcal-subtitle-fs: {{ section.settings.subtitle_fs }}px;
+      --qcal-event-title-fs: {{ section.settings.event_title_fs }}px;
+      --qcal-meta-fs: {{ section.settings.meta_fs }}px;
+      --qcal-badge-fs: {{ section.settings.badge_fs }}px;
+      --qcal-btn-fs: {{ section.settings.btn_fs }}px;
+
+      {%- if use_custom_colors -%}
+        --qcal-bg: {{ section.settings.bg }};
+        --qcal-text: {{ section.settings.text }};
+        --qcal-muted: {{ section.settings.muted }};
+        --qcal-accent: {{ section.settings.accent }};
+        --qcal-surface: {{ section.settings.surface }};
+        --qcal-border: {{ section.settings.border }};
+      {%- else -%}
+        --qcal-bg: transparent;
+        --qcal-text: currentColor;
+        --qcal-muted: rgba(0,0,0,.65);
+        --qcal-accent: currentColor;
+        --qcal-surface: rgba(0,0,0,.04);
+        --qcal-border: rgba(0,0,0,.10);
+      {%- endif -%}
+
+      --qcal-focus: color-mix(in srgb, var(--qcal-accent) 35%, #ffffff);
+    }
+
+    #shopify-section-{{ section.id }} .qcal__outer{
+      background: var(--qcal-bg);
+      color: var(--qcal-text);
+      padding: var(--qcal-pad-y) var(--qcal-pad-x);
+      max-width: 100%;
+      overflow-x: clip;
+    }
+    #shopify-section-{{ section.id }} .qcal__frame{
+      max-width: min(var(--qcal-max), 100%);
+      margin: 0 auto;
+      display: grid;
+      gap: var(--qcal-gap);
+    }
+
+    #shopify-section-{{ section.id }} .qcal__header{ display: grid; gap: 10px; }
+    #shopify-section-{{ section.id }} .qcal__title{ font-size: var(--qcal-title-fs); line-height: 1.1; margin: 0; letter-spacing: -0.01em; }
+    #shopify-section-{{ section.id }} .qcal__subtitle{ font-size: var(--qcal-subtitle-fs); color: var(--qcal-muted); }
+
+    /* no-JS baseline: list shows */
+    #shopify-section-{{ section.id }} .qcal__events{ display: block; }
+
+    /* calendar mode: show calendar chrome immediately, but hide list only after JS marks ready */
+    #shopify-section-{{ section.id }} .qcal[data-mode="events_calendar"] .qcal__calendar{
+      display: grid;
+      gap: var(--qcal-gap);
+      align-items: start;
+      max-width: 100%;
+    }
+    #shopify-section-{{ section.id }} .qcal[data-mode="events_calendar"].is-cal-ready .qcal__events{ display: none; }
+
+    /* other modes */
+    #shopify-section-{{ section.id }} .qcal[data-mode="events_list"] .qcal__calendar{ display: none; }
+    #shopify-section-{{ section.id }} .qcal[data-mode="booking_embed"] .qcal__calendar{ display: none; }
+
+    #shopify-section-{{ section.id }} .qcal__calHeader{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; color:var(--qcal-muted); font-size:13px; }
+    #shopify-section-{{ section.id }} .qcal__calLeft{ display:grid; gap:6px; }
+    #shopify-section-{{ section.id }} .qcal__calTitle{ font-weight:800; color:var(--qcal-text); font-size:13px; letter-spacing:.10em; text-transform:uppercase; }
+    #shopify-section-{{ section.id }} .qcal__calNav{ display:inline-flex; gap:8px; align-items:center; flex-wrap: wrap; }
+
+    #shopify-section-{{ section.id }} .qcal__navBtn{
+      appearance:none;
+      border:1px solid var(--qcal-border);
+      background: color-mix(in srgb, var(--qcal-bg) 55%, transparent);
+      color: var(--qcal-text);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font: inherit;
+      cursor: pointer;
+      line-height: 1;
+      max-width: 100%;
+    }
+    #shopify-section-{{ section.id }} .qcal__navBtn:hover{ border-color: color-mix(in srgb, var(--qcal-border) 55%, var(--qcal-accent)); }
+    #shopify-section-{{ section.id }} .qcal__navBtn:focus-visible{
+      outline: 2px solid color-mix(in srgb, var(--qcal-accent) 30%, #fff);
+      outline-offset: 2px;
+    }
+
+    #shopify-section-{{ section.id }} .qcal__gridWrap{
+      background: var(--qcal-surface);
+      border: 1px solid var(--qcal-border);
+      border-radius: var(--qcal-radius);
+      padding: 12px;
+      overflow: hidden;
+      max-width: 100%;
+    }
+    #shopify-section-{{ section.id }} .qcal__dow{
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 6px;
+      color: var(--qcal-muted);
+      font-size: 12px;
+      padding: 4px 2px 10px;
+    }
+    #shopify-section-{{ section.id }} .qcal__grid{
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 6px;
+      width: 100%;
+      max-width: 100%;
+    }
+
+    #shopify-section-{{ section.id }} .qcal__dayBtn{
+      appearance:none;
+      border: 1px solid var(--qcal-border);
+      background: color-mix(in srgb, var(--qcal-bg) 55%, transparent);
+      border-radius: 14px;
+      padding: 10px;
+      min-height: 54px;
+      display: grid;
+      gap: 6px;
+      text-align: left;
+      cursor: pointer;
+      color: var(--qcal-text);
+      width: 100%;
+      max-width: 100%;
+      font: inherit;
+    }
+    #shopify-section-{{ section.id }} .qcal__dayBtn[aria-pressed="true"]{
+      border-color: color-mix(in srgb, var(--qcal-border) 40%, var(--qcal-accent));
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--qcal-accent) 12%, transparent);
+    }
+    #shopify-section-{{ section.id }} .qcal__dayNum{ font-weight: 900; font-size: 13px; line-height: 1; color: var(--qcal-text); }
+
+    #shopify-section-{{ section.id }} .qcal__dots{
+      display: inline-flex;
+      gap: 4px;
+      align-items: center;
+      color: var(--qcal-muted);
+      font-size: 12px;
+      line-height: 1;
+      min-height: 8px;
+      flex-wrap: wrap;
+    }
+    #shopify-section-{{ section.id }} .qcal__dot{
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--qcal-accent) 65%, var(--qcal-border));
+      display: inline-block;
+    }
+
+    #shopify-section-{{ section.id }} .qcal__panel{
+      background: var(--qcal-surface);
+      border: 1px solid var(--qcal-border);
+      border-radius: var(--qcal-radius);
+      padding: 16px;
+      max-width: 100%;
+      overflow: hidden;
+    }
+    #shopify-section-{{ section.id }} .qcal__panelTitle{ font-weight: 900; margin-bottom: 10px; letter-spacing: -0.01em; }
+    #shopify-section-{{ section.id }} .qcal__panelBody{ display: grid; gap: 10px; }
+
+    #shopify-section-{{ section.id }} .qcal__panelItem{
+      background: color-mix(in srgb, var(--qcal-bg) 55%, transparent);
+      border: 1px solid var(--qcal-border);
+      border-radius: 14px;
+      padding: 12px;
+      display: grid;
+      gap: 6px;
+      max-width: 100%;
+    }
+    #shopify-section-{{ section.id }} .qcal__panelItemTitle{ font-weight: 800; margin: 0; }
+    #shopify-section-{{ section.id }} .qcal__panelItemMeta{
+      font-size: 12px;
+      color: var(--qcal-muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      max-width: 100%;
+    }
+
+    #shopify-section-{{ section.id }} .qcal__empty{
+      background: var(--qcal-surface);
+      border: 1px dashed var(--qcal-border);
+      border-radius: var(--qcal-radius);
+      padding: 18px;
+      color: var(--qcal-muted);
+      max-width: 100%;
+    }
+    #shopify-section-{{ section.id }} .qcal__emptyTitle{ margin: 0 0 6px; font-weight: 900; color: var(--qcal-text); }
+    #shopify-section-{{ section.id }} .qcal__emptyText{ margin: 0; }
+
+    #shopify-section-{{ section.id }} .qcal__btn{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: var(--qcal-btn-fs);
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--qcal-border) 60%, var(--qcal-accent));
+      background: var(--qcal-accent);
+      color: #fff;
+      text-decoration: none;
+      max-width: 100%;
+    }
+
+    @media (max-width: 720px){
+      #shopify-section-{{ section.id }} .qcal__gridWrap{
+        overflow-x: {% if section.settings.calendar_mobile_mode == 'scroll' %}auto{% else %}hidden{% endif %};
+      }
+      #shopify-section-{{ section.id }} .qcal__grid{
+        {% if section.settings.calendar_mobile_mode == 'scroll' %}
+          min-width: 640px;
+        {% endif %}
+      }
+    }
+  </style>
+
+  <script>
+    (function(){
+      function parseISODate(iso){
+        if(!iso || typeof iso !== 'string') return null;
+        var m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if(!m) return null;
+        var y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3]);
+        var dt = new Date(y, mo, d);
+        if(dt.getFullYear() !== y || dt.getMonth() !== mo || dt.getDate() !== d) return null;
+        return dt;
+      }
+      function monthStart(dt){ return new Date(dt.getFullYear(), dt.getMonth(), 1); }
+      function pad2(n){ return (n < 10 ? '0' : '') + n; }
+      function isoDate(y,m,d){ return y + '-' + pad2(m+1) + '-' + pad2(d); }
+
+      function init(sectionEl){
+        if(!sectionEl) return;
+        var root = sectionEl.querySelector('.qcal');
+        if(!root) return;
+        if(root.getAttribute('data-mode') !== 'events_calendar') return;
+
+        var cal = root.querySelector('.qcal__calendar');
+        var dataEl = root.querySelector('.qcal__data');
+        if(!cal || !dataEl) return;
+
+        var grid = cal.querySelector('.qcal__grid');
+        var calTitle = cal.querySelector('.qcal__calTitle');
+        var panelTitle = cal.querySelector('.qcal__panelTitle');
+        var panelBody = cal.querySelector('.qcal__panelBody');
+        if(!grid || !panelTitle || !panelBody) return;
+
+        var data;
+        try { data = JSON.parse(dataEl.textContent || '{}'); } catch(e){ data = {}; }
+        var events = Array.isArray(data.events) ? data.events : [];
+
+        // Group events by day
+        var byDay = {};
+        events.forEach(function(ev){
+          if(!ev || !ev.start_date) return;
+          var sd = String(ev.start_date);
+          if(!byDay[sd]) byDay[sd] = [];
+          byDay[sd].push(ev);
+        });
+
+        // Base month (safe): earliest event start_date, else today
+        var base = new Date();
+        if(events.length){
+          var sorted = events.slice().sort(function(a,b){
+            var at = Number(a && a.ts), bt = Number(b && b.ts);
+            if(Number.isFinite(at) && Number.isFinite(bt)) return at - bt;
+            return String(a && a.start_date || '').localeCompare(String(b && b.start_date || ''));
+          });
+          var dt0 = parseISODate(sorted[0] && sorted[0].start_date);
+          if(dt0) base = dt0;
+        }
+        base = monthStart(base);
+
+        var monthOffset = 0;
+        var selectedIso = null;
+
+        function dayAria(iso){
+          var p = iso.split('-');
+          var dd = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]));
+          var label = dd.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+          var count = (byDay[iso] || []).length;
+          return label + (count ? (': ' + count + ' event' + (count>1 ? 's' : '')) : ': no events');
+        }
+
+        function renderPanel(iso){
+          var p = iso.split('-');
+          var dd = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]));
+          panelTitle.textContent = dd.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' });
+
+          var items = byDay[iso] || [];
+          panelBody.innerHTML = '';
+
+          if(!items.length){
+            var empty = document.createElement('div');
+            empty.className = 'qcal__empty';
+            empty.innerHTML = '<p class="qcal__emptyText">No events on this day.</p>';
+            panelBody.appendChild(empty);
+            return;
+          }
+
+          items.forEach(function(ev){
+            var wrap = document.createElement('div');
+            wrap.className = 'qcal__panelItem';
+
+            var h = document.createElement('p');
+            h.className = 'qcal__panelItemTitle';
+            h.textContent = ev.title || 'Event';
+
+            var meta = document.createElement('div');
+            meta.className = 'qcal__panelItemMeta';
+
+            if(ev.start_time){
+              var t = document.createElement('span');
+              t.textContent = ev.start_time + (ev.end_time ? ('–' + ev.end_time) : '');
+              meta.appendChild(t);
+            }
+            if(ev.location){
+              var l = document.createElement('span');
+              l.textContent = ev.location;
+              meta.appendChild(l);
+            }
+            if(ev.spots_label){
+              var s = document.createElement('span');
+              s.textContent = ev.spots_label;
+              meta.appendChild(s);
+            }
+
+            wrap.appendChild(h);
+            if(meta.childNodes.length) wrap.appendChild(meta);
+
+            if(ev.cta_url && ev.cta_label){
+              var a = document.createElement('a');
+              a.className = 'qcal__btn';
+              a.href = ev.cta_url;
+              a.textContent = ev.cta_label;
+              wrap.appendChild(a);
+            }
+
+            panelBody.appendChild(wrap);
+          });
+        }
+
+        function pickDefaultSelection(year, month, daysInMonth){
+          var pick = isoDate(year, month, 1);
+          for(var i=1; i<=daysInMonth; i++){
+            var iso = isoDate(year, month, i);
+            if(byDay[iso] && byDay[iso].length){
+              pick = iso;
+              break;
+            }
+          }
+          return pick;
+        }
+
+        function render(){
+          var d0 = new Date(base.getFullYear(), base.getMonth() + monthOffset, 1);
+          if(isNaN(d0.getTime())){
+            var t = new Date();
+            d0 = new Date(t.getFullYear(), t.getMonth(), 1);
+          }
+          var year = d0.getFullYear();
+          var month = d0.getMonth();
+
+          if(calTitle){
+            calTitle.textContent = d0.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+          }
+
+          var first = new Date(year, month, 1);
+          var firstDow = first.getDay();
+          var daysInMonth = new Date(year, month+1, 0).getDate();
+
+          selectedIso = pickDefaultSelection(year, month, daysInMonth);
+
+          grid.innerHTML = '';
+
+          // leading blanks
+          for(var b=0; b<firstDow; b++){
+            var blank = document.createElement('div');
+            blank.setAttribute('aria-hidden','true');
+            grid.appendChild(blank);
+          }
+
+          for(var day=1; day<=daysInMonth; day++){
+            var iso = isoDate(year, month, day);
+            var count = (byDay[iso] || []).length;
+
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'qcal__dayBtn';
+            btn.setAttribute('aria-label', dayAria(iso));
+            btn.setAttribute('aria-pressed', iso === selectedIso ? 'true' : 'false');
+            btn.dataset.iso = iso;
+
+            var num = document.createElement('span');
+            num.className = 'qcal__dayNum';
+            num.textContent = String(day);
+            btn.appendChild(num);
+
+            var dots = document.createElement('span');
+            dots.className = 'qcal__dots';
+
+            if(count){
+              var dotCount = Math.min(count, 3);
+              for(var k=0; k<dotCount; k++){
+                var dot = document.createElement('span');
+                dot.className = 'qcal__dot';
+                dots.appendChild(dot);
+              }
+              if(count > 3){
+                var more = document.createElement('span');
+                more.textContent = '+' + (count-3);
+                dots.appendChild(more);
+              }
+            }
+
+            btn.appendChild(dots);
+
+            btn.addEventListener('click', function(e){
+              selectedIso = e.currentTarget.dataset.iso;
+
+              var all = grid.querySelectorAll('.qcal__dayBtn');
+              for(var i=0; i<all.length; i++){
+                all[i].setAttribute('aria-pressed', all[i].dataset.iso === selectedIso ? 'true' : 'false');
+              }
+              renderPanel(selectedIso);
+            });
+
+            grid.appendChild(btn);
+          }
+
+          renderPanel(selectedIso);
+        }
+
+        // Wire existing nav buttons (DON'T create new ones)
+        var prevBtn = cal.querySelector('[data-cal-prev]');
+        var nextBtn = cal.querySelector('[data-cal-next]');
+        var todayBtn = cal.querySelector('[data-cal-today]');
+
+        if(prevBtn && !prevBtn.dataset.qcalBound){
+          prevBtn.dataset.qcalBound = '1';
+          prevBtn.addEventListener('click', function(){ monthOffset -= 1; render(); });
+        }
+        if(nextBtn && !nextBtn.dataset.qcalBound){
+          nextBtn.dataset.qcalBound = '1';
+          nextBtn.addEventListener('click', function(){ monthOffset += 1; render(); });
+        }
+        if(todayBtn && !todayBtn.dataset.qcalBound){
+          todayBtn.dataset.qcalBound = '1';
+          todayBtn.addEventListener('click', function(){
+            var t = new Date();
+            base = new Date(t.getFullYear(), t.getMonth(), 1);
+            monthOffset = 0;
+            render();
+          });
+        }
+
+        // mark ready (hides list fallback in calendar mode)
+        root.classList.add('is-cal-ready');
+        render();
+      }
+
+      function boot(){
+        var el = document.getElementById('shopify-section-{{ section.id }}');
+        init(el);
+      }
+
+      if(document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', boot);
+      } else {
+        boot();
+      }
+
+      document.addEventListener('shopify:section:load', function(e){
+        if(e && e.target && e.target.id === 'shopify-section-{{ section.id }}') init(e.target);
+      });
+      document.addEventListener('shopify:section:select', function(e){
+        if(e && e.target && e.target.id === 'shopify-section-{{ section.id }}') init(e.target);
+      });
+    })();
+  </script>
+</section>
+
+{% schema %}
+{
+  "name": "Interactive Calendar",
+  "tag": "section",
+  "class": "q-calendar",
+  "settings": [
+    {
+      "type": "select",
+      "id": "mode",
+      "label": "Mode",
+      "default": "events_list",
+      "options": [
+        { "value": "events_list", "label": "Events list" },
+        { "value": "events_calendar", "label": "Events calendar (month + panel)" },
+        { "value": "booking_embed", "label": "Booking embed" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "source",
+      "label": "Event source",
+      "default": "blocks",
+      "options": [
+        { "value": "blocks", "label": "Blocks (manual)" },
+        { "value": "metaobjects", "label": "Metaobjects (select list)" },
+        { "value": "context_metafield", "label": "Context metafield (page/product/etc)" },
+        { "value": "feed_json", "label": "External JSON feed (JS)" }
+      ]
+    },
+    { "type": "text", "id": "title", "label": "Title", "default": "Upcoming events" },
+    { "type": "richtext", "id": "subtitle", "label": "Subtitle", "default": "<p>Join us in-person or online.</p>" },
+
+    { "type": "header", "content": "Layout" },
+    { "type": "range", "id": "max_width", "label": "Max width", "min": 320, "max": 1600, "step": 20, "default": 1200, "unit": "px" },
+    { "type": "range", "id": "pad_y", "label": "Vertical padding", "min": 0, "max": 100, "step": 1, "default": 56, "unit": "px" },
+    { "type": "range", "id": "pad_x", "label": "Horizontal padding", "min": 0, "max": 60, "step": 1, "default": 18, "unit": "px" },
+    { "type": "range", "id": "gap", "label": "Gap", "min": 8, "max": 48, "step": 1, "default": 22, "unit": "px" },
+
+    { "type": "header", "content": "Colors (scoped)" },
+    { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors", "default": true },
+    { "type": "color", "id": "bg", "label": "Background", "default": "#ffffff" },
+    { "type": "color", "id": "text", "label": "Text", "default": "#111111" },
+    { "type": "color", "id": "muted", "label": "Muted text", "default": "#6b7280" },
+    { "type": "color", "id": "accent", "label": "Accent", "default": "#111111" },
+    { "type": "color", "id": "surface", "label": "Surface (cards)", "default": "#f6f7f9" },
+    { "type": "color", "id": "border", "label": "Border", "default": "#e5e7eb" },
+
+    { "type": "header", "content": "Frame style" },
+    { "type": "range", "id": "radius", "label": "Radius", "min": 0, "max": 32, "step": 1, "default": 16, "unit": "px" },
+
+    { "type": "header", "content": "Typography" },
+    { "type": "range", "id": "title_fs", "label": "Title size", "min": 18, "max": 56, "step": 1, "default": 32, "unit": "px" },
+    { "type": "range", "id": "subtitle_fs", "label": "Subtitle size", "min": 12, "max": 24, "step": 1, "default": 16, "unit": "px" },
+    { "type": "range", "id": "event_title_fs", "label": "Event title size", "min": 14, "max": 28, "step": 1, "default": 18, "unit": "px" },
+    { "type": "range", "id": "meta_fs", "label": "Meta text size", "min": 11, "max": 18, "step": 1, "default": 13, "unit": "px" },
+    { "type": "range", "id": "badge_fs", "label": "Badge text size", "min": 10, "max": 16, "step": 1, "default": 12, "unit": "px" },
+    { "type": "range", "id": "btn_fs", "label": "Button text size", "min": 12, "max": 18, "step": 1, "default": 14, "unit": "px" },
+
+    { "type": "header", "content": "Events (list + calendar)" },
+    { "type": "checkbox", "id": "show_calendar_header", "label": "Show calendar hint", "default": true },
+    { "type": "checkbox", "id": "enable_month_nav", "label": "Enable month navigation", "default": true },
+    { "type": "checkbox", "id": "show_event_descriptions", "label": "Show descriptions", "default": true },
+    { "type": "checkbox", "id": "show_locations", "label": "Show locations", "default": true },
+    { "type": "checkbox", "id": "show_status_badges", "label": "Show status badges", "default": true },
+    { "type": "checkbox", "id": "show_cta", "label": "Show CTA button", "default": true },
+    { "type": "text", "id": "no_events_message", "label": "No events message", "default": "No upcoming events at the moment." },
+    { "type": "checkbox", "id": "show_past_events", "label": "Show past events", "default": false },
+    {
+      "type": "select",
+      "id": "past_events_style",
+      "label": "Past events style",
+      "default": "hide",
+      "options": [
+        { "value": "hide", "label": "Hide" },
+        { "value": "muted", "label": "Muted" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "calendar_mobile_mode",
+      "label": "Mobile behavior",
+      "default": "list",
+      "options": [
+        { "value": "list", "label": "Auto list (recommended)" },
+        { "value": "scroll", "label": "Allow horizontal scroll grid" }
+      ]
+    },
+
+    { "type": "header", "content": "Metaobjects (Option 1)" },
+    {
+      "type": "metaobject_list",
+      "id": "metaobject_events",
+      "label": "Select events (metaobjects)",
+      "metaobject_type": "q_event",
+      "info": "Recommended: q_event metaobjects with start_at date_time."
+    },
+
+    { "type": "header", "content": "Context metafield (Option 3)" },
+    { "type": "text", "id": "context_metafield_namespace", "label": "Metafield namespace", "default": "custom" },
+    { "type": "text", "id": "context_metafield_key", "label": "Metafield key", "default": "events" },
+
+    { "type": "header", "content": "External JSON feed (Option 4)" },
+    { "type": "url", "id": "feed_url", "label": "Events feed URL (JSON)" },
+    { "type": "range", "id": "feed_cache_minutes", "label": "Feed cache minutes", "min": 1, "max": 100, "step": 1, "default": 30 },
+    { "type": "range", "id": "feed_max_events", "label": "Max feed events", "min": 10, "max": 400, "step": 10, "default": 200 },
+    { "type": "text", "id": "feed_loading_message", "label": "Feed loading message", "default": "Loading events…" },
+
+    { "type": "header", "content": "Booking embed" },
+    { "type": "richtext", "id": "availability_message", "label": "Availability message", "default": "<p>Pick a time that works for you. We’ll confirm right away.</p>" },
+    {
+      "type": "textarea",
+      "id": "embed_code",
+      "label": "Embed code",
+      "default": "<!-- Paste your booking embed here (e.g., Calendly / GoHighLevel / Acuity). -->\n<!-- Tip: if it’s an iframe, set width=\"100%\" and provide a height. -->"
+    },
+    {
+      "type": "select",
+      "id": "embed_frame_style",
+      "label": "Embed frame style",
+      "default": "surface",
+      "options": [
+        { "value": "surface", "label": "Surface" },
+        { "value": "minimal", "label": "Minimal" }
+      ]
+    },
+    { "type": "range", "id": "embed_min_height", "label": "Embed min height", "min": 300, "max": 1200, "step": 10, "default": 680, "unit": "px" },
+    { "type": "text", "id": "booking_fallback_label", "label": "Fallback button label", "default": "Contact us" },
+    { "type": "url", "id": "booking_fallback_url", "label": "Fallback button URL" }
+  ],
+  "blocks": [
+    {
+      "type": "event",
+      "name": "Event",
+      "settings": [
+        { "type": "text", "id": "title", "label": "Title", "default": "Open House" },
+        { "type": "text", "id": "start_date", "label": "Start date (YYYY-MM-DD)", "default": "2026-01-15", "info": "Use ISO format: 2026-01-15" },
+        { "type": "text", "id": "start_time", "label": "Start time (HH:MM)", "info": "Optional. Example: 18:30" },
+        { "type": "text", "id": "end_date", "label": "End date (YYYY-MM-DD)" },
+        { "type": "text", "id": "end_time", "label": "End time (HH:MM)" },
+        { "type": "text", "id": "location", "label": "Location", "default": "Main showroom" },
+        { "type": "richtext", "id": "description", "label": "Description", "default": "<p>See what’s new, ask questions, and get personalized recommendations.</p>" },
+        {
+          "type": "select",
+          "id": "availability_status",
+          "label": "Availability status",
+          "default": "available",
+          "options": [
+            { "value": "available", "label": "Available" },
+            { "value": "few_spots_left", "label": "Few spots left" },
+            { "value": "full", "label": "Full" },
+            { "value": "waitlist", "label": "Waitlist" }
+          ]
+        },
+        { "type": "text", "id": "spots_label", "label": "Spots label (optional)" },
+        { "type": "text", "id": "cta_label", "label": "CTA label", "default": "Register" },
+        { "type": "url", "id": "cta_url", "label": "CTA URL" }
+      ]
+    }
+  ],
+  "presets": [
+    { "name": "Interactive Content Helpers - Booking and Event Calendar", "category": "Interactive Content Helpers" }
+  ]
+}
+{% endschema %}

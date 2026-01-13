@@ -1,0 +1,665 @@
+{%- comment -%}
+  Quadratum — Interactive · Portfolio Grid / Projects Overview
+  File: sections/interactive-content-helper-portfolio-grid.liquid
+
+  V1:
+  - Grid or Masonry (CSS only; no JS)
+  - Optional visual-only category chips (aria-hidden="true")
+  - Card is fully clickable ONLY when project_url exists (no nested interactive elements)
+  - SEO: <h2> for section title, <h3> for project titles, <p> for descriptions
+  - A11Y: list semantics, keyboard reachable cards, meaningful alt fallbacks
+{%- endcomment -%}
+
+{%- liquid
+  assign sid = section.id
+  assign s = section.settings
+
+  assign projects = section.blocks | where: 'type', 'project'
+  assign projects_count = projects.size
+
+  if projects_count == 0
+    break
+  endif
+
+  assign layout = s.layout | default: 'grid'
+
+  assign cols_desktop = s.columns_desktop | default: 3
+  assign cols_tablet  = s.columns_tablet  | default: 2
+  assign cols_mobile  = s.columns_mobile  | default: 1
+
+  if projects_count == 1
+    assign cols_desktop = 1
+    assign cols_tablet  = 1
+    assign cols_mobile  = 1
+  endif
+
+  assign show_header = false
+  if s.title != blank or s.subtitle != blank
+    assign show_header = true
+  endif
+
+  assign show_view_more = false
+  if s.show_view_more_button and s.view_more_label != blank and s.view_more_url != blank
+    assign show_view_more = true
+  endif
+
+  assign max_width = s.max_width | default: 1200
+  assign pad_y = s.pad_y | default: 56
+
+  assign show_filters = false
+  assign category_values = '' | split: ''
+  if s.show_category_filters
+    for b in projects
+      assign c = b.settings.category | strip
+      if c != blank
+        assign c_key = c | downcase
+        unless category_values contains c_key
+          assign category_values = category_values | push: c
+        endunless
+      endif
+    endfor
+
+    if category_values.size > 0
+      assign show_filters = true
+    endif
+  endif
+
+  assign card_bg = 'transparent'
+  assign card_border = 'rgba(0,0,0,0.12)'
+  if s.use_custom_colors
+    assign card_bg = s.card_bg
+    assign card_border = s.card_border
+  endif
+-%}
+
+<section
+  id="q-portfolio-{{ sid }}"
+  class="q-portfolio qds-section color-{{ s.color_scheme | default: 'background-1' }}"
+  style="
+    --q-portfolio-max: {{ max_width }}px;
+    --q-portfolio-pad-y: {{ pad_y }}px;
+
+    --q-portfolio-gap: {{ s.grid_gap | default: 1.25 }}rem;
+    --q-portfolio-cols-m: {{ cols_mobile }};
+    --q-portfolio-cols-t: {{ cols_tablet }};
+    --q-portfolio-cols-d: {{ cols_desktop }};
+
+    --q-portfolio-card-bg: {{ card_bg }};
+    --q-portfolio-card-border: {{ card_border }};
+    --q-portfolio-card-radius: {{ s.card_radius | default: 16 }}px;
+    --q-portfolio-card-shadow: {{ s.shadow_strength | default: 0.08 }};
+
+    --q-portfolio-title-size: {{ s.title_size | default: 1.1 }}rem;
+    --q-portfolio-title-weight: {{ s.title_weight | default: 600 }};
+    --q-portfolio-cat-size: {{ s.category_size | default: 0.95 }}rem;
+    --q-portfolio-cat-opacity: {{ s.category_opacity | default: 0.75 }};
+    --q-portfolio-desc-size: {{ s.description_size | default: 1.0 }}rem;
+
+    --q-portfolio-vspace: {{ s.vertical_spacing | default: 0.6 }}rem;
+
+    --q-portfolio-aspect: {{ s.image_aspect_ratio | default: '16 / 10' }};
+  "
+>
+  <div class="q-portfolio__wrap">
+    {%- if show_header -%}
+      <header class="q-portfolio__header">
+        {%- if s.title != blank -%}
+          <h2 class="q-portfolio__title">{{ s.title | escape }}</h2>
+        {%- endif -%}
+        {%- if s.subtitle != blank -%}
+          <div class="q-portfolio__subtitle rte">{{ s.subtitle }}</div>
+        {%- endif -%}
+      </header>
+    {%- endif -%}
+
+    {%- if show_filters -%}
+      <div class="q-portfolio__filters" aria-hidden="true">
+        <div class="q-portfolio__filters-inner" role="list">
+          {%- for c in category_values -%}
+            <span class="q-portfolio__chip" role="listitem">{{ c | escape }}</span>
+          {%- endfor -%}
+        </div>
+      </div>
+    {%- endif -%}
+
+    {%- if layout == 'masonry' -%}
+      <ul class="q-portfolio__masonry" aria-label="{{ s.title | default: 'Projects' | escape }}">
+        {%- for block in projects -%}
+          {%- liquid
+            assign b = block.settings
+
+            assign has_url = false
+            if b.project_url != blank
+              assign has_url = true
+            endif
+
+            assign img = b.image
+
+            assign alt_text = 'Project'
+            if img != blank and img.alt != blank
+              assign alt_text = img.alt
+            elsif b.title != blank
+              assign alt_text = b.title
+            endif
+          -%}
+          <li class="q-portfolio__item" {{ block.shopify_attributes }}>
+            {%- if has_url -%}
+              <a class="q-portfolio__card" href="{{ b.project_url }}" aria-label="{{ b.title | escape }}">
+            {%- else -%}
+              <div class="q-portfolio__card" role="group" aria-label="{{ b.title | escape }}">
+            {%- endif -%}
+
+              <div class="q-portfolio__media">
+                {%- if img != blank -%}
+                  {{ img | image_url: width: 1600 | image_tag:
+                    loading: 'lazy',
+                    class: 'q-portfolio__img',
+                    alt: alt_text | escape
+                  }}
+                {%- else -%}
+                  <div class="q-portfolio__img q-portfolio__img--placeholder" aria-hidden="true"></div>
+                {%- endif -%}
+              </div>
+
+              <div class="q-portfolio__body">
+                {%- if b.title != blank -%}
+                  <h3 class="q-portfolio__card-title">{{ b.title | escape }}</h3>
+                {%- endif -%}
+
+                {%- if b.category != blank -%}
+                  <div class="q-portfolio__category">{{ b.category | escape }}</div>
+                {%- endif -%}
+
+                {%- if b.short_description != blank -%}
+                  <div class="q-portfolio__desc rte">{{ b.short_description }}</div>
+                {%- endif -%}
+
+                {%- if has_url -%}
+                  <span class="q-portfolio__cta" aria-hidden="true">
+                    {{ s.cta_label | default: 'View project' | escape }}
+                  </span>
+                {%- endif -%}
+              </div>
+
+            {%- if has_url -%}
+              </a>
+            {%- else -%}
+              </div>
+            {%- endif -%}
+          </li>
+        {%- endfor -%}
+      </ul>
+    {%- else -%}
+      <ul class="q-portfolio__grid" aria-label="{{ s.title | default: 'Projects' | escape }}">
+        {%- for block in projects -%}
+          {%- liquid
+            assign b = block.settings
+
+            assign has_url = false
+            if b.project_url != blank
+              assign has_url = true
+            endif
+
+            assign img = b.image
+
+            assign alt_text = 'Project'
+            if img != blank and img.alt != blank
+              assign alt_text = img.alt
+            elsif b.title != blank
+              assign alt_text = b.title
+            endif
+          -%}
+          <li class="q-portfolio__item" {{ block.shopify_attributes }}>
+            {%- if has_url -%}
+              <a class="q-portfolio__card" href="{{ b.project_url }}" aria-label="{{ b.title | escape }}">
+            {%- else -%}
+              <div class="q-portfolio__card" role="group" aria-label="{{ b.title | escape }}">
+            {%- endif -%}
+
+              <div class="q-portfolio__media">
+                {%- if img != blank -%}
+                  {{ img | image_url: width: 1600 | image_tag:
+                    loading: 'lazy',
+                    class: 'q-portfolio__img',
+                    alt: alt_text | escape
+                  }}
+                {%- else -%}
+                  <div class="q-portfolio__img q-portfolio__img--placeholder" aria-hidden="true"></div>
+                {%- endif -%}
+              </div>
+
+              <div class="q-portfolio__body">
+                {%- if b.title != blank -%}
+                  <h3 class="q-portfolio__card-title">{{ b.title | escape }}</h3>
+                {%- endif -%}
+
+                {%- if b.category != blank -%}
+                  <div class="q-portfolio__category">{{ b.category | escape }}</div>
+                {%- endif -%}
+
+                {%- if b.short_description != blank -%}
+                  <div class="q-portfolio__desc rte">{{ b.short_description }}</div>
+                {%- endif -%}
+
+                {%- if has_url -%}
+                  <span class="q-portfolio__cta" aria-hidden="true">
+                    {{ s.cta_label | default: 'View project' | escape }}
+                  </span>
+                {%- endif -%}
+              </div>
+
+            {%- if has_url -%}
+              </a>
+            {%- else -%}
+              </div>
+            {%- endif -%}
+          </li>
+        {%- endfor -%}
+      </ul>
+    {%- endif -%}
+
+    {%- if show_view_more -%}
+      <div class="q-portfolio__more">
+        <a class="q-portfolio__more-btn" href="{{ s.view_more_url }}">
+          {{ s.view_more_label | escape }}
+        </a>
+      </div>
+    {%- endif -%}
+  </div>
+
+  <style>
+    #q-portfolio-{{ sid }}{ width:100%; }
+    #q-portfolio-{{ sid }} .q-portfolio__wrap{
+      max-width: var(--q-portfolio-max);
+      margin-inline: auto;
+      padding-block: var(--q-portfolio-pad-y);
+      padding-inline: var(--qds-section-pad-x, 1rem);
+    }
+
+    #q-portfolio-{{ sid }} .q-portfolio__header{
+      display:flex;
+      flex-direction:column;
+      gap: calc(var(--q-portfolio-vspace) * 0.75);
+      margin-block-end: calc(var(--q-portfolio-gap) * 0.9);
+    }
+    #q-portfolio-{{ sid }} .q-portfolio__title{ margin:0; }
+    #q-portfolio-{{ sid }} .q-portfolio__subtitle{ opacity: 0.92; }
+
+    #q-portfolio-{{ sid }} .q-portfolio__filters{
+      margin-block-end: calc(var(--q-portfolio-gap) * 0.9);
+    }
+    #q-portfolio-{{ sid }} .q-portfolio__filters-inner{
+      display:flex;
+      flex-wrap:wrap;
+      gap: calc(var(--q-portfolio-gap) * 0.5);
+    }
+    #q-portfolio-{{ sid }} .q-portfolio__chip{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding: calc(var(--q-portfolio-gap) * 0.25) calc(var(--q-portfolio-gap) * 0.55);
+      border-radius: 999px;
+      border: 1px solid var(--q-portfolio-card-border);
+      background: color-mix(in srgb, var(--q-portfolio-card-bg) 75%, transparent);
+      opacity: 0.9;
+      white-space: nowrap;
+    }
+
+    /* GRID */
+    #q-portfolio-{{ sid }} .q-portfolio__grid{
+      list-style:none;
+      margin:0;
+      padding:0;
+      display:grid;
+      gap: var(--q-portfolio-gap);
+      grid-template-columns: repeat(var(--q-portfolio-cols-m), minmax(0, 1fr));
+    }
+
+    /* MASONRY (CSS columns, graceful) */
+    #q-portfolio-{{ sid }} .q-portfolio__masonry{
+      list-style:none;
+      margin:0;
+      padding:0;
+      column-count: var(--q-portfolio-cols-m);
+      column-gap: var(--q-portfolio-gap);
+    }
+    #q-portfolio-{{ sid }} .q-portfolio__masonry .q-portfolio__item{
+      break-inside: avoid;
+      margin: 0 0 var(--q-portfolio-gap);
+    }
+
+    @media (min-width: 48em){
+      #q-portfolio-{{ sid }} .q-portfolio__grid{
+        grid-template-columns: repeat(var(--q-portfolio-cols-t), minmax(0, 1fr));
+      }
+      #q-portfolio-{{ sid }} .q-portfolio__masonry{
+        column-count: var(--q-portfolio-cols-t);
+      }
+    }
+    @media (min-width: 64em){
+      #q-portfolio-{{ sid }} .q-portfolio__grid{
+        grid-template-columns: repeat(var(--q-portfolio-cols-d), minmax(0, 1fr));
+      }
+      #q-portfolio-{{ sid }} .q-portfolio__masonry{
+        column-count: var(--q-portfolio-cols-d);
+      }
+    }
+
+    /* Card */
+    #q-portfolio-{{ sid }} .q-portfolio__item{ margin:0; padding:0; }
+    #q-portfolio-{{ sid }} .q-portfolio__card{
+      display:block;
+      border: 1px solid var(--q-portfolio-card-border);
+      border-radius: var(--q-portfolio-card-radius);
+      background: var(--q-portfolio-card-bg);
+      box-shadow: 0 0.35rem 1.1rem rgba(0,0,0,var(--q-portfolio-card-shadow));
+      overflow:hidden;
+      text-decoration:none;
+      color: inherit;
+      height: 100%;
+    }
+
+    #q-portfolio-{{ sid }} .q-portfolio__media{
+      position:relative;
+      overflow:hidden;
+      background: color-mix(in srgb, var(--q-portfolio-card-bg) 60%, transparent);
+    }
+    #q-portfolio-{{ sid }} .q-portfolio__img{
+      width:100%;
+      height:auto;
+      display:block;
+      aspect-ratio: var(--q-portfolio-aspect);
+      object-fit: cover;
+    }
+    #q-portfolio-{{ sid }} .q-portfolio__img--placeholder{
+      aspect-ratio: var(--q-portfolio-aspect);
+      background: color-mix(in srgb, var(--q-portfolio-card-border) 30%, transparent);
+    }
+
+    #q-portfolio-{{ sid }} .q-portfolio__body{
+      display:flex;
+      flex-direction:column;
+      gap: var(--q-portfolio-vspace);
+      padding: calc(var(--q-portfolio-gap) * 0.85);
+    }
+
+    #q-portfolio-{{ sid }} .q-portfolio__card-title{
+      margin:0;
+      font-size: var(--q-portfolio-title-size);
+      font-weight: var(--q-portfolio-title-weight);
+      line-height: 1.2;
+      text-wrap: balance;
+    }
+    #q-portfolio-{{ sid }} .q-portfolio__category{
+      font-size: var(--q-portfolio-cat-size);
+      opacity: var(--q-portfolio-cat-opacity);
+    }
+    #q-portfolio-{{ sid }} .q-portfolio__desc{ font-size: var(--q-portfolio-desc-size); }
+    #q-portfolio-{{ sid }} .q-portfolio__desc p{ margin:0; }
+
+    #q-portfolio-{{ sid }} .q-portfolio__cta{
+      display:inline-flex;
+      align-items:center;
+      font-weight: 600;
+      opacity: 0.9;
+    }
+
+    #q-portfolio-{{ sid }} a.q-portfolio__card:focus-visible,
+    #q-portfolio-{{ sid }} .q-portfolio__more-btn:focus-visible{
+      outline: 2px solid currentColor;
+      outline-offset: 2px;
+    }
+
+    /* View more */
+    #q-portfolio-{{ sid }} .q-portfolio__more{
+      margin-block-start: calc(var(--q-portfolio-gap) * 1.1);
+      display:flex;
+      justify-content:center;
+    }
+    #q-portfolio-{{ sid }} .q-portfolio__more-btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding: calc(var(--q-portfolio-gap) * 0.55) calc(var(--q-portfolio-gap) * 0.9);
+      border-radius: 999px;
+      border: 1px solid var(--q-portfolio-card-border);
+      background: var(--q-portfolio-card-bg);
+      text-decoration:none;
+      color: inherit;
+      box-shadow: 0 0.35rem 1.1rem rgba(0,0,0, calc(var(--q-portfolio-card-shadow) * 0.9));
+    }
+  </style>
+</section>
+
+{% schema %}
+{
+  "name": "Portfolio Display",
+  "tag": "section",
+  "class": "section qds-section",
+  "settings": [
+    { "type": "header", "content": "Layout" },
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "grid",
+      "options": [
+        { "value": "grid", "label": "Grid" },
+        { "value": "masonry", "label": "Masonry" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "columns_desktop",
+      "label": "Columns (desktop)",
+      "min": 2,
+      "max": 4,
+      "step": 1,
+      "default": 3
+    },
+    {
+      "type": "range",
+      "id": "columns_tablet",
+      "label": "Columns (tablet)",
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "default": 2
+    },
+    {
+      "type": "range",
+      "id": "columns_mobile",
+      "label": "Columns (mobile)",
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "default": 1
+    },
+    {
+      "type": "range",
+      "id": "grid_gap",
+      "label": "Grid gap",
+      "min": 0.6,
+      "max": 2.2,
+      "step": 0.1,
+      "unit": "rem",
+      "default": 1.2
+    },
+
+    { "type": "header", "content": "Header" },
+    { "type": "text", "id": "title", "label": "Title", "default": "Our Work" },
+    {
+      "type": "richtext",
+      "id": "subtitle",
+      "label": "Subtitle",
+      "default": "<p>Proof of delivery — selected projects across categories.</p>"
+    },
+
+    { "type": "header", "content": "Filters (V1 visual only)" },
+    {
+      "type": "checkbox",
+      "id": "show_category_filters",
+      "label": "Show category chips (visual only)",
+      "default": false
+    },
+
+    { "type": "header", "content": "View more" },
+    { "type": "checkbox", "id": "show_view_more_button", "label": "Show view more button", "default": false },
+    { "type": "text", "id": "view_more_label", "label": "View more label", "default": "View all projects" },
+    { "type": "url", "id": "view_more_url", "label": "View more URL" },
+
+    { "type": "header", "content": "Standard controls" },
+    { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "background-1" },
+    {
+      "type": "range",
+      "id": "max_width",
+      "label": "Max width",
+      "min": 720,
+      "max": 1600,
+      "step": 20,
+      "unit": "px",
+      "default": 1200
+    },
+    {
+      "type": "range",
+      "id": "pad_y",
+      "label": "Vertical padding",
+      "min": 0,
+      "max": 140,
+      "step": 4,
+      "unit": "px",
+      "default": 56
+    },
+
+    { "type": "header", "content": "Design system (scoped variables)" },
+    { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom card colors (scoped)", "default": false },
+    { "type": "color", "id": "card_bg", "label": "Card background", "default": "#ffffff" },
+    { "type": "color", "id": "card_border", "label": "Card border", "default": "#e5e5e5" },
+    {
+      "type": "range",
+      "id": "card_radius",
+      "label": "Card radius",
+      "min": 0,
+      "max": 40,
+      "step": 2,
+      "unit": "px",
+      "default": 16
+    },
+    {
+      "type": "range",
+      "id": "shadow_strength",
+      "label": "Shadow strength",
+      "min": 0,
+      "max": 1,
+      "step": 0.1,
+      "default": 0
+    },
+    {
+      "type": "select",
+      "id": "image_aspect_ratio",
+      "label": "Image aspect ratio",
+      "default": "16 / 10",
+      "options": [
+        { "value": "1 / 1", "label": "Square (1:1)" },
+        { "value": "4 / 3", "label": "Classic (4:3)" },
+        { "value": "16 / 10", "label": "Editorial (16:10)" },
+        { "value": "16 / 9", "label": "Wide (16:9)" },
+        { "value": "3 / 4", "label": "Portrait (3:4)" }
+      ]
+    },
+
+    { "type": "header", "content": "Typography + spacing" },
+    {
+      "type": "range",
+      "id": "title_size",
+      "label": "Project title size",
+      "min": 0.5,
+      "max": 1.5,
+      "step": 0.5,
+      "unit": "rem",
+      "default": 1
+    },
+    {
+      "type": "select",
+      "id": "title_weight",
+      "label": "Project title weight",
+      "default": "600",
+      "options": [
+        { "value": "500", "label": "Medium (500)" },
+        { "value": "600", "label": "Semibold (600)" },
+        { "value": "700", "label": "Bold (700)" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "category_size",
+      "label": "Category size",
+      "min": 1,
+      "max": 5,
+      "step": 1,
+      "unit": "rem",
+      "default": 1
+    },
+    {
+      "type": "range",
+      "id": "category_opacity",
+      "label": "Category opacity",
+      "min": 0.5,
+      "max": 3,
+      "step": 0.5,
+      "default": 1
+    },
+    {
+      "type": "range",
+      "id": "description_size",
+      "label": "Description size",
+      "min": 0.5,
+      "max": 3,
+      "step": 0.5,
+      "unit": "rem",
+      "default": 1
+    },
+    {
+      "type": "range",
+      "id": "vertical_spacing",
+      "label": "Vertical spacing inside cards",
+      "min": 0.5,
+      "max": 3,
+      "step": 0.5,
+      "unit": "rem",
+      "default": 1
+    },
+    {
+      "type": "text",
+      "id": "cta_label",
+      "label": "CTA label (shown only when project URL exists)",
+      "default": "View project"
+    }
+  ],
+  "blocks": [
+    {
+      "type": "project",
+      "name": "Project",
+      "settings": [
+        { "type": "image_picker", "id": "image", "label": "Image" },
+        { "type": "text", "id": "title", "label": "Title", "default": "Project name" },
+        { "type": "text", "id": "category", "label": "Category" },
+        {
+          "type": "richtext",
+          "id": "short_description",
+          "label": "Short description",
+          "default": "<p>One to three lines describing scope and outcome.</p>"
+        },
+        { "type": "url", "id": "project_url", "label": "Project URL" }
+      ]
+    }
+  ],
+  "max_blocks": 24,
+  "presets": [
+    {
+      "name": "Interactive · Portfolio Grid / Projects Overview",
+      "category": "Interactive"
+    }
+  ]
+}
+{% endschema %}
