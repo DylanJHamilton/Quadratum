@@ -1,0 +1,687 @@
+{%- comment -%}
+  Quadratum — Interactive · Text Carousel
+  File: sections/interactive-content-helper-text-carousel.liquid
+
+  v1 (Plan B): Continuous marquee / ticker (NO JS)
+  - Default: marquee (continuous, off-canvas, sale-strip feel)
+  - Optional: carousel (engine slides) via shared contract data attributes
+  - No JS
+  - Premium defaults; token-driven via scoped CSS vars
+{%- endcomment -%}
+
+{%- liquid
+  assign sid = section.id
+  assign s = section.settings
+
+  assign items = section.blocks | where: 'type', 'item'
+  assign count = items.size
+  if count == 0
+    break
+  endif
+
+  assign show_header = s.show_header
+
+  assign layout = s.layout | default: 'single_line'
+  assign alignment = s.alignment | default: 'center'
+  assign transition_style = s.transition_style | default: 'slide'
+  assign motion_mode = s.motion_mode | default: 'marquee'
+
+  assign slides_d = s.slides_desktop | default: 1
+  assign slides_t = s.slides_tablet | default: 1
+  assign slides_m = s.slides_mobile | default: 1
+
+  assign autoplay = s.autoplay
+  assign loop = s.loop
+  assign pause_on_hover = s.pause_on_hover
+  assign show_arrows = s.show_arrows
+  assign show_dots = s.show_dots
+
+  assign aria_label = s.aria_label | default: 'Key messages carousel'
+  assign announce_changes = s.announce_changes
+
+  assign wants_controls = false
+  if autoplay or loop or show_arrows or show_dots
+    assign wants_controls = true
+  endif
+
+  assign should_init = false
+  if motion_mode == 'carousel' and count > 1 and wants_controls
+    assign should_init = true
+  endif
+
+  if count == 1
+    assign should_init = false
+    assign autoplay = false
+    assign loop = false
+    assign show_arrows = false
+    assign show_dots = false
+  endif
+
+  assign aria_live = 'off'
+  if announce_changes and autoplay and motion_mode == 'carousel'
+    assign aria_live = 'polite'
+  endif
+
+  assign use_custom_colors = s.use_custom_colors
+
+  assign max_width = s.max_width | default: 'full'
+  assign pad_y = s.pad_y | default: 'sm'
+  assign pad_x = s.pad_x | default: 'md'
+
+  assign badge_radius = s.badge_radius | default: 999
+  assign card_radius = s.card_radius | default: 16
+  assign control_radius = s.control_radius | default: 999
+
+  assign marquee_speed = s.marquee_speed | default: 14
+  assign marquee_direction = s.marquee_direction | default: 'left'
+-%}
+
+<section
+  class="q-section q-text-carousel q-tc-layout--{{ layout }} q-tc-align--{{ alignment }} q-tc-motion--{{ motion_mode }} q-tc-maxw--{{ max_width }}{% if pause_on_hover %} q-tc-pause-hover{% endif %}"
+  data-section-id="{{ sid }}"
+  role="region"
+  aria-label="{{ aria_label | escape }}"
+  style="
+    --q-tc-pad-y: var(--q-space-{{ pad_y }}, 32px);
+    --q-tc-pad-x: var(--q-space-{{ pad_x }}, 20px);
+
+    --q-tc-bg: {% if use_custom_colors %}{{ s.bg_color }}{% else %}transparent{% endif %};
+    --q-tc-fg: {% if use_custom_colors %}{{ s.text_color }}{% else %}currentColor{% endif %};
+    --q-tc-muted: {% if use_custom_colors %}{{ s.muted_text_color }}{% else %}rgba(0,0,0,0.70){% endif %};
+    --q-tc-accent: {% if use_custom_colors %}{{ s.accent_color }}{% else %}currentColor{% endif %};
+    --q-tc-surface: {% if use_custom_colors %}{{ s.surface_color }}{% else %}rgba(0,0,0,0.04){% endif %};
+    --q-tc-border: {% if use_custom_colors %}{{ s.border_color }}{% else %}rgba(0,0,0,0.10){% endif %};
+
+    --q-tc-label-fs: {{ s.label_size }}px;
+    --q-tc-label-fw: {{ s.label_weight }};
+    --q-tc-subtext-fs: {{ s.subtext_size }}px;
+    --q-tc-subtext-op: {{ s.subtext_opacity }}%;
+    --q-tc-meta-fs: {{ s.meta_size }}px;
+    --q-tc-meta-op: {{ s.meta_opacity }}%;
+    --q-tc-lettersp: {{ s.letter_spacing }}em;
+
+    --q-tc-card-radius: {{ card_radius }}px;
+    --q-tc-card-bw: {{ s.card_border_width }}px;
+    --q-tc-card-shadow: {{ s.card_shadow | default: '0' }};
+
+    --q-tc-badge-radius: {{ badge_radius }}px;
+    --q-tc-badge-bw: {{ s.badge_border_width }}px;
+    --q-tc-badge-pad-y: var(--q-space-{{ s.badge_pad_y }}, 8px);
+    --q-tc-badge-pad-x: var(--q-space-{{ s.badge_pad_x }}, 12px);
+
+    --q-tc-control-size: {{ s.control_size }}px;
+    --q-tc-control-radius: {{ control_radius }}px;
+    --q-tc-control-bw: {{ s.control_border_width }}px;
+    --q-tc-dot-size: {{ s.dot_size }}px;
+    --q-tc-dot-scale: {{ s.dot_active_scale }}%;
+
+    --q-tc-marquee-speed: {{ marquee_speed }}s;
+    --q-tc-marquee-dir: {% if marquee_direction == 'right' %}reverse{% else %}normal{% endif %};
+  "
+>
+  <div class="q-text-carousel__outer">
+    <div class="q-text-carousel__inner">
+
+      {%- if show_header -%}
+        <header class="q-text-carousel__header">
+          {%- if s.kicker != blank -%}
+            <p class="q-text-carousel__kicker">{{ s.kicker }}</p>
+          {%- endif -%}
+          {%- if s.title != blank -%}
+            <h2 class="q-text-carousel__title">{{ s.title }}</h2>
+          {%- endif -%}
+          {%- if s.subtitle != blank -%}
+            <div class="q-text-carousel__subtitle rte">{{ s.subtitle }}</div>
+          {%- endif -%}
+        </header>
+      {%- endif -%}
+
+      {%- if motion_mode == 'marquee' -%}
+        <div class="q-tc-marquee" aria-live="off">
+          <div class="q-tc-marquee__viewport">
+            <div class="q-tc-marquee__track" data-q-tc-marquee-track>
+              <div class="q-tc-marquee__group">
+                {%- for block in items -%}
+                  {%- assign b = block.settings -%}
+                  {%- if b.label == blank -%}{%- continue -%}{%- endif -%}
+                  <div class="q-tc-item" {{ block.shopify_attributes }}>
+                    {%- if layout == 'badge_strip' -%}
+                      <span class="q-tc-badge">{{ b.label }}</span>
+                    {%- else -%}
+                      <span class="q-tc-line">{{ b.label }}</span>
+                    {%- endif -%}
+                  </div>
+                {%- endfor -%}
+              </div>
+
+              <div class="q-tc-marquee__group" aria-hidden="true">
+                {%- for block in items -%}
+                  {%- assign b = block.settings -%}
+                  {%- if b.label == blank -%}{%- continue -%}{%- endif -%}
+                  <div class="q-tc-item">
+                    {%- if layout == 'badge_strip' -%}
+                      <span class="q-tc-badge">{{ b.label }}</span>
+                    {%- else -%}
+                      <span class="q-tc-line">{{ b.label }}</span>
+                    {%- endif -%}
+                  </div>
+                {%- endfor -%}
+              </div>
+            </div>
+          </div>
+        </div>
+
+      {%- else -%}
+        <div
+          class="q-tc-carousel"
+          {%- if should_init -%}
+            data-q-carousel
+            data-carousel
+            data-loop="{{ loop }}"
+            data-autoplay="{{ autoplay }}"
+            data-autoplay-speed="{{ s.autoplay_speed }}"
+            data-pause-on-hover="{{ pause_on_hover }}"
+            data-show-arrows="{{ show_arrows }}"
+            data-show-dots="{{ show_dots }}"
+
+            data-slides-desktop="{{ slides_d }}"
+            data-slides-tablet="{{ slides_t }}"
+            data-slides-mobile="{{ slides_m }}"
+
+            data-q-slides-desktop="{{ slides_d }}"
+            data-q-slides-tablet="{{ slides_t }}"
+            data-q-slides-mobile="{{ slides_m }}"
+          {%- endif -%}
+          aria-roledescription="carousel"
+          aria-live="{{ aria_live }}"
+        >
+          {%- if should_init and show_arrows -%}
+            <div class="q-tc-controls">
+              <button type="button" class="q-tc-btn" aria-label="Previous message" data-q-carousel-prev data-carousel-prev>
+                <span aria-hidden="true">‹</span>
+              </button>
+              <button type="button" class="q-tc-btn" aria-label="Next message" data-q-carousel-next data-carousel-next>
+                <span aria-hidden="true">›</span>
+              </button>
+            </div>
+          {%- endif -%}
+
+          <div class="q-tc-track" data-q-carousel-track data-q-carousel-viewport data-carousel-track data-carousel-viewport tabindex="0">
+            <ul class="q-tc-slides" role="list">
+              {%- for block in items -%}
+                {%- assign b = block.settings -%}
+                {%- if b.label == blank -%}{%- continue -%}{%- endif -%}
+                <li class="q-tc-slide" role="listitem" {{ block.shopify_attributes }}>
+                  {%- if layout == 'card' -%}
+                    <div class="q-tc-card">
+                      <div class="q-tc-card__label">{{ b.label }}</div>
+                      {%- if b.subtext != blank -%}
+                        <div class="q-tc-card__subtext">{{ b.subtext }}</div>
+                      {%- endif -%}
+                      {%- if b.meta != blank -%}
+                        <div class="q-tc-card__meta">{{ b.meta }}</div>
+                      {%- endif -%}
+                    </div>
+                  {%- else -%}
+                    <div class="q-tc-linewrap">
+                      <span class="q-tc-line">{{ b.label }}</span>
+                      {%- if b.subtext != blank -%}
+                        <span class="q-tc-subtext">{{ b.subtext }}</span>
+                      {%- endif -%}
+                      {%- if b.meta != blank -%}
+                        <span class="q-tc-meta">{{ b.meta }}</span>
+                      {%- endif -%}
+                    </div>
+                  {%- endif -%}
+                </li>
+              {%- endfor -%}
+            </ul>
+          </div>
+
+          {%- if should_init and show_dots -%}
+            <div class="q-tc-dots" data-q-carousel-dots data-carousel-dots aria-label="Carousel pagination"></div>
+          {%- endif -%}
+        </div>
+      {%- endif -%}
+
+    </div>
+  </div>
+
+  <style>
+    .q-text-carousel{
+      background: var(--q-tc-bg, transparent);
+      color: var(--q-tc-fg, currentColor);
+      overflow: hidden;
+    }
+
+    .q-text-carousel__outer{ padding: var(--q-tc-pad-y) var(--q-tc-pad-x); }
+    .q-text-carousel__inner{ margin: 0 auto; width: 100%; }
+
+    .q-tc-maxw--full .q-text-carousel__inner{ max-width: none; }
+    .q-tc-maxw--standard .q-text-carousel__inner{ max-width: 1240px; }
+    .q-tc-maxw--narrow .q-text-carousel__inner{ max-width: 980px; }
+
+    .q-text-carousel__header{ margin-bottom: 12px; text-align: center; }
+    .q-tc-align--left .q-text-carousel__header{ text-align: left; }
+
+    .q-text-carousel__kicker{
+      margin: 0 0 6px;
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      opacity: .75;
+    }
+    .q-text-carousel__title{
+      margin: 0;
+      line-height: 1.12;
+      font-size: 28px;
+      letter-spacing: -0.01em;
+    }
+    .q-text-carousel__subtitle{
+      margin-top: 6px;
+      opacity: .8;
+      max-width: 70ch;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .q-tc-align--left .q-text-carousel__subtitle{ margin-left: 0; margin-right: 0; }
+
+    /* MARQUEE */
+    .q-tc-motion--marquee .q-tc-marquee{
+      border-top: 1px solid var(--q-tc-border, rgba(0,0,0,0.10));
+      border-bottom: 1px solid var(--q-tc-border, rgba(0,0,0,0.10));
+    }
+    .q-tc-marquee__viewport{ width: 100%; overflow: hidden; min-width: 0; }
+
+    .q-tc-marquee__track{
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      will-change: transform;
+      animation: qtc-marquee var(--q-tc-marquee-speed, 14s) linear infinite;
+      animation-direction: var(--q-tc-marquee-dir, normal);
+    }
+
+    /* ✅ FIX: no liquid inside CSS — class toggles pause on hover */
+    .q-text-carousel.q-tc-pause-hover:hover .q-tc-marquee__track{
+      animation-play-state: paused;
+    }
+
+    .q-tc-marquee__group{
+      display: inline-flex;
+      align-items: center;
+      gap: 28px;
+      min-width: max-content;
+    }
+    .q-tc-item{
+      display: inline-flex;
+      align-items: center;
+      min-width: 0;
+      white-space: nowrap;
+    }
+    .q-tc-line{
+      font-size: var(--q-tc-label-fs, 22px);
+      font-weight: var(--q-tc-label-fw, 800);
+      letter-spacing: var(--q-tc-lettersp, 0.1em);
+      text-transform: uppercase;
+      line-height: 1;
+      color: var(--q-tc-fg, #fff);
+    }
+
+    .q-tc-layout--badge_strip .q-tc-badge{
+      display: inline-flex;
+      align-items: center;
+      padding: var(--q-tc-badge-pad-y, 8px) var(--q-tc-badge-pad-x, 12px);
+      border-radius: var(--q-tc-badge-radius, 999px);
+      border: var(--q-tc-badge-bw, 1px) solid var(--q-tc-border, rgba(255,255,255,0.18));
+      background: color-mix(in srgb, var(--q-tc-surface, rgba(255,255,255,0.08)) 100%, transparent);
+      font-size: var(--q-tc-label-fs, 22px);
+      font-weight: var(--q-tc-label-fw, 800);
+      letter-spacing: var(--q-tc-lettersp, 0.1em);
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    @keyframes qtc-marquee{
+      0%{ transform: translateX(0); }
+      100%{ transform: translateX(-50%); }
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      .q-tc-marquee__track{ animation: none !important; transform: none !important; }
+    }
+
+    /* CAROUSEL (engine) */
+    .q-tc-motion--carousel .q-tc-carousel{
+      position: relative;
+      border: 1px solid var(--q-tc-border, rgba(0,0,0,0.10));
+      border-radius: 14px;
+      padding: 14px;
+      background: var(--q-tc-bg, transparent);
+    }
+    .q-tc-track{
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      min-width: 0;
+      outline: none;
+    }
+    .q-tc-track::-webkit-scrollbar{ display:none; }
+
+    .q-tc-slides{
+      display: flex;
+      gap: 14px;
+      margin: 0;
+      padding: 2px;
+      list-style: none;
+      align-items: stretch;
+      min-width: 0;
+    }
+
+    .q-tc-slide{ flex: 0 0 100%; min-width: 0; }
+    .q-tc-layout--card .q-tc-slide{ flex-basis: clamp(260px, 60vw, 520px); }
+
+    .q-tc-card{
+      border-radius: var(--q-tc-card-radius, 16px);
+      border: var(--q-tc-card-bw, 1px) solid var(--q-tc-border, rgba(0,0,0,0.10));
+      background: var(--q-tc-surface, rgba(0,0,0,0.04));
+      box-shadow: var(--q-tc-card-shadow, 0);
+      padding: 14px 16px;
+      min-width: 0;
+    }
+    .q-tc-card__label{
+      font-size: var(--q-tc-label-fs, 18px);
+      font-weight: var(--q-tc-label-fw, 700);
+      letter-spacing: var(--q-tc-lettersp, 0em);
+      line-height: 1.2;
+    }
+    .q-tc-card__subtext{
+      margin-top: 6px;
+      font-size: var(--q-tc-subtext-fs, 14px);
+      opacity: calc(var(--q-tc-subtext-op, 85%) / 100);
+    }
+    .q-tc-card__meta{
+      margin-top: 8px;
+      font-size: var(--q-tc-meta-fs, 12px);
+      opacity: calc(var(--q-tc-meta-op, 75%) / 100);
+    }
+
+    .q-tc-controls{
+      position: absolute;
+      inset: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      padding: 0 8px;
+    }
+    .q-tc-btn{
+      pointer-events: auto;
+      width: var(--q-tc-control-size, 40px);
+      height: var(--q-tc-control-size, 40px);
+      border-radius: var(--q-tc-control-radius, 999px);
+      border: var(--q-tc-control-bw, 1px) solid var(--q-tc-border, rgba(0,0,0,0.12));
+      background: color-mix(in srgb, var(--q-tc-bg, #fff) 92%, transparent);
+      color: var(--q-tc-fg, currentColor);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .q-tc-btn:focus-visible{ outline: 2px solid currentColor; outline-offset: 2px; }
+
+    .q-tc-dots{
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .q-tc-dots button{
+      width: var(--q-tc-dot-size, 8px);
+      height: var(--q-tc-dot-size, 8px);
+      border-radius: 999px;
+      border: 0;
+      background: rgba(0,0,0,0.25);
+      padding: 0;
+      cursor: pointer;
+    }
+    .q-tc-dots button[aria-current="true"]{
+      transform: scale(calc(var(--q-tc-dot-scale, 125%) / 100));
+      background: rgba(0,0,0,0.70);
+    }
+
+    @media (max-width: 749px){
+      .q-tc-line, .q-tc-layout--badge_strip .q-tc-badge{
+        font-size: clamp(16px, 4.8vw, var(--q-tc-label-fs, 22px));
+      }
+      .q-tc-marquee__track,
+      .q-tc-marquee__group{ gap: 18px; }
+    }
+  </style>
+</section>
+
+{% schema %}
+{
+  "name": "Text Carousel",
+  "tag": "section",
+  "class": "q-section-wrap q-section-text-carousel",
+  "settings": [
+    { "type": "header", "content": "Content header" },
+    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Highlights" },
+    { "type": "text", "id": "title", "label": "Title", "default": "Why customers choose us" },
+    { "type": "richtext", "id": "subtitle", "label": "Subtitle", "default": "<p>Quick reasons to act, updated anytime.</p>" },
+    { "type": "checkbox", "id": "show_header", "label": "Show header", "default": false },
+
+    { "type": "header", "content": "Layout / motion" },
+    {
+      "type": "select",
+      "id": "motion_mode",
+      "label": "Motion mode",
+      "default": "marquee",
+      "options": [
+        { "value": "marquee", "label": "Marquee (continuous ticker)" },
+        { "value": "carousel", "label": "Carousel (engine slides)" }
+      ]
+    },
+    { "type": "range", "id": "marquee_speed", "label": "Marquee speed (seconds per loop)", "min": 6, "max": 40, "step": 1, "default": 14 },
+    {
+      "type": "select",
+      "id": "marquee_direction",
+      "label": "Marquee direction",
+      "default": "left",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "right", "label": "Right" }
+      ]
+    },
+
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "single_line",
+      "options": [
+        { "value": "single_line", "label": "Single line" },
+        { "value": "card", "label": "Card" },
+        { "value": "badge_strip", "label": "Badge strip" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "alignment",
+      "label": "Alignment",
+      "default": "center",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "transition_style",
+      "label": "Transition style (carousel mode)",
+      "default": "slide",
+      "options": [
+        { "value": "slide", "label": "Slide" },
+        { "value": "fade", "label": "Fade (if supported by engine)" }
+      ]
+    },
+
+    { "type": "header", "content": "Carousel behavior (engine mode)" },
+    { "type": "range", "id": "slides_desktop", "label": "Slides per view (desktop)", "min": 1, "max": 3, "step": 1, "default": 1 },
+    { "type": "range", "id": "slides_tablet", "label": "Slides per view (tablet)", "min": 1, "max": 3, "step": 1, "default": 1 },
+    { "type": "range", "id": "slides_mobile", "label": "Slides per view (mobile)", "min": 1, "max": 3, "step": 1, "default": 1 },
+
+    { "type": "checkbox", "id": "autoplay", "label": "Autoplay (carousel mode)", "default": true },
+    { "type": "range", "id": "autoplay_speed", "label": "Autoplay speed (ms)", "min": 3000, "max": 8000, "step": 500, "default": 4500 },
+    { "type": "checkbox", "id": "loop", "label": "Loop (carousel mode)", "default": true },
+    { "type": "checkbox", "id": "pause_on_hover", "label": "Pause on hover", "default": true },
+    { "type": "checkbox", "id": "show_arrows", "label": "Show arrows (carousel mode)", "default": false },
+    { "type": "checkbox", "id": "show_dots", "label": "Show dots (carousel mode)", "default": false },
+
+    { "type": "header", "content": "A11y" },
+    { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Key messages carousel" },
+    { "type": "checkbox", "id": "announce_changes", "label": "Announce slide changes (screen readers)", "default": false },
+
+    { "type": "header", "content": "Layout controls" },
+    {
+      "type": "select",
+      "id": "max_width",
+      "label": "Max width",
+      "default": "full",
+      "options": [
+        { "value": "full", "label": "Full width" },
+        { "value": "standard", "label": "Standard" },
+        { "value": "narrow", "label": "Narrow" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "pad_y",
+      "label": "Vertical padding token",
+      "default": "sm",
+      "options": [
+        { "value": "xs", "label": "XS" },
+        { "value": "sm", "label": "SM" },
+        { "value": "md", "label": "MD" },
+        { "value": "lg", "label": "LG" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "pad_x",
+      "label": "Horizontal padding token",
+      "default": "md",
+      "options": [
+        { "value": "xs", "label": "XS" },
+        { "value": "sm", "label": "SM" },
+        { "value": "md", "label": "MD" },
+        { "value": "lg", "label": "LG" }
+      ]
+    },
+
+    { "type": "header", "content": "Colors" },
+    { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors", "default": true },
+    { "type": "color", "id": "bg_color", "label": "Background color", "default": "#0B1220" },
+    { "type": "color", "id": "text_color", "label": "Text color", "default": "#FFFFFF" },
+    { "type": "color", "id": "muted_text_color", "label": "Muted text color", "default": "#CBD5E1" },
+    { "type": "color", "id": "accent_color", "label": "Accent color", "default": "#FBBF24" },
+    { "type": "color", "id": "surface_color", "label": "Surface color", "default": "#111827" },
+    { "type": "color", "id": "border_color", "label": "Border color", "default": "#FFFFFF1A" },
+
+    { "type": "header", "content": "Typography" },
+    { "type": "range", "id": "label_size", "label": "Label size (px)", "min": 14, "max": 56, "step": 1, "default": 34 },
+    {
+      "type": "select",
+      "id": "label_weight",
+      "label": "Label weight",
+      "default": "800",
+      "options": [
+        { "value": "500", "label": "500" },
+        { "value": "600", "label": "600" },
+        { "value": "700", "label": "700" },
+        { "value": "800", "label": "800" }
+      ]
+    },
+    { "type": "range", "id": "subtext_size", "label": "Subtext size (px)", "min": 10, "max": 26, "step": 1, "default": 14 },
+    { "type": "range", "id": "subtext_opacity", "label": "Subtext opacity (%)", "min": 40, "max": 100, "step": 1, "default": 85 },
+    { "type": "range", "id": "meta_size", "label": "Meta size (px)", "min": 10, "max": 22, "step": 1, "default": 12 },
+    { "type": "range", "id": "meta_opacity", "label": "Meta opacity (%)", "min": 40, "max": 100, "step": 1, "default": 75 },
+    { "type": "range", "id": "letter_spacing", "label": "Letter spacing (em)", "min": -0.2, "max": 0.2, "step": 0.1, "default": 0.1 },
+
+    { "type": "header", "content": "Card / badge styling" },
+    { "type": "range", "id": "card_radius", "label": "Card radius (px)", "min": 0, "max": 28, "step": 1, "default": 16 },
+    { "type": "range", "id": "card_border_width", "label": "Card border width (px)", "min": 0, "max": 4, "step": 1, "default": 1 },
+    { "type": "text", "id": "card_shadow", "label": "Card shadow token (advanced)", "default": "0" },
+
+    {
+      "type": "select",
+      "id": "badge_radius",
+      "label": "Badge radius (px)",
+      "default": "999",
+      "options": [
+        { "value": "999", "label": "Pill (999)" },
+        { "value": "24", "label": "Large (24)" },
+        { "value": "16", "label": "Medium (16)" },
+        { "value": "10", "label": "Small (10)" },
+        { "value": "0", "label": "Square (0)" }
+      ]
+    },
+    { "type": "range", "id": "badge_border_width", "label": "Badge border width (px)", "min": 0, "max": 4, "step": 1, "default": 1 },
+    {
+      "type": "select",
+      "id": "badge_pad_y",
+      "label": "Badge padding Y token",
+      "default": "xs",
+      "options": [
+        { "value": "xs", "label": "XS" },
+        { "value": "sm", "label": "SM" },
+        { "value": "md", "label": "MD" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "badge_pad_x",
+      "label": "Badge padding X token",
+      "default": "sm",
+      "options": [
+        { "value": "xs", "label": "XS" },
+        { "value": "sm", "label": "SM" },
+        { "value": "md", "label": "MD" }
+      ]
+    },
+
+    { "type": "header", "content": "Controls styling (carousel mode)" },
+    { "type": "range", "id": "control_size", "label": "Control size (px)", "min": 28, "max": 72, "step": 1, "default": 40 },
+    {
+      "type": "select",
+      "id": "control_radius",
+      "label": "Control radius (px)",
+      "default": "999",
+      "options": [
+        { "value": "999", "label": "Pill (999)" },
+        { "value": "24", "label": "Large (24)" },
+        { "value": "16", "label": "Medium (16)" },
+        { "value": "10", "label": "Small (10)" },
+        { "value": "0", "label": "Square (0)" }
+      ]
+    },
+    { "type": "range", "id": "control_border_width", "label": "Control border width (px)", "min": 0, "max": 4, "step": 1, "default": 1 },
+    { "type": "range", "id": "dot_size", "label": "Dot size (px)", "min": 6, "max": 18, "step": 1, "default": 8 },
+    { "type": "range", "id": "dot_active_scale", "label": "Dot active scale (%)", "min": 100, "max": 160, "step": 5, "default": 125 }
+  ],
+  "blocks": [
+    {
+      "type": "item",
+      "name": "Item",
+      "settings": [
+        { "type": "text", "id": "label", "label": "Label", "default": "🚚 Shipping now FREE — Limited time" },
+        { "type": "text", "id": "subtext", "label": "Subtext", "default": "Built for speed without cutting corners." },
+        { "type": "text", "id": "meta", "label": "Meta", "default": "Verified" }
+      ]
+    }
+  ],
+  "presets": [
+    { "name": "Interactive Content Helpers - Text Carousel", "category": "Interactive Content Helpers" }
+  ]
+}
+{% endschema %}

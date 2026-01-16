@@ -1,0 +1,808 @@
+{%- comment -%}
+  Quadratum — Basic · Layout · Grid Builder
+  File: sections/basic-content-helper-grid-builder.liquid
+
+  vNext changes (per request):
+  - Uses snippet: {%- render 'q-icon', name: b.icon -%} for legit icon assets
+  - Adds per-item background controls (none / color / image) + overlay
+  - Adds per-item media control (auto / icon / image / both / none)
+  - No JS, token-driven via scoped CSS vars
+  - Hides entirely if no item blocks
+
+  IMPORTANT FIXES:
+  - Removes invalid calc(px * px) bugs by using px-valued vars directly (no * 1px multipliers)
+  - Divider nth-child rules are computed via Liquid, not inline {{ }} inside <style> selectors
+  - Modern button defaults + sleek interaction (hover lift + refined shadow stack)
+{%- endcomment -%}
+
+{%- liquid
+  assign s = section.settings
+  assign items = section.blocks | where: 'type', 'item'
+  assign count = items.size
+  if count == 0
+    break
+  endif
+
+  assign cols_d = s.columns_desktop | default: 3
+  assign cols_t = s.columns_tablet | default: 2
+  assign cols_m = s.columns_mobile | default: 1
+  if cols_m > 2
+    assign cols_m = 2
+  endif
+
+  assign show_header = false
+  if s.kicker != '—' or s.title != '—' or s.subtitle != '<p>—</p>'
+    assign show_header = true
+  endif
+
+  assign use_custom = s.use_custom_colors
+
+  assign nth_d = cols_d | append: 'n'
+  assign nth_t = cols_t | append: 'n'
+-%}
+
+<section
+  class="q-grid-builder"
+  style="
+    --q-max-width: {{ s.max_width }}px;
+    --q-pad-y: {{ s.pad_y }}px;
+    --q-pad-x: {{ s.pad_x }}px;
+
+    --q-cols-d: {{ cols_d }};
+    --q-cols-t: {{ cols_t }};
+    --q-cols-m: {{ cols_m }};
+
+    --q-gap-x: {{ s.gap_x }}px;
+    --q-gap-y: {{ s.gap_y }}px;
+
+    --q-divider-thickness: {{ s.divider_thickness }}px;
+
+    --q-kicker-size: {{ s.kicker_size }}px;
+    --q-kicker-weight: {{ s.kicker_weight }};
+    --q-title-size: {{ s.title_size }}px;
+    --q-title-weight: {{ s.title_weight }};
+    --q-subtitle-size: {{ s.subtitle_size }}px;
+
+    --q-item-title-size: {{ s.item_title_size }}px;
+    --q-item-title-weight: {{ s.item_title_weight }};
+    --q-body-size: {{ s.body_size }}px;
+    --q-meta-size: {{ s.meta_size }}px;
+    --q-meta-opacity: {{ s.meta_opacity | divided_by: 100.0 }};
+
+    --q-icon-size: {{ s.icon_size }}px;
+
+    --q-radius: {{ s.item_radius }}px;
+    --q-border-width: {{ s.item_border_width }}px;
+    --q-shadow-strength: {{ s.item_shadow_strength }};
+    --q-item-min-height: {{ s.item_min_height }}px;
+    --q-card-pad: {{ s.item_pad }}px;
+
+    /* Button controls (Element-level) */
+    --q-btn-radius: {{ s.btn_radius }}px;
+    --q-btn-pad-y: {{ s.btn_pad_y }}px;
+    --q-btn-pad-x: {{ s.btn_pad_x }}px;
+    --q-btn-font-size: {{ s.btn_font_size }}px;
+    --q-btn-font-weight: {{ s.btn_font_weight }};
+    --q-btn-border-width: {{ s.btn_border_width }}px;
+    --q-btn-shadow-strength: {{ s.btn_shadow_strength }};
+    --q-btn-shadow-strength-hover: {{ s.btn_shadow_strength_hover }};
+
+    --q-btn-hover-lift: {{ s.btn_hover_lift }}px;
+    --q-btn-active-press: {{ s.btn_active_press }}px;
+    --q-btn-letter-spacing: {{ s.btn_letter_spacing | divided_by: 100.0 }}em;
+    --q-btn-sheen-opacity: {{ s.btn_sheen_opacity | divided_by: 100.0 }};
+
+    --q-btn-bg-filled: {{ s.btn_bg_filled }};
+    --q-btn-text-filled: {{ s.btn_text_filled }};
+    --q-btn-border-filled: {{ s.btn_border_filled }};
+
+    --q-btn-bg-filled-hover: {{ s.btn_bg_filled_hover }};
+    --q-btn-text-filled-hover: {{ s.btn_text_filled_hover }};
+    --q-btn-border-filled-hover: {{ s.btn_border_filled_hover }};
+
+    --q-btn-bg-outline: {{ s.btn_bg_outline }};
+    --q-btn-text-outline: {{ s.btn_text_outline }};
+    --q-btn-border-outline: {{ s.btn_border_outline }};
+
+    --q-btn-bg-outline-hover: {{ s.btn_bg_outline_hover }};
+    --q-btn-text-outline-hover: {{ s.btn_text_outline_hover }};
+    --q-btn-border-outline-hover: {{ s.btn_border_outline_hover }};
+
+    --q-focus-ring: {{ s.focus_ring_color }};
+
+    {%- if use_custom -%}
+      --q-bg: {{ s.bg_color }};
+      --q-text: {{ s.text_color }};
+      --q-muted: {{ s.muted_text_color }};
+      --q-accent: {{ s.accent_color }};
+
+      --q-divider-rgb: {{ s.divider_color.red }}, {{ s.divider_color.green }}, {{ s.divider_color.blue }};
+      --q-divider-opacity: {{ s.divider_opacity | divided_by: 100.0 }};
+
+      --q-item-bg: {{ s.item_bg_color }};
+      --q-item-border-rgb: {{ s.item_border_color.red }}, {{ s.item_border_color.green }}, {{ s.item_border_color.blue }};
+      --q-item-border-opacity: {{ s.item_border_opacity | divided_by: 100.0 }};
+    {%- else -%}
+      --q-bg: var(--q-color-surface, #ffffff);
+      --q-text: var(--q-color-text, #111111);
+      --q-muted: var(--q-color-muted, #5a5a5a);
+      --q-accent: var(--q-color-accent, #111111);
+
+      --q-divider-rgb: 0, 0, 0;
+      --q-divider-opacity: 0.12;
+
+      --q-item-bg: var(--q-color-surface-2, #ffffff);
+      --q-item-border-rgb: 0, 0, 0;
+      --q-item-border-opacity: 0.14;
+    {%- endif -%}
+  "
+>
+  <div class="q-grid-builder__outer">
+    <div class="q-grid-builder__inner">
+      {%- if show_header -%}
+        <header class="q-grid-builder__header">
+          {%- if s.kicker != '—' -%}
+            <p class="q-grid-builder__kicker">{{ s.kicker }}</p>
+          {%- endif -%}
+
+          {%- if s.title != '—' -%}
+            <h2 class="q-grid-builder__title">{{ s.title }}</h2>
+          {%- endif -%}
+
+          {%- if s.subtitle != '<p>—</p>' -%}
+            <div class="q-grid-builder__subtitle rte">{{ s.subtitle }}</div>
+          {%- endif -%}
+        </header>
+      {%- endif -%}
+
+      <div class="q-grid-builder__grid-wrap">
+        <div class="q-grid-builder__grid {% if s.show_dividers %}is-divided{% endif %}" role="list">
+          {%- for block in items -%}
+            {%- liquid
+              assign b = block.settings
+
+              assign has_icon = false
+              if b.icon != 'none'
+                assign has_icon = true
+              endif
+
+              assign has_image = false
+              if b.image != blank
+                assign has_image = true
+              endif
+
+              assign show_meta = false
+              if b.meta != '—'
+                assign show_meta = true
+              endif
+
+              assign show_cta = false
+              if b.cta_label != '—' and b.cta_url != blank
+                assign show_cta = true
+              endif
+
+              assign media_mode = b.media_mode | default: 'auto'
+              assign render_icon = false
+              assign render_image = false
+
+              if media_mode == 'none'
+                assign render_icon = false
+                assign render_image = false
+              elsif media_mode == 'icon'
+                if has_icon
+                  assign render_icon = true
+                endif
+              elsif media_mode == 'image'
+                if has_image
+                  assign render_image = true
+                endif
+              elsif media_mode == 'both'
+                if has_icon
+                  assign render_icon = true
+                endif
+                if has_image
+                  assign render_image = true
+                endif
+              else
+                if has_icon
+                  assign render_icon = true
+                endif
+                if has_image
+                  assign render_image = true
+                endif
+              endif
+
+              assign img_alt = b.title
+              if img_alt == blank
+                assign img_alt = s.title
+              endif
+              if img_alt == blank
+                assign img_alt = 'Grid item'
+              endif
+
+              assign card_bg_mode = b.card_bg_mode | default: 'none'
+              assign has_card_bg_img = false
+              if b.card_bg_image != blank
+                assign has_card_bg_img = true
+              endif
+
+              assign card_overlay_on = b.card_overlay_enable
+              assign card_overlay_op = b.card_overlay_opacity | default: 35
+              if card_overlay_op < 0
+                assign card_overlay_op = 0
+              endif
+              if card_overlay_op > 90
+                assign card_overlay_op = 90
+              endif
+            -%}
+
+            <article class="q-grid-item" role="listitem" {{ block.shopify_attributes }}>
+              <div
+                class="
+                  q-grid-item__card
+                  card-bg-{{ card_bg_mode }}
+                  {% if card_bg_mode == 'image' and has_card_bg_img %}has-card-bg-img{% endif %}
+                  {% if card_overlay_on %}has-card-overlay{% endif %}
+                "
+                style="
+                  --q-card-bg: {{ b.card_bg_color }};
+                  --q-card-overlay-rgb: {{ b.card_overlay_color.red }}, {{ b.card_overlay_color.green }}, {{ b.card_overlay_color.blue }};
+                  --q-card-overlay-opacity: {{ card_overlay_op | divided_by: 100.0 }};
+                  {%- if card_bg_mode == 'image' and has_card_bg_img -%}
+                    --q-card-bg-img: url({{ b.card_bg_image | image_url: width: 2000 }});
+                  {%- endif -%}
+                "
+              >
+                {%- if render_icon -%}
+                  <div class="q-grid-item__icon" aria-hidden="true">
+                    {%- render 'q-icon', name: b.icon -%}
+                  </div>
+                {%- endif -%}
+
+                {%- if render_image -%}
+                  <div class="q-grid-item__media q-ar-{{ s.image_aspect }} q-fit-{{ s.image_fit }}">
+                    {{ b.image | image_url: width: 1400 | image_tag:
+                      loading: 'lazy',
+                      alt: img_alt,
+                      widths: '320, 480, 640, 800, 960, 1200, 1400'
+                    }}
+                  </div>
+                {%- endif -%}
+
+                {%- if show_meta -%}
+                  <p class="q-grid-item__meta">{{ b.meta }}</p>
+                {%- endif -%}
+
+                {%- if b.title != blank -%}
+                  <h3 class="q-grid-item__title">{{ b.title }}</h3>
+                {%- endif -%}
+
+                {%- if b.body != blank -%}
+                  <div class="q-grid-item__body rte">{{ b.body }}</div>
+                {%- endif -%}
+
+                {%- if show_cta -%}
+                  <div class="q-grid-item__cta">
+                    <a class="q-btn q-btn--{{ s.cta_style }}" href="{{ b.cta_url }}">
+                      <span class="q-btn__label">{{ b.cta_label }}</span>
+                    </a>
+                  </div>
+                {%- endif -%}
+              </div>
+            </article>
+          {%- endfor -%}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .q-grid-builder{
+      background: var(--q-bg);
+      color: var(--q-text);
+      padding-block: var(--q-pad-y);
+    }
+
+    .q-grid-builder__outer{
+      max-width: var(--q-max-width);
+      margin-inline: auto;
+      padding-inline: var(--q-pad-x);
+    }
+
+    .q-grid-builder__header{ margin-bottom: var(--q-gap-y); }
+
+    /* IMPORTANT: vars already include px, so DO NOT multiply by 1px */
+    .q-grid-builder__kicker{
+      margin: 0 0 8px 0;
+      color: var(--q-muted);
+      font-size: var(--q-kicker-size);
+      font-weight: var(--q-kicker-weight);
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .q-grid-builder__title{
+      margin: 0;
+      font-size: var(--q-title-size);
+      font-weight: var(--q-title-weight);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+
+    .q-grid-builder__subtitle{
+      margin-top: 10px;
+      color: var(--q-muted);
+      font-size: var(--q-subtitle-size);
+      line-height: 1.55;
+    }
+
+    .q-grid-builder__grid-wrap{
+      display: flex;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .q-grid-builder__grid{
+      display: inline-grid;
+      width: 100%;
+      gap: var(--q-gap-y) var(--q-gap-x);
+      grid-auto-flow: row;
+      grid-template-columns: repeat(var(--q-cols-d), minmax(0, 1fr));
+    }
+
+    @media (max-width: 989px){
+      .q-grid-builder__grid{
+        grid-template-columns: repeat(var(--q-cols-t), minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 749px){
+      .q-grid-builder__grid{
+        grid-template-columns: repeat(var(--q-cols-m), minmax(0, 1fr));
+      }
+    }
+
+    .q-grid-item__card{
+      position: relative;
+      background: var(--q-item-bg);
+      border: var(--q-border-width) solid rgba(var(--q-item-border-rgb), var(--q-item-border-opacity));
+      border-radius: var(--q-radius);
+      min-height: var(--q-item-min-height);
+      padding: var(--q-card-pad);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden;
+      box-shadow: 0 6px 22px rgba(0,0,0, calc(0.04 * var(--q-shadow-strength)));
+    }
+
+    /* Per-card background: color */
+    .q-grid-item__card.card-bg-color{
+      background: var(--q-card-bg);
+    }
+
+    /* Per-card background: image */
+    .q-grid-item__card.card-bg-image.has-card-bg-img{
+      background-image: var(--q-card-bg-img);
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+
+    /* Optional overlay for readability */
+    .q-grid-item__card.has-card-overlay::before{
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: rgba(var(--q-card-overlay-rgb), var(--q-card-overlay-opacity));
+      pointer-events: none;
+    }
+
+    .q-grid-item__card > *{ position: relative; z-index: 1; }
+
+    /* Icon uses q-icon (img) */
+    .q-grid-item__icon{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: var(--q-icon-size);
+      height: var(--q-icon-size);
+    }
+    .q-grid-item__icon img{
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+    }
+
+    .q-grid-item__media{
+      width: 100%;
+      overflow: hidden;
+      border-radius: calc(var(--q-radius) - 2px);
+      border: 1px solid rgba(var(--q-item-border-rgb), calc(var(--q-item-border-opacity) * 0.9));
+      background: rgba(var(--q-divider-rgb), calc(var(--q-divider-opacity) * 0.35));
+    }
+
+    .q-grid-item__media img{
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .q-ar-natural{ aspect-ratio: auto; }
+    .q-ar-square{ aspect-ratio: 1 / 1; }
+    .q-ar-landscape{ aspect-ratio: 16 / 9; }
+    .q-ar-portrait{ aspect-ratio: 4 / 5; }
+
+    .q-fit-cover img{ object-fit: cover; }
+    .q-fit-contain img{ object-fit: contain; background: transparent; }
+
+    .q-grid-item__meta{
+      margin: 0;
+      font-size: var(--q-meta-size);
+      color: var(--q-muted);
+      opacity: var(--q-meta-opacity);
+    }
+
+    .q-grid-item__title{
+      margin: 0;
+      font-size: var(--q-item-title-size);
+      font-weight: var(--q-item-title-weight);
+      line-height: 1.2;
+    }
+
+    .q-grid-item__body{
+      font-size: var(--q-body-size);
+      line-height: 1.6;
+      color: var(--q-text);
+    }
+
+    .q-grid-item__cta{
+      margin-top: auto;
+      padding-top: 6px;
+    }
+
+    /* Buttons — modern, sleek defaults (no px*px calc bugs) */
+    .q-btn{
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+
+      text-decoration: none;
+      border-radius: var(--q-btn-radius);
+      padding: var(--q-btn-pad-y) var(--q-btn-pad-x);
+
+      font-size: var(--q-btn-font-size);
+      font-weight: var(--q-btn-font-weight);
+      letter-spacing: var(--q-btn-letter-spacing);
+      line-height: 1;
+
+      border: var(--q-btn-border-width) solid transparent;
+
+      transform: translateY(0);
+      transition:
+        transform .18s ease,
+        box-shadow .22s ease,
+        background-color .18s ease,
+        border-color .18s ease,
+        color .18s ease,
+        filter .18s ease;
+
+      outline: none;
+      outline-offset: 3px;
+
+      -webkit-tap-highlight-color: transparent;
+      will-change: transform;
+    }
+
+    .q-btn:focus-visible{
+      outline: 2px solid var(--q-focus-ring);
+    }
+
+    .q-btn:hover{
+      transform: translateY(var(--q-btn-hover-lift));
+    }
+
+    .q-btn:active{
+      transform: translateY(var(--q-btn-active-press));
+    }
+
+    /* Filled — sleek, premium shadow stack */
+    .q-btn--filled{
+      background: var(--q-btn-bg-filled);
+      color: var(--q-btn-text-filled);
+      border-color: var(--q-btn-border-filled);
+
+      box-shadow:
+        0 1px 0 rgba(0,0,0, calc(0.10 * var(--q-btn-shadow-strength))),
+        0 10px 24px rgba(0,0,0, calc(0.06 * var(--q-btn-shadow-strength)));
+    }
+
+    .q-btn--filled:hover{
+      background: var(--q-btn-bg-filled-hover);
+      color: var(--q-btn-text-filled-hover);
+      border-color: var(--q-btn-border-filled-hover);
+
+      box-shadow:
+        0 1px 0 rgba(0,0,0, calc(0.12 * var(--q-btn-shadow-strength-hover))),
+        0 14px 34px rgba(0,0,0, calc(0.08 * var(--q-btn-shadow-strength-hover)));
+    }
+
+    /* Outline — modern outline with soft depth */
+    .q-btn--outline{
+      background: var(--q-btn-bg-outline);
+      color: var(--q-btn-text-outline);
+      border-color: var(--q-btn-border-outline);
+
+      box-shadow:
+        0 1px 0 rgba(0,0,0, calc(0.05 * var(--q-btn-shadow-strength))),
+        0 10px 20px rgba(0,0,0, calc(0.03 * var(--q-btn-shadow-strength)));
+    }
+
+    .q-btn--outline:hover{
+      background: var(--q-btn-bg-outline-hover);
+      color: var(--q-btn-text-outline-hover);
+      border-color: var(--q-btn-border-outline-hover);
+
+      box-shadow:
+        0 1px 0 rgba(0,0,0, calc(0.07 * var(--q-btn-shadow-strength-hover))),
+        0 14px 30px rgba(0,0,0, calc(0.05 * var(--q-btn-shadow-strength-hover)));
+    }
+
+    /* Premium sheen (optional) */
+    .q-btn::after{
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      opacity: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0.0));
+      mix-blend-mode: overlay;
+    }
+    .q-btn--filled::after{
+      opacity: var(--q-btn-sheen-opacity);
+    }
+
+    /* Dividers (decorative) */
+    .q-grid-builder__grid.is-divided > .q-grid-item{ position: relative; }
+
+    .q-grid-builder__grid.is-divided > .q-grid-item::after{
+      content: "";
+      position: absolute;
+      right: calc(var(--q-gap-x) / -2);
+      top: 10px;
+      bottom: 10px;
+      width: var(--q-divider-thickness);
+      background: rgba(var(--q-divider-rgb), var(--q-divider-opacity));
+      pointer-events: none;
+    }
+
+    @media (min-width: 990px){
+      .q-grid-builder__grid.is-divided > .q-grid-item:nth-child({{ nth_d }})::after{ display:none; }
+    }
+    @media (max-width: 989px) and (min-width: 750px){
+      .q-grid-builder__grid.is-divided > .q-grid-item:nth-child({{ nth_t }})::after{ display:none; }
+    }
+    @media (max-width: 749px){
+      .q-grid-builder__grid.is-divided > .q-grid-item::after{ display:none; }
+    }
+
+    .q-grid-builder .rte p{ margin: 0 0 10px 0; }
+    .q-grid-builder .rte p:last-child{ margin-bottom: 0; }
+  </style>
+</section>
+
+{% schema %}
+{
+  "name": "Layout Grid Builder",
+  "tag": "section",
+  "class": "section section--q-basic-grid-builder",
+  "settings": [
+    { "type": "header", "content": "Grid layout" },
+    { "type": "range", "id": "columns_desktop", "min": 1, "max": 4, "step": 1, "default": 3, "label": "Columns (desktop)" },
+    { "type": "range", "id": "columns_tablet", "min": 1, "max": 3, "step": 1, "default": 2, "label": "Columns (tablet)" },
+    { "type": "range", "id": "columns_mobile", "min": 1, "max": 3, "step": 1, "default": 2, "label": "Columns (mobile)" },
+    { "type": "range", "id": "item_min_height", "min": 0, "max": 520, "step": 10, "default": 0, "label": "Item min height (px)" },
+    { "type": "checkbox", "id": "show_dividers", "default": false, "label": "Show dividers" },
+
+    { "type": "header", "content": "Section header" },
+    { "type": "text", "id": "kicker", "default": "—", "label": "Kicker (set to — to hide)" },
+    { "type": "text", "id": "title", "default": "—", "label": "Title (set to — to hide)" },
+    { "type": "richtext", "id": "subtitle", "default": "<p>—</p>", "label": "Subtitle (set to — to hide)" },
+
+    { "type": "header", "content": "Standard controls" },
+    { "type": "range", "id": "max_width", "min": 720, "max": 1600, "step": 20, "default": 1200, "label": "Max width (px)" },
+    { "type": "range", "id": "pad_y", "min": 0, "max": 140, "step": 4, "default": 56, "label": "Vertical padding (px)" },
+    { "type": "range", "id": "pad_x", "min": 12, "max": 40, "step": 2, "default": 18, "label": "Horizontal padding (px)" },
+
+    { "type": "header", "content": "Spacing" },
+    { "type": "range", "id": "gap_x", "min": 8, "max": 48, "step": 2, "default": 18, "label": "Grid gap X (px)" },
+    { "type": "range", "id": "gap_y", "min": 8, "max": 60, "step": 2, "default": 18, "label": "Grid gap Y (px)" },
+
+    { "type": "header", "content": "Dividers" },
+    { "type": "range", "id": "divider_thickness", "min": 1, "max": 6, "step": 1, "default": 1, "label": "Divider thickness (px)" },
+
+    { "type": "header", "content": "Typography — header" },
+    { "type": "range", "id": "kicker_size", "min": 10, "max": 18, "step": 1, "default": 13, "label": "Kicker size (px)" },
+    { "type": "range", "id": "kicker_weight", "min": 300, "max": 900, "step": 100, "default": 600, "label": "Kicker weight" },
+    { "type": "range", "id": "title_size", "min": 18, "max": 56, "step": 1, "default": 34, "label": "Section title size (px)" },
+    { "type": "range", "id": "title_weight", "min": 300, "max": 900, "step": 100, "default": 700, "label": "Section title weight" },
+    { "type": "range", "id": "subtitle_size", "min": 12, "max": 22, "step": 1, "default": 16, "label": "Subtitle size (px)" },
+
+    { "type": "header", "content": "Typography — items" },
+    { "type": "range", "id": "item_title_size", "min": 14, "max": 42, "step": 1, "default": 20, "label": "Item title size (px)" },
+    { "type": "range", "id": "item_title_weight", "min": 300, "max": 900, "step": 100, "default": 700, "label": "Item title weight" },
+    { "type": "range", "id": "body_size", "min": 12, "max": 22, "step": 1, "default": 16, "label": "Body size (px)" },
+    { "type": "range", "id": "meta_size", "min": 10, "max": 18, "step": 1, "default": 13, "label": "Meta size (px)" },
+    { "type": "range", "id": "meta_opacity", "min": 40, "max": 100, "step": 5, "default": 80, "label": "Meta opacity (%)" },
+
+    { "type": "header", "content": "Item styling" },
+    { "type": "range", "id": "item_radius", "min": 0, "max": 32, "step": 2, "default": 16, "label": "Border radius (px)" },
+    { "type": "range", "id": "item_border_width", "min": 0, "max": 4, "step": 1, "default": 1, "label": "Border width (px)" },
+    { "type": "range", "id": "item_shadow_strength", "min": 0, "max": 10, "step": 1, "default": 4, "label": "Shadow strength" },
+    { "type": "range", "id": "item_pad", "min": 12, "max": 40, "step": 2, "default": 18, "label": "Item padding (px)" },
+
+    { "type": "header", "content": "Icon + image" },
+    { "type": "range", "id": "icon_size", "min": 14, "max": 56, "step": 2, "default": 22, "label": "Icon size (px)" },
+    {
+      "type": "select",
+      "id": "image_aspect",
+      "label": "Image aspect ratio",
+      "default": "landscape",
+      "options": [
+        { "value": "natural", "label": "Natural" },
+        { "value": "square", "label": "Square" },
+        { "value": "landscape", "label": "Landscape (16:9)" },
+        { "value": "portrait", "label": "Portrait (4:5)" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "image_fit",
+      "label": "Image fit",
+      "default": "cover",
+      "options": [
+        { "value": "cover", "label": "Cover" },
+        { "value": "contain", "label": "Contain" }
+      ]
+    },
+
+    { "type": "header", "content": "CTA button — style + hover" },
+    {
+      "type": "select",
+      "id": "cta_style",
+      "label": "CTA style",
+      "default": "filled",
+      "options": [
+        { "value": "filled", "label": "Filled" },
+        { "value": "outline", "label": "Outline" }
+      ]
+    },
+    { "type": "range", "id": "btn_radius", "min": 0, "max": 28, "step": 2, "default": 14, "label": "Button radius (px)" },
+    { "type": "range", "id": "btn_pad_y", "min": 8, "max": 22, "step": 1, "default": 12, "label": "Button padding Y (px)" },
+    { "type": "range", "id": "btn_pad_x", "min": 10, "max": 28, "step": 1, "default": 18, "label": "Button padding X (px)" },
+    { "type": "range", "id": "btn_font_size", "min": 12, "max": 20, "step": 1, "default": 15, "label": "Button font size (px)" },
+    { "type": "range", "id": "btn_font_weight", "min": 300, "max": 900, "step": 100, "default": 700, "label": "Button font weight" },
+    { "type": "range", "id": "btn_border_width", "min": 0, "max": 4, "step": 1, "default": 1, "label": "Button border width (px)" },
+    { "type": "range", "id": "btn_shadow_strength", "min": 0, "max": 10, "step": 1, "default": 4, "label": "Button shadow strength" },
+    { "type": "range", "id": "btn_shadow_strength_hover", "min": 0, "max": 12, "step": 1, "default": 7, "label": "Button shadow strength (hover)" },
+    { "type": "range", "id": "btn_hover_lift", "min": -6, "max": 0, "step": 1, "default": -1, "label": "Hover lift (px)" },
+    { "type": "range", "id": "btn_active_press", "min": 0, "max": 4, "step": 1, "default": 1, "label": "Active press (px)" },
+    { "type": "range", "id": "btn_letter_spacing", "min": -2, "max": 4, "step": 1, "default": 0, "label": "Letter spacing (em x 0.01)" },
+    { "type": "range", "id": "btn_sheen_opacity", "min": 0, "max": 30, "step": 1, "default": 14, "label": "Sheen opacity (%)" },
+
+    { "type": "header", "content": "CTA colors — filled" },
+    { "type": "color", "id": "btn_bg_filled", "default": "#111111", "label": "Filled background" },
+    { "type": "color", "id": "btn_text_filled", "default": "#ffffff", "label": "Filled text" },
+    { "type": "color", "id": "btn_border_filled", "default": "#111111", "label": "Filled border" },
+    { "type": "color", "id": "btn_bg_filled_hover", "default": "#0a0a0a", "label": "Filled background (hover)" },
+    { "type": "color", "id": "btn_text_filled_hover", "default": "#ffffff", "label": "Filled text (hover)" },
+    { "type": "color", "id": "btn_border_filled_hover", "default": "#0a0a0a", "label": "Filled border (hover)" },
+
+    { "type": "header", "content": "CTA colors — outline" },
+    { "type": "color", "id": "btn_bg_outline", "default": "transparent", "label": "Outline background" },
+    { "type": "color", "id": "btn_text_outline", "default": "#111111", "label": "Outline text" },
+    { "type": "color", "id": "btn_border_outline", "default": "rgba(17,17,17,0.22)", "label": "Outline border" },
+    { "type": "color", "id": "btn_bg_outline_hover", "default": "#111111", "label": "Outline background (hover)" },
+    { "type": "color", "id": "btn_text_outline_hover", "default": "#ffffff", "label": "Outline text (hover)" },
+    { "type": "color", "id": "btn_border_outline_hover", "default": "#111111", "label": "Outline border (hover)" },
+
+    { "type": "header", "content": "Accessibility" },
+    { "type": "color", "id": "focus_ring_color", "default": "#3b82f6", "label": "Focus ring color" },
+
+    { "type": "header", "content": "Colors" },
+    { "type": "checkbox", "id": "use_custom_colors", "default": true, "label": "Use custom colors" },
+    { "type": "color", "id": "bg_color", "default": "#ffffff", "label": "Background" },
+    { "type": "color", "id": "text_color", "default": "#111111", "label": "Text" },
+    { "type": "color", "id": "muted_text_color", "default": "#5a5a5a", "label": "Muted text" },
+    { "type": "color", "id": "accent_color", "default": "#111111", "label": "Accent" },
+
+    { "type": "header", "content": "Divider color" },
+    { "type": "color", "id": "divider_color", "default": "#000000", "label": "Divider base color" },
+    { "type": "range", "id": "divider_opacity", "min": 0, "max": 30, "step": 1, "default": 12, "label": "Divider opacity (%)" },
+
+    { "type": "header", "content": "Item colors" },
+    { "type": "color", "id": "item_bg_color", "default": "#ffffff", "label": "Item background" },
+    { "type": "color", "id": "item_border_color", "default": "#000000", "label": "Item border base color" },
+    { "type": "range", "id": "item_border_opacity", "min": 0, "max": 40, "step": 1, "default": 14, "label": "Item border opacity (%)" }
+  ],
+  "blocks": [
+    {
+      "type": "item",
+      "name": "Item",
+      "settings": [
+        { "type": "header", "content": "Media" },
+        {
+          "type": "select",
+          "id": "media_mode",
+          "label": "Show icon/image",
+          "default": "auto",
+          "options": [
+            { "value": "auto", "label": "Auto (use what is set)" },
+            { "value": "icon", "label": "Icon only" },
+            { "value": "image", "label": "Image only" },
+            { "value": "both", "label": "Both (icon then image)" },
+            { "value": "none", "label": "None" }
+          ]
+        },
+        {
+          "type": "select",
+          "id": "icon",
+          "label": "Icon (uses assets/icons/*.svg)",
+          "default": "none",
+          "options": [
+            { "value": "none", "label": "None" },
+            { "value": "check", "label": "Check" },
+            { "value": "star", "label": "Star" },
+            { "value": "bolt", "label": "Bolt" },
+            { "value": "pin", "label": "Pin" },
+            { "value": "shield", "label": "Shield" }
+          ]
+        },
+        { "type": "image_picker", "id": "image", "label": "Image" },
+
+        { "type": "header", "content": "Card background" },
+        {
+          "type": "select",
+          "id": "card_bg_mode",
+          "label": "Background type",
+          "default": "none",
+          "options": [
+            { "value": "none", "label": "Default" },
+            { "value": "color", "label": "Color" },
+            { "value": "image", "label": "Image" }
+          ]
+        },
+        { "type": "color", "id": "card_bg_color", "default": "#ffffff", "label": "Card background color" },
+        { "type": "image_picker", "id": "card_bg_image", "label": "Card background image" },
+        { "type": "checkbox", "id": "card_overlay_enable", "default": false, "label": "Enable overlay (for readability)" },
+        { "type": "color", "id": "card_overlay_color", "default": "#000000", "label": "Overlay color" },
+        { "type": "range", "id": "card_overlay_opacity", "min": 0, "max": 90, "step": 1, "default": 35, "label": "Overlay opacity (%)" },
+
+        { "type": "header", "content": "Text" },
+        { "type": "text", "id": "meta", "default": "—", "label": "Meta (set to — to hide)" },
+        { "type": "text", "id": "title", "default": "Grid item title", "label": "Title" },
+        { "type": "richtext", "id": "body", "default": "<p>Use this for descriptions, benefits, or supporting information. Keep it readable and scannable.</p>", "label": "Body" },
+
+        { "type": "header", "content": "CTA" },
+        { "type": "text", "id": "cta_label", "default": "—", "label": "CTA label (set to — to hide)" },
+        { "type": "url", "id": "cta_url", "label": "CTA URL" }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Layout · Grid Builder",
+      "category": "Basic Content Helpers",
+      "blocks": [
+        { "type": "item" },
+        { "type": "item" },
+        { "type": "item" },
+        { "type": "item" }
+      ]
+    }
+  ]
+}
+{% endschema %}
