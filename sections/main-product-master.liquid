@@ -1,0 +1,676 @@
+{%- comment -%}
+  Quadratum — Main Product Master (Canonical PDP Engine)
+  File: sections/main-product-master.liquid
+
+  PHASE 0 (LOCKED) — INLINE SKELETON MODE (Mode A)
+  -------------------------------------------------
+  This Phase 0 file is intentionally BORING.
+
+  Guarantees:
+  - Compiles & uploads in isolation (no snippet dependencies)
+  - No JS required
+  - Shopify-safe product form (baseline <select name="id">)
+  - Token inheritance by default (no forced surfaces/colors)
+  - Minimal layout scaffolding only (media + summary columns)
+  - Safe to extend in later phases
+
+  PHASE 1A — MEDIA GALLERY MVP (INLINE, NO JS)
+  -------------------------------------------
+  Adds:
+  - Media gallery from product.media (images only; placeholders for other types)
+  - Stacked viewer items with deterministic IDs
+  - Thumbs below as anchor links, horizontal scroll, focus-visible, no overflow
+  - New settings only: media_limit (1–12), thumb_size (sm/md/lg)
+{%- endcomment -%}
+
+{%- liquid
+  assign s = section.settings
+  assign p = product
+
+  if p == blank
+    break
+  endif
+
+  assign layout_mode = s.layout_mode | default: 'classic'
+  assign enable_sticky = s.enable_sticky_summary
+
+  # Minimal token-mapped container sizing
+  assign max_w = s.max_width | default: 'xl'
+  assign max_w_css = '1280px'
+  case max_w
+    when 'sm'
+      assign max_w_css = '720px'
+    when 'md'
+      assign max_w_css = '900px'
+    when 'lg'
+      assign max_w_css = '1100px'
+    when 'xl'
+      assign max_w_css = '1280px'
+    when 'full'
+      assign max_w_css = '100%'
+  endcase
+
+  # Minimal token-mapped padding (Phase 0 only)
+  assign pad_y = s.pad_y | default: 'lg'
+  assign pad_x = s.pad_x | default: 'md'
+
+  assign pad_y_css = '4rem'
+  case pad_y
+    when 'none'
+      assign pad_y_css = '0rem'
+    when 'sm'
+      assign pad_y_css = '1.5rem'
+    when 'md'
+      assign pad_y_css = '2.5rem'
+    when 'lg'
+      assign pad_y_css = '4rem'
+    when 'xl'
+      assign pad_y_css = '5.5rem'
+  endcase
+
+  assign pad_x_css = '1.25rem'
+  case pad_x
+    when 'none'
+      assign pad_x_css = '0rem'
+    when 'sm'
+      assign pad_x_css = '1rem'
+    when 'md'
+      assign pad_x_css = '1.25rem'
+    when 'lg'
+      assign pad_x_css = '1.75rem'
+  endcase
+
+  # Accessibility labels (non-blank defaults in schema)
+  assign section_label = s.section_aria_label | default: 'Product details'
+  assign media_label = s.media_aria_label | default: 'Product media'
+  assign summary_label = s.summary_aria_label | default: 'Product summary'
+
+  assign use_custom_colors = s.use_custom_colors
+
+  # Phase 1A — media MVP settings
+  assign media_limit = s.media_limit | default: 8
+  if media_limit < 1
+    assign media_limit = 1
+  endif
+  if media_limit > 12
+    assign media_limit = 12
+  endif
+
+  assign thumb_size = s.thumb_size | default: 'md'
+  assign thumb_w_css = '84px'
+  case thumb_size
+    when 'sm'
+      assign thumb_w_css = '72px'
+    when 'md'
+      assign thumb_w_css = '84px'
+    when 'lg'
+      assign thumb_w_css = '96px'
+  endcase
+
+  # Build media list (up to limit)
+  assign media_items = p.media | slice: 0, media_limit
+  assign media_count = media_items.size
+-%}
+
+<section
+  id="q-pdp-{{ section.id }}"
+  class="q-pdp-phase0 q-layout-{{ layout_mode }}"
+  aria-label="{{ section_label }}"
+  style="
+    --q-max-width: {{ max_w_css }};
+    --q-pad-y: {{ pad_y_css }};
+    --q-pad-x: {{ pad_x_css }};
+    --q-thumb-w: {{ thumb_w_css }};
+  "
+>
+  <div class="q-pdp-phase0__inner">
+    <div class="q-pdp-phase0__grid">
+      <div class="q-pdp-phase0__media" aria-label="{{ media_label }}">
+        {%- if media_count == 0 -%}
+          <div class="q-pdp-phase0__media-fallback" role="note">
+            No media available
+          </div>
+        {%- else -%}
+          <div class="q-pdp-media" aria-label="Media gallery">
+            <div class="q-pdp-media__viewer">
+              {%- for m in media_items -%}
+                {%- assign item_id = 'q-media-' | append: section.id | append: '-' | append: forloop.index0 -%}
+                <div id="{{ item_id }}" class="q-pdp-media__item">
+                  {%- if m.media_type == 'image' -%}
+                    {%- assign eager = false -%}
+                    {%- if forloop.first -%}
+                      {%- assign eager = true -%}
+                    {%- endif -%}
+
+                    {%- if eager -%}
+                      {{
+                        m
+                        | image_url: width: 1800
+                        | image_tag:
+                          loading: 'eager',
+                          fetchpriority: 'high',
+                          alt: m.alt | default: p.title
+                      }}
+                    {%- else -%}
+                      {{
+                        m
+                        | image_url: width: 1800
+                        | image_tag:
+                          loading: 'lazy',
+                          alt: m.alt | default: p.title
+                      }}
+                    {%- endif -%}
+                  {%- else -%}
+                    <div class="q-pdp-media__placeholder" role="note">
+                      Media type not enabled yet (Phase 1B)
+                    </div>
+                  {%- endif -%}
+                </div>
+              {%- endfor -%}
+            </div>
+
+            <div class="q-pdp-media__thumbs" aria-label="Media thumbnails">
+              {%- for m in media_items -%}
+                {%- assign href_id = '#q-media-' | append: section.id | append: '-' | append: forloop.index0 -%}
+                <a class="q-pdp-media__thumb" href="{{ href_id }}" aria-label="Jump to media {{ forloop.index }}">
+                  {%- if m.media_type == 'image' -%}
+                    {{
+                      m
+                      | image_url: width: 240
+                      | image_tag:
+                        loading: 'lazy',
+                        alt: m.alt | default: p.title
+                    }}
+                  {%- else -%}
+                    <span class="q-pdp-media__thumb-placeholder" aria-hidden="true">—</span>
+                  {%- endif -%}
+                </a>
+              {%- endfor -%}
+            </div>
+          </div>
+        {%- endif -%}
+      </div>
+
+      <div class="q-pdp-phase0__summary{% if enable_sticky and layout_mode != 'stacked' %} q-sticky{% endif %}" aria-label="{{ summary_label }}">
+        {%- comment -%} Phase 0: single H1 only (product title) {%- endcomment -%}
+        <h1 class="q-pdp-phase0__title">{{ p.title }}</h1>
+
+        {%- if p.vendor != blank and s.show_vendor -%}
+          <div class="q-pdp-phase0__vendor">{{ p.vendor }}</div>
+        {%- endif -%}
+
+        <div class="q-pdp-phase0__price">
+          {%- if p.compare_at_price_max > p.price -%}
+            <span class="q-pdp-phase0__compare">{{ p.compare_at_price_max | money }}</span>
+          {%- endif -%}
+          <span class="q-pdp-phase0__current">{{ p.price | money }}</span>
+        </div>
+
+        {%- if p.description != blank -%}
+          {%- comment -%} Phase 0: minimal description (first paragraph-ish) {%- endcomment -%}
+          <div class="q-pdp-phase0__desc">
+            {{ p.description | strip_html | truncate: 220 }}
+          </div>
+        {%- endif -%}
+
+        {%- comment -%}
+          PHASE 0 CRITICAL: Shopify-safe product form.
+          - No hidden inputs
+          - No assumed JS syncing
+          - Uses baseline variant <select name="id">
+        {%- endcomment -%}
+        {%- form 'product', p, id: 'q-pdp-form-' | append: section.id, novalidate: 'novalidate' -%}
+          <div class="q-pdp-phase0__form">
+            <label class="q-pdp-phase0__label" for="q-variant-{{ section.id }}">Variant</label>
+            <select id="q-variant-{{ section.id }}" name="id" class="q-pdp-phase0__select">
+              {%- for v in p.variants -%}
+                <option value="{{ v.id }}" {% if v == p.selected_or_first_available_variant %}selected{% endif %} {% unless v.available %}disabled{% endunless %}>
+                  {{ v.title }}{% unless v.available %} — Sold out{% endunless %}
+                </option>
+              {%- endfor -%}
+            </select>
+
+            <label class="q-pdp-phase0__label" for="q-qty-{{ section.id }}">Quantity</label>
+            <input id="q-qty-{{ section.id }}" class="q-pdp-phase0__qty" type="number" name="quantity" min="1" value="1" inputmode="numeric">
+
+            <button type="submit" name="add" class="q-pdp-phase0__btn">
+              Add to cart
+            </button>
+
+            {%- if s.show_inventory -%}
+              <div class="q-pdp-phase0__inventory" role="status" aria-live="polite">
+                Inventory messaging (Phase 0 placeholder)
+              </div>
+            {%- endif -%}
+          </div>
+        {%- endform -%}
+      </div>
+    </div>
+  </div>
+
+  <style>
+    /* Phase 0: layout only. No forced surfaces. Inherit theme by default. */
+    #q-pdp-{{ section.id }}{ width:100%; overflow-x:hidden; }
+    #q-pdp-{{ section.id }} *{ box-sizing:border-box; }
+
+    #q-pdp-{{ section.id }} .q-pdp-phase0__inner{
+      max-width: var(--q-max-width);
+      margin: 0 auto;
+      padding: var(--q-pad-y) var(--q-pad-x);
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-phase0__grid{
+      display:grid;
+      grid-template-columns: 1fr 420px;
+      gap: 1.5rem;
+      align-items:start;
+      min-width:0;
+    }
+
+    #q-pdp-{{ section.id }}.q-layout-stacked .q-pdp-phase0__grid{
+      grid-template-columns: 1fr;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-phase0__media,
+    #q-pdp-{{ section.id }} .q-pdp-phase0__summary{
+      min-width:0;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-phase0__media-fallback{
+      padding: 2rem;
+      border: 1px dashed currentColor;
+      opacity: .7;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-phase0__title{
+      margin:0 0 .5rem 0;
+      line-height:1.1;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-phase0__price{
+      display:flex;
+      gap:.75rem;
+      align-items:baseline;
+      margin:.5rem 0 1rem 0;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-phase0__compare{
+      text-decoration: line-through;
+      opacity: .7;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-phase0__desc{
+      margin: 0 0 1.25rem 0;
+      opacity: .9;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-phase0__form{
+      display:flex;
+      flex-direction:column;
+      gap:.75rem;
+      max-width: 520px;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-phase0__label{
+      font-size: .95em;
+      opacity: .9;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-phase0__select,
+    #q-pdp-{{ section.id }} .q-pdp-phase0__qty{
+      width:100%;
+      padding:.8rem .9rem;
+      border: 1px solid rgba(0,0,0,.2);
+      background: transparent;
+      color: inherit;
+      border-radius: .75rem;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-phase0__btn{
+      width:100%;
+      padding: .95rem 1rem;
+      border-radius: .85rem;
+      border: 1px solid rgba(0,0,0,.25);
+      background: transparent;
+      color: inherit;
+      cursor:pointer;
+      font-weight: 650;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-phase0__btn:focus-visible,
+    #q-pdp-{{ section.id }} .q-pdp-phase0__select:focus-visible,
+    #q-pdp-{{ section.id }} .q-pdp-phase0__qty:focus-visible{
+      outline: 2px solid currentColor;
+      outline-offset: 2px;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-phase0__inventory{
+      font-size: .95em;
+      opacity: .8;
+    }
+
+    #q-pdp-{{ section.id }} .q-sticky{
+      position: sticky;
+      top: 1.25rem;
+    }
+
+    /* ----------------------------
+       Phase 1A — Media Gallery MVP
+       ---------------------------- */
+    #q-pdp-{{ section.id }} .q-pdp-media{
+      width:100%;
+      min-width:0;
+      overflow:hidden; /* guardrail */
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-media__viewer{
+      display:flex;
+      flex-direction:column;
+      gap: .9rem;
+      min-width:0;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-media__item{
+      min-width:0;
+      scroll-margin-top: 12px;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-media__item img{
+      width:100%;
+      height:auto;
+      display:block;
+      border-radius: inherit;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-media__placeholder{
+      padding: 2rem;
+      border: 1px dashed currentColor;
+      opacity: .7;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-media__thumbs{
+      margin-top: 1rem;
+      display:flex;
+      gap: .6rem;
+      overflow-x:auto;
+      overflow-y:hidden;
+      -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x mandatory;
+      padding-bottom: .25rem; /* prevents scrollbar overlap */
+      min-width:0;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-media__thumb{
+      flex: 0 0 auto;
+      width: var(--q-thumb-w);
+      height: var(--q-thumb-w);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border: 1px solid rgba(0,0,0,.2);
+      border-radius: .75rem;
+      background: transparent;
+      text-decoration:none;
+      color: inherit;
+      scroll-snap-align: start;
+      overflow:hidden;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-media__thumb img{
+      width:100%;
+      height:100%;
+      object-fit: cover;
+      display:block;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-media__thumb-placeholder{
+      opacity: .6;
+      font-weight: 700;
+    }
+
+    #q-pdp-{{ section.id }} .q-pdp-media__thumb:focus-visible{
+      outline: 2px solid currentColor;
+      outline-offset: 2px;
+    }
+
+    @media (max-width: 990px){
+      #q-pdp-{{ section.id }} .q-pdp-phase0__grid{
+        grid-template-columns: 1fr;
+      }
+      #q-pdp-{{ section.id }} .q-sticky{
+        position: static;
+        top: auto;
+      }
+    }
+
+    /* Phase 0: custom colors are OFF by default and do NOTHING unless enabled */
+    {%- if use_custom_colors -%}
+      #q-pdp-{{ section.id }}{
+        background: {{ s.bg_color }};
+        color: {{ s.text_color }};
+      }
+      #q-pdp-{{ section.id }} .q-pdp-phase0__select,
+      #q-pdp-{{ section.id }} .q-pdp-phase0__qty,
+      #q-pdp-{{ section.id }} .q-pdp-phase0__btn,
+      #q-pdp-{{ section.id }} .q-pdp-media__thumb{
+        border-color: {{ s.border_color }};
+      }
+      #q-pdp-{{ section.id }} .q-pdp-phase0__btn{
+        background: {{ s.button_bg }};
+        color: {{ s.button_text }};
+        border-color: {{ s.button_border }};
+      }
+      #q-pdp-{{ section.id }} .q-pdp-phase0__btn:hover{
+        background: {{ s.button_bg_hover }};
+        color: {{ s.button_text_hover }};
+        border-color: {{ s.button_border_hover }};
+      }
+    {%- endif -%}
+  </style>
+</section>
+
+{% schema %}
+{
+  "name": "Main Product Master",
+  "tag": "section",
+  "class": "section q-main-product-master",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Phase 0 — Layout skeleton"
+    },
+    {
+      "type": "select",
+      "id": "layout_mode",
+      "label": "Layout mode",
+      "default": "classic",
+      "options": [
+        { "value": "classic", "label": "Classic (media left, summary right)" },
+        { "value": "stacked", "label": "Stacked (media top, summary below)" },
+        { "value": "media_focus", "label": "Media focus (placeholder)" },
+        { "value": "service_mode", "label": "Service mode (placeholder)" }
+      ]
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_sticky_summary",
+      "label": "Enable sticky summary (desktop)",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_vendor",
+      "label": "Show vendor",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "show_inventory",
+      "label": "Show inventory messaging (placeholder)",
+      "default": true
+    },
+
+    {
+      "type": "header",
+      "content": "Phase 1A — Media MVP"
+    },
+    {
+      "type": "range",
+      "id": "media_limit",
+      "label": "Media limit",
+      "min": 1,
+      "max": 12,
+      "step": 1,
+      "default": 8
+    },
+    {
+      "type": "select",
+      "id": "thumb_size",
+      "label": "Thumbnail size",
+      "default": "md",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
+
+    {
+      "type": "header",
+      "content": "Container"
+    },
+    {
+      "type": "select",
+      "id": "max_width",
+      "label": "Max width",
+      "default": "xl",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" },
+        { "value": "xl", "label": "Extra large" },
+        { "value": "full", "label": "Full width" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "pad_y",
+      "label": "Vertical padding",
+      "default": "lg",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" },
+        { "value": "xl", "label": "Extra large" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "pad_x",
+      "label": "Horizontal padding",
+      "default": "md",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
+
+    {
+      "type": "header",
+      "content": "Accessibility"
+    },
+    {
+      "type": "text",
+      "id": "section_aria_label",
+      "label": "Section aria-label",
+      "default": "Product details"
+    },
+    {
+      "type": "text",
+      "id": "media_aria_label",
+      "label": "Media aria-label",
+      "default": "Product media"
+    },
+    {
+      "type": "text",
+      "id": "summary_aria_label",
+      "label": "Summary aria-label",
+      "default": "Product summary"
+    },
+
+    {
+      "type": "header",
+      "content": "Colors (inherit by default)"
+    },
+    {
+      "type": "checkbox",
+      "id": "use_custom_colors",
+      "label": "Use custom colors (override theme tokens)",
+      "default": false
+    },
+    {
+      "type": "color",
+      "id": "bg_color",
+      "label": "Background color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#111111"
+    },
+    {
+      "type": "color",
+      "id": "border_color",
+      "label": "Border color",
+      "default": "#e6e6e6"
+    },
+    {
+      "type": "color",
+      "id": "button_bg",
+      "label": "Button background",
+      "default": "#111111"
+    },
+    {
+      "type": "color",
+      "id": "button_text",
+      "label": "Button text",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "button_border",
+      "label": "Button border",
+      "default": "#111111"
+    },
+    {
+      "type": "color",
+      "id": "button_bg_hover",
+      "label": "Button background hover",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "button_text_hover",
+      "label": "Button text hover",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "button_border_hover",
+      "label": "Button border hover",
+      "default": "#000000"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Main Product Master",
+      "category": "Product"
+    }
+  ]
+}
+{% endschema %}
