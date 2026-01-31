@@ -2,472 +2,1180 @@
   Quadratum — Main Product Master (Canonical PDP Engine)
   File: sections/main-product-master.liquid
 
-  PHASE 0 (LOCKED) — INLINE SKELETON MODE (Mode A)
-  -------------------------------------------------
-  This Phase 0 file is intentionally BORING.
+  PATCH NOTES (THIS EDIT)
+  ----------------------
+  PHASE 4 — GALLERY + STICKY + STACKED PREMIUM + CONTENT (NO REFACTOR / NO JS / NO NEW WRAPPERS)
 
-  Guarantees:
-  - Compiles & uploads in isolation (no snippet dependencies)
-  - No JS required
-  - Shopify-safe product form (baseline <select name="id">)
-  - Token inheritance by default (no forced surfaces/colors)
-  - Minimal layout scaffolding only (media + summary columns)
-  - Safe to extend in later phases
+  4.1 Thumbnail placement (desktop + mobile)
+  - Add schema:
+      thumb_placement_desktop: below | above | left | right
+      thumb_placement_mobile:  below | above | hidden
+  - Add ONLY root classes:
+      q-thumbs-d-*
+      q-thumbs-m-*
+  - Implement via CSS using existing markup only:
+      .q-pdp-media
+      .q-pdp-media__viewer
+      .q-pdp-media__thumbs
 
-  PHASE 1A — MEDIA GALLERY MVP (INLINE, NO JS)
-  -------------------------------------------
-  Adds:
-  - Media gallery from product.media (images only; placeholders for other types)
-  - Stacked viewer items with deterministic IDs
-  - Thumbs below as anchor links, horizontal scroll, focus-visible, no overflow
-  - New settings only: media_limit (1–12), thumb_size (sm/md/lg)
+  4.2 Sticky target (desktop only, deterministic)
+  - Add schema:
+      desktop_sticky_target: summary | media | none
+  - Single source of truth: only ONE element gets .q-sticky on desktop
+  - Mobile always disables sticky (existing behavior preserved)
+  - Guardrails:
+      - Sticky disabled for stacked / stacked_summary_top / service_mode
+      - Sticky media additionally disabled for scroll_gallery_* (media column is already a scroll container)
+
+  4.3 Stacked premium pass (CSS only)
+  - Editorial spacing + subtle panel treatment for summary
+  - Better stage constraints (no billboard feel)
+  - No schema changes
+
+  4.4 Content completeness (pulled in from Phase 5 suggestions)
+  - Full product description rendered (HTML preserved) — NO truncation
+  - Optional below-the-fold content via:
+      A) metafield conventions (product.metafields.custom.pdp_*)
+      B) repeatable "Metafield block" (unlimited) — merchant chooses namespace/key
+  - Reviews via "@app" block (theme editor App block). No dependency on other section files.
+  - All additions are non-breaking if metafields/reviews are not present
+
+  EXTRA (Below-the-fold layout modes — NO JS)
+  - Add schema:
+      below_fold_layout: sectionized | tabbed | disabled
+  - Tabbed uses anchor + :target (no JS)
+  - Dynamic metafield blocks become tabs when tabbed mode is enabled
 {%- endcomment -%}
 
 {%- liquid
   assign s = section.settings
   assign p = product
-
-  if p == blank
-    break
-  endif
-
-  assign layout_mode = s.layout_mode | default: 'classic'
-  assign enable_sticky = s.enable_sticky_summary
-
-  # Minimal token-mapped container sizing
-  assign max_w = s.max_width | default: 'xl'
-  assign max_w_css = '1280px'
-  case max_w
-    when 'sm'
-      assign max_w_css = '720px'
-    when 'md'
-      assign max_w_css = '900px'
-    when 'lg'
-      assign max_w_css = '1100px'
-    when 'xl'
-      assign max_w_css = '1280px'
-    when 'full'
-      assign max_w_css = '100%'
-  endcase
-
-  # Minimal token-mapped padding (Phase 0 only)
-  assign pad_y = s.pad_y | default: 'lg'
-  assign pad_x = s.pad_x | default: 'md'
-
-  assign pad_y_css = '4rem'
-  case pad_y
-    when 'none'
-      assign pad_y_css = '0rem'
-    when 'sm'
-      assign pad_y_css = '1.5rem'
-    when 'md'
-      assign pad_y_css = '2.5rem'
-    when 'lg'
-      assign pad_y_css = '4rem'
-    when 'xl'
-      assign pad_y_css = '5.5rem'
-  endcase
-
-  assign pad_x_css = '1.25rem'
-  case pad_x
-    when 'none'
-      assign pad_x_css = '0rem'
-    when 'sm'
-      assign pad_x_css = '1rem'
-    when 'md'
-      assign pad_x_css = '1.25rem'
-    when 'lg'
-      assign pad_x_css = '1.75rem'
-  endcase
-
-  # Accessibility labels (non-blank defaults in schema)
-  assign section_label = s.section_aria_label | default: 'Product details'
-  assign media_label = s.media_aria_label | default: 'Product media'
-  assign summary_label = s.summary_aria_label | default: 'Product summary'
-
-  assign use_custom_colors = s.use_custom_colors
-
-  # Phase 1A — media MVP settings
-  assign media_limit = s.media_limit | default: 8
-  if media_limit < 1
-    assign media_limit = 1
-  endif
-  if media_limit > 12
-    assign media_limit = 12
-  endif
-
-  assign thumb_size = s.thumb_size | default: 'md'
-  assign thumb_w_css = '84px'
-  case thumb_size
-    when 'sm'
-      assign thumb_w_css = '72px'
-    when 'md'
-      assign thumb_w_css = '84px'
-    when 'lg'
-      assign thumb_w_css = '96px'
-  endcase
-
-  # Build media list (up to limit)
-  assign media_items = p.media | slice: 0, media_limit
-  assign media_count = media_items.size
 -%}
 
-<section
-  id="q-pdp-{{ section.id }}"
-  class="q-pdp-phase0 q-layout-{{ layout_mode }}"
-  aria-label="{{ section_label }}"
-  style="
-    --q-max-width: {{ max_w_css }};
-    --q-pad-y: {{ pad_y_css }};
-    --q-pad-x: {{ pad_x_css }};
-    --q-thumb-w: {{ thumb_w_css }};
-  "
->
-  <div class="q-pdp-phase0__inner">
-    <div class="q-pdp-phase0__grid">
-      <div class="q-pdp-phase0__media" aria-label="{{ media_label }}">
-        {%- if media_count == 0 -%}
-          <div class="q-pdp-phase0__media-fallback" role="note">
-            No media available
-          </div>
-        {%- else -%}
-          <div class="q-pdp-media" aria-label="Media gallery">
-            <div class="q-pdp-media__viewer">
-              {%- for m in media_items -%}
-                {%- assign item_id = 'q-media-' | append: section.id | append: '-' | append: forloop.index0 -%}
-                <div id="{{ item_id }}" class="q-pdp-media__item">
-                  {%- if m.media_type == 'image' -%}
-                    {%- assign eager = false -%}
-                    {%- if forloop.first -%}
-                      {%- assign eager = true -%}
-                    {%- endif -%}
+{%- if p == blank -%}
+  {%- comment -%}Safety: section rendered without product context.{%- endcomment -%}
+{%- else -%}
+  {%- liquid
+    assign layout_mode = s.layout_mode | default: 'classic'
 
-                    {%- if eager -%}
-                      {{
-                        m
-                        | image_url: width: 1800
-                        | image_tag:
-                          loading: 'eager',
-                          fetchpriority: 'high',
-                          alt: m.alt | default: p.title
-                      }}
+    assign max_w = s.max_width | default: 'xl'
+    assign max_w_css = '1280px'
+    case max_w
+      when 'sm'
+        assign max_w_css = '720px'
+      when 'md'
+        assign max_w_css = '900px'
+      when 'lg'
+        assign max_w_css = '1100px'
+      when 'xl'
+        assign max_w_css = '1280px'
+      when 'full'
+        assign max_w_css = '100%'
+    endcase
+
+    assign pad_y = s.pad_y | default: 'lg'
+    assign pad_x = s.pad_x | default: 'md'
+
+    assign pad_y_css = '4rem'
+    case pad_y
+      when 'none'
+        assign pad_y_css = '0rem'
+      when 'sm'
+        assign pad_y_css = '1.5rem'
+      when 'md'
+        assign pad_y_css = '2.5rem'
+      when 'lg'
+        assign pad_y_css = '4rem'
+      when 'xl'
+        assign pad_y_css = '5.5rem'
+    endcase
+
+    assign pad_x_css = '1.25rem'
+    case pad_x
+      when 'none'
+        assign pad_x_css = '0rem'
+      when 'sm'
+        assign pad_x_css = '1rem'
+      when 'md'
+        assign pad_x_css = '1.25rem'
+      when 'lg'
+        assign pad_x_css = '1.75rem'
+    endcase
+
+    assign section_label = s.section_aria_label | default: 'Product details'
+    assign media_label = s.media_aria_label | default: 'Product media'
+    assign summary_label = s.summary_aria_label | default: 'Product summary'
+
+    assign use_custom_colors = s.use_custom_colors
+
+    assign media_limit = s.media_limit | default: 8
+    if media_limit < 1
+      assign media_limit = 1
+    endif
+    if media_limit > 12
+      assign media_limit = 12
+    endif
+
+    assign thumb_size = s.thumb_size | default: 'md'
+    assign thumb_w_css = '84px'
+    case thumb_size
+      when 'sm'
+        assign thumb_w_css = '72px'
+      when 'md'
+        assign thumb_w_css = '84px'
+      when 'lg'
+        assign thumb_w_css = '96px'
+    endcase
+
+    assign media_items = p.media | slice: 0, media_limit
+    assign media_count = media_items.size
+
+    assign form_id = 'q-pdp-form-' | append: section.id
+
+    comment
+      Phase 4.1: thumbs placement settings (root classes only)
+    endcomment
+    assign thumbs_d = s.thumb_placement_desktop | default: 'below'
+    assign thumbs_m = s.thumb_placement_mobile | default: 'below'
+
+    comment
+      Phase 4.2: sticky target (deterministic)
+      - Keep Phase 3 enable_sticky_summary setting for backwards compatibility
+        (if merchant disabled it, default "summary" target will resolve to "none")
+    endcomment
+    assign desktop_sticky_target = s.desktop_sticky_target | default: 'summary'
+    assign legacy_enable_sticky_summary = s.enable_sticky_summary
+
+    assign sticky_target_effective = desktop_sticky_target
+    if sticky_target_effective == 'summary' and legacy_enable_sticky_summary == false
+      assign sticky_target_effective = 'none'
+    endif
+
+    assign sticky_ok_base = true
+    if layout_mode == 'stacked' or layout_mode == 'stacked_summary_top' or layout_mode == 'service_mode'
+      assign sticky_ok_base = false
+    endif
+
+    assign sticky_ok_summary = false
+    assign sticky_ok_media = false
+
+    if sticky_ok_base and sticky_target_effective != 'none'
+      if sticky_target_effective == 'summary'
+        assign sticky_ok_summary = true
+      endif
+
+      if sticky_target_effective == 'media'
+        assign sticky_ok_media = true
+      endif
+    endif
+
+    comment
+      Guardrail: sticky media disabled for scroll_gallery_* modes because media column is an overflow container.
+    endcomment
+    if sticky_ok_media
+      if layout_mode == 'scroll_gallery_left' or layout_mode == 'scroll_gallery_right'
+        assign sticky_ok_media = false
+      endif
+    endif
+
+    comment
+      Phase 3 fix: detect meaningless default variant selector.
+      Shopify default single-variant products:
+        - option name: "Title"
+        - variant title: "Default Title"
+      We hide the UI, but keep select[name="id"] in DOM for safe submission.
+    endcomment
+    assign show_variant_ui = true
+    if p.has_only_default_variant
+      assign show_variant_ui = false
+    endif
+    if p.options.size == 1 and p.options.first == 'Title'
+      assign show_variant_ui = false
+    endif
+
+    comment
+      Phase 4.4: Optional metafield-driven areas (NO required schema)
+      Convention: product.metafields.custom.*
+    endcomment
+    assign mf_highlights = p.metafields.custom.pdp_highlights
+    assign mf_specs = p.metafields.custom.pdp_specs
+    assign mf_downloads = p.metafields.custom.pdp_downloads
+    assign mf_faq = p.metafields.custom.pdp_faq
+
+    comment
+      Phase 4.4: detect if any @app blocks exist (reviews/app mount)
+    endcomment
+    assign has_app_block = false
+    for b in section.blocks
+      if b.type == '@app'
+        assign has_app_block = true
+        break
+      endif
+    endfor
+
+    comment
+      Below-the-fold layout mode (Phase 5-ready)
+      - sectionized: stack all blocks
+      - tabbed: anchor-tabs, one visible at a time (no JS)
+      - disabled: render nothing below fold
+    endcomment
+    assign below_layout = s.below_fold_layout | default: 'sectionized'
+    assign has_any_below = false
+
+    if p.description != blank
+      assign has_any_below = true
+    endif
+    if mf_highlights != blank or mf_specs != blank or mf_downloads != blank or mf_faq != blank
+      assign has_any_below = true
+    endif
+    if section.blocks.size > 0
+      assign has_any_below = true
+    endif
+  -%}
+
+  <section
+    id="q-pdp-{{ section.id }}"
+    class="q-pdp-phase0 q-layout-{{ layout_mode }} q-thumbs-d-{{ thumbs_d }} q-thumbs-m-{{ thumbs_m }} q-below-{{ below_layout }}{% if sticky_ok_media %} q-sticky-media{% elsif sticky_ok_summary %} q-sticky-summary{% endif %}"
+    aria-label="{{ section_label }}"
+    style="
+      --q-max-width: {{ max_w_css }};
+      --q-pad-y: {{ pad_y_css }};
+      --q-pad-x: {{ pad_x_css }};
+      --q-thumb-w: {{ thumb_w_css }};
+    "
+  >
+    <div class="q-pdp-phase0__inner">
+      <div class="q-pdp-phase0__grid">
+        <div class="q-pdp-phase0__media{% if sticky_ok_media %} q-sticky{% endif %}" aria-label="{{ media_label }}">
+          {%- if media_count == 0 -%}
+            <div class="q-pdp-phase0__media-fallback" role="note">
+              No media available
+            </div>
+          {%- else -%}
+            <div class="q-pdp-media" aria-label="Media gallery">
+              <div class="q-pdp-media__viewer">
+                {%- for m in media_items -%}
+                  {%- assign item_id = 'q-media-' | append: section.id | append: '-' | append: forloop.index0 -%}
+                  <div id="{{ item_id }}" class="q-pdp-media__item">
+                    {%- if m.media_type == 'image' -%}
+                      {%- if forloop.first -%}
+                        {{
+                          m
+                          | image_url: width: 1800
+                          | image_tag:
+                            loading: 'eager',
+                            fetchpriority: 'high',
+                            alt: m.alt | default: p.title
+                        }}
+                      {%- else -%}
+                        {{
+                          m
+                          | image_url: width: 1800
+                          | image_tag:
+                            loading: 'lazy',
+                            alt: m.alt | default: p.title
+                        }}
+                      {%- endif -%}
                     {%- else -%}
+                      <div class="q-pdp-media__placeholder" role="note">
+                        Media type not enabled yet (Phase 1B)
+                      </div>
+                    {%- endif -%}
+                  </div>
+                {%- endfor -%}
+              </div>
+
+              <div class="q-pdp-media__thumbs" aria-label="Media thumbnails">
+                {%- for m in media_items -%}
+                  {%- assign href_id = '#q-media-' | append: section.id | append: '-' | append: forloop.index0 -%}
+                  <a class="q-pdp-media__thumb" href="{{ href_id }}" aria-label="Jump to media {{ forloop.index }}">
+                    {%- if m.media_type == 'image' -%}
                       {{
                         m
-                        | image_url: width: 1800
+                        | image_url: width: 240
                         | image_tag:
                           loading: 'lazy',
                           alt: m.alt | default: p.title
                       }}
+                    {%- else -%}
+                      <span class="q-pdp-media__thumb-placeholder" aria-hidden="true">—</span>
                     {%- endif -%}
-                  {%- else -%}
-                    <div class="q-pdp-media__placeholder" role="note">
-                      Media type not enabled yet (Phase 1B)
-                    </div>
-                  {%- endif -%}
-                </div>
-              {%- endfor -%}
+                  </a>
+                {%- endfor -%}
+              </div>
             </div>
-
-            <div class="q-pdp-media__thumbs" aria-label="Media thumbnails">
-              {%- for m in media_items -%}
-                {%- assign href_id = '#q-media-' | append: section.id | append: '-' | append: forloop.index0 -%}
-                <a class="q-pdp-media__thumb" href="{{ href_id }}" aria-label="Jump to media {{ forloop.index }}">
-                  {%- if m.media_type == 'image' -%}
-                    {{
-                      m
-                      | image_url: width: 240
-                      | image_tag:
-                        loading: 'lazy',
-                        alt: m.alt | default: p.title
-                    }}
-                  {%- else -%}
-                    <span class="q-pdp-media__thumb-placeholder" aria-hidden="true">—</span>
-                  {%- endif -%}
-                </a>
-              {%- endfor -%}
-            </div>
-          </div>
-        {%- endif -%}
-      </div>
-
-      <div class="q-pdp-phase0__summary{% if enable_sticky and layout_mode != 'stacked' %} q-sticky{% endif %}" aria-label="{{ summary_label }}">
-        {%- comment -%} Phase 0: single H1 only (product title) {%- endcomment -%}
-        <h1 class="q-pdp-phase0__title">{{ p.title }}</h1>
-
-        {%- if p.vendor != blank and s.show_vendor -%}
-          <div class="q-pdp-phase0__vendor">{{ p.vendor }}</div>
-        {%- endif -%}
-
-        <div class="q-pdp-phase0__price">
-          {%- if p.compare_at_price_max > p.price -%}
-            <span class="q-pdp-phase0__compare">{{ p.compare_at_price_max | money }}</span>
           {%- endif -%}
-          <span class="q-pdp-phase0__current">{{ p.price | money }}</span>
         </div>
 
-        {%- if p.description != blank -%}
-          {%- comment -%} Phase 0: minimal description (first paragraph-ish) {%- endcomment -%}
-          <div class="q-pdp-phase0__desc">
-            {{ p.description | strip_html | truncate: 220 }}
+        <div class="q-pdp-phase0__summary{% if sticky_ok_summary %} q-sticky{% endif %}" aria-label="{{ summary_label }}">
+          <h1 class="q-pdp-phase0__title">{{ p.title }}</h1>
+
+          {%- if p.vendor != blank and s.show_vendor -%}
+            <div class="q-pdp-phase0__vendor">{{ p.vendor }}</div>
+          {%- endif -%}
+
+          <div class="q-pdp-phase0__price">
+            {%- if p.compare_at_price_max > p.price -%}
+              <span class="q-pdp-phase0__compare">{{ p.compare_at_price_max | money }}</span>
+            {%- endif -%}
+            <span class="q-pdp-phase0__current">{{ p.price | money }}</span>
           </div>
-        {%- endif -%}
 
-        {%- comment -%}
-          PHASE 0 CRITICAL: Shopify-safe product form.
-          - No hidden inputs
-          - No assumed JS syncing
-          - Uses baseline variant <select name="id">
-        {%- endcomment -%}
-        {%- form 'product', p, id: 'q-pdp-form-' | append: section.id, novalidate: 'novalidate' -%}
-          <div class="q-pdp-phase0__form">
-            <label class="q-pdp-phase0__label" for="q-variant-{{ section.id }}">Variant</label>
-            <select id="q-variant-{{ section.id }}" name="id" class="q-pdp-phase0__select">
-              {%- for v in p.variants -%}
-                <option value="{{ v.id }}" {% if v == p.selected_or_first_available_variant %}selected{% endif %} {% unless v.available %}disabled{% endunless %}>
-                  {{ v.title }}{% unless v.available %} — Sold out{% endunless %}
-                </option>
-              {%- endfor -%}
-            </select>
+          {%- form 'product', p, id: form_id, novalidate: 'novalidate' -%}
+            <div class="q-pdp-phase0__form">
+              {%- comment -%}
+                Baseline submission source MUST remain:
+                Keep select[name="id"] always present.
+                If the product only has the default variant (Title/Default Title),
+                hide the UI, but keep the select for safe submission.
+              {%- endcomment -%}
 
-            <label class="q-pdp-phase0__label" for="q-qty-{{ section.id }}">Quantity</label>
-            <input id="q-qty-{{ section.id }}" class="q-pdp-phase0__qty" type="number" name="quantity" min="1" value="1" inputmode="numeric">
+              <div class="q-pdp-phase0__variant-wrap{% unless show_variant_ui %} is-hidden{% endunless %}">
+                <label class="q-pdp-phase0__label" for="q-variant-{{ section.id }}">Variant</label>
+                <select id="q-variant-{{ section.id }}" name="id" class="q-pdp-phase0__select">
+                  {%- for v in p.variants -%}
+                    <option value="{{ v.id }}"
+                      {% if v == p.selected_or_first_available_variant %}selected{% endif %}
+                      {% unless v.available %}disabled{% endunless %}>
+                      {{ v.title }}{% unless v.available %} — Sold out{% endunless %}
+                    </option>
+                  {%- endfor -%}
+                </select>
+              </div>
 
-            <button type="submit" name="add" class="q-pdp-phase0__btn">
-              Add to cart
-            </button>
+              <label class="q-pdp-phase0__label" for="q-qty-{{ section.id }}">Quantity</label>
+              <input id="q-qty-{{ section.id }}" class="q-pdp-phase0__qty" type="number" name="quantity" min="1" value="1" inputmode="numeric">
 
-            {%- if s.show_inventory -%}
-              <div class="q-pdp-phase0__inventory" role="status" aria-live="polite">
-                Inventory messaging (Phase 0 placeholder)
+              <button type="submit" name="add" class="q-pdp-phase0__btn">
+                Add to cart
+              </button>
+
+              {%- if s.show_inventory -%}
+                <div class="q-pdp-phase0__inventory" role="status" aria-live="polite">
+                  Inventory messaging (Phase 0 placeholder)
+                </div>
+              {%- endif -%}
+            </div>
+          {%- endform -%}
+
+          {%- comment -%}
+            Optional: keep description below-the-fold only (clean PDP)
+            Description is rendered in the below-fold system (sectionized/tabbed).
+          {%- endcomment -%}
+        </div>
+      </div>
+
+      {%- comment -%}
+        Below the fold content
+        - Non-breaking if empty
+        - Metafield conventions: custom.pdp_*
+        - Unlimited Metafield blocks
+        - Reviews via @app block (if present)
+        - Layout mode: sectionized/tabbed/disabled (NO JS)
+      {%- endcomment -%}
+
+      {%- if below_layout != 'disabled' and has_any_below -%}
+        <div class="q-pdp-below" id="q-below-{{ section.id }}">
+          {%- if below_layout == 'tabbed' -%}
+            {%- comment -%}
+              Tabs (NO JS): anchors + :target
+              Panels use deterministic ids scoped by section.id.
+              If no :target, first panel stays visible by default.
+            {%- endcomment -%}
+
+            <div class="q-pdp-tabs" role="tablist" aria-label="Product details tabs">
+              {%- assign tabs_rendered = 0 -%}
+
+              {%- if p.description != blank -%}
+                {%- assign tabs_rendered = tabs_rendered | plus: 1 -%}
+                <a class="q-pdp-tabs__tab" href="#qtab-desc-{{ section.id }}" aria-controls="qtab-desc-{{ section.id }}">Description</a>
+              {%- endif -%}
+
+              {%- if mf_specs != blank -%}
+                {%- assign tabs_rendered = tabs_rendered | plus: 1 -%}
+                <a class="q-pdp-tabs__tab" href="#qtab-specs-{{ section.id }}" aria-controls="qtab-specs-{{ section.id }}">Specs</a>
+              {%- endif -%}
+
+              {%- if mf_highlights != blank -%}
+                {%- assign tabs_rendered = tabs_rendered | plus: 1 -%}
+                <a class="q-pdp-tabs__tab" href="#qtab-highlights-{{ section.id }}" aria-controls="qtab-highlights-{{ section.id }}">Highlights</a>
+              {%- endif -%}
+
+              {%- if mf_downloads != blank -%}
+                {%- assign tabs_rendered = tabs_rendered | plus: 1 -%}
+                <a class="q-pdp-tabs__tab" href="#qtab-downloads-{{ section.id }}" aria-controls="qtab-downloads-{{ section.id }}">Downloads</a>
+              {%- endif -%}
+
+              {%- if mf_faq != blank -%}
+                {%- assign tabs_rendered = tabs_rendered | plus: 1 -%}
+                <a class="q-pdp-tabs__tab" href="#qtab-faq-{{ section.id }}" aria-controls="qtab-faq-{{ section.id }}">FAQ</a>
+              {%- endif -%}
+
+              {%- if section.blocks.size > 0 -%}
+                {%- assign mf_i = 0 -%}
+                {%- for block in section.blocks -%}
+                  {%- if block.type == 'metafield' -%}
+                    {%- assign mf_i = mf_i | plus: 1 -%}
+                    {%- assign tab_label = block.settings.heading | default: 'More details' -%}
+                    {%- assign tabs_rendered = tabs_rendered | plus: 1 -%}
+                    <a class="q-pdp-tabs__tab" href="#qtab-mf-{{ section.id }}-{{ mf_i }}" aria-controls="qtab-mf-{{ section.id }}-{{ mf_i }}">{{ tab_label }}</a>
+                  {%- endif -%}
+                {%- endfor -%}
+              {%- endif -%}
+
+              {%- if has_app_block -%}
+                {%- assign tabs_rendered = tabs_rendered | plus: 1 -%}
+                <a class="q-pdp-tabs__tab" href="#qtab-reviews-{{ section.id }}" aria-controls="qtab-reviews-{{ section.id }}">Reviews</a>
+              {%- endif -%}
+            </div>
+
+            <div class="q-pdp-tabs__panes">
+              {%- comment -%}Panels (order mirrors nav above).{%- endcomment -%}
+
+              {%- if p.description != blank -%}
+                <div id="qtab-desc-{{ section.id }}" class="q-pdp-pane q-pdp-pane--desc" role="region" aria-label="Description">
+                  <div class="q-pdp-pane__content q-desc-full">
+                    {{ p.description }}
+                  </div>
+                </div>
+              {%- endif -%}
+
+              {%- if mf_specs != blank -%}
+                <div id="qtab-specs-{{ section.id }}" class="q-pdp-pane q-pdp-pane--specs" role="region" aria-label="Specs">
+                  <div class="q-pdp-pane__content">
+                    {{ mf_specs | metafield_tag }}
+                  </div>
+                </div>
+              {%- endif -%}
+
+              {%- if mf_highlights != blank -%}
+                <div id="qtab-highlights-{{ section.id }}" class="q-pdp-pane q-pdp-pane--highlights" role="region" aria-label="Highlights">
+                  <div class="q-pdp-pane__content">
+                    {{ mf_highlights | metafield_tag }}
+                  </div>
+                </div>
+              {%- endif -%}
+
+              {%- if mf_downloads != blank -%}
+                <div id="qtab-downloads-{{ section.id }}" class="q-pdp-pane q-pdp-pane--downloads" role="region" aria-label="Downloads">
+                  <div class="q-pdp-pane__content">
+                    {{ mf_downloads | metafield_tag }}
+                  </div>
+                </div>
+              {%- endif -%}
+
+              {%- if mf_faq != blank -%}
+                <div id="qtab-faq-{{ section.id }}" class="q-pdp-pane q-pdp-pane--faq" role="region" aria-label="FAQ">
+                  <div class="q-pdp-pane__content">
+                    {{ mf_faq | metafield_tag }}
+                  </div>
+                </div>
+              {%- endif -%}
+
+              {%- if section.blocks.size > 0 -%}
+                {%- assign mf_i2 = 0 -%}
+                {%- for block in section.blocks -%}
+                  {%- case block.type -%}
+                    {%- when 'metafield' -%}
+                      {%- liquid
+                        assign mf_i2 = mf_i2 | plus: 1
+                        assign mf_ns = block.settings.namespace | default: 'custom'
+                        assign mf_key = block.settings.key | default: ''
+                        assign mf_label = block.settings.heading | default: 'More details'
+                        assign mf_hide = block.settings.hide_if_blank
+                        assign mf_obj = blank
+
+                        if mf_key != blank
+                          assign mf_obj = p.metafields[mf_ns][mf_key]
+                        endif
+                      -%}
+                      {%- if mf_obj != blank or mf_hide == false -%}
+                        <div id="qtab-mf-{{ section.id }}-{{ mf_i2 }}" class="q-pdp-pane q-pdp-pane--mf" role="region" aria-label="{{ mf_label }}" {{ block.shopify_attributes }}>
+                          <div class="q-pdp-pane__content">
+                            {%- if mf_obj != blank -%}
+                              {%- if block.settings.render_mode == 'raw' -%}
+                                {{ mf_obj.value }}
+                              {%- else -%}
+                                {{ mf_obj | metafield_tag }}
+                              {%- endif -%}
+                            {%- else -%}
+                              {%- if block.settings.empty_text != blank -%}
+                                <p>{{ block.settings.empty_text }}</p>
+                              {%- endif -%}
+                            {%- endif -%}
+                          </div>
+                        </div>
+                      {%- endif -%}
+
+                    {%- when '@app' -%}
+                      <div id="qtab-reviews-{{ section.id }}" class="q-pdp-pane q-pdp-pane--reviews" role="region" aria-label="Reviews" {{ block.shopify_attributes }}>
+                        <div class="q-pdp-pane__content">
+                          {% render block %}
+                        </div>
+                      </div>
+                  {%- endcase -%}
+                {%- endfor -%}
+              {%- endif -%}
+
+              {%- unless has_app_block -%}
+                <div id="qtab-reviews-{{ section.id }}" class="q-pdp-pane q-pdp-pane--reviews" role="region" aria-label="Reviews">
+                  <div class="q-pdp-pane__content">
+                    <!-- Add an App block to this section to render reviews here -->
+                  </div>
+                </div>
+              {%- endunless -%}
+            </div>
+
+          {%- else -%}
+            {%- comment -%}
+              Sectionized (editorial / long-form): stacked blocks
+            {%- endcomment -%}
+
+            {%- if p.description != blank -%}
+              <div class="q-pdp-below__block q-pdp-desc">
+                <h2 class="q-pdp-below__title">Description</h2>
+                <div class="q-pdp-below__content q-desc-full">
+                  {{ p.description }}
+                </div>
               </div>
             {%- endif -%}
-          </div>
-        {%- endform -%}
-      </div>
+
+            {%- if mf_highlights != blank -%}
+              <div class="q-pdp-below__block q-pdp-highlights">
+                <h2 class="q-pdp-below__title">Highlights</h2>
+                <div class="q-pdp-below__content">
+                  {{ mf_highlights | metafield_tag }}
+                </div>
+              </div>
+            {%- endif -%}
+
+            {%- if mf_specs != blank -%}
+              <div class="q-pdp-below__block q-pdp-specs">
+                <h2 class="q-pdp-below__title">Specs</h2>
+                <div class="q-pdp-below__content">
+                  {{ mf_specs | metafield_tag }}
+                </div>
+              </div>
+            {%- endif -%}
+
+            {%- if mf_downloads != blank -%}
+              <div class="q-pdp-below__block q-pdp-downloads">
+                <h2 class="q-pdp-below__title">Downloads</h2>
+                <div class="q-pdp-below__content">
+                  {{ mf_downloads | metafield_tag }}
+                </div>
+              </div>
+            {%- endif -%}
+
+            {%- if mf_faq != blank -%}
+              <div class="q-pdp-below__block q-pdp-faq">
+                <h2 class="q-pdp-below__title">FAQ</h2>
+                <div class="q-pdp-below__content">
+                  {{ mf_faq | metafield_tag }}
+                </div>
+              </div>
+            {%- endif -%}
+
+            {%- if section.blocks.size > 0 -%}
+              {%- for block in section.blocks -%}
+                {%- case block.type -%}
+                  {%- when 'metafield' -%}
+                    {%- liquid
+                      assign mf_ns = block.settings.namespace | default: 'custom'
+                      assign mf_key = block.settings.key | default: ''
+                      assign mf_label = block.settings.heading | default: ''
+                      assign mf_hide = block.settings.hide_if_blank
+                      assign mf_obj = blank
+
+                      if mf_key != blank
+                        assign mf_obj = p.metafields[mf_ns][mf_key]
+                      endif
+                    -%}
+
+                    {%- if mf_obj != blank or mf_hide == false -%}
+                      <div class="q-pdp-below__block q-pdp-mf" {{ block.shopify_attributes }}>
+                        {%- if mf_label != blank -%}
+                          <h2 class="q-pdp-below__title">{{ mf_label }}</h2>
+                        {%- endif -%}
+                        <div class="q-pdp-below__content">
+                          {%- if mf_obj != blank -%}
+                            {%- if block.settings.render_mode == 'raw' -%}
+                              {{ mf_obj.value }}
+                            {%- else -%}
+                              {{ mf_obj | metafield_tag }}
+                            {%- endif -%}
+                          {%- else -%}
+                            {%- if block.settings.empty_text != blank -%}
+                              <p>{{ block.settings.empty_text }}</p>
+                            {%- endif -%}
+                          {%- endif -%}
+                        </div>
+                      </div>
+                    {%- endif -%}
+
+                  {%- when '@app' -%}
+                    <div class="q-pdp-below__block q-pdp-reviews" data-q-reviews {{ block.shopify_attributes }}>
+                      <h2 class="q-pdp-below__title">Reviews</h2>
+                      <div class="q-pdp-below__content">
+                        {% render block %}
+                      </div>
+                    </div>
+                {%- endcase -%}
+              {%- endfor -%}
+            {%- endif -%}
+
+            {%- unless has_app_block -%}
+              <div class="q-pdp-below__block q-pdp-reviews" data-q-reviews>
+                <h2 class="q-pdp-below__title">Reviews</h2>
+                <div class="q-pdp-below__content">
+                  <!-- Add an App block to this section to render reviews here -->
+                </div>
+              </div>
+            {%- endunless -%}
+          {%- endif -%}
+        </div>
+      {%- endif -%}
     </div>
-  </div>
 
-  <style>
-    /* Phase 0: layout only. No forced surfaces. Inherit theme by default. */
-    #q-pdp-{{ section.id }}{ width:100%; overflow-x:hidden; }
-    #q-pdp-{{ section.id }} *{ box-sizing:border-box; }
+    <style>
+/* Phase 0: layout only. No forced surfaces. Inherit theme by default. */
+#q-pdp-{{ section.id }}{ width:100%; overflow-x: clip; }
+#q-pdp-{{ section.id }} *{ box-sizing:border-box; }
 
-    #q-pdp-{{ section.id }} .q-pdp-phase0__inner{
-      max-width: var(--q-max-width);
-      margin: 0 auto;
-      padding: var(--q-pad-y) var(--q-pad-x);
-    }
+#q-pdp-{{ section.id }} .q-pdp-phase0__inner{
+  max-width: var(--q-max-width);
+  margin: 0 auto;
+  padding: var(--q-pad-y) var(--q-pad-x);
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-phase0__grid{
-      display:grid;
-      grid-template-columns: 1fr 420px;
-      gap: 1.5rem;
-      align-items:start;
-      min-width:0;
-    }
+/* =========================================
+   GRID ENGINE (FIXED) — USE AREAS
+   Base (classic): media left, summary right
+   ========================================= */
+#q-pdp-{{ section.id }} .q-pdp-phase0__grid{
+  display:grid;
+  grid-template-columns: 1fr 420px;
+  grid-template-areas: "media summary";
+  gap: 1.5rem;
+  align-items:start;
+  min-width:0;
+}
 
-    #q-pdp-{{ section.id }}.q-layout-stacked .q-pdp-phase0__grid{
-      grid-template-columns: 1fr;
-    }
+/* IMPORTANT: bind children to areas (required for all modes) */
+#q-pdp-{{ section.id }} .q-pdp-phase0__media{ grid-area: media; min-width:0; }
+#q-pdp-{{ section.id }} .q-pdp-phase0__summary{ grid-area: summary; min-width:0; }
 
-    #q-pdp-{{ section.id }} .q-pdp-phase0__media,
-    #q-pdp-{{ section.id }} .q-pdp-phase0__summary{
-      min-width:0;
-    }
+/* =========================================
+   LAYOUT MODES (CSS-truthful)
+   ========================================= */
+#q-pdp-{{ section.id }}.q-layout-stacked .q-pdp-phase0__grid{
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "media"
+    "summary";
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-phase0__media-fallback{
-      padding: 2rem;
-      border: 1px dashed currentColor;
-      opacity: .7;
-    }
+#q-pdp-{{ section.id }}.q-layout-media_focus .q-pdp-phase0__grid{
+  grid-template-columns: 1fr 360px;
+  grid-template-areas: "media summary";
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-phase0__title{
-      margin:0 0 .5rem 0;
-      line-height:1.1;
-    }
+#q-pdp-{{ section.id }}.q-layout-service_mode .q-pdp-phase0__grid{
+  grid-template-columns: 1fr 420px;
+  grid-template-areas: "media summary";
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-phase0__price{
-      display:flex;
-      gap:.75rem;
-      align-items:baseline;
-      margin:.5rem 0 1rem 0;
-    }
+#q-pdp-{{ section.id }}.q-layout-classic_reverse .q-pdp-phase0__grid{
+  grid-template-columns: 420px 1fr;
+  grid-template-areas: "summary media";
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-phase0__compare{
-      text-decoration: line-through;
-      opacity: .7;
-    }
+#q-pdp-{{ section.id }}.q-layout-stacked_summary_top .q-pdp-phase0__grid{
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "summary"
+    "media";
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-phase0__desc{
-      margin: 0 0 1.25rem 0;
-      opacity: .9;
-    }
+#q-pdp-{{ section.id }}.q-layout-scroll_gallery_left .q-pdp-phase0__grid{
+  grid-template-columns: 1fr 420px;
+  grid-template-areas: "media summary";
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-phase0__form{
-      display:flex;
-      flex-direction:column;
-      gap:.75rem;
-      max-width: 520px;
-    }
+#q-pdp-{{ section.id }}.q-layout-scroll_gallery_right .q-pdp-phase0__grid{
+  grid-template-columns: 420px 1fr;
+  grid-template-areas: "summary media";
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-phase0__label{
-      font-size: .95em;
-      opacity: .9;
-    }
+/* =========================================
+   CONTENT STYLING (minimal)
+   ========================================= */
+#q-pdp-{{ section.id }} .q-pdp-phase0__media-fallback{
+  padding: 2rem;
+  border: 1px dashed currentColor;
+  opacity: .7;
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-phase0__select,
-    #q-pdp-{{ section.id }} .q-pdp-phase0__qty{
-      width:100%;
-      padding:.8rem .9rem;
-      border: 1px solid rgba(0,0,0,.2);
-      background: transparent;
-      color: inherit;
-      border-radius: .75rem;
-    }
+#q-pdp-{{ section.id }} .q-pdp-phase0__title{
+  margin:0 0 .5rem 0;
+  line-height:1.1;
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-phase0__btn{
-      width:100%;
-      padding: .95rem 1rem;
-      border-radius: .85rem;
-      border: 1px solid rgba(0,0,0,.25);
-      background: transparent;
-      color: inherit;
-      cursor:pointer;
-      font-weight: 650;
-    }
+#q-pdp-{{ section.id }} .q-pdp-phase0__price{
+  display:flex;
+  gap:.75rem;
+  align-items:baseline;
+  margin:.5rem 0 1rem 0;
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-phase0__btn:focus-visible,
-    #q-pdp-{{ section.id }} .q-pdp-phase0__select:focus-visible,
-    #q-pdp-{{ section.id }} .q-pdp-phase0__qty:focus-visible{
-      outline: 2px solid currentColor;
-      outline-offset: 2px;
-    }
+#q-pdp-{{ section.id }} .q-pdp-phase0__compare{
+  text-decoration: line-through;
+  opacity: .7;
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-phase0__inventory{
-      font-size: .95em;
-      opacity: .8;
-    }
+#q-pdp-{{ section.id }} .q-desc-full{
+  opacity: 1;
+}
+#q-pdp-{{ section.id }} .q-desc-full p{ margin: 0 0 .9rem 0; }
+#q-pdp-{{ section.id }} .q-desc-full ul,
+#q-pdp-{{ section.id }} .q-desc-full ol{ margin: 0 0 1rem 1.15rem; }
+#q-pdp-{{ section.id }} .q-desc-full a{ text-decoration: underline; }
 
-    #q-pdp-{{ section.id }} .q-sticky{
-      position: sticky;
-      top: 1.25rem;
-    }
+#q-pdp-{{ section.id }} .q-pdp-phase0__form{
+  display:flex;
+  flex-direction:column;
+  gap:.75rem;
+  max-width: 520px;
+}
 
-    /* ----------------------------
-       Phase 1A — Media Gallery MVP
-       ---------------------------- */
-    #q-pdp-{{ section.id }} .q-pdp-media{
-      width:100%;
-      min-width:0;
-      overflow:hidden; /* guardrail */
-    }
+#q-pdp-{{ section.id }} .q-pdp-phase0__label{
+  font-size: .95em;
+  opacity: .9;
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-media__viewer{
-      display:flex;
-      flex-direction:column;
-      gap: .9rem;
-      min-width:0;
-    }
+#q-pdp-{{ section.id }} .q-pdp-phase0__select,
+#q-pdp-{{ section.id }} .q-pdp-phase0__qty{
+  width:100%;
+  padding:.8rem .9rem;
+  border: 1px solid rgba(0,0,0,.2);
+  background: transparent;
+  color: inherit;
+  border-radius: .75rem;
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-media__item{
-      min-width:0;
-      scroll-margin-top: 12px;
-    }
+#q-pdp-{{ section.id }} .q-pdp-phase0__btn{
+  width:100%;
+  padding: .95rem 1rem;
+  border-radius: .85rem;
+  border: 1px solid rgba(0,0,0,.25);
+  background: transparent;
+  color: inherit;
+  cursor:pointer;
+  font-weight: 650;
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-media__item img{
-      width:100%;
-      height:auto;
-      display:block;
-      border-radius: inherit;
-    }
+#q-pdp-{{ section.id }} .q-pdp-phase0__btn:focus-visible,
+#q-pdp-{{ section.id }} .q-pdp-phase0__select:focus-visible,
+#q-pdp-{{ section.id }} .q-pdp-phase0__qty:focus-visible{
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-media__placeholder{
-      padding: 2rem;
-      border: 1px dashed currentColor;
-      opacity: .7;
-    }
+#q-pdp-{{ section.id }} .q-pdp-phase0__inventory{
+  font-size: .95em;
+  opacity: .8;
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-media__thumbs{
-      margin-top: 1rem;
-      display:flex;
-      gap: .6rem;
-      overflow-x:auto;
-      overflow-y:hidden;
-      -webkit-overflow-scrolling: touch;
-      scroll-snap-type: x mandatory;
-      padding-bottom: .25rem; /* prevents scrollbar overlap */
-      min-width:0;
-    }
+/* Phase 3 fix: hide variant UI when only default variant exists */
+#q-pdp-{{ section.id }} .q-pdp-phase0__variant-wrap.is-hidden{
+  display: none;
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-media__thumb{
-      flex: 0 0 auto;
-      width: var(--q-thumb-w);
-      height: var(--q-thumb-w);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      border: 1px solid rgba(0,0,0,.2);
-      border-radius: .75rem;
-      background: transparent;
-      text-decoration:none;
-      color: inherit;
-      scroll-snap-align: start;
-      overflow:hidden;
-    }
+/* =========================================
+   STICKY (Phase 4.2)
+   ========================================= */
+#q-pdp-{{ section.id }} .q-sticky{
+  position: sticky;
+  top: 1.25rem;
+  align-self: start;
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-media__thumb img{
-      width:100%;
-      height:100%;
-      object-fit: cover;
-      display:block;
-    }
+#q-pdp-{{ section.id }}.q-layout-service_mode .q-sticky{
+  position: static;
+  top: auto;
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-media__thumb-placeholder{
-      opacity: .6;
-      font-weight: 700;
-    }
+/* Sticky media width clamp (requested) */
+@media (min-width: 991px){
+  #q-pdp-{{ section.id }}.q-sticky-media .q-pdp-phase0__grid{
+    grid-template-columns: minmax(0, 860px) 420px;
+  }
+  #q-pdp-{{ section.id }}.q-sticky-media .q-pdp-phase0__media{
+    max-width: 860px;
+    justify-self: start;
+  }
+}
 
-    #q-pdp-{{ section.id }} .q-pdp-media__thumb:focus-visible{
-      outline: 2px solid currentColor;
-      outline-offset: 2px;
-    }
+/* =========================================
+   Phase 1A — Media Gallery MVP
+   + Phase 4.1 — Thumbnail placement
+   ========================================= */
+#q-pdp-{{ section.id }} .q-pdp-media{
+  width:100%;
+  min-width:0;
+  overflow: visible;
+  display:flex;
+  flex-direction:column;
+  gap: .9rem;
+}
 
-    @media (max-width: 990px){
-      #q-pdp-{{ section.id }} .q-pdp-phase0__grid{
-        grid-template-columns: 1fr;
-      }
-      #q-pdp-{{ section.id }} .q-sticky{
-        position: static;
-        top: auto;
-      }
-    }
+#q-pdp-{{ section.id }} .q-pdp-media__viewer{
+  display:flex;
+  flex-direction:column;
+  gap: .9rem;
+  min-width:0;
+  flex: 1 1 auto;
+}
 
-    /* Phase 0: custom colors are OFF by default and do NOTHING unless enabled */
-    {%- if use_custom_colors -%}
-      #q-pdp-{{ section.id }}{
-        background: {{ s.bg_color }};
-        color: {{ s.text_color }};
-      }
-      #q-pdp-{{ section.id }} .q-pdp-phase0__select,
-      #q-pdp-{{ section.id }} .q-pdp-phase0__qty,
-      #q-pdp-{{ section.id }} .q-pdp-phase0__btn,
-      #q-pdp-{{ section.id }} .q-pdp-media__thumb{
-        border-color: {{ s.border_color }};
-      }
-      #q-pdp-{{ section.id }} .q-pdp-phase0__btn{
-        background: {{ s.button_bg }};
-        color: {{ s.button_text }};
-        border-color: {{ s.button_border }};
-      }
-      #q-pdp-{{ section.id }} .q-pdp-phase0__btn:hover{
-        background: {{ s.button_bg_hover }};
-        color: {{ s.button_text_hover }};
-        border-color: {{ s.button_border_hover }};
-      }
-    {%- endif -%}
-  </style>
-</section>
+#q-pdp-{{ section.id }} .q-pdp-media__item{
+  min-width:0;
+  scroll-margin-top: 12px;
+}
+
+#q-pdp-{{ section.id }} .q-pdp-media__item img{
+  display:block;
+  width:100%;
+  max-width:100%;
+  height:auto;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: inherit;
+}
+
+#q-pdp-{{ section.id }} .q-pdp-media__placeholder{
+  padding: 2rem;
+  border: 1px dashed currentColor;
+  opacity: .7;
+}
+
+#q-pdp-{{ section.id }} .q-pdp-media__thumbs{
+  display:flex;
+  gap: .6rem;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  padding-bottom: .25rem;
+  min-width:0;
+}
+
+#q-pdp-{{ section.id }} .q-pdp-media__thumb{
+  flex: 0 0 auto;
+  width: var(--q-thumb-w);
+  height: var(--q-thumb-w);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border: 1px solid rgba(0,0,0,.2);
+  border-radius: .75rem;
+  background: transparent;
+  text-decoration:none;
+  color: inherit;
+  scroll-snap-align: start;
+  overflow:hidden;
+}
+
+#q-pdp-{{ section.id }} .q-pdp-media__thumb img{
+  width:100%;
+  height:100%;
+  object-fit: cover;
+  display:block;
+}
+
+#q-pdp-{{ section.id }} .q-pdp-media__thumb-placeholder{
+  opacity: .6;
+  font-weight: 700;
+}
+
+#q-pdp-{{ section.id }} .q-pdp-media__thumb:focus-visible{
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* ---------- Phase 4.1: DESKTOP thumbs placement ---------- */
+@media (min-width: 991px){
+  #q-pdp-{{ section.id }}.q-thumbs-d-above .q-pdp-media{ flex-direction:column; }
+  #q-pdp-{{ section.id }}.q-thumbs-d-above .q-pdp-media__thumbs{ order: -1; }
+  #q-pdp-{{ section.id }}.q-thumbs-d-below .q-pdp-media{ flex-direction:column; }
+  #q-pdp-{{ section.id }}.q-thumbs-d-below .q-pdp-media__thumbs{ order: 1; }
+
+  #q-pdp-{{ section.id }}.q-thumbs-d-left .q-pdp-media,
+  #q-pdp-{{ section.id }}.q-thumbs-d-right .q-pdp-media{
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  #q-pdp-{{ section.id }}.q-thumbs-d-left .q-pdp-media__thumbs,
+  #q-pdp-{{ section.id }}.q-thumbs-d-right .q-pdp-media__thumbs{
+    order: 0;
+    flex: 0 0 calc(var(--q-thumb-w) + 6px);
+    max-height: calc(100vh - 6rem);
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-snap-type: y mandatory;
+    padding-bottom: 0;
+    padding-right: .15rem;
+    display:flex;
+    flex-direction: column;
+  }
+
+  #q-pdp-{{ section.id }}.q-thumbs-d-left .q-pdp-media__viewer,
+  #q-pdp-{{ section.id }}.q-thumbs-d-right .q-pdp-media__viewer{
+    order: 1;
+  }
+
+  #q-pdp-{{ section.id }}.q-thumbs-d-right .q-pdp-media__thumbs{ order: 2; }
+
+  #q-pdp-{{ section.id }}.q-thumbs-d-left .q-pdp-media__thumb,
+  #q-pdp-{{ section.id }}.q-thumbs-d-right .q-pdp-media__thumb{
+    scroll-snap-align: start;
+  }
+}
+
+/* ---------- Phase 4.1: MOBILE thumbs placement (overrides desktop) ---------- */
+@media (max-width: 990px){
+  #q-pdp-{{ section.id }}.q-thumbs-m-hidden .q-pdp-media__thumbs{ display:none !important; }
+
+  #q-pdp-{{ section.id }}.q-thumbs-m-above .q-pdp-media{ flex-direction:column; }
+  #q-pdp-{{ section.id }}.q-thumbs-m-above .q-pdp-media__thumbs{ order:-1; }
+
+  #q-pdp-{{ section.id }}.q-thumbs-m-below .q-pdp-media{ flex-direction:column; }
+  #q-pdp-{{ section.id }}.q-thumbs-m-below .q-pdp-media__thumbs{ order:1; }
+}
+
+/* =========================================
+   Stacked centering + premium pass (Phase 4.3)
+   ========================================= */
+#q-pdp-{{ section.id }}.q-layout-stacked .q-pdp-phase0__inner,
+#q-pdp-{{ section.id }}.q-layout-stacked_summary_top .q-pdp-phase0__inner{
+  max-width: 980px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#q-pdp-{{ section.id }}.q-layout-stacked .q-pdp-phase0__summary,
+#q-pdp-{{ section.id }}.q-layout-stacked_summary_top .q-pdp-phase0__summary{
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  padding: 1.35rem 1.5rem;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(0,0,0,.10);
+  box-shadow: 0 10px 28px rgba(0,0,0,.08);
+}
+
+/* =========================================
+   Below the fold blocks (Phase 4.4)
+   ========================================= */
+#q-pdp-{{ section.id }} .q-pdp-below{
+  margin-top: 2.5rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+#q-pdp-{{ section.id }} .q-pdp-below__block{
+  padding: 1.35rem 1.5rem;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(0,0,0,.10);
+}
+
+#q-pdp-{{ section.id }} .q-pdp-below__title{
+  margin: 0 0 .75rem 0;
+  line-height: 1.2;
+}
+
+#q-pdp-{{ section.id }} .q-pdp-below__content p{ margin: 0 0 .9rem 0; }
+#q-pdp-{{ section.id }} .q-pdp-below__content ul,
+#q-pdp-{{ section.id }} .q-pdp-below__content ol{ margin: 0 0 1rem 1.15rem; }
+
+/* =========================================
+   Tabs (NO JS) — anchor + :target
+   ========================================= */
+#q-pdp-{{ section.id }} .q-pdp-tabs{
+  display:flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+#q-pdp-{{ section.id }} .q-pdp-tabs__tab{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: .7rem .9rem;
+  border-radius: .9rem;
+  border: 1px solid rgba(0,0,0,.12);
+  text-decoration:none;
+  color: inherit;
+  background: transparent;
+  font-weight: 650;
+}
+
+#q-pdp-{{ section.id }} .q-pdp-tabs__tab:focus-visible{
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+#q-pdp-{{ section.id }} .q-pdp-tabs__panes{
+  display:block;
+}
+
+#q-pdp-{{ section.id }} .q-pdp-pane{
+  padding: 1.35rem 1.5rem;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(0,0,0,.10);
+  display: none;
+}
+
+#q-pdp-{{ section.id }} .q-pdp-pane__content p{ margin: 0 0 .9rem 0; }
+#q-pdp-{{ section.id }} .q-pdp-pane__content ul,
+#q-pdp-{{ section.id }} .q-pdp-pane__content ol{ margin: 0 0 1rem 1.15rem; }
+
+/* Default visible pane: first pane in the list */
+#q-pdp-{{ section.id }} .q-pdp-tabs__panes .q-pdp-pane:first-child{
+  display:block;
+}
+
+/* If any pane is targeted, hide all and show target */
+#q-pdp-{{ section.id }} .q-pdp-tabs__panes:has(.q-pdp-pane:target) .q-pdp-pane{
+  display:none;
+}
+#q-pdp-{{ section.id }} .q-pdp-pane:target{
+  display:block !important;
+}
+
+/* Fallback for browsers without :has(): keep first visible + also show :target */
+@supports not selector(:has(*)){
+  #q-pdp-{{ section.id }} .q-pdp-pane:target{
+    display:block;
+  }
+}
+
+/* =========================================
+   Mobile: always single column + disable sticky
+   ========================================= */
+@media (max-width: 990px){
+  #q-pdp-{{ section.id }} .q-pdp-phase0__grid{
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "media"
+      "summary";
+  }
+  #q-pdp-{{ section.id }} .q-sticky{
+    position: static !important;
+    top: auto !important;
+  }
+
+  #q-pdp-{{ section.id }}.q-layout-stacked .q-pdp-phase0__summary,
+  #q-pdp-{{ section.id }}.q-layout-stacked_summary_top .q-pdp-phase0__summary,
+  #q-pdp-{{ section.id }} .q-pdp-below__block,
+  #q-pdp-{{ section.id }} .q-pdp-pane{
+    padding: 1.1rem 1.1rem;
+    border-radius: 1rem;
+  }
+}
+
+/* =========================================
+   Custom colors only when enabled (Phase 3)
+   + Typography overrides (Phase 3)
+   ========================================= */
+{%- if use_custom_colors -%}
+  #q-pdp-{{ section.id }}{
+    background: {{ s.bg_color }};
+    color: {{ s.text_color }};
+  }
+
+  #q-pdp-{{ section.id }} .q-pdp-phase0__title{
+    font-size: {{ s.title_size }}px !important;
+    line-height: 1.1;
+  }
+
+  #q-pdp-{{ section.id }} .q-pdp-phase0__price,
+  #q-pdp-{{ section.id }} .q-pdp-phase0__current{
+    font-size: {{ s.price_size }}px !important;
+    color: {{ s.text_color }} !important;
+  }
+
+  #q-pdp-{{ section.id }} .q-pdp-phase0__compare{
+    color: {{ s.text_color }} !important;
+    opacity: .7;
+  }
+
+  #q-pdp-{{ section.id }} .q-pdp-phase0__label{
+    font-size: {{ s.label_size }}px !important;
+  }
+
+  #q-pdp-{{ section.id }} .q-pdp-phase0__btn{
+    font-size: {{ s.button_size }}px !important;
+  }
+
+  #q-pdp-{{ section.id }} .q-pdp-phase0__select,
+  #q-pdp-{{ section.id }} .q-pdp-phase0__qty,
+  #q-pdp-{{ section.id }} .q-pdp-phase0__btn,
+  #q-pdp-{{ section.id }} .q-pdp-media__thumb,
+  #q-pdp-{{ section.id }} .q-pdp-below__block,
+  #q-pdp-{{ section.id }} .q-pdp-pane,
+  #q-pdp-{{ section.id }}.q-layout-stacked .q-pdp-phase0__summary,
+  #q-pdp-{{ section.id }}.q-layout-stacked_summary_top .q-pdp-phase0__summary{
+    border-color: {{ s.border_color }};
+  }
+
+  #q-pdp-{{ section.id }} .q-pdp-phase0__btn{
+    background: {{ s.button_bg }};
+    color: {{ s.button_text }};
+    border-color: {{ s.button_border }};
+  }
+
+  #q-pdp-{{ section.id }} .q-pdp-phase0__btn:hover{
+    background: {{ s.button_bg_hover }};
+    color: {{ s.button_text_hover }};
+    border-color: {{ s.button_border_hover }};
+  }
+{%- endif -%}
+
+/* Phase 2 — Scroll Gallery behavior (NO JS) */
+@media (min-width: 991px){
+  #q-pdp-{{ section.id }}.q-layout-scroll_gallery_left .q-pdp-phase0__grid,
+  #q-pdp-{{ section.id }}.q-layout-scroll_gallery_right .q-pdp-phase0__grid{
+    align-items: start;
+  }
+
+  #q-pdp-{{ section.id }}.q-layout-scroll_gallery_left .q-pdp-phase0__media,
+  #q-pdp-{{ section.id }}.q-layout-scroll_gallery_right .q-pdp-phase0__media{
+    max-height: calc(100vh - 2.5rem);
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-right: .25rem;
+  }
+
+  #q-pdp-{{ section.id }}.q-layout-scroll_gallery_left .q-pdp-phase0__summary.q-sticky,
+  #q-pdp-{{ section.id }}.q-layout-scroll_gallery_right .q-pdp-phase0__summary.q-sticky{
+    position: sticky;
+    top: 1.25rem;
+    align-self: start;
+  }
+
+  #q-pdp-{{ section.id }}.q-layout-scroll_gallery_left .q-pdp-media__thumbs,
+  #q-pdp-{{ section.id }}.q-layout-scroll_gallery_right .q-pdp-media__thumbs{
+    display: none;
+  }
+}
+    </style>
+  </section>
+{%- endif -%}
 
 {% schema %}
 {
@@ -475,54 +1183,79 @@
   "tag": "section",
   "class": "section q-main-product-master",
   "settings": [
-    {
-      "type": "header",
-      "content": "Phase 0 — Layout skeleton"
-    },
+    { "type": "header", "content": "Phase 0 — Layout skeleton" },
     {
       "type": "select",
       "id": "layout_mode",
       "label": "Layout mode",
       "default": "classic",
       "options": [
-        { "value": "classic", "label": "Classic (media left, summary right)" },
-        { "value": "stacked", "label": "Stacked (media top, summary below)" },
-        { "value": "media_focus", "label": "Media focus (placeholder)" },
-        { "value": "service_mode", "label": "Service mode (placeholder)" }
+        { "value": "classic", "label": "Classic" },
+        { "value": "classic_reverse", "label": "Classic reverse" },
+        { "value": "stacked", "label": "Stacked" },
+        { "value": "stacked_summary_top", "label": "Stacked: summary top" },
+        { "value": "media_focus", "label": "Media focus" },
+        { "value": "scroll_gallery_left", "label": "Scroll gallery left" },
+        { "value": "scroll_gallery_right", "label": "Scroll gallery right" },
+        { "value": "service_mode", "label": "Service mode" }
+      ]
+    },
+    { "type": "checkbox", "id": "enable_sticky_summary", "label": "Enable sticky summary (desktop)", "default": true },
+
+    { "type": "header", "content": "Below the fold" },
+    {
+      "type": "select",
+      "id": "below_fold_layout",
+      "label": "Below-the-fold layout",
+      "default": "sectionized",
+      "options": [
+        { "value": "sectionized", "label": "Sectionized (stacked)" },
+        { "value": "tabbed", "label": "Tabbed (no JS)" },
+        { "value": "disabled", "label": "Disabled" }
+      ]
+    },
+
+    { "type": "header", "content": "Phase 4 — Sticky + thumbnails" },
+    {
+      "type": "select",
+      "id": "desktop_sticky_target",
+      "label": "Desktop sticky target",
+      "default": "summary",
+      "options": [
+        { "value": "summary", "label": "Sticky: summary" },
+        { "value": "media", "label": "Sticky: media" },
+        { "value": "none", "label": "Sticky: none" }
       ]
     },
     {
-      "type": "checkbox",
-      "id": "enable_sticky_summary",
-      "label": "Enable sticky summary (desktop)",
-      "default": true
+      "type": "select",
+      "id": "thumb_placement_desktop",
+      "label": "Thumbnails placement (desktop)",
+      "default": "below",
+      "options": [
+        { "value": "below", "label": "Below" },
+        { "value": "above", "label": "Above" },
+        { "value": "left", "label": "Left" },
+        { "value": "right", "label": "Right" }
+      ]
     },
     {
-      "type": "checkbox",
-      "id": "show_vendor",
-      "label": "Show vendor",
-      "default": false
-    },
-    {
-      "type": "checkbox",
-      "id": "show_inventory",
-      "label": "Show inventory messaging (placeholder)",
-      "default": true
+      "type": "select",
+      "id": "thumb_placement_mobile",
+      "label": "Thumbnails placement (mobile)",
+      "default": "below",
+      "options": [
+        { "value": "below", "label": "Below" },
+        { "value": "above", "label": "Above" },
+        { "value": "hidden", "label": "Hidden" }
+      ]
     },
 
-    {
-      "type": "header",
-      "content": "Phase 1A — Media MVP"
-    },
-    {
-      "type": "range",
-      "id": "media_limit",
-      "label": "Media limit",
-      "min": 1,
-      "max": 12,
-      "step": 1,
-      "default": 8
-    },
+    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": false },
+    { "type": "checkbox", "id": "show_inventory", "label": "Show inventory messaging (placeholder)", "default": true },
+
+    { "type": "header", "content": "Phase 1A — Media MVP" },
+    { "type": "range", "id": "media_limit", "label": "Media limit", "min": 1, "max": 12, "step": 1, "default": 8 },
     {
       "type": "select",
       "id": "thumb_size",
@@ -535,10 +1268,7 @@
       ]
     },
 
-    {
-      "type": "header",
-      "content": "Container"
-    },
+    { "type": "header", "content": "Container" },
     {
       "type": "select",
       "id": "max_width",
@@ -578,99 +1308,55 @@
       ]
     },
 
-    {
-      "type": "header",
-      "content": "Accessibility"
-    },
-    {
-      "type": "text",
-      "id": "section_aria_label",
-      "label": "Section aria-label",
-      "default": "Product details"
-    },
-    {
-      "type": "text",
-      "id": "media_aria_label",
-      "label": "Media aria-label",
-      "default": "Product media"
-    },
-    {
-      "type": "text",
-      "id": "summary_aria_label",
-      "label": "Summary aria-label",
-      "default": "Product summary"
-    },
+    { "type": "header", "content": "Accessibility" },
+    { "type": "text", "id": "section_aria_label", "label": "Section aria-label", "default": "Product details" },
+    { "type": "text", "id": "media_aria_label", "label": "Media aria-label", "default": "Product media" },
+    { "type": "text", "id": "summary_aria_label", "label": "Summary aria-label", "default": "Product summary" },
 
+    { "type": "header", "content": "Colors (inherit by default)" },
+    { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors (override theme tokens)", "default": false },
+    { "type": "color", "id": "bg_color", "label": "Background color", "default": "#ffffff" },
+    { "type": "color", "id": "text_color", "label": "Text color", "default": "#111111" },
+    { "type": "color", "id": "border_color", "label": "Border color", "default": "#e6e6e6" },
+    { "type": "color", "id": "button_bg", "label": "Button background", "default": "#111111" },
+    { "type": "color", "id": "button_text", "label": "Button text", "default": "#ffffff" },
+    { "type": "color", "id": "button_border", "label": "Button border", "default": "#111111" },
+    { "type": "color", "id": "button_bg_hover", "label": "Button background hover", "default": "#000000" },
+    { "type": "color", "id": "button_text_hover", "label": "Button text hover", "default": "#ffffff" },
+    { "type": "color", "id": "button_border_hover", "label": "Button border hover", "default": "#000000" },
+
+    { "type": "header", "content": "Typography (override theme)" },
+    { "type": "range", "id": "title_size", "label": "Title font size (px)", "min": 24, "max": 64, "step": 1, "default": 40 },
+    { "type": "range", "id": "price_size", "label": "Price font size (px)", "min": 16, "max": 40, "step": 1, "default": 22 },
+    { "type": "range", "id": "label_size", "label": "Form label font size (px)", "min": 11, "max": 18, "step": 1, "default": 14 },
+    { "type": "range", "id": "button_size", "label": "Button font size (px)", "min": 12, "max": 20, "step": 1, "default": 15 }
+  ],
+  "blocks": [
     {
-      "type": "header",
-      "content": "Colors (inherit by default)"
+      "type": "metafield",
+      "name": "Metafield block",
+      "settings": [
+        { "type": "text", "id": "heading", "label": "Heading", "default": "More details" },
+        { "type": "text", "id": "namespace", "label": "Namespace", "default": "custom" },
+        { "type": "text", "id": "key", "label": "Key", "default": "pdp_highlights" },
+        {
+          "type": "select",
+          "id": "render_mode",
+          "label": "Render mode",
+          "default": "auto",
+          "options": [
+            { "value": "auto", "label": "Auto (metafield_tag)" },
+            { "value": "raw", "label": "Raw value" }
+          ]
+        },
+        { "type": "checkbox", "id": "hide_if_blank", "label": "Hide if blank", "default": true },
+        { "type": "text", "id": "empty_text", "label": "Empty text (optional)" }
+      ]
     },
-    {
-      "type": "checkbox",
-      "id": "use_custom_colors",
-      "label": "Use custom colors (override theme tokens)",
-      "default": false
-    },
-    {
-      "type": "color",
-      "id": "bg_color",
-      "label": "Background color",
-      "default": "#ffffff"
-    },
-    {
-      "type": "color",
-      "id": "text_color",
-      "label": "Text color",
-      "default": "#111111"
-    },
-    {
-      "type": "color",
-      "id": "border_color",
-      "label": "Border color",
-      "default": "#e6e6e6"
-    },
-    {
-      "type": "color",
-      "id": "button_bg",
-      "label": "Button background",
-      "default": "#111111"
-    },
-    {
-      "type": "color",
-      "id": "button_text",
-      "label": "Button text",
-      "default": "#ffffff"
-    },
-    {
-      "type": "color",
-      "id": "button_border",
-      "label": "Button border",
-      "default": "#111111"
-    },
-    {
-      "type": "color",
-      "id": "button_bg_hover",
-      "label": "Button background hover",
-      "default": "#000000"
-    },
-    {
-      "type": "color",
-      "id": "button_text_hover",
-      "label": "Button text hover",
-      "default": "#ffffff"
-    },
-    {
-      "type": "color",
-      "id": "button_border_hover",
-      "label": "Button border hover",
-      "default": "#000000"
-    }
+    { "type": "@app" }
   ],
   "presets": [
-    {
-      "name": "Main Product Master",
-      "category": "Product"
-    }
+    { "name": "Main Product Master", "category": "Product" }
   ]
 }
 {% endschema %}
