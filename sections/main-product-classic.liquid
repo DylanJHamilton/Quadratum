@@ -4,20 +4,13 @@
 
   PATCH (THIS EDIT)
   ----------------
-  1) Summary micro-elements (NO JS):
-     - show_excerpt (truncated from product.description)
-     - show_sku (current_variant.sku)
-     - availability badge
-     - policies line (no defaults; merchant text)
-     - payments note (no defaults; merchant text)
-  2) Qty overflow fix + ATC tightening:
-     - qty input constrained + min-width:0
-     - qty + button row option: stacked | inline (desktop)
-     - atc_density: comfy | compact
-  3) Desktop layout direction:
-     - desktop_layout_direction: normal | reverse (grid column swap on >= 991px)
-  4) Bottom content area untouched (tabs/sections logic preserved)
-  5) No JS, section-scoped CSS, single media viewer loop + thumbs loop
+  1) Sale badge + availability badge + full badge styling controls (NO JS)
+  2) Fix "weird bg color" behind images (configurable media background)
+  3) Optional summary border toggle
+  4) Add Shopify dynamic checkout buttons (Shop Pay / etc.) (NO JS)
+     - Uses Shopify product form helper so payment_button renders correctly.
+     - Optional merchant-controlled Affirm line text (no app dependency)
+  5) Keeps: excerpt, sku, sticky, tabs/sections, media/thumb loops, qty row layout + density
 {%- endcomment -%}
 
 {%- liquid
@@ -55,6 +48,17 @@
   if p.description != blank
     assign excerpt = p.description | strip_html | strip | truncate: 160
   endif
+
+  assign is_on_sale = false
+  if current_variant.compare_at_price > current_variant.price
+    assign is_on_sale = true
+  endif
+
+  assign sale_pct = 0
+  if is_on_sale and current_variant.compare_at_price > 0
+    assign diff = current_variant.compare_at_price | minus: current_variant.price
+    assign sale_pct = diff | times: 100 | divided_by: current_variant.compare_at_price
+  endif
 -%}
 
 <section
@@ -70,6 +74,7 @@
     q-dir--{{ s.desktop_layout_direction | default: 'normal' }}
     q-atc-row--{{ s.atc_layout | default: 'stacked' }}
     q-atc-density--{{ s.atc_density | default: 'comfy' }}
+    q-summary-border--{{ s.summary_border | default: 'off' }}
     q-pad-y--{{ s.pad_y | default: 'md' }}
     q-pad-x--{{ s.pad_x | default: 'md' }}
     q-maxw--{{ s.max_width | default: 'lg' }}
@@ -138,6 +143,25 @@
     --q-ui-r: {{ s.ui_radius | default: 12 | times: 1 }}px;
     --q-ui-bw: {{ s.ui_border_width | default: 1 | times: 1 }}px;
     --q-ui-bc: {{ s.ui_border_color | default: '#e5e7eb' }};
+
+    /* Media surface (fix weird bg) */
+    --q-media-bg: {{ s.media_bg_color | default: 'transparent' }};
+
+    /* Badges */
+    --q-badge-r: {{ s.badge_radius | default: 999 | times: 1 }}px;
+    --q-badge-bw: {{ s.badge_border_width | default: 1 | times: 1 }}px;
+
+    --q-badge-sale-bg: {{ s.badge_sale_bg | default: '#111827' }};
+    --q-badge-sale-text: {{ s.badge_sale_text | default: '#ffffff' }};
+    --q-badge-sale-bc: {{ s.badge_sale_border | default: '#111827' }};
+
+    --q-badge-in-bg: {{ s.badge_in_bg | default: '#ecfdf5' }};
+    --q-badge-in-text: {{ s.badge_in_text | default: '#065f46' }};
+    --q-badge-in-bc: {{ s.badge_in_border | default: '#a7f3d0' }};
+
+    --q-badge-out-bg: {{ s.badge_out_bg | default: '#fef2f2' }};
+    --q-badge-out-text: {{ s.badge_out_text | default: '#991b1b' }};
+    --q-badge-out-bc: {{ s.badge_out_border | default: '#fecaca' }};
 
     {%- if s.use_custom_colors -%}
       --q-bg: {{ s.bg_color | default: '#ffffff' }};
@@ -233,8 +257,20 @@
           </div>
 
           <div class="q-meta-row">
+            {%- if s.show_sale_badge and is_on_sale -%}
+              <span class="q-badge q-badge--sale">
+                {%- if s.sale_badge_style == 'percent' and sale_pct > 0 -%}
+                  Sale −{{ sale_pct }}%
+                {%- elsif s.sale_badge_style == 'amount' -%}
+                  Sale −{{ current_variant.compare_at_price | minus: current_variant.price | money }}
+                {%- else -%}
+                  Sale
+                {%- endif -%}
+              </span>
+            {%- endif -%}
+
             {%- if s.show_availability_badge -%}
-              <span class="q-badge {% if current_variant.available %}is-available{% else %}is-soldout{% endif %}">
+              <span class="q-badge {% if current_variant.available %}q-badge--in{% else %}q-badge--out{% endif %}">
                 {%- if current_variant.available -%}In stock{%- else -%}Sold out{%- endif -%}
               </span>
             {%- endif -%}
@@ -248,7 +284,7 @@
             <div class="q-excerpt">{{ excerpt }}</div>
           {%- endif -%}
 
-          <form method="post" action="/cart/add" class="q-form" novalidate>
+          {%- form 'product', p, class: 'q-form', novalidate: 'novalidate' -%}
             {%- if p.has_only_default_variant -%}
               <input type="hidden" name="id" value="{{ current_variant.id }}">
             {%- else -%}
@@ -285,11 +321,22 @@
               <button
                 type="submit"
                 class="q-btn"
+                name="add"
                 {% unless current_variant.available %}disabled{% endunless %}
               >
                 {%- if current_variant.available -%}Add to cart{%- else -%}Sold out{%- endif -%}
               </button>
             </div>
+
+            {%- if s.show_dynamic_checkout -%}
+              <div class="q-dynamic-checkout">
+                {{ form | payment_button }}
+              </div>
+            {%- endif -%}
+
+            {%- if s.affirm_line != blank -%}
+              <div class="q-affirm">{{ s.affirm_line }}</div>
+            {%- endif -%}
 
             {%- if s.payments_note != blank -%}
               <div class="q-payments-note">{{ s.payments_note }}</div>
@@ -298,7 +345,7 @@
             {%- if s.policies_text != blank -%}
               <div class="q-policies">{{ s.policies_text }}</div>
             {%- endif -%}
-          </form>
+          {%- endform -%}
         </div>
       </div>
     </div>
@@ -440,13 +487,29 @@
 
     #q-pdp-{{ section.id }} .q-pdp-media{ display: grid; gap: 0.75rem; align-items: start; }
     #q-pdp-{{ section.id }} .q-pdp-media__viewer{ display: grid; gap: 0.75rem; }
-    #q-pdp-{{ section.id }} .q-media-item{ border-radius: var(--q-media-r); border: var(--q-media-bw) solid var(--q-media-bc); overflow: hidden; background: rgba(0,0,0,0.02); }
+    #q-pdp-{{ section.id }} .q-media-item{
+      border-radius: var(--q-media-r);
+      border: var(--q-media-bw) solid var(--q-media-bc);
+      overflow: hidden;
+      background: var(--q-media-bg);
+    }
     #q-pdp-{{ section.id }} .q-media-item:target{ outline: 2px solid var(--q-thumb-bc-active); outline-offset: 2px; }
     #q-pdp-{{ section.id }} .q-media-item img{ width: 100%; height: auto; display: block; object-fit: contain; }
     #q-pdp-{{ section.id }} .q-media-ph{ padding: 2rem; text-align: center; font-size: 0.95rem; opacity: 0.8; }
 
     #q-pdp-{{ section.id }} .q-thumbs{ display: grid; grid-auto-flow: column; grid-auto-columns: var(--q-thumb-size); gap: var(--q-thumb-gap); overflow-x: auto; padding-bottom: 0.25rem; scroll-snap-type: x proximity; }
-    #q-pdp-{{ section.id }} .q-thumb{ width: var(--q-thumb-size); height: var(--q-thumb-size); border-radius: var(--q-thumb-r); border: var(--q-thumb-bw) solid var(--q-thumb-bc); overflow: hidden; display: grid; place-items: center; background: rgba(0,0,0,0.02); scroll-snap-align: start; text-decoration: none; }
+    #q-pdp-{{ section.id }} .q-thumb{
+      width: var(--q-thumb-size);
+      height: var(--q-thumb-size);
+      border-radius: var(--q-thumb-r);
+      border: var(--q-thumb-bw) solid var(--q-thumb-bc);
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      background: var(--q-media-bg);
+      scroll-snap-align: start;
+      text-decoration: none;
+    }
     #q-pdp-{{ section.id }} .q-thumb img{ width: 100%; height: 100%; object-fit: cover; display: block; }
     #q-pdp-{{ section.id }} .q-thumb:focus-visible{ outline: 2px solid var(--q-thumb-bc-active); outline-offset: 2px; }
     #q-pdp-{{ section.id }} .q-thumb__ph{ width: 100%; height: 100%; display: block; }
@@ -478,23 +541,44 @@
       padding: 0;
     }
 
+    /* Optional summary border */
+    #q-pdp-{{ section.id }}.q-summary-border--on .q-summary{
+      border: var(--q-ui-bw) solid var(--q-ui-bc);
+    }
+
     #q-pdp-{{ section.id }} .q-vendor{ font-size: 0.9rem; opacity: 0.8; }
     #q-pdp-{{ section.id }} .q-title{ font-size: var(--q-title); line-height: 1.15; margin: 0; }
     #q-pdp-{{ section.id }} .q-price{ font-size: var(--q-price); display: flex; gap: 0.75rem; align-items: baseline; flex-wrap: wrap; }
     #q-pdp-{{ section.id }} .q-price__compare{ opacity: 0.7; text-decoration: line-through; font-size: 0.95em; }
 
     #q-pdp-{{ section.id }} .q-meta-row{ display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-top: 0.5rem; }
+
     #q-pdp-{{ section.id }} .q-badge{
       display: inline-flex;
       align-items: center;
-      border-radius: 999px;
+      border-radius: var(--q-badge-r);
       padding: 0.25rem 0.6rem;
       font-size: 0.85rem;
-      border: 1px solid var(--q-ui-bc);
+      line-height: 1.2;
+      border: var(--q-badge-bw) solid var(--q-ui-bc);
       background: rgba(0,0,0,0.02);
     }
-    #q-pdp-{{ section.id }} .q-badge.is-available{ }
-    #q-pdp-{{ section.id }} .q-badge.is-soldout{ opacity: 0.8; }
+    #q-pdp-{{ section.id }} .q-badge--sale{
+      background: var(--q-badge-sale-bg);
+      color: var(--q-badge-sale-text);
+      border-color: var(--q-badge-sale-bc);
+    }
+    #q-pdp-{{ section.id }} .q-badge--in{
+      background: var(--q-badge-in-bg);
+      color: var(--q-badge-in-text);
+      border-color: var(--q-badge-in-bc);
+    }
+    #q-pdp-{{ section.id }} .q-badge--out{
+      background: var(--q-badge-out-bg);
+      color: var(--q-badge-out-text);
+      border-color: var(--q-badge-out-bc);
+    }
+
     #q-pdp-{{ section.id }} .q-sku{ font-size: 0.9rem; opacity: 0.85; }
 
     #q-pdp-{{ section.id }} .q-excerpt{ font-size: 0.98rem; line-height: 1.55; opacity: 0.92; margin-top: 0.75rem; }
@@ -560,6 +644,15 @@
       cursor: not-allowed;
     }
 
+    #q-pdp-{{ section.id }} .q-dynamic-checkout{ margin-top: 0.5rem; }
+    #q-pdp-{{ section.id }} .q-dynamic-checkout > *{ width: 100%; }
+    #q-pdp-{{ section.id }} .q-affirm{
+      margin-top: 0.35rem;
+      font-size: 0.92rem;
+      opacity: 0.8;
+      line-height: 1.45;
+    }
+
     #q-pdp-{{ section.id }} .q-payments-note,
     #q-pdp-{{ section.id }} .q-policies{
       font-size: 0.92rem;
@@ -609,7 +702,7 @@
     #q-pdp-{{ section.id }} .q-tab__radio:checked + .q-tab__label{ border-color: var(--q-thumb-bc-active); }
     #q-pdp-{{ section.id }} .q-tab__radio:checked + .q-tab__label + .q-tab__panel{ display: block; }
 
-    /* Tabs style variants (reduce boxy feel) */
+    /* Tabs style variants */
     #q-pdp-{{ section.id }}.q-tabs--underline .q-tab__label{
       border: 0;
       border-bottom: 2px solid rgba(0,0,0,0.18);
@@ -788,6 +881,7 @@
 
     { "type": "header", "content": "Media" },
     { "type": "range", "id": "media_limit", "label": "Media limit", "min": 1, "max": 12, "step": 1, "default": 8 },
+    { "type": "color", "id": "media_bg_color", "label": "Media background", "default": "transparent" },
     {
       "type": "select",
       "id": "thumb_size",
@@ -841,6 +935,18 @@
     { "type": "header", "content": "Summary extras" },
     { "type": "checkbox", "id": "show_excerpt", "label": "Show short description", "default": true },
     { "type": "checkbox", "id": "show_sku", "label": "Show SKU", "default": true },
+    { "type": "checkbox", "id": "show_sale_badge", "label": "Show sale badge", "default": true },
+    {
+      "type": "select",
+      "id": "sale_badge_style",
+      "label": "Sale badge style",
+      "default": "percent",
+      "options": [
+        { "value": "text", "label": "Text only" },
+        { "value": "percent", "label": "Percent off" },
+        { "value": "amount", "label": "Amount off" }
+      ]
+    },
     { "type": "checkbox", "id": "show_availability_badge", "label": "Show availability badge", "default": true },
     {
       "type": "select",
@@ -862,6 +968,8 @@
         { "value": "compact", "label": "Compact" }
       ]
     },
+    { "type": "checkbox", "id": "show_dynamic_checkout", "label": "Show Shop Pay / dynamic buttons", "default": false },
+    { "type": "text", "id": "affirm_line", "label": "Affirm line (optional)" },
     { "type": "text", "id": "payments_note", "label": "Payments note" },
     { "type": "text", "id": "policies_text", "label": "Policies line" },
 
@@ -904,6 +1012,22 @@
     { "type": "color", "id": "btn_disabled_text", "label": "Button disabled text", "default": "#6b7280" },
     { "type": "color", "id": "btn_disabled_border", "label": "Button disabled border", "default": "#e5e7eb" },
 
+    { "type": "header", "content": "Badges" },
+    { "type": "range", "id": "badge_radius", "label": "Badge radius", "min": 0, "max": 40, "step": 1, "default": 5 },
+    { "type": "range", "id": "badge_border_width", "label": "Badge border width", "min": 0, "max": 4, "step": 1, "default": 1 },
+
+    { "type": "color", "id": "badge_sale_bg", "label": "Sale badge background", "default": "#111827" },
+    { "type": "color", "id": "badge_sale_text", "label": "Sale badge text", "default": "#ffffff" },
+    { "type": "color", "id": "badge_sale_border", "label": "Sale badge border", "default": "#111827" },
+
+    { "type": "color", "id": "badge_in_bg", "label": "In stock badge background", "default": "#ecfdf5" },
+    { "type": "color", "id": "badge_in_text", "label": "In stock badge text", "default": "#065f46" },
+    { "type": "color", "id": "badge_in_border", "label": "In stock badge border", "default": "#a7f3d0" },
+
+    { "type": "color", "id": "badge_out_bg", "label": "Sold out badge background", "default": "#fef2f2" },
+    { "type": "color", "id": "badge_out_text", "label": "Sold out badge text", "default": "#991b1b" },
+    { "type": "color", "id": "badge_out_border", "label": "Sold out badge border", "default": "#fecaca" },
+
     { "type": "header", "content": "Borders & radius" },
     {
       "type": "select",
@@ -914,6 +1038,16 @@
         { "value": "none", "label": "None" },
         { "value": "soft", "label": "Soft" },
         { "value": "bordered", "label": "Bordered" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "summary_border",
+      "label": "Summary border",
+      "default": "off",
+      "options": [
+        { "value": "off", "label": "Off" },
+        { "value": "on", "label": "On" }
       ]
     },
 
