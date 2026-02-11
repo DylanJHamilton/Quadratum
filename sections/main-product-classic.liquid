@@ -4,13 +4,18 @@
 
   PATCH (THIS EDIT)
   ----------------
-  1) Sale badge + availability badge + full badge styling controls (NO JS)
-  2) Fix "weird bg color" behind images (configurable media background)
-  3) Optional summary border toggle
-  4) Add Shopify dynamic checkout buttons (Shop Pay / etc.) (NO JS)
+  1) Under-ATC area (NO JS):
+     - Mini banner images (Settings-based slots + Block-based)
+     - FAQ accordion (Block-based, <details>/<summary>)
+     - Trust badges row (Settings-based slots + Block-based)
+     - Merchant can show/hide each source independently
+  2) Sale badge + availability badge + full badge styling controls (NO JS)
+  3) Fix "weird bg color" behind images (transparent OR custom media bg)
+  4) Optional summary border toggle
+  5) Shopify dynamic checkout buttons (Shop Pay / etc.) (NO JS)
      - Uses Shopify product form helper so payment_button renders correctly.
      - Optional merchant-controlled Affirm line text (no app dependency)
-  5) Keeps: excerpt, sku, sticky, tabs/sections, media/thumb loops, qty row layout + density
+  6) Keeps: excerpt, sku, sticky, tabs/sections, media/thumb loops, qty row layout + density
 {%- endcomment -%}
 
 {%- liquid
@@ -58,6 +63,11 @@
   if is_on_sale and current_variant.compare_at_price > 0
     assign diff = current_variant.compare_at_price | minus: current_variant.price
     assign sale_pct = diff | times: 100 | divided_by: current_variant.compare_at_price
+  endif
+
+  assign media_bg = 'transparent'
+  if s.media_bg_mode == 'custom'
+    assign media_bg = s.media_bg_color | default: '#ffffff'
   endif
 -%}
 
@@ -145,10 +155,10 @@
     --q-ui-bc: {{ s.ui_border_color | default: '#e5e7eb' }};
 
     /* Media surface (fix weird bg) */
-    --q-media-bg: {{ s.media_bg_color | default: 'transparent' }};
+    --q-media-bg: {{ media_bg }};
 
     /* Badges */
-    --q-badge-r: {{ s.badge_radius | default: 999 | times: 1 }}px;
+    --q-badge-r: {{ s.badge_radius | default: 5 | times: 1 }}px;
     --q-badge-bw: {{ s.badge_border_width | default: 1 | times: 1 }}px;
 
     --q-badge-sale-bg: {{ s.badge_sale_bg | default: '#111827' }};
@@ -162,6 +172,9 @@
     --q-badge-out-bg: {{ s.badge_out_bg | default: '#fef2f2' }};
     --q-badge-out-text: {{ s.badge_out_text | default: '#991b1b' }};
     --q-badge-out-bc: {{ s.badge_out_border | default: '#fecaca' }};
+
+    /* Under-ATC spacing */
+    --q-under-gap: {{ s.under_atc_gap | default: 10 | times: 1 }}px;
 
     {%- if s.use_custom_colors -%}
       --q-bg: {{ s.bg_color | default: '#ffffff' }};
@@ -345,6 +358,215 @@
             {%- if s.policies_text != blank -%}
               <div class="q-policies">{{ s.policies_text }}</div>
             {%- endif -%}
+
+            {%- comment -%} UNDER-ATC AREA (Settings + Blocks; merchant can hide each) {%- endcomment -%}
+            {%- if s.show_under_atc -%}
+              <div class="q-under-atc" aria-label="Additional purchase info">
+                {%- comment -%} Settings-based mini banners {%- endcomment -%}
+                {%- if s.show_under_banners_settings -%}
+                  {%- assign has_banner_settings = false -%}
+                  {%- if s.under_banner_1 != blank or s.under_banner_2 != blank or s.under_banner_3 != blank -%}
+                    {%- assign has_banner_settings = true -%}
+                  {%- endif -%}
+                  {%- if has_banner_settings -%}
+                    <div class="q-under-banners q-under-banners--settings">
+                      {%- for i in (1..3) -%}
+                        {%- assign img_key = 'under_banner_' | append: i -%}
+                        {%- assign link_key = 'under_banner_link_' | append: i -%}
+                        {%- assign alt_key = 'under_banner_alt_' | append: i -%}
+                        {%- assign img = s[img_key] -%}
+                        {%- if img != blank -%}
+                          {%- assign href = s[link_key] -%}
+                          {%- assign alt = s[alt_key] -%}
+                          <div class="q-under-banner">
+                            {%- if href != blank -%}
+                              <a class="q-under-banner__link" href="{{ href }}" aria-label="{{ alt | default: 'Special offer' | escape }}">
+                                <img
+                                  src="{{ img | image_url: width: 1400 }}"
+                                  alt="{{ alt | default: 'Special offer' | escape }}"
+                                  loading="lazy"
+                                  width="{{ img.width | default: 1400 }}"
+                                  height="{{ img.height | default: 400 }}"
+                                >
+                              </a>
+                            {%- else -%}
+                              <img
+                                src="{{ img | image_url: width: 1400 }}"
+                                alt="{{ alt | default: 'Special offer' | escape }}"
+                                loading="lazy"
+                                width="{{ img.width | default: 1400 }}"
+                                height="{{ img.height | default: 400 }}"
+                              >
+                            {%- endif -%}
+                          </div>
+                        {%- endif -%}
+                      {%- endfor -%}
+                    </div>
+                  {%- endif -%}
+                {%- endif -%}
+
+                {%- comment -%} Block-based mini banners (optional) {%- endcomment -%}
+                {%- if s.show_under_banners_blocks -%}
+                  {%- assign has_banner_blocks = false -%}
+                  {%- for block in section.blocks -%}
+                    {%- if block.type == 'under_atc_banner' -%}
+                      {%- assign has_banner_blocks = true -%}
+                      {%- break -%}
+                    {%- endif -%}
+                  {%- endfor -%}
+                  {%- if has_banner_blocks -%}
+                    <div class="q-under-banners q-under-banners--blocks">
+                      {%- for block in section.blocks -%}
+                        {%- if block.type == 'under_atc_banner' -%}
+                          {%- assign bimg = block.settings.image -%}
+                          {%- if bimg != blank -%}
+                            <div class="q-under-banner" {{ block.shopify_attributes }}>
+                              {%- if block.settings.link != blank -%}
+                                <a class="q-under-banner__link" href="{{ block.settings.link }}" aria-label="{{ block.settings.alt | default: 'Special offer' | escape }}">
+                                  <img
+                                    src="{{ bimg | image_url: width: 1400 }}"
+                                    alt="{{ block.settings.alt | default: 'Special offer' | escape }}"
+                                    loading="lazy"
+                                    width="{{ bimg.width | default: 1400 }}"
+                                    height="{{ bimg.height | default: 400 }}"
+                                  >
+                                </a>
+                              {%- else -%}
+                                <img
+                                  src="{{ bimg | image_url: width: 1400 }}"
+                                  alt="{{ block.settings.alt | default: 'Special offer' | escape }}"
+                                  loading="lazy"
+                                  width="{{ bimg.width | default: 1400 }}"
+                                  height="{{ bimg.height | default: 400 }}"
+                                >
+                              {%- endif -%}
+                            </div>
+                          {%- endif -%}
+                        {%- endif -%}
+                      {%- endfor -%}
+                    </div>
+                  {%- endif -%}
+                {%- endif -%}
+
+                {%- comment -%} Trust badges (settings-based 1–3) {%- endcomment -%}
+                {%- if s.show_trust_settings -%}
+                  {%- assign has_trust_settings = false -%}
+                  {%- if s.trust_badge_1 != blank or s.trust_badge_2 != blank or s.trust_badge_3 != blank -%}
+                    {%- assign has_trust_settings = true -%}
+                  {%- endif -%}
+                  {%- if has_trust_settings -%}
+                    <div class="q-trust q-trust--settings" aria-label="Trust badges">
+                      {%- for i in (1..3) -%}
+                        {%- assign img_key = 'trust_badge_' | append: i -%}
+                        {%- assign link_key = 'trust_badge_link_' | append: i -%}
+                        {%- assign alt_key = 'trust_badge_alt_' | append: i -%}
+                        {%- assign timg = s[img_key] -%}
+                        {%- if timg != blank -%}
+                          {%- assign thref = s[link_key] -%}
+                          {%- assign talt = s[alt_key] -%}
+                          <div class="q-trust__item">
+                            {%- if thref != blank -%}
+                              <a class="q-trust__link" href="{{ thref }}" aria-label="{{ talt | default: 'Trust badge' | escape }}">
+                                <img
+                                  src="{{ timg | image_url: width: 520 }}"
+                                  alt="{{ talt | default: 'Trust badge' | escape }}"
+                                  loading="lazy"
+                                  width="{{ timg.width | default: 520 }}"
+                                  height="{{ timg.height | default: 220 }}"
+                                >
+                              </a>
+                            {%- else -%}
+                              <img
+                                src="{{ timg | image_url: width: 520 }}"
+                                alt="{{ talt | default: 'Trust badge' | escape }}"
+                                loading="lazy"
+                                width="{{ timg.width | default: 520 }}"
+                                height="{{ timg.height | default: 220 }}"
+                              >
+                            {%- endif -%}
+                          </div>
+                        {%- endif -%}
+                      {%- endfor -%}
+                    </div>
+                  {%- endif -%}
+                {%- endif -%}
+
+                {%- comment -%} Trust badges (block-based) {%- endcomment -%}
+                {%- if s.show_trust_blocks -%}
+                  {%- assign has_trust_blocks = false -%}
+                  {%- for block in section.blocks -%}
+                    {%- if block.type == 'trust_badge' -%}
+                      {%- assign has_trust_blocks = true -%}
+                      {%- break -%}
+                    {%- endif -%}
+                  {%- endfor -%}
+                  {%- if has_trust_blocks -%}
+                    <div class="q-trust q-trust--blocks" aria-label="Trust badges">
+                      {%- for block in section.blocks -%}
+                        {%- if block.type == 'trust_badge' -%}
+                          {%- assign timgb = block.settings.image -%}
+                          {%- if timgb != blank -%}
+                            <div class="q-trust__item" {{ block.shopify_attributes }}>
+                              {%- if block.settings.link != blank -%}
+                                <a class="q-trust__link" href="{{ block.settings.link }}" aria-label="{{ block.settings.alt | default: 'Trust badge' | escape }}">
+                                  <img
+                                    src="{{ timgb | image_url: width: 520 }}"
+                                    alt="{{ block.settings.alt | default: 'Trust badge' | escape }}"
+                                    loading="lazy"
+                                    width="{{ timgb.width | default: 520 }}"
+                                    height="{{ timgb.height | default: 220 }}"
+                                  >
+                                </a>
+                              {%- else -%}
+                                <img
+                                  src="{{ timgb | image_url: width: 520 }}"
+                                  alt="{{ block.settings.alt | default: 'Trust badge' | escape }}"
+                                  loading="lazy"
+                                  width="{{ timgb.width | default: 520 }}"
+                                  height="{{ timgb.height | default: 220 }}"
+                                >
+                              {%- endif -%}
+                            </div>
+                          {%- endif -%}
+                        {%- endif -%}
+                      {%- endfor -%}
+                    </div>
+                  {%- endif -%}
+                {%- endif -%}
+
+                {%- comment -%} FAQ accordion (block-based, no JS) {%- endcomment -%}
+                {%- if s.show_faq_blocks -%}
+                  {%- assign has_faq_blocks = false -%}
+                  {%- for block in section.blocks -%}
+                    {%- if block.type == 'faq_item' -%}
+                      {%- assign has_faq_blocks = true -%}
+                      {%- break -%}
+                    {%- endif -%}
+                  {%- endfor -%}
+                  {%- if has_faq_blocks -%}
+                    <div class="q-faq" aria-label="Frequently asked questions">
+                      {%- if s.faq_heading != blank -%}
+                        <div class="q-faq__heading">{{ s.faq_heading }}</div>
+                      {%- endif -%}
+                      <div class="q-faq__items">
+                        {%- for block in section.blocks -%}
+                          {%- if block.type == 'faq_item' -%}
+                            <details class="q-faq__item" {{ block.shopify_attributes }}>
+                              <summary class="q-faq__q">
+                                {{ block.settings.question | default: 'Question' }}
+                              </summary>
+                              <div class="q-faq__a">
+                                {{ block.settings.answer | default: '' }}
+                              </div>
+                            </details>
+                          {%- endif -%}
+                        {%- endfor -%}
+                      </div>
+                    </div>
+                  {%- endif -%}
+                {%- endif -%}
+              </div>
+            {%- endif -%}
           {%- endform -%}
         </div>
       </div>
@@ -424,6 +646,8 @@
                   <div class="q-tab__panel" {{ block.shopify_attributes }}>
                     {%- render block -%}
                   </div>
+              {%- else -%}
+                {%- comment -%} ignore under-atc blocks here {%- endcomment -%}
               {%- endcase -%}
             {%- endfor -%}
           </div>
@@ -472,6 +696,8 @@
                       {%- endfor -%}
                     </div>
                   </div>
+              {%- else -%}
+                {%- comment -%} ignore under-atc blocks here {%- endcomment -%}
               {%- endcase -%}
             {%- endfor -%}
           </div>
@@ -580,7 +806,6 @@
     }
 
     #q-pdp-{{ section.id }} .q-sku{ font-size: 0.9rem; opacity: 0.85; }
-
     #q-pdp-{{ section.id }} .q-excerpt{ font-size: 0.98rem; line-height: 1.55; opacity: 0.92; margin-top: 0.75rem; }
 
     #q-pdp-{{ section.id }} .q-form{ display: grid; gap: 0.75rem; margin-top: 0.9rem; }
@@ -611,7 +836,7 @@
       outline-offset: 2px;
     }
 
-    /* Qty + ATC row (fix overflow + allow tighter layout) */
+    /* Qty + ATC row */
     #q-pdp-{{ section.id }} .q-atc{ display: grid; gap: 0.75rem; }
     #q-pdp-{{ section.id }} .q-atc__qty{ display: grid; gap: 0.35rem; }
     #q-pdp-{{ section.id }} .q-atc__qty .q-input{ max-width: 7.5rem; }
@@ -660,9 +885,84 @@
       line-height: 1.45;
     }
 
+    /* Under-ATC */
+    #q-pdp-{{ section.id }} .q-under-atc{
+      margin-top: 0.75rem;
+      display: grid;
+      gap: var(--q-under-gap);
+    }
+    #q-pdp-{{ section.id }} .q-under-banners{
+      display: grid;
+      gap: var(--q-under-gap);
+    }
+    #q-pdp-{{ section.id }} .q-under-banner{
+      border-radius: var(--q-ui-r);
+      overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.08);
+      background: rgba(0,0,0,0.01);
+    }
+    #q-pdp-{{ section.id }} .q-under-banner img{
+      width: 100%;
+      height: auto;
+      display: block;
+      object-fit: cover;
+    }
+    #q-pdp-{{ section.id }} .q-under-banner__link{ display: block; text-decoration: none; color: inherit; }
+
+    #q-pdp-{{ section.id }} .q-trust{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.75rem;
+      align-items: center;
+    }
+    #q-pdp-{{ section.id }} .q-trust__item{
+      border-radius: var(--q-ui-r);
+      overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.08);
+      background: rgba(0,0,0,0.01);
+    }
+    #q-pdp-{{ section.id }} .q-trust__link{ display: block; text-decoration: none; color: inherit; }
+    #q-pdp-{{ section.id }} .q-trust img{
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+      padding: 0.5rem;
+      aspect-ratio: 3 / 1;
+    }
+
+    #q-pdp-{{ section.id }} .q-faq{
+      border-radius: var(--q-ui-r);
+      border: 1px solid rgba(0,0,0,0.08);
+      background: rgba(0,0,0,0.01);
+      padding: 0.75rem;
+      display: grid;
+      gap: 0.75rem;
+    }
+    #q-pdp-{{ section.id }} .q-faq__heading{ font-weight: 700; }
+    #q-pdp-{{ section.id }} .q-faq__items{ display: grid; gap: 0.5rem; }
+    #q-pdp-{{ section.id }} .q-faq__item{
+      border-radius: calc(var(--q-ui-r) - 2px);
+      border: 1px solid rgba(0,0,0,0.10);
+      background: rgba(255,255,255,0.02);
+      padding: 0.25rem 0.5rem;
+    }
+    #q-pdp-{{ section.id }} .q-faq__q{
+      cursor: pointer;
+      font-weight: 600;
+      padding: 0.5rem 0.25rem;
+      list-style: none;
+    }
+    #q-pdp-{{ section.id }} details.q-faq__item > summary::-webkit-details-marker{ display: none; }
+    #q-pdp-{{ section.id }} .q-faq__a{
+      padding: 0 0.25rem 0.5rem;
+      opacity: 0.92;
+      line-height: 1.5;
+    }
+
     #q-pdp-{{ section.id }} .q-pdp__content{ margin-top: 2rem; }
 
-    /* Tabs (CSS-only) — stable layout */
+    /* Tabs */
     #q-pdp-{{ section.id }} .q-tabs{
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
@@ -702,7 +1002,6 @@
     #q-pdp-{{ section.id }} .q-tab__radio:checked + .q-tab__label{ border-color: var(--q-thumb-bc-active); }
     #q-pdp-{{ section.id }} .q-tab__radio:checked + .q-tab__label + .q-tab__panel{ display: block; }
 
-    /* Tabs style variants */
     #q-pdp-{{ section.id }}.q-tabs--underline .q-tab__label{
       border: 0;
       border-bottom: 2px solid rgba(0,0,0,0.18);
@@ -754,8 +1053,6 @@
         grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
         align-items: start;
       }
-
-      /* Desktop direction swap */
       #q-pdp-{{ section.id }}.q-dir--reverse .q-pdp__grid{
         grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
       }
@@ -797,7 +1094,6 @@
 
       #q-pdp-{{ section.id }}.q-thumbs-desktop--hidden .q-pdp-media__thumbs{ display: none; }
 
-      /* Qty + ATC inline option (desktop) */
       #q-pdp-{{ section.id }}.q-atc-row--inline .q-atc{
         grid-template-columns: minmax(0, 8.5rem) 1fr;
         align-items: end;
@@ -819,6 +1115,7 @@
       #q-pdp-{{ section.id }}.q-thumbs-mobile--hidden .q-pdp-media__thumbs{ display: none; }
 
       #q-pdp-{{ section.id }} .q-spec{ grid-template-columns: 1fr; }
+      #q-pdp-{{ section.id }} .q-trust{ grid-template-columns: 1fr; }
     }
   </style>
 </section>
@@ -881,7 +1178,17 @@
 
     { "type": "header", "content": "Media" },
     { "type": "range", "id": "media_limit", "label": "Media limit", "min": 1, "max": 12, "step": 1, "default": 8 },
-    { "type": "color", "id": "media_bg_color", "label": "Media background", "default": "transparent" },
+    {
+      "type": "select",
+      "id": "media_bg_mode",
+      "label": "Media background mode",
+      "default": "transparent",
+      "options": [
+        { "value": "transparent", "label": "Transparent" },
+        { "value": "custom", "label": "Custom color" }
+      ]
+    },
+    { "type": "color", "id": "media_bg_color", "label": "Media background color", "default": "#ffffff" },
     {
       "type": "select",
       "id": "thumb_size",
@@ -968,10 +1275,47 @@
         { "value": "compact", "label": "Compact" }
       ]
     },
-    { "type": "checkbox", "id": "show_dynamic_checkout", "label": "Show Shop Pay / dynamic buttons", "default": false },
+    { "type": "checkbox", "id": "show_dynamic_checkout", "label": "Show Shop Pay buttons", "default": false },
     { "type": "text", "id": "affirm_line", "label": "Affirm line (optional)" },
     { "type": "text", "id": "payments_note", "label": "Payments note" },
     { "type": "text", "id": "policies_text", "label": "Policies line" },
+
+    { "type": "header", "content": "Under Add to Cart" },
+    { "type": "checkbox", "id": "show_under_atc", "label": "Enable under-ATC area", "default": true },
+    { "type": "range", "id": "under_atc_gap", "label": "Under-ATC spacing", "min": 6, "max": 24, "step": 1, "default": 10 },
+
+    { "type": "checkbox", "id": "show_under_banners_settings", "label": "Show banner slots (settings)", "default": true },
+    { "type": "image_picker", "id": "under_banner_1", "label": "Banner 1 image" },
+    { "type": "url", "id": "under_banner_link_1", "label": "Banner 1 link" },
+    { "type": "text", "id": "under_banner_alt_1", "label": "Banner 1 alt text" },
+
+    { "type": "image_picker", "id": "under_banner_2", "label": "Banner 2 image" },
+    { "type": "url", "id": "under_banner_link_2", "label": "Banner 2 link" },
+    { "type": "text", "id": "under_banner_alt_2", "label": "Banner 2 alt text" },
+
+    { "type": "image_picker", "id": "under_banner_3", "label": "Banner 3 image" },
+    { "type": "url", "id": "under_banner_link_3", "label": "Banner 3 link" },
+    { "type": "text", "id": "under_banner_alt_3", "label": "Banner 3 alt text" },
+
+    { "type": "checkbox", "id": "show_under_banners_blocks", "label": "Show banner blocks", "default": false },
+
+    { "type": "checkbox", "id": "show_trust_settings", "label": "Show trust slots (settings)", "default": true },
+    { "type": "image_picker", "id": "trust_badge_1", "label": "Trust badge 1 image" },
+    { "type": "url", "id": "trust_badge_link_1", "label": "Trust badge 1 link" },
+    { "type": "text", "id": "trust_badge_alt_1", "label": "Trust badge 1 alt text" },
+
+    { "type": "image_picker", "id": "trust_badge_2", "label": "Trust badge 2 image" },
+    { "type": "url", "id": "trust_badge_link_2", "label": "Trust badge 2 link" },
+    { "type": "text", "id": "trust_badge_alt_2", "label": "Trust badge 2 alt text" },
+
+    { "type": "image_picker", "id": "trust_badge_3", "label": "Trust badge 3 image" },
+    { "type": "url", "id": "trust_badge_link_3", "label": "Trust badge 3 link" },
+    { "type": "text", "id": "trust_badge_alt_3", "label": "Trust badge 3 alt text" },
+
+    { "type": "checkbox", "id": "show_trust_blocks", "label": "Show trust badge blocks", "default": false },
+
+    { "type": "checkbox", "id": "show_faq_blocks", "label": "Show FAQ blocks", "default": true },
+    { "type": "text", "id": "faq_heading", "label": "FAQ heading" },
 
     { "type": "header", "content": "Content" },
     {
@@ -1147,7 +1491,34 @@
         { "type": "text", "id": "key_6", "label": "Key 6" }
       ]
     },
-    { "type": "@app" }
+    { "type": "@app" },
+
+    {
+      "type": "under_atc_banner",
+      "name": "Under-ATC Banner",
+      "settings": [
+        { "type": "image_picker", "id": "image", "label": "Banner image" },
+        { "type": "url", "id": "link", "label": "Banner link" },
+        { "type": "text", "id": "alt", "label": "Alt text" }
+      ]
+    },
+    {
+      "type": "trust_badge",
+      "name": "Trust Badge",
+      "settings": [
+        { "type": "image_picker", "id": "image", "label": "Badge image" },
+        { "type": "url", "id": "link", "label": "Badge link" },
+        { "type": "text", "id": "alt", "label": "Alt text" }
+      ]
+    },
+    {
+      "type": "faq_item",
+      "name": "FAQ Item",
+      "settings": [
+        { "type": "text", "id": "question", "label": "Question" },
+        { "type": "richtext", "id": "answer", "label": "Answer" }
+      ]
+    }
   ],
   "presets": [
     {
