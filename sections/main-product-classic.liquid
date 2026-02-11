@@ -4,18 +4,20 @@
 
   PATCH (THIS EDIT)
   ----------------
-  1) Variants UNFORCED:
-     - If only default variant => hidden input id
-     - Else => render <select name="id">
-  2) Button colors ALWAYS WORK (preview-safe):
-     - Button vars always sourced from settings (not gated by use_custom_colors)
-     - Disabled button colors added + wired
-  3) Tabs not boxy:
-     - tabs_style: pills | underline | minimal (CSS-only)
-     - Tabs layout stable (labels row, panels row)
-  4) Remove default values for ALL text inputs (Shopify preference)
-  5) Fix schema JSON validity + preset does NOT include @app block
-  6) No JS, section-scoped CSS, single media viewer loop + thumbs loop
+  1) Summary micro-elements (NO JS):
+     - show_excerpt (truncated from product.description)
+     - show_sku (current_variant.sku)
+     - availability badge
+     - policies line (no defaults; merchant text)
+     - payments note (no defaults; merchant text)
+  2) Qty overflow fix + ATC tightening:
+     - qty input constrained + min-width:0
+     - qty + button row option: stacked | inline (desktop)
+     - atc_density: comfy | compact
+  3) Desktop layout direction:
+     - desktop_layout_direction: normal | reverse (grid column swap on >= 991px)
+  4) Bottom content area untouched (tabs/sections logic preserved)
+  5) No JS, section-scoped CSS, single media viewer loop + thumbs loop
 {%- endcomment -%}
 
 {%- liquid
@@ -48,6 +50,11 @@
   if summary_aria == blank
     assign summary_aria = 'Product summary'
   endif
+
+  assign excerpt = ''
+  if p.description != blank
+    assign excerpt = p.description | strip_html | strip | truncate: 160
+  endif
 -%}
 
 <section
@@ -60,6 +67,9 @@
     q-thumbs-mobile--{{ s.thumb_placement_mobile | default: 'below' }}
     q-sticky--{{ s.desktop_sticky_target | default: 'none' }}
     q-content--{{ s.content_display_mode | default: 'tabs' }}
+    q-dir--{{ s.desktop_layout_direction | default: 'normal' }}
+    q-atc-row--{{ s.atc_layout | default: 'stacked' }}
+    q-atc-density--{{ s.atc_density | default: 'comfy' }}
     q-pad-y--{{ s.pad_y | default: 'md' }}
     q-pad-x--{{ s.pad_x | default: 'md' }}
     q-maxw--{{ s.max_width | default: 'lg' }}
@@ -222,14 +232,20 @@
             {%- endif -%}
           </div>
 
-          {%- if s.show_inventory -%}
-            <div class="q-inventory" aria-live="polite">
-              {%- if current_variant.available -%}
-                In stock
-              {%- else -%}
-                Out of stock
-              {%- endif -%}
-            </div>
+          <div class="q-meta-row">
+            {%- if s.show_availability_badge -%}
+              <span class="q-badge {% if current_variant.available %}is-available{% else %}is-soldout{% endif %}">
+                {%- if current_variant.available -%}In stock{%- else -%}Sold out{%- endif -%}
+              </span>
+            {%- endif -%}
+
+            {%- if s.show_sku and current_variant.sku != blank -%}
+              <span class="q-sku">SKU: {{ current_variant.sku }}</span>
+            {%- endif -%}
+          </div>
+
+          {%- if s.show_excerpt and excerpt != blank -%}
+            <div class="q-excerpt">{{ excerpt }}</div>
           {%- endif -%}
 
           <form method="post" action="/cart/add" class="q-form" novalidate>
@@ -252,31 +268,37 @@
               </div>
             {%- endif -%}
 
-            <div class="q-field q-field--row">
-              <label class="q-label" for="q-qty-{{ section.id }}">Qty</label>
-              <input
-                id="q-qty-{{ section.id }}"
-                class="q-input"
-                type="number"
-                name="quantity"
-                value="1"
-                min="1"
-                inputmode="numeric"
+            <div class="q-atc">
+              <div class="q-atc__qty">
+                <label class="q-label" for="q-qty-{{ section.id }}">Qty</label>
+                <input
+                  id="q-qty-{{ section.id }}"
+                  class="q-input"
+                  type="number"
+                  name="quantity"
+                  value="1"
+                  min="1"
+                  inputmode="numeric"
+                >
+              </div>
+
+              <button
+                type="submit"
+                class="q-btn"
+                {% unless current_variant.available %}disabled{% endunless %}
               >
+                {%- if current_variant.available -%}Add to cart{%- else -%}Sold out{%- endif -%}
+              </button>
             </div>
 
-            <button
-              type="submit"
-              class="q-btn"
-              {% unless current_variant.available %}disabled{% endunless %}
-            >
-              {%- if current_variant.available -%}Add to cart{%- else -%}Sold out{%- endif -%}
-            </button>
-          </form>
+            {%- if s.payments_note != blank -%}
+              <div class="q-payments-note">{{ s.payments_note }}</div>
+            {%- endif -%}
 
-          <div class="q-safe-note" aria-hidden="true">
-            Secure checkout. Ships fast.
-          </div>
+            {%- if s.policies_text != blank -%}
+              <div class="q-policies">{{ s.policies_text }}</div>
+            {%- endif -%}
+          </form>
         </div>
       </div>
     </div>
@@ -460,11 +482,25 @@
     #q-pdp-{{ section.id }} .q-title{ font-size: var(--q-title); line-height: 1.15; margin: 0; }
     #q-pdp-{{ section.id }} .q-price{ font-size: var(--q-price); display: flex; gap: 0.75rem; align-items: baseline; flex-wrap: wrap; }
     #q-pdp-{{ section.id }} .q-price__compare{ opacity: 0.7; text-decoration: line-through; font-size: 0.95em; }
-    #q-pdp-{{ section.id }} .q-inventory{ font-size: 0.95rem; opacity: 0.9; }
 
-    #q-pdp-{{ section.id }} .q-form{ display: grid; gap: 0.75rem; margin-top: 0.25rem; }
+    #q-pdp-{{ section.id }} .q-meta-row{ display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-top: 0.5rem; }
+    #q-pdp-{{ section.id }} .q-badge{
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 0.25rem 0.6rem;
+      font-size: 0.85rem;
+      border: 1px solid var(--q-ui-bc);
+      background: rgba(0,0,0,0.02);
+    }
+    #q-pdp-{{ section.id }} .q-badge.is-available{ }
+    #q-pdp-{{ section.id }} .q-badge.is-soldout{ opacity: 0.8; }
+    #q-pdp-{{ section.id }} .q-sku{ font-size: 0.9rem; opacity: 0.85; }
+
+    #q-pdp-{{ section.id }} .q-excerpt{ font-size: 0.98rem; line-height: 1.55; opacity: 0.92; margin-top: 0.75rem; }
+
+    #q-pdp-{{ section.id }} .q-form{ display: grid; gap: 0.75rem; margin-top: 0.9rem; }
     #q-pdp-{{ section.id }} .q-field{ display: grid; gap: 0.35rem; }
-    #q-pdp-{{ section.id }} .q-field--row{ grid-template-columns: auto 7rem; align-items: center; gap: 0.75rem; }
     #q-pdp-{{ section.id }} .q-label{ font-size: 0.95rem; opacity: 0.9; }
 
     #q-pdp-{{ section.id }} .q-select,
@@ -476,6 +512,8 @@
       color: inherit;
       width: 100%;
       line-height: 1.2;
+      min-width: 0;
+      box-sizing: border-box;
     }
     #q-pdp-{{ section.id }}.q-ui--none .q-select,
     #q-pdp-{{ section.id }}.q-ui--none .q-input{
@@ -489,16 +527,25 @@
       outline-offset: 2px;
     }
 
+    /* Qty + ATC row (fix overflow + allow tighter layout) */
+    #q-pdp-{{ section.id }} .q-atc{ display: grid; gap: 0.75rem; }
+    #q-pdp-{{ section.id }} .q-atc__qty{ display: grid; gap: 0.35rem; }
+    #q-pdp-{{ section.id }} .q-atc__qty .q-input{ max-width: 7.5rem; }
+
     #q-pdp-{{ section.id }} .q-btn{
       border-radius: var(--q-ui-r);
       border: 1px solid var(--q-btn-bc);
       background: var(--q-btn-bg);
       color: var(--q-btn-text);
-      padding: 0.9rem 1rem;
       font-weight: 600;
       cursor: pointer;
       transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+      width: 100%;
     }
+
+    #q-pdp-{{ section.id }}.q-atc-density--comfy .q-btn{ padding: 0.9rem 1rem; }
+    #q-pdp-{{ section.id }}.q-atc-density--compact .q-btn{ padding: 0.7rem 0.9rem; }
+
     #q-pdp-{{ section.id }} .q-btn:hover{
       background: var(--q-btn-bg-h);
       border-color: var(--q-btn-bc-h);
@@ -513,7 +560,13 @@
       cursor: not-allowed;
     }
 
-    #q-pdp-{{ section.id }} .q-safe-note{ font-size: 0.9rem; opacity: 0.75; margin-top: 0.25rem; }
+    #q-pdp-{{ section.id }} .q-payments-note,
+    #q-pdp-{{ section.id }} .q-policies{
+      font-size: 0.92rem;
+      opacity: 0.8;
+      line-height: 1.45;
+    }
+
     #q-pdp-{{ section.id }} .q-pdp__content{ margin-top: 2rem; }
 
     /* Tabs (CSS-only) — stable layout */
@@ -608,6 +661,14 @@
         grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
         align-items: start;
       }
+
+      /* Desktop direction swap */
+      #q-pdp-{{ section.id }}.q-dir--reverse .q-pdp__grid{
+        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+      }
+      #q-pdp-{{ section.id }}.q-dir--reverse .q-pdp__summary{ order: 1; }
+      #q-pdp-{{ section.id }}.q-dir--reverse .q-pdp__media{ order: 2; }
+
       #q-pdp-{{ section.id }} .q-media-item img{ max-height: 70vh; }
 
       #q-pdp-{{ section.id }}.q-sticky--summary .q-pdp__summary{ position: sticky; top: 1.25rem; align-self: start; }
@@ -642,6 +703,14 @@
       }
 
       #q-pdp-{{ section.id }}.q-thumbs-desktop--hidden .q-pdp-media__thumbs{ display: none; }
+
+      /* Qty + ATC inline option (desktop) */
+      #q-pdp-{{ section.id }}.q-atc-row--inline .q-atc{
+        grid-template-columns: minmax(0, 8.5rem) 1fr;
+        align-items: end;
+        gap: 0.75rem;
+      }
+      #q-pdp-{{ section.id }}.q-atc-row--inline .q-atc__qty .q-input{ max-width: 100%; }
     }
 
     @media (max-width: 990px){
@@ -661,264 +730,300 @@
   </style>
 </section>
 
-  {% schema %}
-  {
-    "name": "Main Product Classic",
-    "tag": "section",
-    "class": "section",
-    "settings": [
-      { "type": "header", "content": "Layout" },
-      {
-        "type": "select",
-        "id": "max_width",
-        "label": "Max width",
-        "default": "lg",
-        "options": [
-          { "value": "sm", "label": "Small" },
-          { "value": "md", "label": "Medium" },
-          { "value": "lg", "label": "Large" },
-          { "value": "xl", "label": "Extra large" },
-          { "value": "full", "label": "Full width" }
-        ]
-      },
-      {
-        "type": "select",
-        "id": "pad_y",
-        "label": "Vertical padding",
-        "default": "md",
-        "options": [
-          { "value": "none", "label": "None" },
-          { "value": "sm", "label": "Small" },
-          { "value": "md", "label": "Medium" },
-          { "value": "lg", "label": "Large" },
-          { "value": "xl", "label": "Extra large" }
-        ]
-      },
-      {
-        "type": "select",
-        "id": "pad_x",
-        "label": "Horizontal padding",
-        "default": "md",
-        "options": [
-          { "value": "none", "label": "None" },
-          { "value": "sm", "label": "Small" },
-          { "value": "md", "label": "Medium" },
-          { "value": "lg", "label": "Large" }
-        ]
-      },
+{% schema %}
+{
+  "name": "Main Product Classic",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "header", "content": "Layout" },
+    {
+      "type": "select",
+      "id": "desktop_layout_direction",
+      "label": "Desktop layout direction",
+      "default": "normal",
+      "options": [
+        { "value": "normal", "label": "Media left / Summary right" },
+        { "value": "reverse", "label": "Media right / Summary left" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "max_width",
+      "label": "Max width",
+      "default": "lg",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" },
+        { "value": "xl", "label": "Extra large" },
+        { "value": "full", "label": "Full width" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "pad_y",
+      "label": "Vertical padding",
+      "default": "md",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" },
+        { "value": "xl", "label": "Extra large" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "pad_x",
+      "label": "Horizontal padding",
+      "default": "md",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
 
-      { "type": "header", "content": "Media" },
-      { "type": "range", "id": "media_limit", "label": "Media limit", "min": 1, "max": 12, "step": 1, "default": 8 },
-      {
-        "type": "select",
-        "id": "thumb_size",
-        "label": "Thumb size",
-        "default": "md",
-        "options": [
-          { "value": "sm", "label": "Small" },
-          { "value": "md", "label": "Medium" },
-          { "value": "lg", "label": "Large" }
-        ]
-      },
-      { "type": "range", "id": "thumb_gap", "label": "Thumb gap", "min": 6, "max": 18, "step": 1, "default": 12 },
-      {
-        "type": "select",
-        "id": "thumb_placement_desktop",
-        "label": "Thumb placement desktop",
-        "default": "below",
-        "options": [
-          { "value": "above", "label": "Above" },
-          { "value": "below", "label": "Below" },
-          { "value": "left", "label": "Left" },
-          { "value": "right", "label": "Right" },
-          { "value": "hidden", "label": "Hidden" }
-        ]
-      },
-      {
-        "type": "select",
-        "id": "thumb_placement_mobile",
-        "label": "Thumb placement mobile",
-        "default": "below",
-        "options": [
-          { "value": "above", "label": "Above" },
-          { "value": "below", "label": "Below" },
-          { "value": "hidden", "label": "Hidden" }
-        ]
-      },
+    { "type": "header", "content": "Media" },
+    { "type": "range", "id": "media_limit", "label": "Media limit", "min": 1, "max": 12, "step": 1, "default": 8 },
+    {
+      "type": "select",
+      "id": "thumb_size",
+      "label": "Thumb size",
+      "default": "md",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
+    { "type": "range", "id": "thumb_gap", "label": "Thumb gap", "min": 6, "max": 18, "step": 1, "default": 12 },
+    {
+      "type": "select",
+      "id": "thumb_placement_desktop",
+      "label": "Thumb placement desktop",
+      "default": "below",
+      "options": [
+        { "value": "above", "label": "Above" },
+        { "value": "below", "label": "Below" },
+        { "value": "left", "label": "Left" },
+        { "value": "right", "label": "Right" },
+        { "value": "hidden", "label": "Hidden" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "thumb_placement_mobile",
+      "label": "Thumb placement mobile",
+      "default": "below",
+      "options": [
+        { "value": "above", "label": "Above" },
+        { "value": "below", "label": "Below" },
+        { "value": "hidden", "label": "Hidden" }
+      ]
+    },
 
-      { "type": "header", "content": "Sticky" },
-      {
-        "type": "select",
-        "id": "desktop_sticky_target",
-        "label": "Desktop sticky target",
-        "default": "none",
-        "options": [
-          { "value": "summary", "label": "Summary" },
-          { "value": "media", "label": "Media" },
-          { "value": "none", "label": "None" }
-        ]
-      },
+    { "type": "header", "content": "Sticky" },
+    {
+      "type": "select",
+      "id": "desktop_sticky_target",
+      "label": "Desktop sticky target",
+      "default": "none",
+      "options": [
+        { "value": "summary", "label": "Summary" },
+        { "value": "media", "label": "Media" },
+        { "value": "none", "label": "None" }
+      ]
+    },
 
-      { "type": "header", "content": "Content" },
-      {
-        "type": "select",
-        "id": "content_display_mode",
-        "label": "Content display mode",
-        "default": "tabs",
-        "options": [
-          { "value": "tabs", "label": "Tabs" },
-          { "value": "sections", "label": "Sections" }
-        ]
-      },
-      {
-        "type": "select",
-        "id": "tabs_style",
-        "label": "Tabs style",
-        "default": "pills",
-        "options": [
-          { "value": "pills", "label": "Pills" },
-          { "value": "underline", "label": "Underline" },
-          { "value": "minimal", "label": "Minimal" }
-        ]
-      },
+    { "type": "header", "content": "Summary extras" },
+    { "type": "checkbox", "id": "show_excerpt", "label": "Show short description", "default": true },
+    { "type": "checkbox", "id": "show_sku", "label": "Show SKU", "default": true },
+    { "type": "checkbox", "id": "show_availability_badge", "label": "Show availability badge", "default": true },
+    {
+      "type": "select",
+      "id": "atc_layout",
+      "label": "Qty + button layout (desktop)",
+      "default": "stacked",
+      "options": [
+        { "value": "stacked", "label": "Stacked" },
+        { "value": "inline", "label": "Inline" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "atc_density",
+      "label": "Add to cart button density",
+      "default": "comfy",
+      "options": [
+        { "value": "comfy", "label": "Comfy" },
+        { "value": "compact", "label": "Compact" }
+      ]
+    },
+    { "type": "text", "id": "payments_note", "label": "Payments note" },
+    { "type": "text", "id": "policies_text", "label": "Policies line" },
 
-      { "type": "header", "content": "Colors" },
-      { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors", "default": false },
-      { "type": "color", "id": "bg_color", "label": "Background color", "default": "#ffffff" },
-      { "type": "color", "id": "text_color", "label": "Text color", "default": "#111827" },
+    { "type": "header", "content": "Content" },
+    {
+      "type": "select",
+      "id": "content_display_mode",
+      "label": "Content display mode",
+      "default": "tabs",
+      "options": [
+        { "value": "tabs", "label": "Tabs" },
+        { "value": "sections", "label": "Sections" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "tabs_style",
+      "label": "Tabs style",
+      "default": "pills",
+      "options": [
+        { "value": "pills", "label": "Pills" },
+        { "value": "underline", "label": "Underline" },
+        { "value": "minimal", "label": "Minimal" }
+      ]
+    },
 
-      { "type": "header", "content": "Buttons" },
-      { "type": "color", "id": "btn_bg", "label": "Button background", "default": "#111827" },
-      { "type": "color", "id": "btn_text", "label": "Button text", "default": "#ffffff" },
-      { "type": "color", "id": "btn_border", "label": "Button border", "default": "#111827" },
-      { "type": "color", "id": "btn_bg_hover", "label": "Button hover background", "default": "#0b0f19" },
-      { "type": "color", "id": "btn_text_hover", "label": "Button hover text", "default": "#ffffff" },
-      { "type": "color", "id": "btn_border_hover", "label": "Button hover border", "default": "#0b0f19" },
-      { "type": "color", "id": "btn_disabled_bg", "label": "Button disabled background", "default": "#e5e7eb" },
-      { "type": "color", "id": "btn_disabled_text", "label": "Button disabled text", "default": "#6b7280" },
-      { "type": "color", "id": "btn_disabled_border", "label": "Button disabled border", "default": "#e5e7eb" },
+    { "type": "header", "content": "Colors" },
+    { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors", "default": false },
+    { "type": "color", "id": "bg_color", "label": "Background color", "default": "#ffffff" },
+    { "type": "color", "id": "text_color", "label": "Text color", "default": "#111827" },
 
-      { "type": "header", "content": "Borders & radius" },
-      {
-        "type": "select",
-        "id": "ui_surface_style",
-        "label": "UI surface style",
-        "default": "soft",
-        "options": [
-          { "value": "none", "label": "None" },
-          { "value": "soft", "label": "Soft" },
-          { "value": "bordered", "label": "Bordered" }
-        ]
-      },
+    { "type": "header", "content": "Buttons" },
+    { "type": "color", "id": "btn_bg", "label": "Button background", "default": "#111827" },
+    { "type": "color", "id": "btn_text", "label": "Button text", "default": "#ffffff" },
+    { "type": "color", "id": "btn_border", "label": "Button border", "default": "#111827" },
+    { "type": "color", "id": "btn_bg_hover", "label": "Button hover background", "default": "#0b0f19" },
+    { "type": "color", "id": "btn_text_hover", "label": "Button hover text", "default": "#ffffff" },
+    { "type": "color", "id": "btn_border_hover", "label": "Button hover border", "default": "#0b0f19" },
+    { "type": "color", "id": "btn_disabled_bg", "label": "Button disabled background", "default": "#e5e7eb" },
+    { "type": "color", "id": "btn_disabled_text", "label": "Button disabled text", "default": "#6b7280" },
+    { "type": "color", "id": "btn_disabled_border", "label": "Button disabled border", "default": "#e5e7eb" },
 
-      { "type": "range", "id": "media_radius", "label": "Media radius", "min": 0, "max": 24, "step": 1, "default": 16 },
-      { "type": "range", "id": "media_border_width", "label": "Media border width", "min": 0, "max": 4, "step": 1, "default": 1 },
-      { "type": "color", "id": "media_border_color", "label": "Media border color", "default": "#e5e7eb" },
+    { "type": "header", "content": "Borders & radius" },
+    {
+      "type": "select",
+      "id": "ui_surface_style",
+      "label": "UI surface style",
+      "default": "soft",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "soft", "label": "Soft" },
+        { "value": "bordered", "label": "Bordered" }
+      ]
+    },
 
-      { "type": "range", "id": "thumb_radius", "label": "Thumb radius", "min": 0, "max": 24, "step": 1, "default": 12 },
-      { "type": "range", "id": "thumb_border_width", "label": "Thumb border width", "min": 0, "max": 4, "step": 1, "default": 1 },
-      { "type": "color", "id": "thumb_border_color", "label": "Thumb border color", "default": "#e5e7eb" },
-      { "type": "color", "id": "thumb_border_color_active", "label": "Thumb border active", "default": "#111827" },
+    { "type": "range", "id": "media_radius", "label": "Media radius", "min": 0, "max": 24, "step": 1, "default": 16 },
+    { "type": "range", "id": "media_border_width", "label": "Media border width", "min": 0, "max": 4, "step": 1, "default": 1 },
+    { "type": "color", "id": "media_border_color", "label": "Media border color", "default": "#e5e7eb" },
 
-      { "type": "range", "id": "ui_radius", "label": "UI radius", "min": 0, "max": 24, "step": 1, "default": 12 },
-      { "type": "range", "id": "ui_border_width", "label": "UI border width", "min": 0, "max": 4, "step": 1, "default": 1 },
-      { "type": "color", "id": "ui_border_color", "label": "UI border color", "default": "#e5e7eb" },
+    { "type": "range", "id": "thumb_radius", "label": "Thumb radius", "min": 0, "max": 24, "step": 1, "default": 12 },
+    { "type": "range", "id": "thumb_border_width", "label": "Thumb border width", "min": 0, "max": 4, "step": 1, "default": 1 },
+    { "type": "color", "id": "thumb_border_color", "label": "Thumb border color", "default": "#e5e7eb" },
+    { "type": "color", "id": "thumb_border_color_active", "label": "Thumb border active", "default": "#111827" },
 
-      { "type": "header", "content": "Typography" },
-      {
-        "type": "select",
-        "id": "title_size",
-        "label": "Title size",
-        "default": "lg",
-        "options": [
-          { "value": "sm", "label": "Small" },
-          { "value": "md", "label": "Medium" },
-          { "value": "lg", "label": "Large" },
-          { "value": "xl", "label": "Extra large" }
-        ]
-      },
-      {
-        "type": "select",
-        "id": "price_size",
-        "label": "Price size",
-        "default": "md",
-        "options": [
-          { "value": "sm", "label": "Small" },
-          { "value": "md", "label": "Medium" },
-          { "value": "lg", "label": "Large" }
-        ]
-      },
-      {
-        "type": "select",
-        "id": "desc_size",
-        "label": "Description size",
-        "default": "md",
-        "options": [
-          { "value": "sm", "label": "Small" },
-          { "value": "md", "label": "Medium" },
-          { "value": "lg", "label": "Large" }
-        ]
-      },
+    { "type": "range", "id": "ui_radius", "label": "UI radius", "min": 0, "max": 24, "step": 1, "default": 12 },
+    { "type": "range", "id": "ui_border_width", "label": "UI border width", "min": 0, "max": 4, "step": 1, "default": 1 },
+    { "type": "color", "id": "ui_border_color", "label": "UI border color", "default": "#e5e7eb" },
 
-      { "type": "header", "content": "Product toggles" },
-      { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": true },
-      { "type": "checkbox", "id": "show_inventory", "label": "Show inventory (MVP)", "default": false },
+    { "type": "header", "content": "Typography" },
+    {
+      "type": "select",
+      "id": "title_size",
+      "label": "Title size",
+      "default": "lg",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" },
+        { "value": "xl", "label": "Extra large" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "price_size",
+      "label": "Price size",
+      "default": "md",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "desc_size",
+      "label": "Description size",
+      "default": "md",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
 
-      { "type": "header", "content": "Accessibility" },
-      { "type": "text", "id": "section_aria_label", "label": "Section aria label" },
-      { "type": "text", "id": "media_aria_label", "label": "Media aria label" },
-      { "type": "text", "id": "summary_aria_label", "label": "Summary aria label" }
-    ],
-    "blocks": [
-      {
-        "type": "description",
-        "name": "Description",
-        "settings": [
-          { "type": "text", "id": "heading", "label": "Heading" }
-        ]
-      },
-      {
-        "type": "meta_data",
-        "name": "Meta Data",
-        "settings": [
-          { "type": "text", "id": "heading", "label": "Heading" },
+    { "type": "header", "content": "Product toggles" },
+    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": true },
 
-          { "type": "text", "id": "label_1", "label": "Label 1" },
-          { "type": "text", "id": "namespace_1", "label": "Namespace 1" },
-          { "type": "text", "id": "key_1", "label": "Key 1" },
+    { "type": "header", "content": "Accessibility" },
+    { "type": "text", "id": "section_aria_label", "label": "Section aria label" },
+    { "type": "text", "id": "media_aria_label", "label": "Media aria label" },
+    { "type": "text", "id": "summary_aria_label", "label": "Summary aria label" }
+  ],
+  "blocks": [
+    {
+      "type": "description",
+      "name": "Description",
+      "settings": [
+        { "type": "text", "id": "heading", "label": "Heading" }
+      ]
+    },
+    {
+      "type": "meta_data",
+      "name": "Meta Data",
+      "settings": [
+        { "type": "text", "id": "heading", "label": "Heading" },
 
-          { "type": "text", "id": "label_2", "label": "Label 2" },
-          { "type": "text", "id": "namespace_2", "label": "Namespace 2" },
-          { "type": "text", "id": "key_2", "label": "Key 2" },
+        { "type": "text", "id": "label_1", "label": "Label 1" },
+        { "type": "text", "id": "namespace_1", "label": "Namespace 1" },
+        { "type": "text", "id": "key_1", "label": "Key 1" },
 
-          { "type": "text", "id": "label_3", "label": "Label 3" },
-          { "type": "text", "id": "namespace_3", "label": "Namespace 3" },
-          { "type": "text", "id": "key_3", "label": "Key 3" },
+        { "type": "text", "id": "label_2", "label": "Label 2" },
+        { "type": "text", "id": "namespace_2", "label": "Namespace 2" },
+        { "type": "text", "id": "key_2", "label": "Key 2" },
 
-          { "type": "text", "id": "label_4", "label": "Label 4" },
-          { "type": "text", "id": "namespace_4", "label": "Namespace 4" },
-          { "type": "text", "id": "key_4", "label": "Key 4" },
+        { "type": "text", "id": "label_3", "label": "Label 3" },
+        { "type": "text", "id": "namespace_3", "label": "Namespace 3" },
+        { "type": "text", "id": "key_3", "label": "Key 3" },
 
-          { "type": "text", "id": "label_5", "label": "Label 5" },
-          { "type": "text", "id": "namespace_5", "label": "Namespace 5" },
-          { "type": "text", "id": "key_5", "label": "Key 5" },
+        { "type": "text", "id": "label_4", "label": "Label 4" },
+        { "type": "text", "id": "namespace_4", "label": "Namespace 4" },
+        { "type": "text", "id": "key_4", "label": "Key 4" },
 
-          { "type": "text", "id": "label_6", "label": "Label 6" },
-          { "type": "text", "id": "namespace_6", "label": "Namespace 6" },
-          { "type": "text", "id": "key_6", "label": "Key 6" }
-        ]
-      },
-      { "type": "@app" }
-    ],
-    "presets": [
-      {
-        "name": "Main Product Classic",
-        "category": "Product",
-        "blocks": [
-          { "type": "description" },
-          { "type": "meta_data" }
-        ]
-      }
-    ]
-  }
-  {% endschema %}
+        { "type": "text", "id": "label_5", "label": "Label 5" },
+        { "type": "text", "id": "namespace_5", "label": "Namespace 5" },
+        { "type": "text", "id": "key_5", "label": "Key 5" },
+
+        { "type": "text", "id": "label_6", "label": "Label 6" },
+        { "type": "text", "id": "namespace_6", "label": "Namespace 6" },
+        { "type": "text", "id": "key_6", "label": "Key 6" }
+      ]
+    },
+    { "type": "@app" }
+  ],
+  "presets": [
+    {
+      "name": "Main Product Classic",
+      "category": "Product",
+      "blocks": [
+        { "type": "description" },
+        { "type": "meta_data" }
+      ]
+    }
+  ]
+}
+{% endschema %}
