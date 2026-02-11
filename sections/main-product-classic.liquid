@@ -16,6 +16,7 @@
      - Uses Shopify product form helper so payment_button renders correctly.
      - Optional merchant-controlled Affirm line text (no app dependency)
   6) Keeps: excerpt, sku, sticky, tabs/sections, media/thumb loops, qty row layout + density
+  7) NEW: Clickable images open in a NO-JS lightbox (CSS :target overlay)
 
   NOTE (important):
   - Tabs mode guarantees the first *content* tab is checked even if
@@ -239,14 +240,20 @@
               {%- assign idx = forloop.index -%}
               <div id="q-media-{{ section.id }}-{{ idx }}" class="q-media-item">
                 {%- if m.media_type == 'image' and m.preview_image != blank -%}
-                  <img
-                    src="{{ m.preview_image | image_url: width: 1600 }}"
-                    alt="{{ m.preview_image.alt | default: p.title | escape }}"
-                    loading="{% if idx == 1 %}eager{% else %}lazy{% endif %}"
-                    {% if idx == 1 %}fetchpriority="high"{% endif %}
-                    width="{{ m.preview_image.width | default: 1600 }}"
-                    height="{{ m.preview_image.height | default: 1600 }}"
+                  <a
+                    class="q-media-link"
+                    href="#q-lb-{{ section.id }}-{{ idx }}"
+                    aria-label="Open image {{ idx }} in a larger view"
                   >
+                    <img
+                      src="{{ m.preview_image | image_url: width: 1600 }}"
+                      alt="{{ m.preview_image.alt | default: p.title | escape }}"
+                      loading="{% if idx == 1 %}eager{% else %}lazy{% endif %}"
+                      {% if idx == 1 %}fetchpriority="high"{% endif %}
+                      width="{{ m.preview_image.width | default: 1600 }}"
+                      height="{{ m.preview_image.height | default: 1600 }}"
+                    >
+                  </a>
                 {%- else -%}
                   <div class="q-media-ph" role="img" aria-label="Media not supported yet">
                     Media type not supported in MVP.
@@ -255,6 +262,28 @@
               </div>
             {%- endfor -%}
           </div>
+        </div>
+
+        {%- comment -%} NO-JS LIGHTBOX (CSS :target) {%- endcomment -%}
+        <div class="q-lightboxes" aria-hidden="true">
+          {%- for m in p.media limit: media_limit -%}
+            {%- assign idx = forloop.index -%}
+            {%- if m.media_type == 'image' and m.preview_image != blank -%}
+              <div id="q-lb-{{ section.id }}-{{ idx }}" class="q-lb" aria-label="Image lightbox {{ idx }}">
+                <a class="q-lb__overlay" href="#q-pdp-{{ section.id }}" aria-label="Close"></a>
+                <div class="q-lb__dialog" role="dialog" aria-modal="true" aria-label="Enlarged image {{ idx }}">
+                  <a class="q-lb__close" href="#q-pdp-{{ section.id }}" aria-label="Close lightbox">×</a>
+                  <img
+                    src="{{ m.preview_image | image_url: width: 2400 }}"
+                    alt="{{ m.preview_image.alt | default: p.title | escape }}"
+                    loading="eager"
+                    width="{{ m.preview_image.width | default: 2400 }}"
+                    height="{{ m.preview_image.height | default: 2400 }}"
+                  >
+                </div>
+              </div>
+            {%- endif -%}
+          {%- endfor -%}
         </div>
       </div>
 
@@ -583,7 +612,6 @@
         </div>
       </div>
     </div>
-
     <div class="q-pdp__content">
       {%- if section.blocks.size > 0 -%}
         {%- if tabs_mode == 'tabs' -%}
@@ -738,6 +766,7 @@
       background: var(--q-media-bg);
     }
     #q-pdp-{{ section.id }} .q-media-item:target{ outline: 2px solid var(--q-thumb-bc-active); outline-offset: 2px; }
+    #q-pdp-{{ section.id }} .q-media-link{ display: block; text-decoration: none; color: inherit; cursor: zoom-in; }
     #q-pdp-{{ section.id }} .q-media-item img{ width: 100%; height: auto; display: block; object-fit: contain; }
     #q-pdp-{{ section.id }} .q-media-ph{ padding: 2rem; text-align: center; font-size: 0.95rem; opacity: 0.8; }
 
@@ -757,6 +786,58 @@
     #q-pdp-{{ section.id }} .q-thumb img{ width: 100%; height: 100%; object-fit: cover; display: block; }
     #q-pdp-{{ section.id }} .q-thumb:focus-visible{ outline: 2px solid var(--q-thumb-bc-active); outline-offset: 2px; }
     #q-pdp-{{ section.id }} .q-thumb__ph{ width: 100%; height: 100%; display: block; }
+
+    /* Lightbox (NO JS, :target) */
+    #q-pdp-{{ section.id }} .q-lb{
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: none;
+    }
+    #q-pdp-{{ section.id }} .q-lb:target{ display: block; }
+    #q-pdp-{{ section.id }} .q-lb__overlay{
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: block;
+    }
+    #q-pdp-{{ section.id }} .q-lb__dialog{
+      position: absolute;
+      inset: 3vh 3vw;
+      display: grid;
+      place-items: center;
+      padding: 1rem;
+    }
+    #q-pdp-{{ section.id }} .q-lb__dialog img{
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      border-radius: var(--q-ui-r);
+      box-shadow: 0 18px 60px rgba(0,0,0,0.35);
+      background: var(--q-media-bg);
+    }
+    #q-pdp-{{ section.id }} .q-lb__close{
+      position: absolute;
+      top: 1.25rem;
+      right: 1.25rem;
+      width: 2.5rem;
+      height: 2.5rem;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      text-decoration: none;
+      font-size: 1.5rem;
+      line-height: 1;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.25);
+      color: #fff;
+      backdrop-filter: blur(4px);
+    }
+    #q-pdp-{{ section.id }} .q-lb__close:focus-visible{
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
 
     /* UI surface controls */
     #q-pdp-{{ section.id }} .q-summary,
@@ -1135,6 +1216,9 @@
 
       #q-pdp-{{ section.id }} .q-spec{ grid-template-columns: 1fr; }
       #q-pdp-{{ section.id }} .q-trust{ grid-template-columns: 1fr; }
+
+      #q-pdp-{{ section.id }} .q-lb__dialog{ inset: 2vh 2vw; }
+      #q-pdp-{{ section.id }} .q-lb__close{ top: 0.75rem; right: 0.75rem; }
     }
   </style>
 </section>
