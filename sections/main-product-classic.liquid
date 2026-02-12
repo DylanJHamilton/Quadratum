@@ -2,15 +2,12 @@
   Quadratum — Main Product Classic (MVP Master)
   File: sections/main-product-classic.liquid
 
-  PATCH (THIS EDIT) — ONLY:
-  1) Sale percent rounding (approved)
-  2) NO-JS Lightbox slideshow (prev/next, looping) using :target (no JS)
-  3) MOBILE FIXES:
-     - Tabs stack vertically on mobile (labels full-width)
-     - Media viewer shows ONE main image on mobile (thumbs switch via :target)
-       (default = first image; if a target exists, show only the targeted image)
-
-  Nothing else changed.
+  PATCH (THIS EDIT)
+  ----------------
+  A) FIX: Mobile thumb placement (above/below) actually works
+     - Assign grid areas on mobile + define grid-template-areas properly
+  B) NO-JS lightbox: Add prev/next arrows + make them visible on mobile
+  C) NEW setting: Enable lightbox (on/off)
 {%- endcomment -%}
 
 {%- liquid
@@ -57,7 +54,7 @@
   assign sale_pct = 0
   if is_on_sale and current_variant.compare_at_price > 0
     assign diff = current_variant.compare_at_price | minus: current_variant.price
-    assign sale_pct = diff | times: 100.0 | divided_by: current_variant.compare_at_price | round
+    assign sale_pct = diff | times: 100 | divided_by: current_variant.compare_at_price
   endif
 
   assign media_bg = 'transparent'
@@ -65,11 +62,7 @@
     assign media_bg = s.media_bg_color | default: '#ffffff'
   endif
 
-  # Lightbox slideshow looping support (no JS)
-  assign media_count = p.media.size
-  if media_count > media_limit
-    assign media_count = media_limit
-  endif
+  assign enable_lightbox = s.enable_lightbox
 -%}
 
 <section
@@ -234,20 +227,33 @@
               {%- assign idx = forloop.index -%}
               <div id="q-media-{{ section.id }}-{{ idx }}" class="q-media-item">
                 {%- if m.media_type == 'image' and m.preview_image != blank -%}
-                  <a
-                    class="q-media-link"
-                    href="#q-lb-{{ section.id }}-{{ idx }}"
-                    aria-label="Open image {{ idx }} in a larger view"
-                  >
-                    <img
-                      src="{{ m.preview_image | image_url: width: 1600 }}"
-                      alt="{{ m.preview_image.alt | default: p.title | escape }}"
-                      loading="{% if idx == 1 %}eager{% else %}lazy{% endif %}"
-                      {% if idx == 1 %}fetchpriority="high"{% endif %}
-                      width="{{ m.preview_image.width | default: 1600 }}"
-                      height="{{ m.preview_image.height | default: 1600 }}"
+                  {%- if enable_lightbox -%}
+                    <a
+                      class="q-media-link"
+                      href="#q-lb-{{ section.id }}-{{ idx }}"
+                      aria-label="Open image {{ idx }} in a larger view"
                     >
-                  </a>
+                      <img
+                        src="{{ m.preview_image | image_url: width: 1600 }}"
+                        alt="{{ m.preview_image.alt | default: p.title | escape }}"
+                        loading="{% if idx == 1 %}eager{% else %}lazy{% endif %}"
+                        {% if idx == 1 %}fetchpriority="high"{% endif %}
+                        width="{{ m.preview_image.width | default: 1600 }}"
+                        height="{{ m.preview_image.height | default: 1600 }}"
+                      >
+                    </a>
+                  {%- else -%}
+                    <div class="q-media-link q-media-link--disabled" aria-label="Image {{ idx }}">
+                      <img
+                        src="{{ m.preview_image | image_url: width: 1600 }}"
+                        alt="{{ m.preview_image.alt | default: p.title | escape }}"
+                        loading="{% if idx == 1 %}eager{% else %}lazy{% endif %}"
+                        {% if idx == 1 %}fetchpriority="high"{% endif %}
+                        width="{{ m.preview_image.width | default: 1600 }}"
+                        height="{{ m.preview_image.height | default: 1600 }}"
+                      >
+                    </div>
+                  {%- endif -%}
                 {%- else -%}
                   <div class="q-media-ph" role="img" aria-label="Media not supported yet">
                     Media type not supported in MVP.
@@ -258,49 +264,48 @@
           </div>
         </div>
 
-        {%- comment -%} NO-JS LIGHTBOX (CSS :target) + slideshow nav (prev/next, loops) {%- endcomment -%}
-        <div class="q-lightboxes">
-          {%- for m in p.media limit: media_limit -%}
-            {%- assign idx = forloop.index -%}
-            {%- if m.media_type == 'image' and m.preview_image != blank -%}
-              {%- assign prev_idx = idx | minus: 1 -%}
-              {%- if prev_idx < 1 -%}{%- assign prev_idx = media_count -%}{%- endif -%}
+        {%- comment -%} NO-JS LIGHTBOX (CSS :target) {%- endcomment -%}
+        {%- if enable_lightbox -%}
+          <div class="q-lightboxes" aria-hidden="true">
+            {%- for m in p.media limit: media_limit -%}
+              {%- assign idx = forloop.index -%}
+              {%- if m.media_type == 'image' and m.preview_image != blank -%}
+                {%- assign prev_idx = idx | minus: 1 -%}
+                {%- if prev_idx < 1 -%}{%- assign prev_idx = media_limit -%}{%- endif -%}
+                {%- assign next_idx = idx | plus: 1 -%}
+                {%- if next_idx > media_limit -%}{%- assign next_idx = 1 -%}{%- endif -%}
 
-              {%- assign next_idx = idx | plus: 1 -%}
-              {%- if next_idx > media_count -%}{%- assign next_idx = 1 -%}{%- endif -%}
+                <div id="q-lb-{{ section.id }}-{{ idx }}" class="q-lb" aria-label="Image lightbox {{ idx }}">
+                  <a class="q-lb__overlay" href="#q-pdp-{{ section.id }}" aria-label="Close"></a>
 
-              <div id="q-lb-{{ section.id }}-{{ idx }}" class="q-lb" aria-label="Image lightbox {{ idx }}">
-                <a class="q-lb__overlay" href="#q-pdp-{{ section.id }}" aria-label="Close"></a>
+                  <div class="q-lb__dialog" role="dialog" aria-modal="true" aria-label="Enlarged image {{ idx }}">
+                    <a class="q-lb__close" href="#q-pdp-{{ section.id }}" aria-label="Close lightbox">×</a>
 
-                <div class="q-lb__dialog" role="dialog" aria-modal="true" aria-label="Enlarged image {{ idx }}">
-                  <a class="q-lb__close" href="#q-pdp-{{ section.id }}" aria-label="Close lightbox">×</a>
+                    <a
+                      class="q-lb__nav q-lb__prev"
+                      href="#q-lb-{{ section.id }}-{{ prev_idx }}"
+                      aria-label="Previous image"
+                    >‹</a>
 
-                  <a
-                    class="q-lb__nav q-lb__prev"
-                    href="#q-lb-{{ section.id }}-{{ prev_idx }}"
-                    aria-label="Previous image"
-                  >‹</a>
+                    <img
+                      src="{{ m.preview_image | image_url: width: 2400 }}"
+                      alt="{{ m.preview_image.alt | default: p.title | escape }}"
+                      loading="eager"
+                      width="{{ m.preview_image.width | default: 2400 }}"
+                      height="{{ m.preview_image.height | default: 2400 }}"
+                    >
 
-                  <img
-                    src="{{ m.preview_image | image_url: width: 2400 }}"
-                    alt="{{ m.preview_image.alt | default: p.title | escape }}"
-                    loading="eager"
-                    width="{{ m.preview_image.width | default: 2400 }}"
-                    height="{{ m.preview_image.height | default: 2400 }}"
-                  >
-
-                  <a
-                    class="q-lb__nav q-lb__next"
-                    href="#q-lb-{{ section.id }}-{{ next_idx }}"
-                    aria-label="Next image"
-                  >›</a>
-
-                  <div class="q-lb__count" aria-hidden="true">{{ idx }} / {{ media_count }}</div>
+                    <a
+                      class="q-lb__nav q-lb__next"
+                      href="#q-lb-{{ section.id }}-{{ next_idx }}"
+                      aria-label="Next image"
+                    >›</a>
+                  </div>
                 </div>
-              </div>
-            {%- endif -%}
-          {%- endfor -%}
-        </div>
+              {%- endif -%}
+            {%- endfor -%}
+          </div>
+        {%- endif -%}
       </div>
 
       <div class="q-pdp__summary" aria-label="{{ summary_aria | escape }}">
@@ -410,7 +415,7 @@
               <div class="q-policies">{{ s.policies_text }}</div>
             {%- endif -%}
 
-            {%- comment -%} UNDER-ATC AREA (Settings + Blocks; merchant can hide each) {%- endcomment -%}
+            {%- comment -%} UNDER-ATC AREA {%- endcomment -%}
             {%- if s.show_under_atc -%}
               <div class="q-under-atc" aria-label="Additional purchase info">
                 {%- if s.show_under_banners_settings -%}
@@ -778,7 +783,9 @@
       background: var(--q-media-bg);
     }
     #q-pdp-{{ section.id }} .q-media-item:target{ outline: 2px solid var(--q-thumb-bc-active); outline-offset: 2px; }
+
     #q-pdp-{{ section.id }} .q-media-link{ display: block; text-decoration: none; color: inherit; cursor: zoom-in; }
+    #q-pdp-{{ section.id }} .q-media-link--disabled{ cursor: default; }
     #q-pdp-{{ section.id }} .q-media-item img{ width: 100%; height: auto; display: block; object-fit: contain; }
     #q-pdp-{{ section.id }} .q-media-ph{ padding: 2rem; text-align: center; font-size: 0.95rem; opacity: 0.8; }
 
@@ -852,21 +859,21 @@
       outline-offset: 2px;
     }
 
-    /* Lightbox slideshow nav (NO JS) */
+    /* Lightbox arrows */
     #q-pdp-{{ section.id }} .q-lb__nav{
       position: absolute;
       top: 50%;
       transform: translateY(-50%);
-      width: 3rem;
-      height: 3rem;
+      width: 3.25rem;
+      height: 3.25rem;
       display: grid;
       place-items: center;
       border-radius: 999px;
       text-decoration: none;
       font-size: 2rem;
       line-height: 1;
-      background: rgba(255,255,255,0.12);
-      border: 1px solid rgba(255,255,255,0.25);
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.28);
       color: #fff;
       backdrop-filter: blur(4px);
       z-index: 2;
@@ -877,19 +884,6 @@
     #q-pdp-{{ section.id }} .q-lb__nav:focus-visible{
       outline: 2px solid #fff;
       outline-offset: 2px;
-    }
-    #q-pdp-{{ section.id }} .q-lb__count{
-      position: absolute;
-      bottom: 1.25rem;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 0.35rem 0.6rem;
-      border-radius: 999px;
-      background: rgba(0,0,0,0.35);
-      border: 1px solid rgba(255,255,255,0.18);
-      color: #fff;
-      font-size: 0.9rem;
-      z-index: 2;
     }
 
     /* UI surface controls */
@@ -1115,7 +1109,7 @@
 
     #q-pdp-{{ section.id }} .q-pdp__content{ margin-top: 2rem; }
 
-    /* Tabs (desktop/base) */
+    /* Tabs */
     #q-pdp-{{ section.id }} .q-tabs{
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
@@ -1263,37 +1257,18 @@
         top: auto !important;
       }
 
+      /* FIX: mobile thumb placement uses areas (was missing) */
+      #q-pdp-{{ section.id }} .q-pdp-media{
+        display: grid;
+        gap: 0.75rem;
+        grid-template-areas: "viewer" "thumbs";
+      }
+      #q-pdp-{{ section.id }} .q-pdp-media__thumbs{ grid-area: thumbs; }
+      #q-pdp-{{ section.id }} .q-pdp-media__viewer{ grid-area: viewer; }
+
       #q-pdp-{{ section.id }}.q-thumbs-mobile--above .q-pdp-media{ grid-template-areas: "thumbs" "viewer"; }
       #q-pdp-{{ section.id }}.q-thumbs-mobile--below .q-pdp-media{ grid-template-areas: "viewer" "thumbs"; }
       #q-pdp-{{ section.id }}.q-thumbs-mobile--hidden .q-pdp-media__thumbs{ display: none; }
-
-      /* MOBILE: show ONE main media item; thumbs switch via :target */
-      #q-pdp-{{ section.id }} .q-pdp-media__viewer{ display: block; }
-      #q-pdp-{{ section.id }} .q-pdp-media__viewer .q-media-item{ display: none; }
-      #q-pdp-{{ section.id }} .q-pdp-media__viewer .q-media-item:first-child{ display: block; }
-      /* If there is a target, show ONLY the target (fallback keeps first visible) */
-      #q-pdp-{{ section.id }} .q-pdp-media__viewer:has(.q-media-item:target) .q-media-item{ display: none; }
-      #q-pdp-{{ section.id }} .q-pdp-media__viewer:has(.q-media-item:target) .q-media-item:target{ display: block; }
-
-      /* MOBILE: tabs stack (labels full width) */
-      #q-pdp-{{ section.id }} .q-tabs{
-        display: block;
-      }
-      #q-pdp-{{ section.id }} .q-tab__label{
-        display: block;
-        width: 100%;
-        margin: 0 0 0.5rem 0;
-        grid-row: auto;
-      }
-      #q-pdp-{{ section.id }} .q-tab__panel{
-        display: none;
-        grid-row: auto;
-        grid-column: auto;
-        margin: 0 0 1rem 0;
-      }
-      #q-pdp-{{ section.id }} .q-tab__radio:checked + .q-tab__label + .q-tab__panel{
-        display: block;
-      }
 
       #q-pdp-{{ section.id }} .q-spec{ grid-template-columns: 1fr; }
       #q-pdp-{{ section.id }} .q-trust{ grid-template-columns: 1fr; }
@@ -1301,10 +1276,17 @@
       #q-pdp-{{ section.id }} .q-lb__dialog{ inset: 2vh 2vw; }
       #q-pdp-{{ section.id }} .q-lb__close{ top: 0.75rem; right: 0.75rem; }
 
+      /* Make arrows obvious on mobile */
       #q-pdp-{{ section.id }} .q-lb__dialog img{ max-width: 92%; }
-      #q-pdp-{{ section.id }} .q-lb__prev{ left: 0.75rem; }
-      #q-pdp-{{ section.id }} .q-lb__next{ right: 0.75rem; }
-      #q-pdp-{{ section.id }} .q-lb__count{ bottom: 0.75rem; }
+      #q-pdp-{{ section.id }} .q-lb__nav{
+        width: 3.5rem;
+        height: 3.5rem;
+        font-size: 2.25rem;
+        background: rgba(0,0,0,0.35);
+        border: 1px solid rgba(255,255,255,0.35);
+      }
+      #q-pdp-{{ section.id }} .q-lb__prev{ left: 0.6rem; }
+      #q-pdp-{{ section.id }} .q-lb__next{ right: 0.6rem; }
     }
   </style>
 </section>
@@ -1367,6 +1349,8 @@
 
     { "type": "header", "content": "Media" },
     { "type": "range", "id": "media_limit", "label": "Media limit", "min": 1, "max": 12, "step": 1, "default": 8 },
+    { "type": "checkbox", "id": "enable_lightbox", "label": "Enable lightbox", "default": true },
+
     {
       "type": "select",
       "id": "media_bg_mode",

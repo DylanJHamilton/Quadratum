@@ -1,14 +1,18 @@
 {%- comment -%}
-  Quadratum — Main Product Classic (MVP Master)
-  File: sections/main-product-classic.liquid
+  Quadratum — Main Product Modern (Self-contained PDP)
+  File: sections/main-product-modern.liquid
 
-  PATCH (THIS EDIT)
-  ----------------
-  A) FIX: Mobile thumb placement (above/below) actually works
-     - Assign grid areas on mobile + define grid-template-areas properly
-  B) NO-JS lightbox: Add prev/next arrows + make them visible on mobile
-  C) NEW setting: Enable lightbox (on/off)
+  GOALS (This patch):
+  - Keep Quadratum conventions / self-contained assets
+  - Add Dawn-like feature surface (layout + settings) without Dawn dependency graph
+  - Fix schema/preset validation:
+    - Allow @app in blocks
+    - Do NOT include @app in presets
+  - Keep Liquid syntax Shopify-safe (no ternaries)
 {%- endcomment -%}
+
+{{ 'main-product-modern.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'main-product-modern.js' | asset_url }}" defer="defer"></script>
 
 {%- liquid
   assign s = section.settings
@@ -18,7 +22,7 @@
     break
   endif
 
-  assign media_limit = s.media_limit | default: 8
+  assign media_limit = s.media_limit | default: 12
   assign tabs_mode = s.content_display_mode | default: 'tabs'
 
   assign current_variant = p.selected_or_first_available_variant
@@ -38,23 +42,7 @@
 
   assign summary_aria = s.summary_aria_label
   if summary_aria == blank
-    assign summary_aria = 'Product summary'
-  endif
-
-  assign excerpt = ''
-  if p.description != blank
-    assign excerpt = p.description | strip_html | strip | truncate: 160
-  endif
-
-  assign is_on_sale = false
-  if current_variant.compare_at_price > current_variant.price
-    assign is_on_sale = true
-  endif
-
-  assign sale_pct = 0
-  if is_on_sale and current_variant.compare_at_price > 0
-    assign diff = current_variant.compare_at_price | minus: current_variant.price
-    assign sale_pct = diff | times: 100 | divided_by: current_variant.compare_at_price
+    assign summary_aria = 'Product information'
   endif
 
   assign media_bg = 'transparent'
@@ -62,28 +50,80 @@
     assign media_bg = s.media_bg_color | default: '#ffffff'
   endif
 
-  assign enable_lightbox = s.enable_lightbox
+  assign active_media_id = ''
+  if current_variant.featured_media != blank
+    assign active_media_id = current_variant.featured_media.id
+  elsif p.featured_media != blank
+    assign active_media_id = p.featured_media.id
+  elsif p.media.size > 0
+    assign active_media_id = p.media.first.id
+  endif
+
+  assign desktop_dir = s.desktop_layout_direction | default: 'normal'
+  assign sticky_target = s.desktop_sticky_target | default: 'none'
+
+  assign gallery_layout = s.gallery_layout | default: 'stacked'
+  assign media_position = s.media_position | default: 'left'
+  assign media_size = s.media_size | default: 'large'
+  assign mobile_thumbs = s.mobile_thumbnails | default: 'hide'
+  assign image_zoom = s.image_zoom | default: 'lightbox'
+
+  assign enable_sticky_info = s.enable_sticky_info
+  if enable_sticky_info == blank
+    assign enable_sticky_info = true
+  endif
+
+  assign padding_top = s.padding_top | default: 36
+  assign padding_bottom = s.padding_bottom | default: 36
+
+  assign section_color_scheme = s.color_scheme | default: 'scheme-1'
 -%}
 
+{%- style -%}
+  .section-{{ section.id }}-padding {
+    padding-top: {{ padding_top | times: 0.75 | round: 0 }}px;
+    padding-bottom: {{ padding_bottom | times: 0.75 | round: 0 }}px;
+  }
+  @media screen and (min-width: 750px) {
+    .section-{{ section.id }}-padding {
+      padding-top: {{ padding_top }}px;
+      padding-bottom: {{ padding_bottom }}px;
+    }
+  }
+{%- endstyle -%}
+
 <section
-  id="q-pdp-{{ section.id }}"
+  id="q-pdp-modern-{{ section.id }}"
   class="
-    q-pdp q-classic
+    q-pdp-modern
+    section-{{ section.id }}-padding
+    gradient
+    color-{{ section_color_scheme }}
     q-ui--{{ s.ui_surface_style | default: 'soft' }}
     q-tabs--{{ s.tabs_style | default: 'pills' }}
-    q-thumbs-desktop--{{ s.thumb_placement_desktop | default: 'below' }}
-    q-thumbs-mobile--{{ s.thumb_placement_mobile | default: 'below' }}
-    q-sticky--{{ s.desktop_sticky_target | default: 'none' }}
     q-content--{{ s.content_display_mode | default: 'tabs' }}
-    q-dir--{{ s.desktop_layout_direction | default: 'normal' }}
-    q-atc-row--{{ s.atc_layout | default: 'stacked' }}
-    q-atc-density--{{ s.atc_density | default: 'comfy' }}
-    q-summary-border--{{ s.summary_border | default: 'off' }}
+    q-dir--{{ desktop_dir }}
+    q-sticky--{{ sticky_target }}
     q-pad-y--{{ s.pad_y | default: 'md' }}
     q-pad-x--{{ s.pad_x | default: 'md' }}
     q-maxw--{{ s.max_width | default: 'lg' }}
+
+    q-media-size--{{ media_size }}
+    q-media-pos--{{ media_position }}
+    q-gallery--{{ gallery_layout }}
+    q-mobile-thumbs--{{ mobile_thumbs }}
+    q-zoom--{{ image_zoom }}
   "
   aria-label="{{ section_aria | escape }}"
+  data-section-id="{{ section.id }}"
+  data-product-id="{{ p.id }}"
+  data-update-url="true"
+  data-url="{{ p.url }}"
+  data-initial-variant-id="{{ current_variant.id }}"
+  data-initial-media-id="{{ active_media_id }}"
+  {% if image_zoom == 'hover' %}
+    data-zoom-on-hover
+  {% endif %}
   style="
     --q-maxw: {%- case s.max_width -%}
       {%- when 'sm' -%} 40rem
@@ -109,25 +149,10 @@
       {%- else -%} 1.5rem
     {%- endcase -%};
 
-    --q-title: {%- case s.title_size -%}
-      {%- when 'sm' -%} 1.5rem
-      {%- when 'md' -%} 1.75rem
-      {%- when 'lg' -%} 2rem
-      {%- when 'xl' -%} 2.25rem
-      {%- else -%} 2rem
-    {%- endcase -%};
-    --q-price: {%- case s.price_size -%}
-      {%- when 'sm' -%} 1.125rem
-      {%- when 'md' -%} 1.25rem
-      {%- when 'lg' -%} 1.5rem
-      {%- else -%} 1.25rem
-    {%- endcase -%};
-    --q-desc: {%- case s.desc_size -%}
-      {%- when 'sm' -%} 0.95rem
-      {%- when 'md' -%} 1rem
-      {%- when 'lg' -%} 1.0625rem
-      {%- else -%} 1rem
-    {%- endcase -%};
+    --q-media-bg: {{ media_bg }};
+    --q-media-r: {{ s.media_radius | default: 16 | times: 1 }}px;
+    --q-media-bw: {{ s.media_border_width | default: 1 | times: 1 }}px;
+    --q-media-bc: {{ s.media_border_color | default: '#e5e7eb' }};
 
     --q-thumb-size: {%- case s.thumb_size -%}
       {%- when 'sm' -%} 3rem
@@ -136,39 +161,14 @@
       {%- else -%} 3.75rem
     {%- endcase -%};
     --q-thumb-gap: {{ s.thumb_gap | default: 12 | times: 1 }}px;
-
-    --q-media-r: {{ s.media_radius | default: 16 | times: 1 }}px;
-    --q-media-bw: {{ s.media_border_width | default: 1 | times: 1 }}px;
-    --q-media-bc: {{ s.media_border_color | default: '#e5e7eb' }};
     --q-thumb-r: {{ s.thumb_radius | default: 12 | times: 1 }}px;
     --q-thumb-bw: {{ s.thumb_border_width | default: 1 | times: 1 }}px;
     --q-thumb-bc: {{ s.thumb_border_color | default: '#e5e7eb' }};
     --q-thumb-bc-active: {{ s.thumb_border_color_active | default: '#111827' }};
+
     --q-ui-r: {{ s.ui_radius | default: 12 | times: 1 }}px;
     --q-ui-bw: {{ s.ui_border_width | default: 1 | times: 1 }}px;
     --q-ui-bc: {{ s.ui_border_color | default: '#e5e7eb' }};
-
-    /* Media surface */
-    --q-media-bg: {{ media_bg }};
-
-    /* Badges */
-    --q-badge-r: {{ s.badge_radius | default: 5 | times: 1 }}px;
-    --q-badge-bw: {{ s.badge_border_width | default: 1 | times: 1 }}px;
-
-    --q-badge-sale-bg: {{ s.badge_sale_bg | default: '#111827' }};
-    --q-badge-sale-text: {{ s.badge_sale_text | default: '#ffffff' }};
-    --q-badge-sale-bc: {{ s.badge_sale_border | default: '#111827' }};
-
-    --q-badge-in-bg: {{ s.badge_in_bg | default: '#ecfdf5' }};
-    --q-badge-in-text: {{ s.badge_in_text | default: '#065f46' }};
-    --q-badge-in-bc: {{ s.badge_in_border | default: '#a7f3d0' }};
-
-    --q-badge-out-bg: {{ s.badge_out_bg | default: '#fef2f2' }};
-    --q-badge-out-text: {{ s.badge_out_text | default: '#991b1b' }};
-    --q-badge-out-bc: {{ s.badge_out_border | default: '#fecaca' }};
-
-    /* Under-ATC spacing */
-    --q-under-gap: {{ s.under_atc_gap | default: 10 | times: 1 }}px;
 
     {%- if s.use_custom_colors -%}
       --q-bg: {{ s.bg_color | default: '#ffffff' }};
@@ -178,191 +178,125 @@
       --q-text: inherit;
     {%- endif -%}
 
-    /* Button vars ALWAYS from settings (preview-safe) */
     --q-btn-bg: {{ s.btn_bg | default: '#111827' }};
     --q-btn-text: {{ s.btn_text | default: '#ffffff' }};
     --q-btn-bc: {{ s.btn_border | default: '#111827' }};
     --q-btn-bg-h: {{ s.btn_bg_hover | default: '#0b0f19' }};
     --q-btn-text-h: {{ s.btn_text_hover | default: '#ffffff' }};
     --q-btn-bc-h: {{ s.btn_border_hover | default: '#0b0f19' }};
-
     --q-btn-dis-bg: {{ s.btn_disabled_bg | default: '#e5e7eb' }};
     --q-btn-dis-text: {{ s.btn_disabled_text | default: '#6b7280' }};
     --q-btn-dis-bc: {{ s.btn_disabled_border | default: '#e5e7eb' }};
   "
 >
-  <div class="q-pdp__inner">
-    <div class="q-pdp__grid">
-      <div class="q-pdp__media" aria-label="{{ media_aria | escape }}">
-        <div class="q-pdp-media">
-          <div class="q-pdp-media__thumbs" aria-label="Media thumbnails">
-            {%- if s.thumb_placement_desktop != 'hidden' or s.thumb_placement_mobile != 'hidden' -%}
-              <div class="q-thumbs" role="list">
+  <div class="q-pdp-modern__inner">
+    <div class="q-pdp-modern__grid">
+      <!-- MEDIA -->
+      <div class="q-pdp-modern__media" aria-label="{{ media_aria | escape }}">
+        <div class="q-modern-media" data-gallery>
+          <div class="q-modern-media__viewer" data-viewer aria-label="Media viewer">
+            {%- for m in p.media limit: media_limit -%}
+              <div
+                class="q-modern-media__item"
+                data-media-id="{{ m.id }}"
+                {% if m.id == active_media_id %}data-active="true"{% endif %}
+              >
+                <div class="q-modern-media__frame">
+                  {{ m | media_tag }}
+                </div>
+              </div>
+            {%- endfor -%}
+          </div>
+
+          {%- if p.media.size > 1 and s.show_thumbnails -%}
+            <div class="q-modern-media__thumbs" aria-label="Media thumbnails">
+              <div class="q-modern-thumbs" role="list">
                 {%- for m in p.media limit: media_limit -%}
-                  <a
-                    class="q-thumb"
-                    href="#q-media-{{ section.id }}-{{ forloop.index }}"
+                  {%- assign timg = m.preview_image -%}
+                  <button
+                    type="button"
+                    class="q-modern-thumb"
                     role="listitem"
+                    data-thumb
+                    data-media-id="{{ m.id }}"
                     aria-label="View media {{ forloop.index }}"
+                    {% if m.id == active_media_id %}aria-current="true"{% endif %}
                   >
-                    {%- if m.preview_image != blank -%}
+                    {%- if timg != blank -%}
                       <img
-                        src="{{ m.preview_image | image_url: width: 160 }}"
-                        alt="{{ m.preview_image.alt | default: p.title | escape }}"
+                        src="{{ timg | image_url: width: 160 }}"
+                        alt="{{ timg.alt | default: p.title | escape }}"
                         loading="lazy"
                         width="160"
                         height="160"
                       >
                     {%- else -%}
-                      <span class="q-thumb__ph" aria-hidden="true"></span>
+                      <span class="q-modern-thumb__ph" aria-hidden="true"></span>
                     {%- endif -%}
-                  </a>
+                  </button>
                 {%- endfor -%}
               </div>
-            {%- endif -%}
-          </div>
-
-          <div class="q-pdp-media__viewer" aria-label="Media viewer">
-            {%- for m in p.media limit: media_limit -%}
-              {%- assign idx = forloop.index -%}
-              <div id="q-media-{{ section.id }}-{{ idx }}" class="q-media-item">
-                {%- if m.media_type == 'image' and m.preview_image != blank -%}
-                  {%- if enable_lightbox -%}
-                    <a
-                      class="q-media-link"
-                      href="#q-lb-{{ section.id }}-{{ idx }}"
-                      aria-label="Open image {{ idx }} in a larger view"
-                    >
-                      <img
-                        src="{{ m.preview_image | image_url: width: 1600 }}"
-                        alt="{{ m.preview_image.alt | default: p.title | escape }}"
-                        loading="{% if idx == 1 %}eager{% else %}lazy{% endif %}"
-                        {% if idx == 1 %}fetchpriority="high"{% endif %}
-                        width="{{ m.preview_image.width | default: 1600 }}"
-                        height="{{ m.preview_image.height | default: 1600 }}"
-                      >
-                    </a>
-                  {%- else -%}
-                    <div class="q-media-link q-media-link--disabled" aria-label="Image {{ idx }}">
-                      <img
-                        src="{{ m.preview_image | image_url: width: 1600 }}"
-                        alt="{{ m.preview_image.alt | default: p.title | escape }}"
-                        loading="{% if idx == 1 %}eager{% else %}lazy{% endif %}"
-                        {% if idx == 1 %}fetchpriority="high"{% endif %}
-                        width="{{ m.preview_image.width | default: 1600 }}"
-                        height="{{ m.preview_image.height | default: 1600 }}"
-                      >
-                    </div>
-                  {%- endif -%}
-                {%- else -%}
-                  <div class="q-media-ph" role="img" aria-label="Media not supported yet">
-                    Media type not supported in MVP.
-                  </div>
-                {%- endif -%}
-              </div>
-            {%- endfor -%}
-          </div>
+            </div>
+          {%- endif -%}
         </div>
-
-        {%- comment -%} NO-JS LIGHTBOX (CSS :target) {%- endcomment -%}
-        {%- if enable_lightbox -%}
-          <div class="q-lightboxes" aria-hidden="true">
-            {%- for m in p.media limit: media_limit -%}
-              {%- assign idx = forloop.index -%}
-              {%- if m.media_type == 'image' and m.preview_image != blank -%}
-                {%- assign prev_idx = idx | minus: 1 -%}
-                {%- if prev_idx < 1 -%}{%- assign prev_idx = media_limit -%}{%- endif -%}
-                {%- assign next_idx = idx | plus: 1 -%}
-                {%- if next_idx > media_limit -%}{%- assign next_idx = 1 -%}{%- endif -%}
-
-                <div id="q-lb-{{ section.id }}-{{ idx }}" class="q-lb" aria-label="Image lightbox {{ idx }}">
-                  <a class="q-lb__overlay" href="#q-pdp-{{ section.id }}" aria-label="Close"></a>
-
-                  <div class="q-lb__dialog" role="dialog" aria-modal="true" aria-label="Enlarged image {{ idx }}">
-                    <a class="q-lb__close" href="#q-pdp-{{ section.id }}" aria-label="Close lightbox">×</a>
-
-                    <a
-                      class="q-lb__nav q-lb__prev"
-                      href="#q-lb-{{ section.id }}-{{ prev_idx }}"
-                      aria-label="Previous image"
-                    >‹</a>
-
-                    <img
-                      src="{{ m.preview_image | image_url: width: 2400 }}"
-                      alt="{{ m.preview_image.alt | default: p.title | escape }}"
-                      loading="eager"
-                      width="{{ m.preview_image.width | default: 2400 }}"
-                      height="{{ m.preview_image.height | default: 2400 }}"
-                    >
-
-                    <a
-                      class="q-lb__nav q-lb__next"
-                      href="#q-lb-{{ section.id }}-{{ next_idx }}"
-                      aria-label="Next image"
-                    >›</a>
-                  </div>
-                </div>
-              {%- endif -%}
-            {%- endfor -%}
-          </div>
-        {%- endif -%}
       </div>
 
-      <div class="q-pdp__summary" aria-label="{{ summary_aria | escape }}">
-        <div class="q-summary">
+      <!-- INFO -->
+      <div class="q-pdp-modern__info" aria-label="{{ summary_aria | escape }}">
+        <div class="q-modern-info {% if enable_sticky_info %}q-modern-info--sticky{% endif %}">
           {%- if s.show_vendor and p.vendor != blank -%}
-            <div class="q-vendor">{{ p.vendor }}</div>
+            <div class="q-modern-vendor">{{ p.vendor }}</div>
           {%- endif -%}
 
-          <h1 class="q-title">{{ p.title }}</h1>
+          <h1 class="q-modern-title">{{ p.title }}</h1>
 
-          <div class="q-price" aria-live="polite">
+          <div class="q-modern-price" aria-live="polite" data-price>
             {%- if current_variant.compare_at_price > current_variant.price -%}
-              <span class="q-price__sale">{{ current_variant.price | money }}</span>
-              <span class="q-price__compare">{{ current_variant.compare_at_price | money }}</span>
+              <span class="q-modern-price__sale" data-price-sale>{{ current_variant.price | money }}</span>
+              <span class="q-modern-price__compare" data-price-compare>{{ current_variant.compare_at_price | money }}</span>
             {%- else -%}
-              <span class="q-price__regular">{{ current_variant.price | money }}</span>
+              <span class="q-modern-price__regular" data-price-regular>{{ current_variant.price | money }}</span>
             {%- endif -%}
           </div>
 
-          <div class="q-meta-row">
-            {%- if s.show_sale_badge and is_on_sale -%}
-              <span class="q-badge q-badge--sale">
-                {%- if s.sale_badge_style == 'percent' and sale_pct > 0 -%}
-                  Sale −{{ sale_pct }}%
-                {%- elsif s.sale_badge_style == 'amount' -%}
-                  Sale −{{ current_variant.compare_at_price | minus: current_variant.price | money }}
-                {%- else -%}
-                  Sale
-                {%- endif -%}
-              </span>
-            {%- endif -%}
-
-            {%- if s.show_availability_badge -%}
-              <span class="q-badge {% if current_variant.available %}q-badge--in{% else %}q-badge--out{% endif %}">
-                {%- if current_variant.available -%}In stock{%- else -%}Sold out{%- endif -%}
-              </span>
-            {%- endif -%}
-
-            {%- if s.show_sku and current_variant.sku != blank -%}
-              <span class="q-sku">SKU: {{ current_variant.sku }}</span>
-            {%- endif -%}
-          </div>
-
-          {%- if s.show_excerpt and excerpt != blank -%}
-            <div class="q-excerpt">{{ excerpt }}</div>
+          {%- if cart.taxes_included or cart.duties_included or shop.shipping_policy.body != blank -%}
+            <div class="q-modern-tax caption rte">
+              {%- if cart.duties_included and cart.taxes_included -%}
+                {{ 'products.product.duties_and_taxes_included' | t }}
+              {%- elsif cart.taxes_included -%}
+                {{ 'products.product.taxes_included' | t }}
+              {%- elsif cart.duties_included -%}
+                {{ 'products.product.duties_included' | t }}
+              {%- endif -%}
+              {%- if shop.shipping_policy.body != blank -%}
+                {{ 'products.product.shipping_policy_html' | t: link: shop.shipping_policy.url }}
+              {%- endif -%}
+            </div>
           {%- endif -%}
 
-          {%- form 'product', p, class: 'q-form', novalidate: 'novalidate' -%}
-            {%- if p.has_only_default_variant -%}
+          <div class="q-modern-installments">
+            {%- assign product_form_installment_id = 'q-modern-installment-' | append: section.id -%}
+            {%- form 'product', p, id: product_form_installment_id, class: 'installment caption-large' -%}
               <input type="hidden" name="id" value="{{ current_variant.id }}">
-            {%- else -%}
-              <div class="q-field">
-                <label class="q-label" for="q-variant-{{ section.id }}">Variant</label>
-                <select id="q-variant-{{ section.id }}" name="id" class="q-select">
+              {{ form | payment_terms }}
+            {%- endform -%}
+          </div>
+
+          {%- form 'product', p, class: 'q-modern-form', novalidate: 'novalidate' -%}
+            <select name="id" class="q-modern__variant-id" data-variant-id hidden>
+              {%- for v in p.variants -%}
+                <option value="{{ v.id }}" {% if v.id == current_variant.id %}selected{% endif %}>
+                  {{ v.title }}
+                </option>
+              {%- endfor -%}
+            </select>
+
+            <noscript>
+              <div class="q-modern-field">
+                <label class="q-modern-label" for="q-modern-noscript-variant-{{ section.id }}">Variant</label>
+                <select id="q-modern-noscript-variant-{{ section.id }}" name="id" class="q-modern-select">
                   {%- for v in p.variants -%}
-                    <option
-                      value="{{ v.id }}"
+                    <option value="{{ v.id }}"
                       {% if v.id == current_variant.id %}selected{% endif %}
                       {% unless v.available %}disabled{% endunless %}
                     >
@@ -371,14 +305,38 @@
                   {%- endfor -%}
                 </select>
               </div>
-            {%- endif -%}
+            </noscript>
 
-            <div class="q-atc">
-              <div class="q-atc__qty">
-                <label class="q-label" for="q-qty-{{ section.id }}">Qty</label>
+            {%- unless p.has_only_default_variant -%}
+              {%- unless s.hide_variants -%}
+                {%- for opt in p.options_with_values -%}
+                  <div class="q-modern-field">
+                    <label class="q-modern-label" for="q-modern-opt-{{ section.id }}-{{ forloop.index0 }}">
+                      {{ opt.name }}
+                    </label>
+                    <select
+                      id="q-modern-opt-{{ section.id }}-{{ forloop.index0 }}"
+                      class="q-modern-select"
+                      data-option-select
+                      data-option-index="{{ forloop.index0 }}"
+                    >
+                      {%- for val in opt.values -%}
+                        <option value="{{ val | escape }}" {% if opt.selected_value == val %}selected{% endif %}>
+                          {{ val }}
+                        </option>
+                      {%- endfor -%}
+                    </select>
+                  </div>
+                {%- endfor -%}
+              {%- endunless -%}
+            {%- endunless -%}
+
+            {%- if s.show_quantity -%}
+              <div class="q-modern-field q-modern-field--qty">
+                <label class="q-modern-label" for="q-modern-qty-{{ section.id }}">Qty</label>
                 <input
-                  id="q-qty-{{ section.id }}"
-                  class="q-input"
+                  id="q-modern-qty-{{ section.id }}"
+                  class="q-modern-input"
                   type="number"
                   name="quantity"
                   value="1"
@@ -386,253 +344,43 @@
                   inputmode="numeric"
                 >
               </div>
+            {%- endif -%}
 
-              <button
-                type="submit"
-                class="q-btn"
-                name="add"
-                {% unless current_variant.available %}disabled{% endunless %}
-              >
+            <button
+              type="submit"
+              class="q-modern-btn"
+              name="add"
+              data-atc
+              {% unless current_variant.available %}disabled{% endunless %}
+            >
+              <span data-atc-text>
                 {%- if current_variant.available -%}Add to cart{%- else -%}Sold out{%- endif -%}
-              </button>
-            </div>
+              </span>
+            </button>
 
             {%- if s.show_dynamic_checkout -%}
-              <div class="q-dynamic-checkout">
+              <div class="q-modern-dynamic-checkout">
                 {{ form | payment_button }}
               </div>
             {%- endif -%}
-
-            {%- if s.affirm_line != blank -%}
-              <div class="q-affirm">{{ s.affirm_line }}</div>
-            {%- endif -%}
-
-            {%- if s.payments_note != blank -%}
-              <div class="q-payments-note">{{ s.payments_note }}</div>
-            {%- endif -%}
-
-            {%- if s.policies_text != blank -%}
-              <div class="q-policies">{{ s.policies_text }}</div>
-            {%- endif -%}
-
-            {%- comment -%} UNDER-ATC AREA {%- endcomment -%}
-            {%- if s.show_under_atc -%}
-              <div class="q-under-atc" aria-label="Additional purchase info">
-                {%- if s.show_under_banners_settings -%}
-                  {%- assign has_banner_settings = false -%}
-                  {%- if s.under_banner_1 != blank or s.under_banner_2 != blank or s.under_banner_3 != blank -%}
-                    {%- assign has_banner_settings = true -%}
-                  {%- endif -%}
-                  {%- if has_banner_settings -%}
-                    <div class="q-under-banners q-under-banners--settings">
-                      {%- for i in (1..3) -%}
-                        {%- assign img_key = 'under_banner_' | append: i -%}
-                        {%- assign link_key = 'under_banner_link_' | append: i -%}
-                        {%- assign alt_key = 'under_banner_alt_' | append: i -%}
-                        {%- assign img = s[img_key] -%}
-                        {%- if img != blank -%}
-                          {%- assign href = s[link_key] -%}
-                          {%- assign alt = s[alt_key] -%}
-                          <div class="q-under-banner">
-                            {%- if href != blank -%}
-                              <a class="q-under-banner__link" href="{{ href }}" aria-label="{{ alt | default: 'Special offer' | escape }}">
-                                <img
-                                  src="{{ img | image_url: width: 1400 }}"
-                                  alt="{{ alt | default: 'Special offer' | escape }}"
-                                  loading="lazy"
-                                  width="{{ img.width | default: 1400 }}"
-                                  height="{{ img.height | default: 400 }}"
-                                >
-                              </a>
-                            {%- else -%}
-                              <img
-                                src="{{ img | image_url: width: 1400 }}"
-                                alt="{{ alt | default: 'Special offer' | escape }}"
-                                loading="lazy"
-                                width="{{ img.width | default: 1400 }}"
-                                height="{{ img.height | default: 400 }}"
-                              >
-                            {%- endif -%}
-                          </div>
-                        {%- endif -%}
-                      {%- endfor -%}
-                    </div>
-                  {%- endif -%}
-                {%- endif -%}
-
-                {%- if s.show_under_banners_blocks -%}
-                  {%- assign has_banner_blocks = false -%}
-                  {%- for block in section.blocks -%}
-                    {%- if block.type == 'under_atc_banner' -%}
-                      {%- assign has_banner_blocks = true -%}
-                      {%- break -%}
-                    {%- endif -%}
-                  {%- endfor -%}
-                  {%- if has_banner_blocks -%}
-                    <div class="q-under-banners q-under-banners--blocks">
-                      {%- for block in section.blocks -%}
-                        {%- if block.type == 'under_atc_banner' -%}
-                          {%- assign bimg = block.settings.image -%}
-                          {%- if bimg != blank -%}
-                            <div class="q-under-banner" {{ block.shopify_attributes }}>
-                              {%- if block.settings.link != blank -%}
-                                <a class="q-under-banner__link" href="{{ block.settings.link }}" aria-label="{{ block.settings.alt | default: 'Special offer' | escape }}">
-                                  <img
-                                    src="{{ bimg | image_url: width: 1400 }}"
-                                    alt="{{ block.settings.alt | default: 'Special offer' | escape }}"
-                                    loading="lazy"
-                                    width="{{ bimg.width | default: 1400 }}"
-                                    height="{{ bimg.height | default: 400 }}"
-                                  >
-                                </a>
-                              {%- else -%}
-                                <img
-                                  src="{{ bimg | image_url: width: 1400 }}"
-                                  alt="{{ block.settings.alt | default: 'Special offer' | escape }}"
-                                  loading="lazy"
-                                  width="{{ bimg.width | default: 1400 }}"
-                                  height="{{ bimg.height | default: 400 }}"
-                                >
-                              {%- endif -%}
-                            </div>
-                          {%- endif -%}
-                        {%- endif -%}
-                      {%- endfor -%}
-                    </div>
-                  {%- endif -%}
-                {%- endif -%}
-
-                {%- if s.show_trust_settings -%}
-                  {%- assign has_trust_settings = false -%}
-                  {%- if s.trust_badge_1 != blank or s.trust_badge_2 != blank or s.trust_badge_3 != blank -%}
-                    {%- assign has_trust_settings = true -%}
-                  {%- endif -%}
-                  {%- if has_trust_settings -%}
-                    <div class="q-trust q-trust--settings" aria-label="Trust badges">
-                      {%- for i in (1..3) -%}
-                        {%- assign img_key = 'trust_badge_' | append: i -%}
-                        {%- assign link_key = 'trust_badge_link_' | append: i -%}
-                        {%- assign alt_key = 'trust_badge_alt_' | append: i -%}
-                        {%- assign timg = s[img_key] -%}
-                        {%- if timg != blank -%}
-                          {%- assign thref = s[link_key] -%}
-                          {%- assign talt = s[alt_key] -%}
-                          <div class="q-trust__item">
-                            {%- if thref != blank -%}
-                              <a class="q-trust__link" href="{{ thref }}" aria-label="{{ talt | default: 'Trust badge' | escape }}">
-                                <img
-                                  src="{{ timg | image_url: width: 520 }}"
-                                  alt="{{ talt | default: 'Trust badge' | escape }}"
-                                  loading="lazy"
-                                  width="{{ timg.width | default: 520 }}"
-                                  height="{{ timg.height | default: 220 }}"
-                                >
-                              </a>
-                            {%- else -%}
-                              <img
-                                src="{{ timg | image_url: width: 520 }}"
-                                alt="{{ talt | default: 'Trust badge' | escape }}"
-                                loading="lazy"
-                                width="{{ timg.width | default: 520 }}"
-                                height="{{ timg.height | default: 220 }}"
-                              >
-                            {%- endif -%}
-                          </div>
-                        {%- endif -%}
-                      {%- endfor -%}
-                    </div>
-                  {%- endif -%}
-                {%- endif -%}
-
-                {%- if s.show_trust_blocks -%}
-                  {%- assign has_trust_blocks = false -%}
-                  {%- for block in section.blocks -%}
-                    {%- if block.type == 'trust_badge' -%}
-                      {%- assign has_trust_blocks = true -%}
-                      {%- break -%}
-                    {%- endif -%}
-                  {%- endfor -%}
-                  {%- if has_trust_blocks -%}
-                    <div class="q-trust q-trust--blocks" aria-label="Trust badges">
-                      {%- for block in section.blocks -%}
-                        {%- if block.type == 'trust_badge' -%}
-                          {%- assign timgb = block.settings.image -%}
-                          {%- if timgb != blank -%}
-                            <div class="q-trust__item" {{ block.shopify_attributes }}>
-                              {%- if block.settings.link != blank -%}
-                                <a class="q-trust__link" href="{{ block.settings.link }}" aria-label="{{ block.settings.alt | default: 'Trust badge' | escape }}">
-                                  <img
-                                    src="{{ timgb | image_url: width: 520 }}"
-                                    alt="{{ block.settings.alt | default: 'Trust badge' | escape }}"
-                                    loading="lazy"
-                                    width="{{ timgb.width | default: 520 }}"
-                                    height="{{ timgb.height | default: 220 }}"
-                                  >
-                                </a>
-                              {%- else -%}
-                                <img
-                                  src="{{ timgb | image_url: width: 520 }}"
-                                  alt="{{ block.settings.alt | default: 'Trust badge' | escape }}"
-                                  loading="lazy"
-                                  width="{{ timgb.width | default: 520 }}"
-                                  height="{{ timgb.height | default: 220 }}"
-                                >
-                              {%- endif -%}
-                            </div>
-                          {%- endif -%}
-                        {%- endif -%}
-                      {%- endfor -%}
-                    </div>
-                  {%- endif -%}
-                {%- endif -%}
-
-                {%- if s.show_faq_blocks -%}
-                  {%- assign has_faq_blocks = false -%}
-                  {%- for block in section.blocks -%}
-                    {%- if block.type == 'faq_item' -%}
-                      {%- assign has_faq_blocks = true -%}
-                      {%- break -%}
-                    {%- endif -%}
-                  {%- endfor -%}
-
-                  {%- if has_faq_blocks or s.faq_heading != blank -%}
-                    <div class="q-faq" aria-label="Frequently asked questions">
-                      {%- if s.faq_heading != blank -%}
-                        <div class="q-faq__heading">{{ s.faq_heading }}</div>
-                      {%- endif -%}
-
-                      {%- if has_faq_blocks -%}
-                        <div class="q-faq__items">
-                          {%- for block in section.blocks -%}
-                            {%- if block.type == 'faq_item' -%}
-                              <details class="q-faq__item" {{ block.shopify_attributes }}>
-                                <summary class="q-faq__q">
-                                  {{ block.settings.question | default: 'Question' }}
-                                </summary>
-                                <div class="q-faq__a">
-                                  {{ block.settings.answer | default: '' }}
-                                </div>
-                              </details>
-                            {%- endif -%}
-                          {%- endfor -%}
-                        </div>
-                      {%- else -%}
-                        <div class="q-faq__a">Add “FAQ Item” blocks to display questions here.</div>
-                      {%- endif -%}
-                    </div>
-                  {%- endif -%}
-                {%- endif -%}
-              </div>
-            {%- endif -%}
           {%- endform -%}
+
+          <script type="application/json" data-variants-json>
+            {{ p.variants | json }}
+          </script>
+
+          <script type="application/json" data-money-format>
+            {{ shop.money_format | json }}
+          </script>
         </div>
       </div>
     </div>
 
-    <div class="q-pdp__content">
+    <!-- CONTENT -->
+    <div class="q-pdp-modern__content">
       {%- if section.blocks.size > 0 -%}
         {%- if tabs_mode == 'tabs' -%}
-          <div class="q-tabs" role="tablist" aria-label="Product content tabs">
+          <div class="q-modern-tabs" role="tablist" aria-label="Product content tabs">
             {%- assign first_tab_checked = false -%}
 
             {%- for block in section.blocks -%}
@@ -642,17 +390,17 @@
                   {%- if tab_title == blank -%}{%- assign tab_title = 'Product Description' -%}{%- endif -%}
 
                   <input
-                    class="q-tab__radio"
+                    class="q-modern-tab__radio"
                     type="radio"
-                    name="q-tabs-{{ section.id }}"
-                    id="q-tab-{{ section.id }}-{{ block.id }}"
+                    name="q-modern-tabs-{{ section.id }}"
+                    id="q-modern-tab-{{ section.id }}-{{ block.id }}"
                     {%- unless first_tab_checked -%}checked{%- assign first_tab_checked = true -%}{%- endunless -%}
                   >
-                  <label class="q-tab__label" for="q-tab-{{ section.id }}-{{ block.id }}">
+                  <label class="q-modern-tab__label" for="q-modern-tab-{{ section.id }}-{{ block.id }}">
                     {{ tab_title }}
                   </label>
-                  <div class="q-tab__panel" {{ block.shopify_attributes }}>
-                    <div class="q-richtext">
+                  <div class="q-modern-tab__panel" {{ block.shopify_attributes }}>
+                    <div class="q-modern-richtext">
                       {{ p.description }}
                     </div>
                   </div>
@@ -662,17 +410,17 @@
                   {%- if tab_title == blank -%}{%- assign tab_title = 'Meta Data' -%}{%- endif -%}
 
                   <input
-                    class="q-tab__radio"
+                    class="q-modern-tab__radio"
                     type="radio"
-                    name="q-tabs-{{ section.id }}"
-                    id="q-tab-{{ section.id }}-{{ block.id }}"
+                    name="q-modern-tabs-{{ section.id }}"
+                    id="q-modern-tab-{{ section.id }}-{{ block.id }}"
                     {%- unless first_tab_checked -%}checked{%- assign first_tab_checked = true -%}{%- endunless -%}
                   >
-                  <label class="q-tab__label" for="q-tab-{{ section.id }}-{{ block.id }}">
+                  <label class="q-modern-tab__label" for="q-modern-tab-{{ section.id }}-{{ block.id }}">
                     {{ tab_title }}
                   </label>
-                  <div class="q-tab__panel" {{ block.shopify_attributes }}>
-                    <div class="q-specs">
+                  <div class="q-modern-tab__panel" {{ block.shopify_attributes }}>
+                    <div class="q-modern-specs">
                       {%- for i in (1..6) -%}
                         {%- assign label_key = 'label_' | append: i -%}
                         {%- assign ns_key = 'namespace_' | append: i -%}
@@ -683,9 +431,9 @@
                         {%- if ns != blank and k != blank -%}
                           {%- assign mf = p.metafields[ns][k] -%}
                           {%- if mf != blank -%}
-                            <div class="q-spec">
-                              <div class="q-spec__k">{{ row_label | default: 'Spec' }}</div>
-                              <div class="q-spec__v">{{ mf | metafield_tag }}</div>
+                            <div class="q-modern-spec">
+                              <div class="q-modern-spec__k">{{ row_label | default: 'Spec' }}</div>
+                              <div class="q-modern-spec__v">{{ mf | metafield_tag }}</div>
                             </div>
                           {%- endif -%}
                         {%- endif -%}
@@ -695,50 +443,47 @@
 
                 {%- when '@app' -%}
                   <input
-                    class="q-tab__radio"
+                    class="q-modern-tab__radio"
                     type="radio"
-                    name="q-tabs-{{ section.id }}"
-                    id="q-tab-{{ section.id }}-{{ block.id }}"
+                    name="q-modern-tabs-{{ section.id }}"
+                    id="q-modern-tab-{{ section.id }}-{{ block.id }}"
                     {%- unless first_tab_checked -%}checked{%- assign first_tab_checked = true -%}{%- endunless -%}
                   >
-                  <label class="q-tab__label" for="q-tab-{{ section.id }}-{{ block.id }}">
+                  <label class="q-modern-tab__label" for="q-modern-tab-{{ section.id }}-{{ block.id }}">
                     Reviews
                   </label>
-                  <div class="q-tab__panel" {{ block.shopify_attributes }}>
+                  <div class="q-modern-tab__panel" {{ block.shopify_attributes }}>
                     {%- render block -%}
                   </div>
-
-              {%- else -%}
-                {%- comment -%} ignore under-atc blocks here {%- endcomment -%}
               {%- endcase -%}
             {%- endfor -%}
           </div>
         {%- else -%}
-          <div class="q-sections">
+          <div class="q-modern-sections">
             {%- for block in section.blocks -%}
               {%- case block.type -%}
                 {%- when 'description' -%}
                   {%- assign h = block.settings.heading -%}
                   {%- if h == blank -%}{%- assign h = 'Product Description' -%}{%- endif -%}
-                  <div class="q-section" {{ block.shopify_attributes }}>
-                    <h2 class="q-h2">{{ h }}</h2>
-                    <div class="q-richtext">
+                  <div class="q-modern-section" {{ block.shopify_attributes }}>
+                    <h2 class="q-modern-h2">{{ h }}</h2>
+                    <div class="q-modern-richtext">
                       {{ p.description }}
                     </div>
                   </div>
 
                 {%- when '@app' -%}
-                  <div class="q-section" {{ block.shopify_attributes }}>
-                    <h2 class="q-h2">Reviews</h2>
+                  <div class="q-modern-section" {{ block.shopify_attributes }}>
+                    <h2 class="q-modern-h2">Reviews</h2>
                     {%- render block -%}
                   </div>
 
                 {%- when 'meta_data' -%}
                   {%- assign h = block.settings.heading -%}
                   {%- if h == blank -%}{%- assign h = 'Meta Data' -%}{%- endif -%}
-                  <div class="q-section" {{ block.shopify_attributes }}>
-                    <h2 class="q-h2">{{ h }}</h2>
-                    <div class="q-specs">
+                  <div class="q-modern-section" {{ block.shopify_attributes }}>
+                    <h2 class="q-modern-h2">{{ h }}</h2>
+                    <div class="q-modern-specs">
                       {%- for i in (1..6) -%}
                         {%- assign label_key = 'label_' | append: i -%}
                         {%- assign ns_key = 'namespace_' | append: i -%}
@@ -749,563 +494,139 @@
                         {%- if ns != blank and k != blank -%}
                           {%- assign mf = p.metafields[ns][k] -%}
                           {%- if mf != blank -%}
-                            <div class="q-spec">
-                              <div class="q-spec__k">{{ row_label | default: 'Spec' }}</div>
-                              <div class="q-spec__v">{{ mf | metafield_tag }}</div>
+                            <div class="q-modern-spec">
+                              <div class="q-modern-spec__k">{{ row_label | default: 'Spec' }}</div>
+                              <div class="q-modern-spec__v">{{ mf | metafield_tag }}</div>
                             </div>
                           {%- endif -%}
                         {%- endif -%}
                       {%- endfor -%}
                     </div>
                   </div>
-
-              {%- else -%}
-                {%- comment -%} ignore under-atc blocks here {%- endcomment -%}
               {%- endcase -%}
             {%- endfor -%}
           </div>
         {%- endif -%}
       {%- endif -%}
     </div>
+
+    <script type="application/ld+json">
+      {{ p | structured_data }}
+    </script>
   </div>
-
-  <style>
-    #q-pdp-{{ section.id }}{ background: var(--q-bg); color: var(--q-text); }
-    #q-pdp-{{ section.id }} .q-pdp__inner{ max-width: var(--q-maxw); margin: 0 auto; padding: var(--q-py) var(--q-px); }
-    #q-pdp-{{ section.id }} .q-pdp__grid{ display: grid; gap: 1.5rem; }
-
-    #q-pdp-{{ section.id }} .q-pdp-media{ display: grid; gap: 0.75rem; align-items: start; }
-    #q-pdp-{{ section.id }} .q-pdp-media__viewer{ display: grid; gap: 0.75rem; }
-    #q-pdp-{{ section.id }} .q-media-item{
-      border-radius: var(--q-media-r);
-      border: var(--q-media-bw) solid var(--q-media-bc);
-      overflow: hidden;
-      background: var(--q-media-bg);
-    }
-    #q-pdp-{{ section.id }} .q-media-item:target{ outline: 2px solid var(--q-thumb-bc-active); outline-offset: 2px; }
-
-    #q-pdp-{{ section.id }} .q-media-link{ display: block; text-decoration: none; color: inherit; cursor: zoom-in; }
-    #q-pdp-{{ section.id }} .q-media-link--disabled{ cursor: default; }
-    #q-pdp-{{ section.id }} .q-media-item img{ width: 100%; height: auto; display: block; object-fit: contain; }
-    #q-pdp-{{ section.id }} .q-media-ph{ padding: 2rem; text-align: center; font-size: 0.95rem; opacity: 0.8; }
-
-    #q-pdp-{{ section.id }} .q-thumbs{ display: grid; grid-auto-flow: column; grid-auto-columns: var(--q-thumb-size); gap: var(--q-thumb-gap); overflow-x: auto; padding-bottom: 0.25rem; scroll-snap-type: x proximity; }
-    #q-pdp-{{ section.id }} .q-thumb{
-      width: var(--q-thumb-size);
-      height: var(--q-thumb-size);
-      border-radius: var(--q-thumb-r);
-      border: var(--q-thumb-bw) solid var(--q-thumb-bc);
-      overflow: hidden;
-      display: grid;
-      place-items: center;
-      background: var(--q-media-bg);
-      scroll-snap-align: start;
-      text-decoration: none;
-    }
-    #q-pdp-{{ section.id }} .q-thumb img{ width: 100%; height: 100%; object-fit: cover; display: block; }
-    #q-pdp-{{ section.id }} .q-thumb:focus-visible{ outline: 2px solid var(--q-thumb-bc-active); outline-offset: 2px; }
-    #q-pdp-{{ section.id }} .q-thumb__ph{ width: 100%; height: 100%; display: block; }
-
-    /* Lightbox (NO JS, :target) */
-    #q-pdp-{{ section.id }} .q-lb{
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      display: none;
-    }
-    #q-pdp-{{ section.id }} .q-lb:target{ display: block; }
-    #q-pdp-{{ section.id }} .q-lb__overlay{
-      position: absolute;
-      inset: 0;
-      background: rgba(0,0,0,0.7);
-      display: block;
-    }
-    #q-pdp-{{ section.id }} .q-lb__dialog{
-      position: absolute;
-      inset: 3vh 3vw;
-      display: grid;
-      place-items: center;
-      padding: 1rem;
-    }
-    #q-pdp-{{ section.id }} .q-lb__dialog img{
-      max-width: 55%;
-      max-height: 100%;
-      width: auto;
-      height: auto;
-      border-radius: var(--q-ui-r);
-      box-shadow: 0 18px 60px rgba(0,0,0,0.35);
-      background: var(--q-media-bg);
-    }
-    #q-pdp-{{ section.id }} .q-lb__close{
-      position: absolute;
-      top: 1.25rem;
-      right: 1.25rem;
-      width: 2.5rem;
-      height: 2.5rem;
-      display: grid;
-      place-items: center;
-      border-radius: 999px;
-      text-decoration: none;
-      font-size: 1.5rem;
-      line-height: 1;
-      background: rgba(255,255,255,0.12);
-      border: 1px solid rgba(255,255,255,0.25);
-      color: #fff;
-      backdrop-filter: blur(4px);
-      z-index: 2;
-    }
-    #q-pdp-{{ section.id }} .q-lb__close:focus-visible{
-      outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
-
-    /* Lightbox arrows */
-    #q-pdp-{{ section.id }} .q-lb__nav{
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 3.25rem;
-      height: 3.25rem;
-      display: grid;
-      place-items: center;
-      border-radius: 999px;
-      text-decoration: none;
-      font-size: 2rem;
-      line-height: 1;
-      background: rgba(255,255,255,0.14);
-      border: 1px solid rgba(255,255,255,0.28);
-      color: #fff;
-      backdrop-filter: blur(4px);
-      z-index: 2;
-      user-select: none;
-    }
-    #q-pdp-{{ section.id }} .q-lb__prev{ left: 1.25rem; }
-    #q-pdp-{{ section.id }} .q-lb__next{ right: 1.25rem; }
-    #q-pdp-{{ section.id }} .q-lb__nav:focus-visible{
-      outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
-
-    /* UI surface controls */
-    #q-pdp-{{ section.id }} .q-summary,
-    #q-pdp-{{ section.id }} .q-section,
-    #q-pdp-{{ section.id }} .q-tab__panel{ border-radius: var(--q-ui-r); }
-
-    #q-pdp-{{ section.id }}.q-ui--soft .q-summary,
-    #q-pdp-{{ section.id }}.q-ui--soft .q-section,
-    #q-pdp-{{ section.id }}.q-ui--soft .q-tab__panel{
-      border: var(--q-ui-bw) solid var(--q-ui-bc);
-      background: rgba(0,0,0,0.01);
-      padding: 1rem;
-    }
-    #q-pdp-{{ section.id }}.q-ui--bordered .q-summary,
-    #q-pdp-{{ section.id }}.q-ui--bordered .q-section,
-    #q-pdp-{{ section.id }}.q-ui--bordered .q-tab__panel{
-      border: var(--q-ui-bw) solid var(--q-ui-bc);
-      background: transparent;
-      padding: 1rem;
-    }
-    #q-pdp-{{ section.id }}.q-ui--none .q-summary,
-    #q-pdp-{{ section.id }}.q-ui--none .q-section,
-    #q-pdp-{{ section.id }}.q-ui--none .q-tab__panel{
-      border: 0;
-      background: transparent;
-      padding: 0;
-    }
-
-    /* Optional summary border */
-    #q-pdp-{{ section.id }}.q-summary-border--on .q-summary{
-      border: var(--q-ui-bw) solid var(--q-ui-bc);
-    }
-
-    #q-pdp-{{ section.id }} .q-vendor{ font-size: 0.9rem; opacity: 0.8; }
-    #q-pdp-{{ section.id }} .q-title{ font-size: var(--q-title); line-height: 1.15; margin: 0; }
-    #q-pdp-{{ section.id }} .q-price{ font-size: var(--q-price); display: flex; gap: 0.75rem; align-items: baseline; flex-wrap: wrap; }
-    #q-pdp-{{ section.id }} .q-price__compare{ opacity: 0.7; text-decoration: line-through; font-size: 0.95em; }
-
-    #q-pdp-{{ section.id }} .q-meta-row{ display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-top: 0.5rem; }
-
-    #q-pdp-{{ section.id }} .q-badge{
-      display: inline-flex;
-      align-items: center;
-      border-radius: var(--q-badge-r);
-      padding: 0.25rem 0.6rem;
-      font-size: 0.85rem;
-      line-height: 1.2;
-      border: var(--q-badge-bw) solid var(--q-ui-bc);
-      background: rgba(0,0,0,0.02);
-    }
-    #q-pdp-{{ section.id }} .q-badge--sale{
-      background: var(--q-badge-sale-bg);
-      color: var(--q-badge-sale-text);
-      border-color: var(--q-badge-sale-bc);
-    }
-    #q-pdp-{{ section.id }} .q-badge--in{
-      background: var(--q-badge-in-bg);
-      color: var(--q-badge-in-text);
-      border-color: var(--q-badge-in-bc);
-    }
-    #q-pdp-{{ section.id }} .q-badge--out{
-      background: var(--q-badge-out-bg);
-      color: var(--q-badge-out-text);
-      border-color: var(--q-badge-out-bc);
-    }
-
-    #q-pdp-{{ section.id }} .q-sku{ font-size: 0.9rem; opacity: 0.85; }
-    #q-pdp-{{ section.id }} .q-excerpt{ font-size: 0.98rem; line-height: 1.55; opacity: 0.92; margin-top: 0.75rem; }
-
-    #q-pdp-{{ section.id }} .q-form{ display: grid; gap: 0.75rem; margin-top: 0.9rem; }
-    #q-pdp-{{ section.id }} .q-field{ display: grid; gap: 0.35rem; }
-    #q-pdp-{{ section.id }} .q-label{ font-size: 0.95rem; opacity: 0.9; }
-
-    #q-pdp-{{ section.id }} .q-select,
-    #q-pdp-{{ section.id }} .q-input{
-      border-radius: var(--q-ui-r);
-      border: var(--q-ui-bw) solid var(--q-ui-bc);
-      padding: 0.75rem 0.85rem;
-      background: transparent;
-      color: inherit;
-      width: 100%;
-      line-height: 1.2;
-      min-width: 0;
-      box-sizing: border-box;
-    }
-    #q-pdp-{{ section.id }}.q-ui--none .q-select,
-    #q-pdp-{{ section.id }}.q-ui--none .q-input{
-      border: 1px solid rgba(0,0,0,0.14);
-      padding: 0.75rem 0.85rem;
-    }
-
-    #q-pdp-{{ section.id }} .q-select:focus-visible,
-    #q-pdp-{{ section.id }} .q-input:focus-visible{
-      outline: 2px solid var(--q-thumb-bc-active);
-      outline-offset: 2px;
-    }
-
-    /* Qty + ATC row */
-    #q-pdp-{{ section.id }} .q-atc{ display: grid; gap: 0.75rem; }
-    #q-pdp-{{ section.id }} .q-atc__qty{ display: grid; gap: 0.35rem; }
-    #q-pdp-{{ section.id }} .q-atc__qty .q-input{ max-width: 7.5rem; }
-
-    #q-pdp-{{ section.id }} .q-btn{
-      border-radius: var(--q-ui-r);
-      border: 1px solid var(--q-btn-bc);
-      background: var(--q-btn-bg);
-      color: var(--q-btn-text);
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
-      width: 100%;
-      padding: 0;
-    }
-
-    #q-pdp-{{ section.id }}.q-atc-density--comfy .q-btn{ padding: 0.9rem 1rem; }
-    #q-pdp-{{ section.id }}.q-atc-density--compact .q-btn{ padding: 0.7rem 0.9rem; }
-
-    #q-pdp-{{ section.id }} .q-btn:hover{
-      background: var(--q-btn-bg-h);
-      border-color: var(--q-btn-bc-h);
-      color: var(--q-btn-text-h);
-    }
-    #q-pdp-{{ section.id }} .q-btn:active{ transform: translateY(1px); }
-    #q-pdp-{{ section.id }} .q-btn:disabled{
-      background: var(--q-btn-dis-bg);
-      border-color: var(--q-btn-dis-bc);
-      color: var(--q-btn-dis-text);
-      opacity: 1;
-      cursor: not-allowed;
-    }
-
-    #q-pdp-{{ section.id }} .q-dynamic-checkout{ margin-top: 0.5rem; }
-    #q-pdp-{{ section.id }} .q-dynamic-checkout > *{ width: 100%; }
-    #q-pdp-{{ section.id }} .q-affirm{
-      margin-top: 0.35rem;
-      font-size: 0.92rem;
-      opacity: 0.8;
-      line-height: 1.45;
-    }
-
-    #q-pdp-{{ section.id }} .q-payments-note,
-    #q-pdp-{{ section.id }} .q-policies{
-      font-size: 0.92rem;
-      opacity: 0.8;
-      line-height: 1.45;
-    }
-
-    /* Under-ATC */
-    #q-pdp-{{ section.id }} .q-under-atc{
-      margin-top: 0.75rem;
-      display: grid;
-      gap: var(--q-under-gap);
-    }
-    #q-pdp-{{ section.id }} .q-under-banners{
-      display: grid;
-      gap: var(--q-under-gap);
-    }
-    #q-pdp-{{ section.id }} .q-under-banner{
-      border-radius: var(--q-ui-r);
-      overflow: hidden;
-      border: 1px solid rgba(0,0,0,0.08);
-      background: rgba(0,0,0,0.01);
-    }
-    #q-pdp-{{ section.id }} .q-under-banner img{
-      width: 100%;
-      height: auto;
-      display: block;
-      object-fit: cover;
-    }
-    #q-pdp-{{ section.id }} .q-under-banner__link{ display: block; text-decoration: none; color: inherit; }
-
-    #q-pdp-{{ section.id }} .q-trust{
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 0.75rem;
-      align-items: center;
-    }
-    #q-pdp-{{ section.id }} .q-trust__item{
-      border-radius: var(--q-ui-r);
-      overflow: hidden;
-      border: 1px solid rgba(0,0,0,0.08);
-      background: rgba(0,0,0,0.01);
-    }
-    #q-pdp-{{ section.id }} .q-trust__link{ display: block; text-decoration: none; color: inherit; }
-    #q-pdp-{{ section.id }} .q-trust img{
-      width: 100%;
-      height: 100%;
-      display: block;
-      object-fit: contain;
-      padding: 0.5rem;
-      aspect-ratio: 3 / 1;
-    }
-
-    #q-pdp-{{ section.id }} .q-faq{
-      border-radius: var(--q-ui-r);
-      border: 1px solid rgba(0,0,0,0.08);
-      background: rgba(0,0,0,0.01);
-      padding: 0.75rem;
-      display: grid;
-      gap: 0.75rem;
-    }
-    #q-pdp-{{ section.id }} .q-faq__heading{ font-weight: 700; }
-    #q-pdp-{{ section.id }} .q-faq__items{ display: grid; gap: 0.5rem; }
-    #q-pdp-{{ section.id }} .q-faq__item{
-      border-radius: calc(var(--q-ui-r) - 2px);
-      border: 1px solid rgba(0,0,0,0.10);
-      background: rgba(255,255,255,0.02);
-      padding: 0.25rem 0.5rem;
-    }
-    #q-pdp-{{ section.id }} .q-faq__q{
-      cursor: pointer;
-      font-weight: 600;
-      padding: 0.5rem 0.25rem;
-      list-style: none;
-    }
-    #q-pdp-{{ section.id }} details.q-faq__item > summary::-webkit-details-marker{ display: none; }
-    #q-pdp-{{ section.id }} .q-faq__a{
-      padding: 0 0.25rem 0.5rem;
-      opacity: 0.92;
-      line-height: 1.5;
-    }
-
-    #q-pdp-{{ section.id }} .q-pdp__content{ margin-top: 2rem; }
-
-    /* Tabs */
-    #q-pdp-{{ section.id }} .q-tabs{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-      column-gap: 0.75rem;
-      row-gap: 0.75rem;
-      align-items: start;
-    }
-    #q-pdp-{{ section.id }} .q-tab__radio{
-      position: absolute;
-      left: -9999px;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-    }
-    #q-pdp-{{ section.id }} .q-tab__label{
-      grid-row: 1;
-      border-radius: var(--q-ui-r);
-      border: var(--q-ui-bw) solid var(--q-ui-bc);
-      padding: 0.75rem 0.9rem;
-      cursor: pointer;
-      user-select: none;
-      font-weight: 600;
-      background: rgba(0,0,0,0.01);
-    }
-    #q-pdp-{{ section.id }}.q-ui--bordered .q-tab__label{ background: transparent; }
-    #q-pdp-{{ section.id }}.q-ui--none .q-tab__label{ background: transparent; border: 1px solid rgba(0,0,0,0.14); }
-
-    #q-pdp-{{ section.id }} .q-tab__radio:focus-visible + .q-tab__label{
-      outline: 2px solid var(--q-thumb-bc-active);
-      outline-offset: 2px;
-    }
-    #q-pdp-{{ section.id }} .q-tab__panel{
-      grid-row: 2;
-      grid-column: 1 / -1;
-      display: none;
-    }
-    #q-pdp-{{ section.id }} .q-tab__radio:checked + .q-tab__label{ border-color: var(--q-thumb-bc-active); }
-    #q-pdp-{{ section.id }} .q-tab__radio:checked + .q-tab__label + .q-tab__panel{ display: block; }
-
-    #q-pdp-{{ section.id }}.q-tabs--underline .q-tab__label{
-      border: 0;
-      border-bottom: 2px solid rgba(0,0,0,0.18);
-      border-radius: 0;
-      background: transparent;
-      padding: 0.75rem 0.25rem;
-    }
-    #q-pdp-{{ section.id }}.q-tabs--underline .q-tab__radio:checked + .q-tab__label{
-      border-bottom-color: var(--q-thumb-bc-active);
-    }
-
-    #q-pdp-{{ section.id }}.q-tabs--minimal .q-tab__label{
-      border: 0;
-      background: transparent;
-      padding: 0.5rem 0.25rem;
-      opacity: 0.75;
-    }
-    #q-pdp-{{ section.id }}.q-tabs--minimal .q-tab__radio:checked + .q-tab__label{
-      opacity: 1;
-      text-decoration: underline;
-      text-underline-offset: 0.3em;
-    }
-
-    #q-pdp-{{ section.id }} .q-sections{ display: grid; gap: 1.25rem; }
-    #q-pdp-{{ section.id }} .q-h2{ margin: 0 0 0.75rem; font-size: 1.25rem; line-height: 1.2; }
-    #q-pdp-{{ section.id }} .q-richtext{ font-size: var(--q-desc); line-height: 1.6; }
-
-    #q-pdp-{{ section.id }} .q-specs{ display: grid; gap: 0.5rem; }
-    #q-pdp-{{ section.id }} .q-spec{
-      display: grid;
-      grid-template-columns: minmax(10rem, 1fr) 2fr;
-      gap: 0.75rem;
-      padding: 0.65rem 0.75rem;
-      border-radius: calc(var(--q-ui-r) - 2px);
-      border: 1px solid rgba(0,0,0,0.08);
-      background: rgba(255,255,255,0.02);
-    }
-    #q-pdp-{{ section.id }}.q-ui--bordered .q-spec{ background: transparent; }
-    #q-pdp-{{ section.id }}.q-ui--none .q-spec{
-      border: 1px solid rgba(0,0,0,0.14);
-      background: transparent;
-      padding: 0.55rem 0;
-      border-radius: 0;
-    }
-    #q-pdp-{{ section.id }} .q-spec__k{ font-weight: 600; opacity: 0.9; }
-
-    @media (min-width: 991px){
-      #q-pdp-{{ section.id }} .q-pdp__grid{
-        grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-        align-items: start;
-      }
-      #q-pdp-{{ section.id }}.q-dir--reverse .q-pdp__grid{
-        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-      }
-      #q-pdp-{{ section.id }}.q-dir--reverse .q-pdp__summary{ order: 1; }
-      #q-pdp-{{ section.id }}.q-dir--reverse .q-pdp__media{ order: 2; }
-
-      #q-pdp-{{ section.id }} .q-media-item img{ max-height: 70vh; }
-
-      #q-pdp-{{ section.id }}.q-sticky--summary .q-pdp__summary{ position: sticky; top: 1.25rem; align-self: start; }
-      #q-pdp-{{ section.id }}.q-sticky--media .q-pdp__media{ position: sticky; top: 1.25rem; align-self: start; }
-
-      #q-pdp-{{ section.id }} .q-pdp-media{ grid-template-areas: "thumbs" "viewer"; }
-      #q-pdp-{{ section.id }} .q-pdp-media__thumbs{ grid-area: thumbs; }
-      #q-pdp-{{ section.id }} .q-pdp-media__viewer{ grid-area: viewer; }
-
-      #q-pdp-{{ section.id }}.q-thumbs-desktop--above .q-pdp-media{ grid-template-areas: "thumbs" "viewer"; }
-      #q-pdp-{{ section.id }}.q-thumbs-desktop--below .q-pdp-media{ grid-template-areas: "viewer" "thumbs"; }
-
-      #q-pdp-{{ section.id }}.q-thumbs-desktop--left .q-pdp-media,
-      #q-pdp-{{ section.id }}.q-thumbs-desktop--right .q-pdp-media{
-        grid-template-columns: var(--q-thumb-size) 1fr;
-        grid-template-areas: "thumbs viewer";
-        gap: 0.9rem;
-      }
-      #q-pdp-{{ section.id }}.q-thumbs-desktop--right .q-pdp-media{
-        grid-template-columns: 1fr var(--q-thumb-size);
-        grid-template-areas: "viewer thumbs";
-      }
-
-      #q-pdp-{{ section.id }}.q-thumbs-desktop--left .q-thumbs,
-      #q-pdp-{{ section.id }}.q-thumbs-desktop--right .q-thumbs{
-        grid-auto-flow: row;
-        grid-auto-rows: var(--q-thumb-size);
-        overflow-y: auto;
-        overflow-x: hidden;
-        max-height: 70vh;
-        padding-right: 0.25rem;
-      }
-
-      #q-pdp-{{ section.id }}.q-thumbs-desktop--hidden .q-pdp-media__thumbs{ display: none; }
-
-      #q-pdp-{{ section.id }}.q-atc-row--inline .q-atc{
-        grid-template-columns: minmax(0, 8.5rem) 1fr;
-        align-items: end;
-        gap: 0.75rem;
-      }
-      #q-pdp-{{ section.id }}.q-atc-row--inline .q-atc__qty .q-input{ max-width: 100%; }
-    }
-
-    @media (max-width: 990px){
-      #q-pdp-{{ section.id }} .q-pdp__grid{ grid-template-columns: 1fr; }
-      #q-pdp-{{ section.id }} .q-pdp__media,
-      #q-pdp-{{ section.id }} .q-pdp__summary{
-        position: static !important;
-        top: auto !important;
-      }
-
-      /* FIX: mobile thumb placement uses areas (was missing) */
-      #q-pdp-{{ section.id }} .q-pdp-media{
-        display: grid;
-        gap: 0.75rem;
-        grid-template-areas: "viewer" "thumbs";
-      }
-      #q-pdp-{{ section.id }} .q-pdp-media__thumbs{ grid-area: thumbs; }
-      #q-pdp-{{ section.id }} .q-pdp-media__viewer{ grid-area: viewer; }
-
-      #q-pdp-{{ section.id }}.q-thumbs-mobile--above .q-pdp-media{ grid-template-areas: "thumbs" "viewer"; }
-      #q-pdp-{{ section.id }}.q-thumbs-mobile--below .q-pdp-media{ grid-template-areas: "viewer" "thumbs"; }
-      #q-pdp-{{ section.id }}.q-thumbs-mobile--hidden .q-pdp-media__thumbs{ display: none; }
-
-      #q-pdp-{{ section.id }} .q-spec{ grid-template-columns: 1fr; }
-      #q-pdp-{{ section.id }} .q-trust{ grid-template-columns: 1fr; }
-
-      #q-pdp-{{ section.id }} .q-lb__dialog{ inset: 2vh 2vw; }
-      #q-pdp-{{ section.id }} .q-lb__close{ top: 0.75rem; right: 0.75rem; }
-
-      /* Make arrows obvious on mobile */
-      #q-pdp-{{ section.id }} .q-lb__dialog img{ max-width: 92%; }
-      #q-pdp-{{ section.id }} .q-lb__nav{
-        width: 3.5rem;
-        height: 3.5rem;
-        font-size: 2.25rem;
-        background: rgba(0,0,0,0.35);
-        border: 1px solid rgba(255,255,255,0.35);
-      }
-      #q-pdp-{{ section.id }} .q-lb__prev{ left: 0.6rem; }
-      #q-pdp-{{ section.id }} .q-lb__next{ right: 0.6rem; }
-    }
-  </style>
 </section>
 
 {% schema %}
 {
-  "name": "Main Product Classic",
+  "name": "Main Product - Modern",
   "tag": "section",
   "class": "section",
   "settings": [
-    { "type": "header", "content": "Layout" },
+    { "type": "header", "content": "Dawn parity" },
+    {
+      "type": "color_scheme",
+      "id": "color_scheme",
+      "label": "Color scheme",
+      "default": "scheme-1"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_sticky_info",
+      "default": true,
+      "label": "Enable sticky info (desktop)"
+    },
+    {
+      "type": "select",
+      "id": "media_size",
+      "label": "Media size",
+      "default": "large",
+      "options": [
+        { "value": "small", "label": "Small" },
+        { "value": "medium", "label": "Medium" },
+        { "value": "large", "label": "Large" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "media_position",
+      "label": "Media position",
+      "default": "left",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "right", "label": "Right" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "gallery_layout",
+      "label": "Gallery layout",
+      "default": "stacked",
+      "options": [
+        { "value": "stacked", "label": "Stacked" },
+        { "value": "columns", "label": "Columns" },
+        { "value": "thumbnail", "label": "Thumbnail" },
+        { "value": "thumbnail_slider", "label": "Thumbnail slider" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "mobile_thumbnails",
+      "label": "Mobile thumbnails",
+      "default": "hide",
+      "options": [
+        { "value": "columns", "label": "Columns" },
+        { "value": "show", "label": "Show" },
+        { "value": "hide", "label": "Hide" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "image_zoom",
+      "label": "Image zoom",
+      "default": "lightbox",
+      "options": [
+        { "value": "lightbox", "label": "Lightbox" },
+        { "value": "hover", "label": "Hover" },
+        { "value": "none", "label": "None" }
+      ]
+    },
+    {
+      "type": "checkbox",
+      "id": "hide_variants",
+      "default": false,
+      "label": "Hide variants"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_video_looping",
+      "default": false,
+      "label": "Enable video looping"
+    },
+
+    { "type": "header", "content": "Section padding" },
+    { "type": "range", "id": "padding_top", "label": "Padding top", "min": 0, "max": 100, "step": 4, "unit": "px", "default": 36 },
+    { "type": "range", "id": "padding_bottom", "label": "Padding bottom", "min": 0, "max": 100, "step": 4, "unit": "px", "default": 36 },
+
+    { "type": "header", "content": "Quadratum layout" },
     {
       "type": "select",
       "id": "desktop_layout_direction",
       "label": "Desktop layout direction",
       "default": "normal",
       "options": [
-        { "value": "normal", "label": "Media left / Summary right" },
-        { "value": "reverse", "label": "Media right / Summary left" }
+        { "value": "normal", "label": "Media left / Info right" },
+        { "value": "reverse", "label": "Media right / Info left" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "desktop_sticky_target",
+      "label": "Desktop sticky target",
+      "default": "none",
+      "options": [
+        { "value": "info", "label": "Info" },
+        { "value": "media", "label": "Media" },
+        { "value": "none", "label": "None" }
       ]
     },
     {
@@ -1348,9 +669,8 @@
     },
 
     { "type": "header", "content": "Media" },
-    { "type": "range", "id": "media_limit", "label": "Media limit", "min": 1, "max": 12, "step": 1, "default": 8 },
-    { "type": "checkbox", "id": "enable_lightbox", "label": "Enable lightbox", "default": true },
-
+    { "type": "range", "id": "media_limit", "label": "Media limit", "min": 1, "max": 24, "step": 1, "default": 12 },
+    { "type": "checkbox", "id": "show_thumbnails", "label": "Show thumbnails", "default": true },
     {
       "type": "select",
       "id": "media_bg_mode",
@@ -1362,6 +682,7 @@
       ]
     },
     { "type": "color", "id": "media_bg_color", "label": "Media background color", "default": "#ffffff" },
+
     {
       "type": "select",
       "id": "thumb_size",
@@ -1374,121 +695,11 @@
       ]
     },
     { "type": "range", "id": "thumb_gap", "label": "Thumb gap", "min": 6, "max": 18, "step": 1, "default": 12 },
-    {
-      "type": "select",
-      "id": "thumb_placement_desktop",
-      "label": "Thumb placement desktop",
-      "default": "below",
-      "options": [
-        { "value": "above", "label": "Above" },
-        { "value": "below", "label": "Below" },
-        { "value": "left", "label": "Left" },
-        { "value": "right", "label": "Right" },
-        { "value": "hidden", "label": "Hidden" }
-      ]
-    },
-    {
-      "type": "select",
-      "id": "thumb_placement_mobile",
-      "label": "Thumb placement mobile",
-      "default": "below",
-      "options": [
-        { "value": "above", "label": "Above" },
-        { "value": "below", "label": "Below" },
-        { "value": "hidden", "label": "Hidden" }
-      ]
-    },
 
-    { "type": "header", "content": "Sticky" },
-    {
-      "type": "select",
-      "id": "desktop_sticky_target",
-      "label": "Desktop sticky target",
-      "default": "none",
-      "options": [
-        { "value": "summary", "label": "Summary" },
-        { "value": "media", "label": "Media" },
-        { "value": "none", "label": "None" }
-      ]
-    },
-
-    { "type": "header", "content": "Summary extras" },
-    { "type": "checkbox", "id": "show_excerpt", "label": "Show short description", "default": true },
-    { "type": "checkbox", "id": "show_sku", "label": "Show SKU", "default": true },
-    { "type": "checkbox", "id": "show_sale_badge", "label": "Show sale badge", "default": true },
-    {
-      "type": "select",
-      "id": "sale_badge_style",
-      "label": "Sale badge style",
-      "default": "percent",
-      "options": [
-        { "value": "text", "label": "Text only" },
-        { "value": "percent", "label": "Percent off" },
-        { "value": "amount", "label": "Amount off" }
-      ]
-    },
-    { "type": "checkbox", "id": "show_availability_badge", "label": "Show availability badge", "default": true },
-    {
-      "type": "select",
-      "id": "atc_layout",
-      "label": "Qty + button layout (desktop)",
-      "default": "stacked",
-      "options": [
-        { "value": "stacked", "label": "Stacked" },
-        { "value": "inline", "label": "Inline" }
-      ]
-    },
-    {
-      "type": "select",
-      "id": "atc_density",
-      "label": "Add to cart button density",
-      "default": "comfy",
-      "options": [
-        { "value": "comfy", "label": "Comfy" },
-        { "value": "compact", "label": "Compact" }
-      ]
-    },
-    { "type": "checkbox", "id": "show_dynamic_checkout", "label": "Show Shop Pay buttons", "default": false },
-    { "type": "text", "id": "affirm_line", "label": "Affirm line (optional)" },
-    { "type": "text", "id": "payments_note", "label": "Payments note" },
-    { "type": "text", "id": "policies_text", "label": "Policies line" },
-
-    { "type": "header", "content": "Under Add to Cart" },
-    { "type": "checkbox", "id": "show_under_atc", "label": "Enable under-ATC area", "default": true },
-    { "type": "range", "id": "under_atc_gap", "label": "Under-ATC spacing", "min": 6, "max": 24, "step": 1, "default": 10 },
-
-    { "type": "checkbox", "id": "show_under_banners_settings", "label": "Show banner slots (settings)", "default": true },
-    { "type": "image_picker", "id": "under_banner_1", "label": "Banner 1 image" },
-    { "type": "url", "id": "under_banner_link_1", "label": "Banner 1 link" },
-    { "type": "text", "id": "under_banner_alt_1", "label": "Banner 1 alt text" },
-
-    { "type": "image_picker", "id": "under_banner_2", "label": "Banner 2 image" },
-    { "type": "url", "id": "under_banner_link_2", "label": "Banner 2 link" },
-    { "type": "text", "id": "under_banner_alt_2", "label": "Banner 2 alt text" },
-
-    { "type": "image_picker", "id": "under_banner_3", "label": "Banner 3 image" },
-    { "type": "url", "id": "under_banner_link_3", "label": "Banner 3 link" },
-    { "type": "text", "id": "under_banner_alt_3", "label": "Banner 3 alt text" },
-
-    { "type": "checkbox", "id": "show_under_banners_blocks", "label": "Show banner blocks", "default": false },
-
-    { "type": "checkbox", "id": "show_trust_settings", "label": "Show trust slots (settings)", "default": true },
-    { "type": "image_picker", "id": "trust_badge_1", "label": "Trust badge 1 image" },
-    { "type": "url", "id": "trust_badge_link_1", "label": "Trust badge 1 link" },
-    { "type": "text", "id": "trust_badge_alt_1", "label": "Trust badge 1 alt text" },
-
-    { "type": "image_picker", "id": "trust_badge_2", "label": "Trust badge 2 image" },
-    { "type": "url", "id": "trust_badge_link_2", "label": "Trust badge 2 link" },
-    { "type": "text", "id": "trust_badge_alt_2", "label": "Trust badge 2 alt text" },
-
-    { "type": "image_picker", "id": "trust_badge_3", "label": "Trust badge 3 image" },
-    { "type": "url", "id": "trust_badge_link_3", "label": "Trust badge 3 link" },
-    { "type": "text", "id": "trust_badge_alt_3", "label": "Trust badge 3 alt text" },
-
-    { "type": "checkbox", "id": "show_trust_blocks", "label": "Show trust badge blocks", "default": false },
-
-    { "type": "checkbox", "id": "show_faq_blocks", "label": "Show FAQ blocks", "default": true },
-    { "type": "text", "id": "faq_heading", "label": "FAQ heading" },
+    { "type": "header", "content": "Purchase" },
+    { "type": "checkbox", "id": "show_quantity", "label": "Show quantity", "default": true },
+    { "type": "checkbox", "id": "show_dynamic_checkout", "label": "Show dynamic checkout buttons", "default": false },
+    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": true },
 
     { "type": "header", "content": "Content" },
     {
@@ -1529,22 +740,6 @@
     { "type": "color", "id": "btn_disabled_text", "label": "Button disabled text", "default": "#6b7280" },
     { "type": "color", "id": "btn_disabled_border", "label": "Button disabled border", "default": "#e5e7eb" },
 
-    { "type": "header", "content": "Badges" },
-    { "type": "range", "id": "badge_radius", "label": "Badge radius", "min": 0, "max": 40, "step": 1, "default": 5 },
-    { "type": "range", "id": "badge_border_width", "label": "Badge border width", "min": 0, "max": 4, "step": 1, "default": 1 },
-
-    { "type": "color", "id": "badge_sale_bg", "label": "Sale badge background", "default": "#111827" },
-    { "type": "color", "id": "badge_sale_text", "label": "Sale badge text", "default": "#ffffff" },
-    { "type": "color", "id": "badge_sale_border", "label": "Sale badge border", "default": "#111827" },
-
-    { "type": "color", "id": "badge_in_bg", "label": "In stock badge background", "default": "#ecfdf5" },
-    { "type": "color", "id": "badge_in_text", "label": "In stock badge text", "default": "#065f46" },
-    { "type": "color", "id": "badge_in_border", "label": "In stock badge border", "default": "#a7f3d0" },
-
-    { "type": "color", "id": "badge_out_bg", "label": "Sold out badge background", "default": "#fef2f2" },
-    { "type": "color", "id": "badge_out_text", "label": "Sold out badge text", "default": "#991b1b" },
-    { "type": "color", "id": "badge_out_border", "label": "Sold out badge border", "default": "#fecaca" },
-
     { "type": "header", "content": "Borders & radius" },
     {
       "type": "select",
@@ -1557,68 +752,16 @@
         { "value": "bordered", "label": "Bordered" }
       ]
     },
-    {
-      "type": "select",
-      "id": "summary_border",
-      "label": "Summary border",
-      "default": "off",
-      "options": [
-        { "value": "off", "label": "Off" },
-        { "value": "on", "label": "On" }
-      ]
-    },
-
     { "type": "range", "id": "media_radius", "label": "Media radius", "min": 0, "max": 24, "step": 1, "default": 16 },
     { "type": "range", "id": "media_border_width", "label": "Media border width", "min": 0, "max": 4, "step": 1, "default": 1 },
     { "type": "color", "id": "media_border_color", "label": "Media border color", "default": "#e5e7eb" },
-
     { "type": "range", "id": "thumb_radius", "label": "Thumb radius", "min": 0, "max": 24, "step": 1, "default": 12 },
     { "type": "range", "id": "thumb_border_width", "label": "Thumb border width", "min": 0, "max": 4, "step": 1, "default": 1 },
     { "type": "color", "id": "thumb_border_color", "label": "Thumb border color", "default": "#e5e7eb" },
     { "type": "color", "id": "thumb_border_color_active", "label": "Thumb border active", "default": "#111827" },
-
     { "type": "range", "id": "ui_radius", "label": "UI radius", "min": 0, "max": 24, "step": 1, "default": 12 },
     { "type": "range", "id": "ui_border_width", "label": "UI border width", "min": 0, "max": 4, "step": 1, "default": 1 },
     { "type": "color", "id": "ui_border_color", "label": "UI border color", "default": "#e5e7eb" },
-
-    { "type": "header", "content": "Typography" },
-    {
-      "type": "select",
-      "id": "title_size",
-      "label": "Title size",
-      "default": "lg",
-      "options": [
-        { "value": "sm", "label": "Small" },
-        { "value": "md", "label": "Medium" },
-        { "value": "lg", "label": "Large" },
-        { "value": "xl", "label": "Extra large" }
-      ]
-    },
-    {
-      "type": "select",
-      "id": "price_size",
-      "label": "Price size",
-      "default": "md",
-      "options": [
-        { "value": "sm", "label": "Small" },
-        { "value": "md", "label": "Medium" },
-        { "value": "lg", "label": "Large" }
-      ]
-    },
-    {
-      "type": "select",
-      "id": "desc_size",
-      "label": "Description size",
-      "default": "md",
-      "options": [
-        { "value": "sm", "label": "Small" },
-        { "value": "md", "label": "Medium" },
-        { "value": "lg", "label": "Large" }
-      ]
-    },
-
-    { "type": "header", "content": "Product toggles" },
-    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": true },
 
     { "type": "header", "content": "Accessibility" },
     { "type": "text", "id": "section_aria_label", "label": "Section aria label" },
@@ -1626,6 +769,7 @@
     { "type": "text", "id": "summary_aria_label", "label": "Summary aria label" }
   ],
   "blocks": [
+    { "type": "@app" },
     {
       "type": "description",
       "name": "Description",
@@ -1663,39 +807,11 @@
         { "type": "text", "id": "namespace_6", "label": "Namespace 6" },
         { "type": "text", "id": "key_6", "label": "Key 6" }
       ]
-    },
-    { "type": "@app" },
-
-    {
-      "type": "under_atc_banner",
-      "name": "Under-ATC Banner",
-      "settings": [
-        { "type": "image_picker", "id": "image", "label": "Banner image" },
-        { "type": "url", "id": "link", "label": "Banner link" },
-        { "type": "text", "id": "alt", "label": "Alt text" }
-      ]
-    },
-    {
-      "type": "trust_badge",
-      "name": "Trust Badge",
-      "settings": [
-        { "type": "image_picker", "id": "image", "label": "Badge image" },
-        { "type": "url", "id": "link", "label": "Badge link" },
-        { "type": "text", "id": "alt", "label": "Alt text" }
-      ]
-    },
-    {
-      "type": "faq_item",
-      "name": "FAQ Item",
-      "settings": [
-        { "type": "text", "id": "question", "label": "Question" },
-        { "type": "richtext", "id": "answer", "label": "Answer" }
-      ]
     }
   ],
   "presets": [
     {
-      "name": "Main Product Classic",
+      "name": "Main Product - Modern",
       "category": "Product",
       "blocks": [
         { "type": "description" },
