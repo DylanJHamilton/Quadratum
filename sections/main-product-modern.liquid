@@ -2,20 +2,24 @@
   Quadratum — Main Product Modern (Standalone / No Snippet Dependencies)
   File: sections/main-product-modern.liquid
 
-  PURPOSE
-  - Dawn-like editor experience (settings + blocks) WITHOUT Dawn snippet dependencies.
-  - Keep existing simple media gallery + lightbox.
-  - Rebuild "Dawn feel" via blocks: title, price, variant picker, quantity, buy buttons,
-    plus accordion blocks (description, metafield, custom text, and @app blocks).
+  GOAL:
+  - A working PDP section that DOES NOT depend on Dawn snippets or JS assets.
 
-  KEY NOTES
-  - Variant logic updates: price / compare / sku / availability / ATC + URL + featured image.
-  - Under-ATC content is controlled by section setting:
-      none | description | short metafield
-  - Accordion content is controlled by blocks:
-      accordion_description, accordion_metafield, accordion_custom, and @app (rendered inside accordion)
-  - No schema properties on @app blocks except: { "type": "@app" }
+  INCLUDES:
+  - Media gallery (images only) with configurable layouts (Dawn-ish)
+  - Optional lightbox modal (X + prev/next)
+  - Variant picker (buttons or dropdown; section setting)
+  - Price / compare-at update on variant change
+  - SKU update + availability message
+  - Add to cart form + optional dynamic checkout button
+  - Below-ATC content: none / short description / full description
+  - Accordion area driven by section blocks (description / reviews placeholder / metafield-key / custom liquid / page)
 
+  NOTES:
+  - Video/model behavior is not replicated (enable_video_looping exists for parity but is not used).
+  - No @app blocks in schema to avoid theme editor validation errors.
+  - IMPORTANT FIX: This section DOES NOT use schema setting type "metafield" (some editors reject it).
+    Instead we store metafield keys as TEXT like "custom.short_description" and read them at runtime.
 {%- endcomment -%}
 
 {%- liquid
@@ -39,27 +43,69 @@
   assign padding_top_mobile = s.padding_top | times: 0.75 | round: 0
   assign padding_bottom_mobile = s.padding_bottom | times: 0.75 | round: 0
 
-  assign image_media = p.media | where: 'media_type', 'image'
+  assign image_media_all = p.media | where: 'media_type', 'image'
+
   assign featured = p.selected_or_first_available_variant.featured_media | default: p.featured_media
-  assign featured_src = ''
-  assign featured_alt = ''
-  if featured and featured.media_type == 'image'
-    assign featured_src = featured | image_url: width: 1600
-    assign featured_alt = featured.alt
-  elsif image_media.first
-    assign featured_src = image_media.first | image_url: width: 1600
-    assign featured_alt = image_media.first.alt
+  if featured == blank and image_media_all.first
+    assign featured = image_media_all.first
   endif
 
-  assign product_form_id = 'product-form-' | append: section.id
+  assign featured_src = ''
+  if featured and featured.media_type == 'image'
+    assign featured_src = featured | image_url: width: 1800
+  endif
+
+  comment
+    Build list of variant media ids (for "hide other variant media").
+    Best-effort: if multiple variants share the same image, it still counts.
+  endcomment
+  assign variant_media_ids_csv = ''
+  for v in p.variants
+    if v.featured_media
+      assign variant_media_ids_csv = variant_media_ids_csv | append: v.featured_media.id | append: ','
+    endif
+  endfor
+  assign variant_media_ids = variant_media_ids_csv | split: ','
+
+  comment
+    Build the "display" image list based on hide_variants.
+    Always keep the featured image.
+  endcomment
+  assign image_media = '' | split: ''
+  for m in image_media_all
+    assign keep = true
+    if s.hide_variants and variant_media_ids contains m.id
+      if featured and m.id != featured.id
+        assign keep = false
+      endif
+    endif
+    if keep
+      assign image_media = image_media | push: m
+    endif
+  endfor
+
+  if image_media.size == 0
+    assign image_media = image_media_all
+  endif
+
+  assign media_ratio = 0.55
+  if s.media_size == 'large'
+    assign media_ratio = 0.65
+  elsif s.media_size == 'small'
+    assign media_ratio = 0.45
+  endif
 -%}
 
 <section
   id="MainProductModern-{{ section.id }}"
-  class="qtm-modern section-{{ section.id }}-padding color-{{ s.color_scheme }} gradient{% if s.media_position == 'right' %} qtm-modern--media-right{% else %} qtm-modern--media-left{% endif %}"
+  class="qtm-modern section-{{ section.id }}-padding{% if s.media_position == 'right' %} qtm-modern--media-right{% else %} qtm-modern--media-left{% endif %}"
   aria-label="{{ section_aria | escape }}"
   data-section-id="{{ section.id }}"
   data-product-id="{{ p.id }}"
+  data-gallery-layout="{{ s.gallery_layout }}"
+  data-mobile-thumbnails="{{ s.mobile_thumbnails }}"
+  data-media-fit="{{ s.media_fit }}"
+  data-constrain="{{ s.constrain_to_viewport }}"
 >
   <style>
     .section-{{ section.id }}-padding { padding-top: {{ padding_top_mobile }}px; padding-bottom: {{ padding_bottom_mobile }}px; }
@@ -67,32 +113,71 @@
       .section-{{ section.id }}-padding { padding-top: {{ s.padding_top }}px; padding-bottom: {{ s.padding_bottom }}px; }
     }
 
-    /* Layout */
+    /* ========= Layout ========= */
     #MainProductModern-{{ section.id }} .qtm-modern__grid{
       display:grid;
       gap: 2.5rem;
       align-items:start;
     }
+
     @media (min-width: 990px){
       #MainProductModern-{{ section.id }} .qtm-modern__grid{
-        grid-template-columns: 1.05fr 0.95fr;
+        grid-template-columns: {{ media_ratio }}fr {{ 1.0 | minus: media_ratio }}fr;
       }
       #MainProductModern-{{ section.id }}.qtm-modern--media-right .qtm-modern__media { order: 2; }
       #MainProductModern-{{ section.id }}.qtm-modern--media-right .qtm-modern__info { order: 1; }
+      #MainProductModern-{{ section.id }} .qtm-modern__info.qtm-modern__info--sticky{
+        position: sticky;
+        top: 1.25rem;
+      }
     }
 
-    /* Media */
+    /* ========= Media base ========= */
     #MainProductModern-{{ section.id }} .qtm-modern__main-media{
       position:relative;
-      border-radius: 12px;
+      border-radius: 14px;
       overflow:hidden;
       background: rgba(0,0,0,0.03);
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__main-media button{
+      display:block;
+      width:100%;
+      border:0;
+      padding:0;
+      background:transparent;
+      cursor: pointer;
     }
     #MainProductModern-{{ section.id }} .qtm-modern__main-media img{
       display:block;
       width:100%;
       height:auto;
     }
+
+    /* Constrain to viewport (best-effort) */
+    #MainProductModern-{{ section.id }}[data-constrain="true"] .qtm-modern__main-media{
+      max-height: calc(100vh - 12rem);
+    }
+    #MainProductModern-{{ section.id }}[data-constrain="true"] .qtm-modern__main-media img{
+      height: 100%;
+      max-height: calc(100vh - 12rem);
+      width: 100%;
+    }
+
+    /* Fit */
+    #MainProductModern-{{ section.id }}[data-media-fit="fill"] .qtm-modern__main-media img{
+      object-fit: cover;
+    }
+    #MainProductModern-{{ section.id }}[data-media-fit="original"] .qtm-modern__main-media img{
+      object-fit: contain;
+    }
+    #MainProductModern-{{ section.id }}[data-media-fit="fill"][data-constrain="true"] .qtm-modern__main-media img{
+      object-fit: cover;
+    }
+    #MainProductModern-{{ section.id }}[data-media-fit="original"][data-constrain="true"] .qtm-modern__main-media img{
+      object-fit: contain;
+    }
+
+    /* Zoom button */
     #MainProductModern-{{ section.id }} .qtm-modern__zoom-btn{
       position:absolute;
       inset:auto 0 0 0;
@@ -105,6 +190,8 @@
       font-weight:600;
       text-align:center;
     }
+
+    /* Thumbnails base */
     #MainProductModern-{{ section.id }} .qtm-modern__thumbs{
       display:flex;
       gap:.6rem;
@@ -132,7 +219,105 @@
       display:block;
     }
 
-    /* Info */
+    /* Thumbnail placement variations */
+    #MainProductModern-{{ section.id }} .qtm-modern__media-row{
+      display:block;
+    }
+    @media (min-width: 990px){
+      #MainProductModern-{{ section.id }}[data-gallery-layout="thumbnails"] .qtm-modern__media-row{
+        display:grid;
+        grid-template-columns: 92px 1fr;
+        gap: 1rem;
+        align-items:start;
+      }
+      #MainProductModern-{{ section.id }}[data-gallery-layout="thumbnails"] .qtm-modern__thumbs{
+        margin-top:0;
+        flex-direction:column;
+        flex-wrap:nowrap;
+        max-height: calc(100vh - 14rem);
+        overflow:auto;
+        padding-right:.25rem;
+      }
+      #MainProductModern-{{ section.id }}[data-gallery-layout="thumbnails"] .qtm-modern__thumb{
+        width: 84px;
+        height: 84px;
+      }
+    }
+
+    /* Mobile thumbnail modes */
+    #MainProductModern-{{ section.id }}[data-mobile-thumbnails="hide"] .qtm-modern__thumbs{
+      display:none;
+    }
+    #MainProductModern-{{ section.id }}[data-mobile-thumbnails="columns"] .qtm-modern__thumbs{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:.6rem;
+    }
+    #MainProductModern-{{ section.id }}[data-mobile-thumbnails="columns"] .qtm-modern__thumb{
+      width:100%;
+      height: 92px;
+    }
+
+    /* Two columns gallery (media) */
+    #MainProductModern-{{ section.id }} .qtm-modern__grid-gallery{
+      display:grid;
+      gap:.85rem;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__grid-gallery button{
+      border:0;
+      padding:0;
+      background:transparent;
+      cursor:pointer;
+      border-radius: 14px;
+      overflow:hidden;
+      background: rgba(0,0,0,0.03);
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__grid-gallery img{
+      width:100%;
+      height:auto;
+      display:block;
+    }
+    #MainProductModern-{{ section.id }}[data-gallery-layout="columns"] .qtm-modern__grid-gallery{
+      grid-template-columns: 1fr 1fr;
+    }
+    @media (max-width: 749px){
+      #MainProductModern-{{ section.id }}[data-gallery-layout="columns"] .qtm-modern__grid-gallery{
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Thumbnail carousel (simple horizontal scroll) */
+    #MainProductModern-{{ section.id }} .qtm-modern__thumb-carousel{
+      display:none;
+      align-items:center;
+      gap:.5rem;
+      margin-top:.75rem;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__thumb-rail{
+      display:flex;
+      gap:.6rem;
+      overflow:auto;
+      scroll-behavior:smooth;
+      padding: .15rem .05rem;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__thumb-rail::-webkit-scrollbar{ height: 8px; }
+    #MainProductModern-{{ section.id }} .qtm-modern__thumb-nav{
+      border:1px solid rgba(0,0,0,0.18);
+      background: rgba(255,255,255,0.75);
+      width:38px;
+      height:38px;
+      border-radius: 999px;
+      cursor:pointer;
+      font-weight:900;
+    }
+    #MainProductModern-{{ section.id }}[data-gallery-layout="thumbnail_carousel"] .qtm-modern__thumbs{
+      display:none;
+    }
+    #MainProductModern-{{ section.id }}[data-gallery-layout="thumbnail_carousel"] .qtm-modern__thumb-carousel{
+      display:flex;
+    }
+
+    /* ========= Info ========= */
     #MainProductModern-{{ section.id }} .qtm-modern__title{ margin: 0 0 .5rem; }
     #MainProductModern-{{ section.id }} .qtm-modern__price{
       display:flex;
@@ -150,11 +335,13 @@
       font-size: .95rem;
       margin-bottom: 1rem;
     }
+
     #MainProductModern-{{ section.id }} .qtm-modern__form{
       display:grid;
       gap: 1rem;
       margin-top: 1rem;
     }
+
     #MainProductModern-{{ section.id }} .qtm-modern__option label{
       display:block;
       font-weight:600;
@@ -184,17 +371,12 @@
       opacity:.45;
       cursor:not-allowed;
     }
-    #MainProductModern-{{ section.id }} .qtm-modern__select{
-      width:100%;
-      padding:.65rem .8rem;
-      border-radius: 12px;
-      border:1px solid rgba(0,0,0,0.18);
-      background:#fff;
-    }
+
     #MainProductModern-{{ section.id }} .qtm-modern__qty input{
       width: 110px;
       padding: .6rem .7rem;
     }
+
     #MainProductModern-{{ section.id }} .qtm-modern__atc{
       padding: 1rem 1.1rem;
       font-weight: 700;
@@ -204,14 +386,9 @@
     }
     #MainProductModern-{{ section.id }} .qtm-modern__atc[disabled]{ opacity:.55; cursor:not-allowed; }
 
-    /* Under ATC */
-    #MainProductModern-{{ section.id }} .qtm-modern__under-atc{
-      margin-top: 1.1rem;
-    }
-
-    /* Accordion */
+    /* ========= Accordion ========= */
     #MainProductModern-{{ section.id }} .qtm-modern__accordion{
-      margin-top: 1.25rem;
+      margin-top:1.25rem;
       display:grid;
       gap:.75rem;
     }
@@ -235,7 +412,7 @@
       margin-top:.75rem;
     }
 
-    /* Modal */
+    /* ========= Modal ========= */
     #MainProductModern-{{ section.id }} dialog.qtm-modern__modal{
       width:min(980px, 96vw);
       border:0;
@@ -298,51 +475,150 @@
 
       {%- comment -%} ================= MEDIA ================= {%- endcomment -%}
       <div class="qtm-modern__media">
-        <div class="qtm-modern__main-media">
-          <img
-            id="QtmMainImage-{{ section.id }}"
-            src="{{ featured_src }}"
-            alt="{{ featured_alt | escape }}"
-            loading="eager"
-          >
-
-          {%- if s.image_zoom == 'lightbox' -%}
-            <button
-              type="button"
-              class="qtm-modern__zoom-btn"
-              data-qtm-open-modal
-              aria-haspopup="dialog"
-            >
-              View larger
-            </button>
-          {%- endif -%}
-        </div>
-
-        {%- if image_media.size > 1 -%}
-          <div class="qtm-modern__thumbs" aria-label="Product images">
+        {%- if s.gallery_layout == 'columns' -%}
+          <div class="qtm-modern__grid-gallery" aria-label="Product images grid">
             {%- for m in image_media -%}
-              {%- assign thumb_src = m | image_url: width: 240 -%}
-              {%- assign full_src = m | image_url: width: 1600 -%}
+              {%- assign full_src = m | image_url: width: 1800 -%}
               <button
                 type="button"
-                class="qtm-modern__thumb"
                 data-qtm-image="{{ full_src }}"
                 data-qtm-index="{{ forloop.index0 }}"
-                aria-current="{% if full_src == featured_src %}true{% else %}false{% endif %}"
+                aria-label="Open image {{ forloop.index }}"
+                {% if s.image_zoom != 'lightbox' %}data-qtm-no-modal="true"{% endif %}
               >
-                <img src="{{ thumb_src }}" alt="{{ m.alt | escape }}" loading="lazy">
+                <img src="{{ m | image_url: width: 1200 }}" alt="{{ m.alt | escape }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
               </button>
             {%- endfor -%}
+          </div>
+        {%- else -%}
+          <div class="qtm-modern__media-row">
+            {%- if s.gallery_layout == 'thumbnails' -%}
+              <div>
+                {%- if image_media.size > 1 and s.mobile_thumbnails != 'hide' -%}
+                  <div class="qtm-modern__thumbs" aria-label="Product thumbnails">
+                    {%- for m in image_media -%}
+                      {%- assign thumb_src = m | image_url: width: 240 -%}
+                      {%- assign full_src = m | image_url: width: 1800 -%}
+                      <button
+                        type="button"
+                        class="qtm-modern__thumb"
+                        data-qtm-image="{{ full_src }}"
+                        data-qtm-index="{{ forloop.index0 }}"
+                        aria-current="{% if featured and m.id == featured.id %}true{% else %}false{% endif %}"
+                      >
+                        <img src="{{ thumb_src }}" alt="{{ m.alt | escape }}" loading="lazy">
+                      </button>
+                    {%- endfor -%}
+                  </div>
+                {%- endif -%}
+              </div>
+            {%- endif -%}
+
+            <div>
+              <div class="qtm-modern__main-media">
+                <button
+                  type="button"
+                  data-qtm-open-main
+                  aria-haspopup="dialog"
+                  {% if s.image_zoom != 'lightbox' %}data-qtm-no-modal="true"{% endif %}
+                >
+                  <img
+                    id="QtmMainImage-{{ section.id }}"
+                    src="{{ featured_src }}"
+                    alt="{{ featured.alt | escape }}"
+                    loading="eager"
+                  >
+                </button>
+
+                {%- if s.image_zoom == 'lightbox' -%}
+                  <button
+                    type="button"
+                    class="qtm-modern__zoom-btn"
+                    data-qtm-open-modal
+                    aria-haspopup="dialog"
+                  >
+                    View larger
+                  </button>
+                {%- endif -%}
+              </div>
+
+              {%- if image_media.size > 1 and s.gallery_layout != 'thumbnails' -%}
+                {%- if s.gallery_layout == 'thumbnail_carousel' -%}
+                  <div class="qtm-modern__thumb-carousel" aria-label="Product thumbnails carousel">
+                    <button type="button" class="qtm-modern__thumb-nav" data-qtm-thumb-prev aria-label="Previous thumbnails">‹</button>
+                    <div class="qtm-modern__thumb-rail" data-qtm-thumb-rail>
+                      {%- for m in image_media -%}
+                        {%- assign thumb_src = m | image_url: width: 240 -%}
+                        {%- assign full_src = m | image_url: width: 1800 -%}
+                        <button
+                          type="button"
+                          class="qtm-modern__thumb"
+                          data-qtm-image="{{ full_src }}"
+                          data-qtm-index="{{ forloop.index0 }}"
+                          aria-current="{% if featured and m.id == featured.id %}true{% else %}false{% endif %}"
+                        >
+                          <img src="{{ thumb_src }}" alt="{{ m.alt | escape }}" loading="lazy">
+                        </button>
+                      {%- endfor -%}
+                    </div>
+                    <button type="button" class="qtm-modern__thumb-nav" data-qtm-thumb-next aria-label="Next thumbnails">›</button>
+                  </div>
+                {%- else -%}
+                  {%- if s.mobile_thumbnails != 'hide' -%}
+                    <div class="qtm-modern__thumbs" aria-label="Product thumbnails">
+                      {%- for m in image_media -%}
+                        {%- assign thumb_src = m | image_url: width: 240 -%}
+                        {%- assign full_src = m | image_url: width: 1800 -%}
+                        <button
+                          type="button"
+                          class="qtm-modern__thumb"
+                          data-qtm-image="{{ full_src }}"
+                          data-qtm-index="{{ forloop.index0 }}"
+                          aria-current="{% if featured and m.id == featured.id %}true{% else %}false{% endif %}"
+                        >
+                          <img src="{{ thumb_src }}" alt="{{ m.alt | escape }}" loading="lazy">
+                        </button>
+                      {%- endfor -%}
+                    </div>
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endif -%}
+            </div>
           </div>
         {%- endif -%}
       </div>
 
-      {%- comment -%} ================= INFO (BLOCK-DRIVEN) ================= {%- endcomment -%}
-      <div class="qtm-modern__info">
+      {%- comment -%} ================= INFO ================= {%- endcomment -%}
+      <div class="qtm-modern__info{% if s.enable_sticky_info %} qtm-modern__info--sticky{% endif %}">
+        <h1 class="qtm-modern__title">{{ p.title | escape }}</h1>
 
-        {%- comment -%}
-          Product form wrapper: we keep ONE form and blocks render inside it as needed.
-        {%- endcomment -%}
+        <div class="qtm-modern__price" id="QtmPriceWrap-{{ section.id }}">
+          <span
+            class="qtm-modern__compare"
+            id="QtmCompare-{{ section.id }}"
+            {% unless current_variant.compare_at_price > current_variant.price %}style="display:none"{% endunless %}
+          >
+            {{ current_variant.compare_at_price | money }}
+          </span>
+          <span class="qtm-modern__current" id="QtmPrice-{{ section.id }}">
+            {{ current_variant.price | money }}
+          </span>
+        </div>
+
+        <div class="qtm-modern__meta">
+          <span id="QtmSkuWrap-{{ section.id }}" {% if current_variant.sku == blank %}style="display:none"{% endif %}>
+            <strong>SKU:</strong> <span id="QtmSku-{{ section.id }}">{{ current_variant.sku }}</span>
+          </span>
+          <span id="QtmAvail-{{ section.id }}">
+            <strong>Status:</strong>
+            <span id="QtmAvailText-{{ section.id }}">
+              {% if current_variant.available %}In stock{% else %}Sold out{% endif %}
+            </span>
+          </span>
+        </div>
+
+        {%- assign product_form_id = 'product-form-' | append: section.id -%}
+
         <form
           id="{{ product_form_id }}"
           class="qtm-modern__form"
@@ -353,202 +629,183 @@
           <input type="hidden" name="id" id="QtmVariantId-{{ section.id }}" value="{{ current_variant.id }}">
           <input type="hidden" name="quantity" id="QtmQtyHidden-{{ section.id }}" value="1">
 
-          {%- comment -%} Render standard (non-accordion) blocks {%- endcomment -%}
-          {%- for block in section.blocks -%}
-            {%- case block.type -%}
+          {%- unless p.has_only_default_variant -%}
+            {%- for option in p.options_with_values -%}
+              <div class="qtm-modern__option" data-qtm-option data-index="{{ option.position }}">
+                <label>{{ option.name | escape }}</label>
 
-              {%- when 'title' -%}
-                <div {{ block.shopify_attributes }}>
-                  <h1 class="qtm-modern__title">{{ p.title | escape }}</h1>
-                </div>
-
-              {%- when 'price' -%}
-                <div {{ block.shopify_attributes }}>
-                  <div class="qtm-modern__price" id="QtmPriceWrap-{{ section.id }}">
-                    <span
-                      class="qtm-modern__compare"
-                      id="QtmCompare-{{ section.id }}"
-                      {% unless current_variant.compare_at_price > current_variant.price %}style="display:none"{% endunless %}
-                    >
-                      {{ current_variant.compare_at_price | money }}
-                    </span>
-                    <span class="qtm-modern__current" id="QtmPrice-{{ section.id }}">
-                      {{ current_variant.price | money }}
-                    </span>
-                  </div>
-
-                  {%- if block.settings.show_meta -%}
-                    <div class="qtm-modern__meta">
-                      <span id="QtmSkuWrap-{{ section.id }}" {% if current_variant.sku == blank %}style="display:none"{% endif %}>
-                        <strong>SKU:</strong> <span id="QtmSku-{{ section.id }}">{{ current_variant.sku }}</span>
-                      </span>
-                      <span id="QtmAvail-{{ section.id }}">
-                        <strong>Status:</strong>
-                        <span id="QtmAvailText-{{ section.id }}">
-                          {% if current_variant.available %}In stock{% else %}Sold out{% endif %}
-                        </span>
-                      </span>
-                    </div>
-                  {%- endif -%}
-                </div>
-
-              {%- when 'variant_picker' -%}
-                <div {{ block.shopify_attributes }}>
-                  {%- unless p.has_only_default_variant -%}
-                    {%- for option in p.options_with_values -%}
-                      <div class="qtm-modern__option" data-qtm-option data-index="{{ option.position }}">
-                        <label>{{ option.name | escape }}</label>
-
-                        {%- if block.settings.picker_type == 'dropdown' -%}
-                          <select class="qtm-modern__select" name="qtm-option-{{ option.position }}">
-                            {%- for value in option.values -%}
-                              <option value="{{ value | escape }}" {% if value.selected %}selected{% endif %}>
-                                {{ value }}
-                              </option>
-                            {%- endfor -%}
-                          </select>
-                        {%- else -%}
-                          <div class="qtm-modern__radios" role="radiogroup" aria-label="{{ option.name | escape }}">
-                            {%- for value in option.values -%}
-                              {%- capture input_id -%}QtmOpt-{{ section.id }}-{{ option.position }}-{{ forloop.index0 }}{%- endcapture -%}
-                              <input
-                                type="radio"
-                                id="{{ input_id }}"
-                                name="qtm-option-{{ option.position }}"
-                                value="{{ value | escape }}"
-                                {% if value.selected %}checked{% endif %}
-                              >
-                              <label for="{{ input_id }}">{{ value }}</label>
-                            {%- endfor -%}
-                          </div>
-                        {%- endif -%}
-                      </div>
+                {%- if s.variant_picker_type == 'dropdown' -%}
+                  <select name="qtm-option-{{ option.position }}">
+                    {%- for value in option.values -%}
+                      <option value="{{ value | escape }}" {% if value.selected %}selected{% endif %}>
+                        {{ value }}
+                      </option>
                     {%- endfor -%}
-                  {%- endunless -%}
-                </div>
+                  </select>
+                {%- else -%}
+                  <div class="qtm-modern__radios" role="radiogroup" aria-label="{{ option.name | escape }}">
+                    {%- for value in option.values -%}
+                      {%- capture input_id -%}QtmOpt-{{ section.id }}-{{ option.position }}-{{ forloop.index0 }}{%- endcapture -%}
+                      <input
+                        type="radio"
+                        id="{{ input_id }}"
+                        name="qtm-option-{{ option.position }}"
+                        value="{{ value | escape }}"
+                        {% if value.selected %}checked{% endif %}
+                      >
+                      <label for="{{ input_id }}">{{ value }}</label>
+                    {%- endfor -%}
+                  </div>
+                {%- endif -%}
+              </div>
+            {%- endfor -%}
+          {%- endunless -%}
 
-              {%- when 'quantity_selector' -%}
-                <div class="qtm-modern__qty" {{ block.shopify_attributes }}>
-                  <label for="QtmQty-{{ section.id }}">{{ block.settings.label | escape }}</label>
-                  <input
-                    id="QtmQty-{{ section.id }}"
-                    type="number"
-                    min="1"
-                    value="1"
-                  >
-                </div>
+          <div class="qtm-modern__qty">
+            <label for="QtmQty-{{ section.id }}">Quantity</label>
+            <input
+              id="QtmQty-{{ section.id }}"
+              type="number"
+              min="1"
+              value="1"
+            >
+          </div>
 
-              {%- when 'buy_buttons' -%}
-                <div {{ block.shopify_attributes }}>
-                  <button
-                    type="submit"
-                    class="qtm-modern__atc"
-                    id="QtmAtc-{{ section.id }}"
-                    {% unless current_variant.available %}disabled{% endunless %}
-                  >
-                    {% if current_variant.available %}{{ block.settings.atc_label | escape }}{% else %}Sold out{% endif %}
-                  </button>
+          <button
+            type="submit"
+            class="qtm-modern__atc"
+            id="QtmAtc-{{ section.id }}"
+            {% unless current_variant.available %}disabled{% endunless %}
+          >
+            {% if current_variant.available %}Add to cart{% else %}Sold out{% endif %}
+          </button>
 
-                  {%- if block.settings.show_dynamic_checkout -%}
-                    {%- comment -%}
-                      Standalone dynamic checkout: use a SECOND product form.
-                      This is the simplest safe approach without Dawn's product-form component.
-                    {%- endcomment -%}
-                    {%- form 'product', p, id: 'QtmDyn-' | append: section.id -%}
-                      <input type="hidden" name="id" value="{{ current_variant.id }}">
-                      {{ form | payment_button }}
-                    {%- endform -%}
-                  {%- endif -%}
-                </div>
-
-              {%- else -%}
-                {%- comment -%} Ignore other blocks here; accordions render after form. {%- endcomment -%}
-            {%- endcase -%}
-          {%- endfor -%}
-
+          {%- if s.show_dynamic_checkout -%}
+            {%- form 'product', p, id: 'QtmDyn-' | append: section.id -%}
+              <input type="hidden" name="id" value="{{ current_variant.id }}">
+              {{ form | payment_button }}
+            {%- endform -%}
+          {%- endif -%}
         </form>
 
-        {%- comment -%} Under-ATC content (section-level setting) {%- endcomment -%}
-        {%- if s.under_atc_content != 'none' -%}
-          <div class="qtm-modern__under-atc rte">
-            {%- if s.under_atc_content == 'description' -%}
+        {%- comment -%} ===== Below-ATC content (none / short / full) ===== {%- endcomment -%}
+        {%- if s.below_atc_content != 'none' -%}
+          <div class="rte" style="margin-top:1.25rem;">
+            {%- if s.below_atc_content == 'description' -%}
               {{ p.description }}
-            {%- elsif s.under_atc_content == 'short_metafield' -%}
-              {%- assign short_desc = p.metafields[s.short_description_metafield_namespace][s.short_description_metafield_key] -%}
-              {%- if short_desc != blank -%}
-                {{ short_desc | metafield_tag }}
+            {%- else -%}
+              {%- assign short_src = '' -%}
+
+              {%- comment -%}
+                short_description_metafield_key expects "namespace.key" (example: "custom.short_description")
+              {%- endcomment -%}
+              {%- if s.short_description_metafield_key != blank -%}
+                {%- assign mf_parts = s.short_description_metafield_key | strip | split: '.' -%}
+                {%- assign mf_ns = mf_parts[0] | default: '' -%}
+                {%- assign mf_key = mf_parts[1] | default: '' -%}
+                {%- if mf_ns != blank and mf_key != blank -%}
+                  {%- assign mf_val = p.metafields[mf_ns][mf_key] -%}
+                  {%- if mf_val != blank -%}
+                    {%- if mf_val.value != blank -%}
+                      {%- assign short_src = mf_val.value -%}
+                    {%- else -%}
+                      {%- assign short_src = mf_val -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endif -%}
+
+              {%- if short_src != blank -%}
+                {{ short_src }}
+              {%- else -%}
+                {{ p.description | strip_html | truncate: 200 }}
               {%- endif -%}
             {%- endif -%}
           </div>
         {%- endif -%}
 
-        {%- comment -%} Accordion blocks (no tabs) {%- endcomment -%}
-        {%- assign has_accordion = false -%}
-        {%- for block in section.blocks -%}
-          {%- if block.type contains 'accordion_' or block.type == '@app' -%}
-            {%- assign has_accordion = true -%}
-          {%- endif -%}
-        {%- endfor -%}
-
-        {%- if has_accordion -%}
-          <div class="qtm-modern__accordion" aria-label="Product information accordions">
+        {%- comment -%} ===== Accordion blocks area ===== {%- endcomment -%}
+        {%- if section.blocks.size > 0 -%}
+          <div class="qtm-modern__accordion">
             {%- for block in section.blocks -%}
               {%- case block.type -%}
 
                 {%- when 'accordion_description' -%}
-                  {%- if p.description != blank -%}
-                    <details {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
-                      <summary>
-                        <span>{{ block.settings.heading | escape }}</span>
-                        <span aria-hidden="true">+</span>
-                      </summary>
-                      <div class="qtm-modern__accordion-content rte">
-                        {{ p.description }}
-                      </div>
-                    </details>
-                  {%- endif -%}
-
-                {%- when 'accordion_metafield' -%}
-                  {%- assign mf = p.metafields[block.settings.metafield_namespace][block.settings.metafield_key] -%}
-                  {%- if mf != blank -%}
-                    <details {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
-                      <summary>
-                        <span>{{ block.settings.heading | escape }}</span>
-                        <span aria-hidden="true">+</span>
-                      </summary>
-                      <div class="qtm-modern__accordion-content rte">
-                        {{ mf | metafield_tag }}
-                      </div>
-                    </details>
-                  {%- endif -%}
-
-                {%- when 'accordion_custom' -%}
-                  {%- if block.settings.content != blank -%}
-                    <details {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
-                      <summary>
-                        <span>{{ block.settings.heading | escape }}</span>
-                        <span aria-hidden="true">+</span>
-                      </summary>
-                      <div class="qtm-modern__accordion-content rte">
-                        {{ block.settings.content }}
-                      </div>
-                    </details>
-                  {%- endif -%}
-
-                {%- when '@app' -%}
-                  {%- comment -%}
-                    IMPORTANT:
-                    - Do NOT add "name" or other attributes inside an @app block schema.
-                    - Shopify provides the actual app block UI.
-                    - Here we wrap whatever it renders in our accordion shell.
-                  {%- endcomment -%}
-                  <details {{ block.shopify_attributes }}>
+                  <details {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
                     <summary>
-                      <span>{{ s.app_block_default_heading | escape }}</span>
+                      <span>{{ block.settings.title | default: 'Product description' | escape }}</span>
                       <span aria-hidden="true">+</span>
                     </summary>
-                    <div class="qtm-modern__accordion-content">
-                      {% render block %}
+                    <div class="qtm-modern__accordion-content rte">
+                      {{ p.description }}
+                    </div>
+                  </details>
+
+                {%- when 'accordion_reviews' -%}
+                  <details {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
+                    <summary>
+                      <span>{{ block.settings.title | default: 'Reviews' | escape }}</span>
+                      <span aria-hidden="true">+</span>
+                    </summary>
+                    <div class="qtm-modern__accordion-content rte">
+                      <p>{{ block.settings.placeholder_text | default: 'Add your reviews app block elsewhere on the product template, or paste embed code into a Custom liquid accordion.' }}</p>
+                    </div>
+                  </details>
+
+                {%- when 'accordion_metafield' -%}
+                  <details {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
+                    <summary>
+                      <span>{{ block.settings.title | escape }}</span>
+                      <span aria-hidden="true">+</span>
+                    </summary>
+                    <div class="qtm-modern__accordion-content rte">
+                      {%- assign key_raw = block.settings.metafield_key | default: '' | strip -%}
+                      {%- assign parts = key_raw | split: '.' -%}
+                      {%- assign ns = parts[0] | default: '' -%}
+                      {%- assign k = parts[1] | default: '' -%}
+
+                      {%- if ns != blank and k != blank -%}
+                        {%- assign mf = p.metafields[ns][k] -%}
+                        {%- if mf != blank -%}
+                          {%- if mf.value != blank -%}
+                            {{ mf.value }}
+                          {%- else -%}
+                            {{ mf }}
+                          {%- endif -%}
+                        {%- else -%}
+                          {%- if block.settings.fallback_text != blank -%}
+                            <p>{{ block.settings.fallback_text | escape }}</p>
+                          {%- endif -%}
+                        {%- endif -%}
+                      {%- else -%}
+                        {%- if block.settings.fallback_text != blank -%}
+                          <p>{{ block.settings.fallback_text | escape }}</p>
+                        {%- endif -%}
+                      {%- endif -%}
+                    </div>
+                  </details>
+
+                {%- when 'accordion_page' -%}
+                  <details {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
+                    <summary>
+                      <span>{{ block.settings.title | escape }}</span>
+                      <span aria-hidden="true">+</span>
+                    </summary>
+                    <div class="qtm-modern__accordion-content rte">
+                      {%- if block.settings.page != blank -%}
+                        {{ block.settings.page.content }}
+                      {%- endif -%}
+                    </div>
+                  </details>
+
+                {%- when 'accordion_liquid' -%}
+                  <details {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
+                    <summary>
+                      <span>{{ block.settings.title | escape }}</span>
+                      <span aria-hidden="true">+</span>
+                    </summary>
+                    <div class="qtm-modern__accordion-content rte">
+                      {{ block.settings.custom_liquid }}
                     </div>
                   </details>
 
@@ -556,7 +813,6 @@
             {%- endfor -%}
           </div>
         {%- endif -%}
-
       </div>
     </div>
   </div>
@@ -569,7 +825,7 @@
         <button type="button" class="qtm-modern__modal-close" data-qtm-close-modal aria-label="Close">✕</button>
       </div>
       <div class="qtm-modern__modal-body">
-        <img id="QtmModalImg-{{ section.id }}" src="{{ featured_src }}" alt="{{ featured_alt | escape }}">
+        <img id="QtmModalImg-{{ section.id }}" src="{{ featured_src }}" alt="{{ featured.alt | escape }}">
         <div class="qtm-modern__modal-nav">
           <button type="button" data-qtm-prev aria-label="Previous">‹</button>
           <button type="button" data-qtm-next aria-label="Next">›</button>
@@ -588,11 +844,16 @@
       var root = document.getElementById('MainProductModern-{{ section.id }}');
       if (!root) return;
 
-      var product = JSON.parse(document.getElementById('QtmProductJson-{{ section.id }}').textContent);
+      var productJsonEl = document.getElementById('QtmProductJson-{{ section.id }}');
+      if (!productJsonEl) return;
+
+      var product = JSON.parse(productJsonEl.textContent);
       var variants = product.variants || [];
 
+      // Media
       var mainImg = document.getElementById('QtmMainImage-{{ section.id }}');
       var thumbs = root.querySelectorAll('.qtm-modern__thumb');
+      var gridButtons = root.querySelectorAll('.qtm-modern__grid-gallery [data-qtm-image]');
 
       // Lightbox
       var modal = document.getElementById('QtmModal-{{ section.id }}');
@@ -602,6 +863,12 @@
       var closeBtn = root.querySelector('[data-qtm-close-modal]');
       var prevBtn = root.querySelector('[data-qtm-prev]');
       var nextBtn = root.querySelector('[data-qtm-next]');
+      var mainOpen = root.querySelector('[data-qtm-open-main]');
+
+      // Carousel rail nav
+      var rail = root.querySelector('[data-qtm-thumb-rail]');
+      var railPrev = root.querySelector('[data-qtm-thumb-prev]');
+      var railNext = root.querySelector('[data-qtm-thumb-next]');
 
       var currentIndex = 0;
 
@@ -610,17 +877,26 @@
         if (thumbs[idx]) thumbs[idx].setAttribute('aria-current','true');
       }
 
+      function getButtonByIndex(idx){
+        if (thumbs && thumbs.length) return thumbs[idx] || null;
+        if (gridButtons && gridButtons.length) return gridButtons[idx] || null;
+        return null;
+      }
+
       function setImageByIndex(idx){
-        if (!thumbs.length) return;
-        var btn = thumbs[idx];
+        var btn = getButtonByIndex(idx);
         if (!btn) return;
+
         currentIndex = idx;
+
         var src = btn.getAttribute('data-qtm-image');
         if (src && mainImg) mainImg.src = src;
         if (src && modalImg) modalImg.src = src;
-        setActiveThumb(idx);
+
+        if (thumbs && thumbs.length) setActiveThumb(idx);
       }
 
+      // thumb click
       thumbs.forEach(function(btn){
         btn.addEventListener('click', function(){
           var idx = parseInt(btn.getAttribute('data-qtm-index'), 10) || 0;
@@ -628,35 +904,73 @@
         });
       });
 
-      if (openBtn && modal){
-        openBtn.addEventListener('click', function(){
-          if (modal.showModal) modal.showModal();
+      // grid click (columns layout)
+      gridButtons.forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var idx = parseInt(btn.getAttribute('data-qtm-index'), 10) || 0;
+          setImageByIndex(idx);
+          if (modal && modal.showModal && root.getAttribute('data-gallery-layout') === 'columns'){
+            modal.showModal();
+          }
+        });
+      });
+
+      // modal open/close
+      function openModal(){
+        if (modal && modal.showModal){
+          modal.showModal();
+        }
+      }
+      if (openBtn) openBtn.addEventListener('click', openModal);
+
+      if (mainOpen){
+        mainOpen.addEventListener('click', function(){
+          if (!modal) return;
+          openModal();
         });
       }
+
       if (closeBtn && modal){
         closeBtn.addEventListener('click', function(){ modal.close(); });
       }
+
       if (modal){
         modal.addEventListener('click', function(e){
-          // click outside the dialog closes (best-effort)
           if (e.target === modal) modal.close();
+        });
+        document.addEventListener('keydown', function(e){
+          if (e.key === 'Escape' && modal.open) modal.close();
+          if (!modal.open) return;
+          if (e.key === 'ArrowLeft') prev();
+          if (e.key === 'ArrowRight') next();
         });
       }
 
       function prev(){
-        if (!thumbs.length) return;
+        var total = (thumbs && thumbs.length) ? thumbs.length : (gridButtons ? gridButtons.length : 0);
+        if (!total) return;
         var idx = currentIndex - 1;
-        if (idx < 0) idx = thumbs.length - 1;
+        if (idx < 0) idx = total - 1;
         setImageByIndex(idx);
       }
       function next(){
-        if (!thumbs.length) return;
+        var total = (thumbs && thumbs.length) ? thumbs.length : (gridButtons ? gridButtons.length : 0);
+        if (!total) return;
         var idx = currentIndex + 1;
-        if (idx >= thumbs.length) idx = 0;
+        if (idx >= total) idx = 0;
         setImageByIndex(idx);
       }
       if (prevBtn) prevBtn.addEventListener('click', prev);
       if (nextBtn) nextBtn.addEventListener('click', next);
+
+      // carousel scroll
+      function scrollRail(dir){
+        if (!rail) return;
+        var amt = Math.max(220, rail.clientWidth * 0.75);
+        rail.scrollLeft += (dir === 'next' ? amt : -amt);
+      }
+      if (railPrev) railPrev.addEventListener('click', function(){ scrollRail('prev'); });
+      if (railNext) railNext.addEventListener('click', function(){ scrollRail('next'); });
 
       // Variant selection -> updates price/sku/availability + hidden variant id
       var variantIdInput = document.getElementById('QtmVariantId-{{ section.id }}');
@@ -741,7 +1055,7 @@
           if (v.available){
             availText.textContent = 'In stock';
             atcBtn.disabled = false;
-            atcBtn.textContent = '{{ section.settings.atc_default_label | escape }}';
+            atcBtn.textContent = 'Add to cart';
           } else {
             availText.textContent = 'Sold out';
             atcBtn.disabled = true;
@@ -749,11 +1063,12 @@
           }
         }
 
-        // If variant has featured image, try to switch main image
+        // If variant has a featured image, try to switch main image to match
         if (v.featured_image && v.featured_image.src && mainImg){
           mainImg.src = v.featured_image.src;
           if (modalImg) modalImg.src = v.featured_image.src;
 
+          // update active thumb if it matches (best-effort)
           thumbs.forEach(function(t, idx){
             var src = t.getAttribute('data-qtm-image');
             if (src && src.indexOf(v.featured_image.src) !== -1){
@@ -771,6 +1086,7 @@
         }catch(e){}
       }
 
+      // Listen to option changes
       root.addEventListener('change', function(e){
         if (!e.target) return;
         if (e.target.name && e.target.name.indexOf('qtm-option-') === 0){
@@ -780,7 +1096,7 @@
         }
       });
 
-      // Initialize currentIndex from aria-current
+      // Initialize currentIndex based on aria-current (if thumbs exist)
       thumbs.forEach(function(t, idx){
         if (t.getAttribute('aria-current') === 'true') currentIndex = idx;
       });
@@ -803,70 +1119,143 @@
       "default": "Product details"
     },
     {
-      "type": "color_scheme",
-      "id": "color_scheme",
-      "label": "Color scheme",
-      "default": "scheme-1"
+      "type": "checkbox",
+      "id": "enable_sticky_info",
+      "label": "Sticky content",
+      "default": false
+    },
+
+    {
+      "type": "header",
+      "content": "Media"
+    },
+    {
+      "type": "select",
+      "id": "media_size",
+      "label": "Width",
+      "default": "medium",
+      "options": [
+        { "value": "small", "label": "Small" },
+        { "value": "medium", "label": "Medium" },
+        { "value": "large", "label": "Large" }
+      ]
+    },
+    {
+      "type": "checkbox",
+      "id": "constrain_to_viewport",
+      "label": "Constrain to screen height",
+      "default": false
+    },
+    {
+      "type": "select",
+      "id": "media_fit",
+      "label": "Fit",
+      "default": "original",
+      "options": [
+        { "value": "original", "label": "Original" },
+        { "value": "fill", "label": "Fill" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "gallery_layout",
+      "label": "Layout",
+      "default": "stacked",
+      "options": [
+        { "value": "stacked", "label": "Stacked" },
+        { "value": "columns", "label": "2 columns" },
+        { "value": "thumbnails", "label": "Thumbnails" },
+        { "value": "thumbnail_carousel", "label": "Thumbnail carousel" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "mobile_thumbnails",
+      "label": "Mobile layout",
+      "default": "show",
+      "options": [
+        { "value": "hide", "label": "Hide thumbnails" },
+        { "value": "columns", "label": "2 columns" },
+        { "value": "show", "label": "Show thumbnails" }
+      ]
     },
     {
       "type": "select",
       "id": "media_position",
-      "options": [
-        { "value": "left", "label": "Media left" },
-        { "value": "right", "label": "Media right" }
-      ],
+      "label": "Position",
       "default": "left",
-      "label": "Media position"
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "right", "label": "Right" }
+      ]
     },
     {
       "type": "select",
       "id": "image_zoom",
-      "options": [
-        { "value": "lightbox", "label": "Lightbox" },
-        { "value": "none", "label": "None" }
-      ],
+      "label": "Zoom",
       "default": "lightbox",
-      "label": "Image zoom"
-    },
-    {
-      "type": "header",
-      "content": "Under Add to Cart"
-    },
-    {
-      "type": "select",
-      "id": "under_atc_content",
-      "label": "Content below Add to cart",
-      "default": "none",
       "options": [
-        { "value": "none", "label": "None" },
-        { "value": "description", "label": "Product description" },
-        { "value": "short_metafield", "label": "Short description metafield" }
+        { "value": "lightbox", "label": "Open lightbox" },
+        { "value": "none", "label": "None" }
       ]
     },
     {
-      "type": "text",
-      "id": "short_description_metafield_namespace",
-      "label": "Short description metafield namespace",
-      "default": "custom"
+      "type": "checkbox",
+      "id": "hide_variants",
+      "label": "Hide other variant media after one is selected",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_video_looping",
+      "label": "Loop video",
+      "default": false
+    },
+
+    {
+      "type": "header",
+      "content": "Purchase"
+    },
+    {
+      "type": "select",
+      "id": "variant_picker_type",
+      "label": "Variant picker",
+      "default": "buttons",
+      "options": [
+        { "value": "buttons", "label": "Buttons" },
+        { "value": "dropdown", "label": "Dropdown" }
+      ]
+    },
+    {
+      "type": "checkbox",
+      "id": "show_dynamic_checkout",
+      "default": false,
+      "label": "Show dynamic checkout button"
+    },
+
+    {
+      "type": "header",
+      "content": "Below Add to Cart"
+    },
+    {
+      "type": "select",
+      "id": "below_atc_content",
+      "label": "Content below Add to cart",
+      "default": "short",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "short", "label": "Short description" },
+        { "value": "description", "label": "Full description" }
+      ]
     },
     {
       "type": "text",
       "id": "short_description_metafield_key",
       "label": "Short description metafield key",
-      "default": "short_description"
+      "default": "custom.short_description",
+      "info": "Enter as namespace.key (example: custom.short_description). Used when 'Short description' is selected. Fallback: truncated product description."
     },
-    {
-      "type": "text",
-      "id": "app_block_default_heading",
-      "label": "Default heading for app accordion blocks",
-      "default": "Reviews"
-    },
-    {
-      "type": "text",
-      "id": "atc_default_label",
-      "label": "Default Add to cart label (JS fallback)",
-      "default": "Add to cart"
-    },
+
     {
       "type": "header",
       "content": "Spacing"
@@ -894,87 +1283,24 @@
   ],
   "blocks": [
     {
-      "type": "title",
-      "name": "Title",
-      "limit": 1
-    },
-    {
-      "type": "price",
-      "name": "Price",
-      "limit": 1,
-      "settings": [
-        {
-          "type": "checkbox",
-          "id": "show_meta",
-          "label": "Show SKU + availability",
-          "default": true
-        }
-      ]
-    },
-    {
-      "type": "variant_picker",
-      "name": "Variant picker",
-      "limit": 1,
-      "settings": [
-        {
-          "type": "select",
-          "id": "picker_type",
-          "label": "Picker type",
-          "default": "button",
-          "options": [
-            { "value": "button", "label": "Buttons" },
-            { "value": "dropdown", "label": "Dropdown" }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "quantity_selector",
-      "name": "Quantity selector",
-      "limit": 1,
-      "settings": [
-        {
-          "type": "text",
-          "id": "label",
-          "label": "Label",
-          "default": "Quantity"
-        }
-      ]
-    },
-    {
-      "type": "buy_buttons",
-      "name": "Buy buttons",
-      "limit": 1,
-      "settings": [
-        {
-          "type": "text",
-          "id": "atc_label",
-          "label": "Add to cart label",
-          "default": "Add to cart"
-        },
-        {
-          "type": "checkbox",
-          "id": "show_dynamic_checkout",
-          "label": "Show dynamic checkout button",
-          "default": false
-        }
-      ]
-    },
-    {
       "type": "accordion_description",
       "name": "Accordion — Description",
       "settings": [
+        { "type": "text", "id": "title", "label": "Title", "default": "Product description" },
+        { "type": "checkbox", "id": "open_by_default", "label": "Open by default", "default": true }
+      ]
+    },
+    {
+      "type": "accordion_reviews",
+      "name": "Accordion — Reviews",
+      "settings": [
+        { "type": "text", "id": "title", "label": "Title", "default": "Reviews" },
+        { "type": "checkbox", "id": "open_by_default", "label": "Open by default", "default": false },
         {
-          "type": "text",
-          "id": "heading",
-          "label": "Heading",
-          "default": "Product description"
-        },
-        {
-          "type": "checkbox",
-          "id": "open_by_default",
-          "label": "Open by default",
-          "default": true
+          "type": "textarea",
+          "id": "placeholder_text",
+          "label": "Placeholder text",
+          "default": "Reviews will display here once your reviews app is embedded (use a Custom liquid accordion, or add the app block elsewhere on the product template)."
         }
       ]
     },
@@ -982,70 +1308,43 @@
       "type": "accordion_metafield",
       "name": "Accordion — Metafield",
       "settings": [
-        {
-          "type": "text",
-          "id": "heading",
-          "label": "Heading",
-          "default": "Details"
-        },
-        {
-          "type": "text",
-          "id": "metafield_namespace",
-          "label": "Metafield namespace",
-          "default": "custom"
-        },
+        { "type": "text", "id": "title", "label": "Title", "default": "Product details" },
+        { "type": "checkbox", "id": "open_by_default", "label": "Open by default", "default": false },
         {
           "type": "text",
           "id": "metafield_key",
-          "label": "Metafield key",
-          "default": "details"
+          "label": "Metafield key (namespace.key)",
+          "default": "custom.product_details",
+          "info": "Enter as namespace.key (example: custom.product_details)."
         },
-        {
-          "type": "checkbox",
-          "id": "open_by_default",
-          "label": "Open by default",
-          "default": false
-        }
+        { "type": "text", "id": "fallback_text", "label": "Fallback text (optional)" }
       ]
     },
     {
-      "type": "accordion_custom",
-      "name": "Accordion — Custom",
+      "type": "accordion_page",
+      "name": "Accordion — Page",
       "settings": [
-        {
-          "type": "text",
-          "id": "heading",
-          "label": "Heading",
-          "default": "More info"
-        },
-        {
-          "type": "richtext",
-          "id": "content",
-          "label": "Content",
-          "default": "<p>Add your content here.</p>"
-        },
-        {
-          "type": "checkbox",
-          "id": "open_by_default",
-          "label": "Open by default",
-          "default": false
-        }
+        { "type": "text", "id": "title", "label": "Title", "default": "More info" },
+        { "type": "checkbox", "id": "open_by_default", "label": "Open by default", "default": false },
+        { "type": "page", "id": "page", "label": "Page" }
       ]
     },
     {
-      "type": "@app"
+      "type": "accordion_liquid",
+      "name": "Accordion — Custom liquid",
+      "settings": [
+        { "type": "text", "id": "title", "label": "Title", "default": "Details" },
+        { "type": "checkbox", "id": "open_by_default", "label": "Open by default", "default": false },
+        { "type": "liquid", "id": "custom_liquid", "label": "Custom liquid" }
+      ]
     }
   ],
   "presets": [
     {
       "name": "Main Product — Modern",
       "blocks": [
-        { "type": "title" },
-        { "type": "price" },
-        { "type": "variant_picker" },
-        { "type": "quantity_selector" },
-        { "type": "buy_buttons" },
         { "type": "accordion_description" },
+        { "type": "accordion_reviews" },
         { "type": "accordion_metafield" }
       ]
     }
