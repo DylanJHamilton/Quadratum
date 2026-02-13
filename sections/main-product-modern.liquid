@@ -6,10 +6,10 @@
   - Works as a standalone PDP section (no Dawn dependency graph)
   - Add to cart works (reliable hidden input name="id")
   - Dawn-like layout modes + options (WITHOUT color scheme dependency)
-  - Variant selection updates variant id + price + ATC availability (minimal JS)
-  - Media gallery: viewer + thumbnails (simple/reliable)
+  - Variant selection updates variant id + price + ATC availability + URL ?variant= (minimal JS)
+  - Media gallery: viewer + thumbnails OR scroll gallery (reliable)
   - Content: Tabs (desktop) / Accordion (mobile) OR clean H2 sections
-  - Blocks include: Description, Reviews (@app), Meta Data + extra Dawn-ish primitives
+  - Blocks include: Description, Reviews (@app), Meta Data + Dawn-ish primitives
 {%- endcomment -%}
 
 {{ 'main-product-modern.css' | asset_url | stylesheet_tag }}
@@ -56,6 +56,8 @@
       assign enable_sticky = false
     endif
 
+    assign thumbs_pos = s.thumbs_position | default: 'below'
+
     capture t_add
       echo 'products.product.add_to_cart' | t
     endcapture
@@ -94,6 +96,7 @@
     data-product-id="{{ p.id }}"
     data-initial-variant-id="{{ current_variant.id }}"
     data-initial-media-id="{{ active_media_id }}"
+    data-layout-mode="{{ layout_mode }}"
     style="
       --q-maxw: {%- case s.max_width -%}
         {%- when 'sm' -%} 40rem
@@ -144,7 +147,14 @@
       <div class="q-pdp-modern__grid" aria-label="Product layout grid">
         <!-- MEDIA -->
         <div class="q-pdp-modern__media" aria-label="{{ media_aria | escape }}">
-          <div class="q-modern-media" data-gallery>
+          <div
+            class="q-modern-media"
+            data-gallery
+            {% if thumbs_pos == 'left' or thumbs_pos == 'right' %}
+              data-thumbs-layout="side"
+              data-thumbs-side="{{ thumbs_pos }}"
+            {% endif %}
+          >
             <div class="q-modern-media__viewer" data-viewer aria-label="Media viewer">
               {%- for m in p.media limit: media_limit -%}
                 <div
@@ -160,7 +170,7 @@
             </div>
 
             {%- if show_thumbs -%}
-              <div class="q-modern-media__thumbs q-thumbs--{{ s.thumbs_position | default: 'below' }}" aria-label="Media thumbnails">
+              <div class="q-modern-media__thumbs q-thumbs--{{ thumbs_pos }}" aria-label="Media thumbnails">
                 <div class="q-modern-thumbs" role="list">
                   {%- for m in p.media limit: media_limit -%}
                     {%- assign timg = m.preview_image -%}
@@ -335,6 +345,20 @@
             <!-- Variants JSON for JS -->
             <script type="application/json" data-variants-json>
               {{ p.variants | json }}
+            </script>
+
+            <!-- Theme money format for JS -->
+            <script type="application/json" data-money-format>
+              {{ shop.money_format | json }}
+            </script>
+
+            <!-- UI strings for JS -->
+            <script type="application/json" data-ui-strings>
+              {
+                "add": {{ t_add | json }},
+                "sold": {{ t_sold | json }},
+                "unavail": {{ t_unavail | json }}
+              }
             </script>
 
             <!-- Content mode hint -->
@@ -553,12 +577,7 @@
         { "value": "scroll_gallery_right", "label": "Scroll gallery (media right)" }
       ]
     },
-    {
-      "type": "checkbox",
-      "id": "enable_sticky_summary",
-      "label": "Sticky info (desktop)",
-      "default": true
-    },
+    { "type": "checkbox", "id": "enable_sticky_summary", "label": "Sticky info (desktop)", "default": true },
     {
       "type": "select",
       "id": "max_width",
@@ -609,7 +628,6 @@
         { "value": "lg", "label": "Larger" }
       ]
     },
-
     { "type": "header", "content": "Media" },
     { "type": "range", "id": "media_limit", "label": "Media limit", "min": 1, "max": 24, "step": 1, "default": 12 },
     { "type": "checkbox", "id": "show_thumbnails", "label": "Show thumbnails", "default": true },
@@ -638,7 +656,6 @@
     { "type": "range", "id": "thumb_gap", "label": "Thumb gap", "min": 6, "max": 20, "step": 1, "default": 12 },
     { "type": "range", "id": "media_radius", "label": "Media radius", "min": 0, "max": 24, "step": 1, "default": 16 },
     { "type": "range", "id": "thumb_radius", "label": "Thumb radius", "min": 0, "max": 20, "step": 1, "default": 10 },
-
     { "type": "header", "content": "Purchase" },
     { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": true },
     { "type": "checkbox", "id": "show_price", "label": "Show price", "default": true },
@@ -646,7 +663,6 @@
     { "type": "checkbox", "id": "show_quantity", "label": "Show quantity", "default": true },
     { "type": "checkbox", "id": "show_quantity_label", "label": "Show quantity label", "default": true },
     { "type": "checkbox", "id": "show_dynamic_checkout", "label": "Show dynamic checkout buttons", "default": false },
-
     { "type": "header", "content": "Variants" },
     {
       "type": "select",
@@ -659,7 +675,6 @@
       ]
     },
     { "type": "checkbox", "id": "show_variant_labels", "label": "Show option labels", "default": true },
-
     { "type": "header", "content": "Content" },
     {
       "type": "select",
@@ -683,98 +698,61 @@
         { "value": "minimal", "label": "Minimal" }
       ]
     },
-
     { "type": "header", "content": "Buttons" },
     { "type": "range", "id": "button_radius", "label": "Button radius", "min": 0, "max": 20, "step": 1, "default": 10 },
-
     { "type": "header", "content": "Accessibility" },
     { "type": "text", "id": "section_aria_label", "label": "Section aria label" },
     { "type": "text", "id": "media_aria_label", "label": "Media aria label" },
     { "type": "text", "id": "summary_aria_label", "label": "Summary aria label" }
   ],
   "blocks": [
-    {
-      "type": "description",
-      "name": "Description",
-      "limit": 1,
-      "settings": [
-        { "type": "text", "id": "heading", "label": "Heading", "default": "Description" }
-      ]
-    },
-
+    { "type": "description", "name": "Description", "limit": 1, "settings": [{ "type": "text", "id": "heading", "label": "Heading", "default": "Description" }] },
     { "type": "@app" },
-
     {
       "type": "meta_data",
       "name": "Meta Data",
       "settings": [
         { "type": "text", "id": "heading", "label": "Heading", "default": "Meta data" },
-
         { "type": "text", "id": "label_1", "label": "Label 1" },
         { "type": "text", "id": "namespace_1", "label": "Namespace 1" },
         { "type": "text", "id": "key_1", "label": "Key 1" },
-
         { "type": "text", "id": "label_2", "label": "Label 2" },
         { "type": "text", "id": "namespace_2", "label": "Namespace 2" },
         { "type": "text", "id": "key_2", "label": "Key 2" },
-
         { "type": "text", "id": "label_3", "label": "Label 3" },
         { "type": "text", "id": "namespace_3", "label": "Namespace 3" },
         { "type": "text", "id": "key_3", "label": "Key 3" },
-
         { "type": "text", "id": "label_4", "label": "Label 4" },
         { "type": "text", "id": "namespace_4", "label": "Namespace 4" },
         { "type": "text", "id": "key_4", "label": "Key 4" },
-
         { "type": "text", "id": "label_5", "label": "Label 5" },
         { "type": "text", "id": "namespace_5", "label": "Namespace 5" },
         { "type": "text", "id": "key_5", "label": "Key 5" },
-
         { "type": "text", "id": "label_6", "label": "Label 6" },
         { "type": "text", "id": "namespace_6", "label": "Namespace 6" },
         { "type": "text", "id": "key_6", "label": "Key 6" },
-
         { "type": "text", "id": "label_7", "label": "Label 7" },
         { "type": "text", "id": "namespace_7", "label": "Namespace 7" },
         { "type": "text", "id": "key_7", "label": "Key 7" },
-
         { "type": "text", "id": "label_8", "label": "Label 8" },
         { "type": "text", "id": "namespace_8", "label": "Namespace 8" },
         { "type": "text", "id": "key_8", "label": "Key 8" },
-
         { "type": "text", "id": "label_9", "label": "Label 9" },
         { "type": "text", "id": "namespace_9", "label": "Namespace 9" },
         { "type": "text", "id": "key_9", "label": "Key 9" },
-
         { "type": "text", "id": "label_10", "label": "Label 10" },
         { "type": "text", "id": "namespace_10", "label": "Namespace 10" },
         { "type": "text", "id": "key_10", "label": "Key 10" },
-
         { "type": "text", "id": "label_11", "label": "Label 11" },
         { "type": "text", "id": "namespace_11", "label": "Namespace 11" },
         { "type": "text", "id": "key_11", "label": "Key 11" },
-
         { "type": "text", "id": "label_12", "label": "Label 12" },
         { "type": "text", "id": "namespace_12", "label": "Namespace 12" },
         { "type": "text", "id": "key_12", "label": "Key 12" }
       ]
     },
-    {
-      "type": "collapsible_row",
-      "name": "Collapsible row",
-      "settings": [
-        { "type": "text", "id": "heading", "label": "Heading", "default": "Details" },
-        { "type": "richtext", "id": "content", "label": "Content" }
-      ]
-    },
-    {
-      "type": "liquid",
-      "name": "Custom liquid",
-      "settings": [
-        { "type": "text", "id": "heading", "label": "Heading", "default": "More" },
-        { "type": "liquid", "id": "custom_liquid", "label": "Liquid" }
-      ]
-    }
+    { "type": "collapsible_row", "name": "Collapsible row", "settings": [{ "type": "text", "id": "heading", "label": "Heading", "default": "Details" }, { "type": "richtext", "id": "content", "label": "Content" }] },
+    { "type": "liquid", "name": "Custom liquid", "settings": [{ "type": "text", "id": "heading", "label": "Heading", "default": "More" }, { "type": "liquid", "id": "custom_liquid", "label": "Liquid" }] }
   ],
   "presets": [
     {
