@@ -4,9 +4,11 @@
 
   PATCH (THIS EDIT)
   ----------------
-  D) FIX: Tabs stacking on desktop (mobile tab rules were global)
-     - Scope mobile-only tab stacking + mobile viewer single-image rules to max-width: 990px
-     - Ensure checked panel display rule wins in mobile cascade
+  E) FIX: Badges not “working” when variant changes
+     - Add stable DOM hooks (ids) for Sale + Availability badges (and price/sku/ATC)
+     - Add data-* to variant <option> so we can update badges client-side
+     - Add tiny, self-contained JS (no Dawn dependencies) to update:
+       price, compare-at, sale badge text, availability badge, sku, ATC disabled/text
 {%- endcomment -%}
 
 {%- liquid
@@ -45,15 +47,18 @@
     assign excerpt = p.description | strip_html | strip | truncate: 160
   endif
 
+  assign cv_price = current_variant.price | default: 0
+  assign cv_compare = current_variant.compare_at_price | default: 0
+
   assign is_on_sale = false
-  if current_variant.compare_at_price > current_variant.price
+  if cv_compare > cv_price
     assign is_on_sale = true
   endif
 
   assign sale_pct = 0
-  if is_on_sale and current_variant.compare_at_price > 0
-    assign diff = current_variant.compare_at_price | minus: current_variant.price
-    assign sale_pct = diff | times: 100 | divided_by: current_variant.compare_at_price
+  if is_on_sale and cv_compare > 0
+    assign diff = cv_compare | minus: cv_price
+    assign sale_pct = diff | times: 100 | divided_by: cv_compare
   endif
 
   assign media_bg = 'transparent'
@@ -83,6 +88,10 @@
     q-maxw--{{ s.max_width | default: 'lg' }}
   "
   aria-label="{{ section_aria | escape }}"
+  data-sale-style="{{ s.sale_badge_style | default: 'percent' }}"
+  data-show-sale-badge="{{ s.show_sale_badge }}"
+  data-show-availability-badge="{{ s.show_availability_badge }}"
+  data-show-sku="{{ s.show_sku }}"
   style="
     --q-maxw: {%- case s.max_width -%}
       {%- when 'sm' -%} 40rem
@@ -316,36 +325,50 @@
           <h1 class="q-title">{{ p.title }}</h1>
 
           <div class="q-price" aria-live="polite">
-            {%- if current_variant.compare_at_price > current_variant.price -%}
-              <span class="q-price__sale">{{ current_variant.price | money }}</span>
-              <span class="q-price__compare">{{ current_variant.compare_at_price | money }}</span>
-            {%- else -%}
-              <span class="q-price__regular">{{ current_variant.price | money }}</span>
-            {%- endif -%}
+            <span id="q-price-regular-{{ section.id }}" class="q-price__regular" {% if is_on_sale %}style="display:none"{% endif %}>
+              {{ cv_price | money }}
+            </span>
+
+            <span id="q-price-sale-{{ section.id }}" class="q-price__sale" {% unless is_on_sale %}style="display:none"{% endunless %}>
+              {{ cv_price | money }}
+            </span>
+            <span id="q-price-compare-{{ section.id }}" class="q-price__compare" {% unless is_on_sale %}style="display:none"{% endunless %}>
+              {{ cv_compare | money }}
+            </span>
           </div>
 
           <div class="q-meta-row">
-            {%- if s.show_sale_badge and is_on_sale -%}
-              <span class="q-badge q-badge--sale">
-                {%- if s.sale_badge_style == 'percent' and sale_pct > 0 -%}
-                  Sale −{{ sale_pct }}%
-                {%- elsif s.sale_badge_style == 'amount' -%}
-                  Sale −{{ current_variant.compare_at_price | minus: current_variant.price | money }}
-                {%- else -%}
-                  Sale
-                {%- endif -%}
-              </span>
-            {%- endif -%}
+            <span
+              id="q-badge-sale-{{ section.id }}"
+              class="q-badge q-badge--sale"
+              {% unless s.show_sale_badge and is_on_sale %}style="display:none"{% endunless %}
+              aria-live="polite"
+            >
+              {%- if s.sale_badge_style == 'percent' and sale_pct > 0 -%}
+                Sale −{{ sale_pct }}%
+              {%- elsif s.sale_badge_style == 'amount' -%}
+                Sale −{{ cv_compare | minus: cv_price | money }}
+              {%- else -%}
+                Sale
+              {%- endif -%}
+            </span>
 
-            {%- if s.show_availability_badge -%}
-              <span class="q-badge {% if current_variant.available %}q-badge--in{% else %}q-badge--out{% endif %}">
-                {%- if current_variant.available -%}In stock{%- else -%}Sold out{%- endif -%}
-              </span>
-            {%- endif -%}
+            <span
+              id="q-badge-avail-{{ section.id }}"
+              class="q-badge {% if current_variant.available %}q-badge--in{% else %}q-badge--out{% endif %}"
+              {% unless s.show_availability_badge %}style="display:none"{% endunless %}
+              aria-live="polite"
+            >
+              {%- if current_variant.available -%}In stock{%- else -%}Sold out{%- endif -%}
+            </span>
 
-            {%- if s.show_sku and current_variant.sku != blank -%}
-              <span class="q-sku">SKU: {{ current_variant.sku }}</span>
-            {%- endif -%}
+            <span
+              id="q-sku-{{ section.id }}"
+              class="q-sku"
+              {% unless s.show_sku and current_variant.sku != blank %}style="display:none"{% endunless %}
+            >
+              SKU: <span id="q-sku-val-{{ section.id }}">{{ current_variant.sku }}</span>
+            </span>
           </div>
 
           {%- if s.show_excerpt and excerpt != blank -%}
@@ -360,8 +383,16 @@
                 <label class="q-label" for="q-variant-{{ section.id }}">Variant</label>
                 <select id="q-variant-{{ section.id }}" name="id" class="q-select">
                   {%- for v in p.variants -%}
+                    {%- assign v_price = v.price | default: 0 -%}
+                    {%- assign v_compare = v.compare_at_price | default: 0 -%}
                     <option
                       value="{{ v.id }}"
+                      data-price="{{ v_price }}"
+                      data-compare="{{ v_compare }}"
+                      data-available="{% if v.available %}1{% else %}0{% endif %}"
+                      data-sku="{{ v.sku | escape }}"
+                      data-price-money="{{ v_price | money | escape }}"
+                      data-compare-money="{{ v_compare | money | escape }}"
                       {% if v.id == current_variant.id %}selected{% endif %}
                       {% unless v.available %}disabled{% endunless %}
                     >
@@ -387,12 +418,15 @@
               </div>
 
               <button
+                id="q-atc-{{ section.id }}"
                 type="submit"
                 class="q-btn"
                 name="add"
                 {% unless current_variant.available %}disabled{% endunless %}
               >
-                {%- if current_variant.available -%}Add to cart{%- else -%}Sold out{%- endif -%}
+                <span id="q-atc-text-{{ section.id }}">
+                  {%- if current_variant.available -%}Add to cart{%- else -%}Sold out{%- endif -%}
+                </span>
               </button>
             </div>
 
@@ -767,7 +801,132 @@
     </div>
   </div>
 
+  <script>
+    (function(){
+      var root = document.getElementById('q-pdp-{{ section.id }}');
+      if (!root) return;
+
+      var select = document.getElementById('q-variant-{{ section.id }}');
+      if (!select) return;
+
+      var saleStyle = (root.getAttribute('data-sale-style') || 'percent').toLowerCase();
+
+      var elPriceRegular = document.getElementById('q-price-regular-{{ section.id }}');
+      var elPriceSale = document.getElementById('q-price-sale-{{ section.id }}');
+      var elPriceCompare = document.getElementById('q-price-compare-{{ section.id }}');
+
+      var elSaleBadge = document.getElementById('q-badge-sale-{{ section.id }}');
+      var elAvailBadge = document.getElementById('q-badge-avail-{{ section.id }}');
+      var elSkuWrap = document.getElementById('q-sku-{{ section.id }}');
+      var elSkuVal = document.getElementById('q-sku-val-{{ section.id }}');
+
+      var elAtc = document.getElementById('q-atc-{{ section.id }}');
+      var elAtcText = document.getElementById('q-atc-text-{{ section.id }}');
+
+      function formatMoneyFallback(cents){
+        // Prefer Shopify.money_format if present
+        var fmt = (window.Shopify && window.Shopify.money_format) ? window.Shopify.money_format : '${{amount}}';
+        var val = (Number(cents) || 0) / 100;
+        var str = val.toFixed(2);
+
+        // Basic token support: {{amount}} and {{amount_no_decimals}}
+        return fmt
+          .replace('{{amount_no_decimals}}', String(Math.round(val)))
+          .replace('{{amount}}', str);
+      }
+
+      function setDisplay(el, show){
+        if (!el) return;
+        el.style.display = show ? '' : 'none';
+      }
+
+      function onChange(){
+        var opt = select.options[select.selectedIndex];
+        if (!opt) return;
+
+        var price = Number(opt.dataset.price || 0);
+        var compare = Number(opt.dataset.compare || 0);
+        var available = (opt.dataset.available || '0') === '1';
+        var sku = (opt.dataset.sku || '').trim();
+
+        var priceMoney = opt.dataset.priceMoney || formatMoneyFallback(price);
+        var compareMoney = opt.dataset.compareMoney || formatMoneyFallback(compare);
+
+        var onSale = compare > price && compare > 0;
+
+        // Price swap
+        if (elPriceRegular && elPriceSale && elPriceCompare){
+          if (onSale){
+            elPriceSale.textContent = priceMoney;
+            elPriceCompare.textContent = compareMoney;
+            setDisplay(elPriceSale, true);
+            setDisplay(elPriceCompare, true);
+            setDisplay(elPriceRegular, false);
+          } else {
+            elPriceRegular.textContent = priceMoney;
+            setDisplay(elPriceRegular, true);
+            setDisplay(elPriceSale, false);
+            setDisplay(elPriceCompare, false);
+          }
+        }
+
+        // Sale badge
+        if (elSaleBadge){
+          var showSaleBadge = root.getAttribute('data-show-sale-badge') === 'true';
+          if (showSaleBadge && onSale){
+            var text = 'Sale';
+            if (saleStyle === 'percent'){
+              var pct = Math.round(((compare - price) * 100) / compare);
+              if (pct > 0) text = 'Sale −' + pct + '%';
+            } else if (saleStyle === 'amount'){
+              var diff = compare - price;
+              text = 'Sale −' + formatMoneyFallback(diff);
+            }
+            elSaleBadge.textContent = text;
+            setDisplay(elSaleBadge, true);
+          } else {
+            setDisplay(elSaleBadge, false);
+          }
+        }
+
+        // Availability badge
+        if (elAvailBadge){
+          var showAvail = root.getAttribute('data-show-availability-badge') === 'true';
+          if (showAvail){
+            elAvailBadge.textContent = available ? 'In stock' : 'Sold out';
+            elAvailBadge.classList.toggle('q-badge--in', available);
+            elAvailBadge.classList.toggle('q-badge--out', !available);
+            setDisplay(elAvailBadge, true);
+          } else {
+            setDisplay(elAvailBadge, false);
+          }
+        }
+
+        // SKU
+        if (elSkuWrap && elSkuVal){
+          var showSku = root.getAttribute('data-show-sku') === 'true';
+          if (showSku && sku){
+            elSkuVal.textContent = sku;
+            setDisplay(elSkuWrap, true);
+          } else {
+            setDisplay(elSkuWrap, false);
+          }
+        }
+
+        // ATC
+        if (elAtc && elAtcText){
+          elAtc.disabled = !available;
+          elAtcText.textContent = available ? 'Add to cart' : 'Sold out';
+        }
+      }
+
+      select.addEventListener('change', onChange);
+      onChange();
+    })();
+  </script>
+
   <style>
+    /* (UNCHANGED CSS BELOW — your existing styles preserved) */
     #q-pdp-{{ section.id }}{ background: var(--q-bg); color: var(--q-text); }
     #q-pdp-{{ section.id }} .q-pdp__inner{ max-width: var(--q-maxw); margin: 0 auto; padding: var(--q-py) var(--q-px); }
     #q-pdp-{{ section.id }} .q-pdp__grid{ display: grid; gap: 1.5rem; }
@@ -804,26 +963,10 @@
     #q-pdp-{{ section.id }} .q-thumb__ph{ width: 100%; height: 100%; display: block; }
 
     /* Lightbox (NO JS, :target) */
-    #q-pdp-{{ section.id }} .q-lb{
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      display: none;
-    }
+    #q-pdp-{{ section.id }} .q-lb{ position: fixed; inset: 0; z-index: 9999; display: none; }
     #q-pdp-{{ section.id }} .q-lb:target{ display: block; }
-    #q-pdp-{{ section.id }} .q-lb__overlay{
-      position: absolute;
-      inset: 0;
-      background: rgba(0,0,0,0.7);
-      display: block;
-    }
-    #q-pdp-{{ section.id }} .q-lb__dialog{
-      position: absolute;
-      inset: 3vh 3vw;
-      display: grid;
-      place-items: center;
-      padding: 1rem;
-    }
+    #q-pdp-{{ section.id }} .q-lb__overlay{ position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: block; }
+    #q-pdp-{{ section.id }} .q-lb__dialog{ position: absolute; inset: 3vh 3vw; display: grid; place-items: center; padding: 1rem; }
     #q-pdp-{{ section.id }} .q-lb__dialog img{
       max-width: 55%;
       max-height: 100%;
@@ -851,10 +994,7 @@
       backdrop-filter: blur(4px);
       z-index: 2;
     }
-    #q-pdp-{{ section.id }} .q-lb__close:focus-visible{
-      outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
+    #q-pdp-{{ section.id }} .q-lb__close:focus-visible{ outline: 2px solid #fff; outline-offset: 2px; }
 
     /* Lightbox arrows */
     #q-pdp-{{ section.id }} .q-lb__nav{
@@ -878,10 +1018,7 @@
     }
     #q-pdp-{{ section.id }} .q-lb__prev{ left: 1.25rem; }
     #q-pdp-{{ section.id }} .q-lb__next{ right: 1.25rem; }
-    #q-pdp-{{ section.id }} .q-lb__nav:focus-visible{
-      outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
+    #q-pdp-{{ section.id }} .q-lb__nav:focus-visible{ outline: 2px solid #fff; outline-offset: 2px; }
 
     /* UI surface controls */
     #q-pdp-{{ section.id }} .q-summary,
@@ -911,9 +1048,7 @@
     }
 
     /* Optional summary border */
-    #q-pdp-{{ section.id }}.q-summary-border--on .q-summary{
-      border: var(--q-ui-bw) solid var(--q-ui-bc);
-    }
+    #q-pdp-{{ section.id }}.q-summary-border--on .q-summary{ border: var(--q-ui-bw) solid var(--q-ui-bc); }
 
     #q-pdp-{{ section.id }} .q-vendor{ font-size: 0.9rem; opacity: 0.8; }
     #q-pdp-{{ section.id }} .q-title{ font-size: var(--q-title); line-height: 1.15; margin: 0; }
@@ -932,21 +1067,9 @@
       border: var(--q-badge-bw) solid var(--q-ui-bc);
       background: rgba(0,0,0,0.02);
     }
-    #q-pdp-{{ section.id }} .q-badge--sale{
-      background: var(--q-badge-sale-bg);
-      color: var(--q-badge-sale-text);
-      border-color: var(--q-badge-sale-bc);
-    }
-    #q-pdp-{{ section.id }} .q-badge--in{
-      background: var(--q-badge-in-bg);
-      color: var(--q-badge-in-text);
-      border-color: var(--q-badge-in-bc);
-    }
-    #q-pdp-{{ section.id }} .q-badge--out{
-      background: var(--q-badge-out-bg);
-      color: var(--q-badge-out-text);
-      border-color: var(--q-badge-out-bc);
-    }
+    #q-pdp-{{ section.id }} .q-badge--sale{ background: var(--q-badge-sale-bg); color: var(--q-badge-sale-text); border-color: var(--q-badge-sale-bc); }
+    #q-pdp-{{ section.id }} .q-badge--in{ background: var(--q-badge-in-bg); color: var(--q-badge-in-text); border-color: var(--q-badge-in-bc); }
+    #q-pdp-{{ section.id }} .q-badge--out{ background: var(--q-badge-out-bg); color: var(--q-badge-out-text); border-color: var(--q-badge-out-bc); }
 
     #q-pdp-{{ section.id }} .q-sku{ font-size: 0.9rem; opacity: 0.85; }
     #q-pdp-{{ section.id }} .q-excerpt{ font-size: 0.98rem; line-height: 1.55; opacity: 0.92; margin-top: 0.75rem; }
@@ -974,10 +1097,7 @@
     }
 
     #q-pdp-{{ section.id }} .q-select:focus-visible,
-    #q-pdp-{{ section.id }} .q-input:focus-visible{
-      outline: 2px solid var(--q-thumb-bc-active);
-      outline-offset: 2px;
-    }
+    #q-pdp-{{ section.id }} .q-input:focus-visible{ outline: 2px solid var(--q-thumb-bc-active); outline-offset: 2px; }
 
     /* Qty + ATC row */
     #q-pdp-{{ section.id }} .q-atc{ display: grid; gap: 0.75rem; }
@@ -999,11 +1119,7 @@
     #q-pdp-{{ section.id }}.q-atc-density--comfy .q-btn{ padding: 0.9rem 1rem; }
     #q-pdp-{{ section.id }}.q-atc-density--compact .q-btn{ padding: 0.7rem 0.9rem; }
 
-    #q-pdp-{{ section.id }} .q-btn:hover{
-      background: var(--q-btn-bg-h);
-      border-color: var(--q-btn-bc-h);
-      color: var(--q-btn-text-h);
-    }
+    #q-pdp-{{ section.id }} .q-btn:hover{ background: var(--q-btn-bg-h); border-color: var(--q-btn-bc-h); color: var(--q-btn-text-h); }
     #q-pdp-{{ section.id }} .q-btn:active{ transform: translateY(1px); }
     #q-pdp-{{ section.id }} .q-btn:disabled{
       background: var(--q-btn-dis-bg);
@@ -1015,42 +1131,21 @@
 
     #q-pdp-{{ section.id }} .q-dynamic-checkout{ margin-top: 0.5rem; }
     #q-pdp-{{ section.id }} .q-dynamic-checkout > *{ width: 100%; }
-    #q-pdp-{{ section.id }} .q-affirm{
-      margin-top: 0.35rem;
-      font-size: 0.92rem;
-      opacity: 0.8;
-      line-height: 1.45;
-    }
+    #q-pdp-{{ section.id }} .q-affirm{ margin-top: 0.35rem; font-size: 0.92rem; opacity: 0.8; line-height: 1.45; }
 
     #q-pdp-{{ section.id }} .q-payments-note,
-    #q-pdp-{{ section.id }} .q-policies{
-      font-size: 0.92rem;
-      opacity: 0.8;
-      line-height: 1.45;
-    }
+    #q-pdp-{{ section.id }} .q-policies{ font-size: 0.92rem; opacity: 0.8; line-height: 1.45; }
 
     /* Under-ATC */
-    #q-pdp-{{ section.id }} .q-under-atc{
-      margin-top: 0.75rem;
-      display: grid;
-      gap: var(--q-under-gap);
-    }
-    #q-pdp-{{ section.id }} .q-under-banners{
-      display: grid;
-      gap: var(--q-under-gap);
-    }
+    #q-pdp-{{ section.id }} .q-under-atc{ margin-top: 0.75rem; display: grid; gap: var(--q-under-gap); }
+    #q-pdp-{{ section.id }} .q-under-banners{ display: grid; gap: var(--q-under-gap); }
     #q-pdp-{{ section.id }} .q-under-banner{
       border-radius: var(--q-ui-r);
       overflow: hidden;
       border: 1px solid rgba(0,0,0,0.08);
       background: rgba(0,0,0,0.01);
     }
-    #q-pdp-{{ section.id }} .q-under-banner img{
-      width: 100%;
-      height: auto;
-      display: block;
-      object-fit: cover;
-    }
+    #q-pdp-{{ section.id }} .q-under-banner img{ width: 100%; height: auto; display: block; object-fit: cover; }
     #q-pdp-{{ section.id }} .q-under-banner__link{ display: block; text-decoration: none; color: inherit; }
 
     #q-pdp-{{ section.id }} .q-trust{
@@ -1091,18 +1186,9 @@
       background: rgba(255,255,255,0.02);
       padding: 0.25rem 0.5rem;
     }
-    #q-pdp-{{ section.id }} .q-faq__q{
-      cursor: pointer;
-      font-weight: 600;
-      padding: 0.5rem 0.25rem;
-      list-style: none;
-    }
+    #q-pdp-{{ section.id }} .q-faq__q{ cursor: pointer; font-weight: 600; padding: 0.5rem 0.25rem; list-style: none; }
     #q-pdp-{{ section.id }} details.q-faq__item > summary::-webkit-details-marker{ display: none; }
-    #q-pdp-{{ section.id }} .q-faq__a{
-      padding: 0 0.25rem 0.5rem;
-      opacity: 0.92;
-      line-height: 1.5;
-    }
+    #q-pdp-{{ section.id }} .q-faq__a{ padding: 0 0.25rem 0.5rem; opacity: 0.92; line-height: 1.5; }
 
     #q-pdp-{{ section.id }} .q-pdp__content{ margin-top: 2rem; }
 
@@ -1134,15 +1220,8 @@
     #q-pdp-{{ section.id }}.q-ui--bordered .q-tab__label{ background: transparent; }
     #q-pdp-{{ section.id }}.q-ui--none .q-tab__label{ background: transparent; border: 1px solid rgba(0,0,0,0.14); }
 
-    #q-pdp-{{ section.id }} .q-tab__radio:focus-visible + .q-tab__label{
-      outline: 2px solid var(--q-thumb-bc-active);
-      outline-offset: 2px;
-    }
-    #q-pdp-{{ section.id }} .q-tab__panel{
-      grid-row: 2;
-      grid-column: 1 / -1;
-      display: none;
-    }
+    #q-pdp-{{ section.id }} .q-tab__radio:focus-visible + .q-tab__label{ outline: 2px solid var(--q-thumb-bc-active); outline-offset: 2px; }
+    #q-pdp-{{ section.id }} .q-tab__panel{ grid-row: 2; grid-column: 1 / -1; display: none; }
     #q-pdp-{{ section.id }} .q-tab__radio:checked + .q-tab__label{ border-color: var(--q-thumb-bc-active); }
     #q-pdp-{{ section.id }} .q-tab__radio:checked + .q-tab__label + .q-tab__panel{ display: block; }
 
@@ -1153,9 +1232,7 @@
       background: transparent;
       padding: 0.75rem 0.25rem;
     }
-    #q-pdp-{{ section.id }}.q-tabs--underline .q-tab__radio:checked + .q-tab__label{
-      border-bottom-color: var(--q-thumb-bc-active);
-    }
+    #q-pdp-{{ section.id }}.q-tabs--underline .q-tab__radio:checked + .q-tab__label{ border-bottom-color: var(--q-thumb-bc-active); }
 
     #q-pdp-{{ section.id }}.q-tabs--minimal .q-tab__label{
       border: 0;
@@ -1197,9 +1274,7 @@
         grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
         align-items: start;
       }
-      #q-pdp-{{ section.id }}.q-dir--reverse .q-pdp__grid{
-        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-      }
+      #q-pdp-{{ section.id }}.q-dir--reverse .q-pdp__grid{ grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); }
       #q-pdp-{{ section.id }}.q-dir--reverse .q-pdp__summary{ order: 1; }
       #q-pdp-{{ section.id }}.q-dir--reverse .q-pdp__media{ order: 2; }
 
@@ -1255,11 +1330,7 @@
       }
 
       /* FIX: mobile thumb placement uses areas */
-      #q-pdp-{{ section.id }} .q-pdp-media{
-        display: grid;
-        gap: 0.75rem;
-        grid-template-areas: "viewer" "thumbs";
-      }
+      #q-pdp-{{ section.id }} .q-pdp-media{ display: grid; gap: 0.75rem; grid-template-areas: "viewer" "thumbs"; }
       #q-pdp-{{ section.id }} .q-pdp-media__thumbs{ grid-area: thumbs; }
       #q-pdp-{{ section.id }} .q-pdp-media__viewer{ grid-area: viewer; }
 
@@ -1286,9 +1357,7 @@
       #q-pdp-{{ section.id }} .q-lb__next{ right: 0.6rem; }
 
       /* ✅ Mobile-only: limit viewer to ONE image */
-      #q-pdp-{{ section.id }} .q-pdp-media__viewer{
-        display: block !important;
-      }
+      #q-pdp-{{ section.id }} .q-pdp-media__viewer{ display: block !important; }
       #q-pdp-{{ section.id }} .q-pdp-media__viewer .q-media-item{ display: none; }
       #q-pdp-{{ section.id }} .q-pdp-media__viewer .q-media-item:first-child{ display: block; }
 
@@ -1297,17 +1366,10 @@
       #q-pdp-{{ section.id }} .q-pdp-media__viewer:has(.q-media-item:target) .q-media-item:target{ display: block; }
 
       /* ✅ Mobile-only: stack tabs vertically */
-      #q-pdp-{{ section.id }} .q-tabs{
-        grid-template-columns: 1fr;
-        column-gap: 0;
-        row-gap: 0.6rem;
-      }
+      #q-pdp-{{ section.id }} .q-tabs{ grid-template-columns: 1fr; column-gap: 0; row-gap: 0.6rem; }
 
       /* Let labels flow normally in mobile */
-      #q-pdp-{{ section.id }} .q-tab__label{
-        grid-row: auto;
-        width: 100%;
-      }
+      #q-pdp-{{ section.id }} .q-tab__label{ grid-row: auto; width: 100%; }
 
       /* Hide panels by default in mobile */
       #q-pdp-{{ section.id }} .q-tab__panel{
@@ -1318,9 +1380,7 @@
       }
 
       /* Show active panel directly under label */
-      #q-pdp-{{ section.id }} .q-tab__radio:checked + .q-tab__label + .q-tab__panel{
-        display: block;
-      }
+      #q-pdp-{{ section.id }} .q-tab__radio:checked + .q-tab__label + .q-tab__panel{ display: block; }
     }
   </style>
 </section>
