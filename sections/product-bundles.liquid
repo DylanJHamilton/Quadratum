@@ -3,10 +3,11 @@
   File: sections/product-bundles.liquid
 
   HARD FIX:
-  - If no bundles resolve, STILL render a visible placeholder in request.design_mode
-    so the editor never "disappears" the section.
-  - On live storefront, still renders nothing if empty (no empty wrappers).
-  - Manual + Metafield supported.
+  - Manual mode resolves product picker values whether they arrive as:
+    (A) product object   OR
+    (B) handle/string (resolved via all_products[handle])
+  - No snippet dependency (renders card inline)
+  - Still no empty wrappers on storefront; editor shows placeholder if empty
 {%- endcomment -%}
 
 {%- liquid
@@ -25,6 +26,7 @@
 {%- endcapture -%}
 
 {%- capture pb_cards -%}
+
   {%- comment -%} =========================
     MANUAL MODE
   ========================== {%- endcomment -%}
@@ -33,34 +35,43 @@
       {%- if block.type != 'bundle' -%}{% continue %}{%- endif -%}
 
       {%- liquid
-        assign raw = '' | split: ','
-
-        if block.settings.product_1 != blank
-          assign raw = raw | push: block.settings.product_1
-        endif
-        if block.settings.product_2 != blank
-          assign raw = raw | push: block.settings.product_2
-        endif
-        if block.settings.product_3 != blank
-          assign raw = raw | push: block.settings.product_3
-        endif
-        if block.settings.product_4 != blank
-          assign raw = raw | push: block.settings.product_4
-        endif
-        if block.settings.product_5 != blank
-          assign raw = raw | push: block.settings.product_5
-        endif
-        if block.settings.product_6 != blank
-          assign raw = raw | push: block.settings.product_6
-        endif
+        assign picks = '' | split: ','
+        assign picks = picks | push: block.settings.product_1
+        assign picks = picks | push: block.settings.product_2
+        assign picks = picks | push: block.settings.product_3
+        assign picks = picks | push: block.settings.product_4
+        assign picks = picks | push: block.settings.product_5
+        assign picks = picks | push: block.settings.product_6
 
         assign seen = '|'
         assign products = '' | split: ','
 
-        for pr in raw
+        for pick in picks
+          if pick == blank
+            continue
+          endif
+
+          assign pr = blank
+
+          comment
+            pick can be:
+            - product object (has id/title)
+            - handle/string (resolve via all_products)
+          endcomment
+
+          if pick.id != blank
+            assign pr = pick
+          else
+            assign maybe_handle = pick | append: ''
+            if maybe_handle != blank
+              assign pr = all_products[maybe_handle]
+            endif
+          endif
+
           if pr == blank
             continue
           endif
+
           assign pid = pr.id | append: ''
           assign tok = '|' | append: pid | append: '|'
           if seen contains tok
@@ -72,160 +83,142 @@
       -%}
 
       {%- if products.size >= 2 -%}
-        {%- render 'pb-bundle-card',
-          section_id: section.id,
-          block: block,
-          bundle_title: block.settings.bundle_title,
-          bundle_description: block.settings.bundle_description,
-          products: products,
-          settings: s
+        {%- liquid
+          assign title = block.settings.bundle_title
+          if title == blank
+            assign title = 'Bundle'
+          endif
+
+          assign desc = block.settings.bundle_description
+
+          assign all_available = true
+          assign ids = '' | split: ','
+          assign ids_seen = '|'
+          assign total_price = 0
+          assign compare_total = 0
+
+          for pr in products
+            assign v = pr.selected_or_first_available_variant
+            if v == blank
+              assign v = pr.variants.first
+            endif
+
+            if v == blank or v.available == false
+              assign all_available = false
+            endif
+
+            if v != blank
+              assign total_price = total_price | plus: v.price
+              if v.compare_at_price != blank and v.compare_at_price > v.price
+                assign compare_total = compare_total | plus: v.compare_at_price
+              else
+                assign compare_total = compare_total | plus: v.price
+              endif
+
+              assign vid = v.id | append: ''
+              assign tok2 = '|' | append: vid | append: '|'
+              if ids_seen contains tok2
+                continue
+              endif
+              assign ids_seen = ids_seen | append: vid | append: '|'
+              assign ids = ids | push: vid
+            endif
+          endfor
+
+          assign savings_amount = 0
+          if compare_total > total_price
+            assign savings_amount = compare_total | minus: total_price
+          endif
+
+          assign disabled = false
+          if s.disable_if_unavailable and all_available == false
+            assign disabled = true
+          endif
+
+          assign data_items = ids | join: ','
         -%}
+
+        <article class="pb__card" {{ block.shopify_attributes }} style="--pb-radius: {{ s.card_radius }}px;">
+          <div class="pb__card-inner{% if s.card_border %} pb__card-inner--border{% endif %}">
+            <div class="pb__card-head">
+              <h3 class="pb__card-title">{{ title | escape }}</h3>
+              {%- if desc != blank -%}
+                <div class="pb__card-desc rte">{{ desc }}</div>
+              {%- endif -%}
+            </div>
+
+            <ul class="pb__items" role="list">
+              {%- for pr in products -%}
+                {%- assign v = pr.selected_or_first_available_variant -%}
+                {%- if v == blank -%}{%- assign v = pr.variants.first -%}{%- endif -%}
+                {%- assign img = pr.featured_image -%}
+                {%- assign alt = img.alt | default: pr.title -%}
+
+                <li class="pb__item">
+                  <a class="pb__item-media" href="{{ pr.url }}" aria-label="{{ pr.title | escape }}">
+                    {%- if img != blank -%}
+                      {{ img | image_url: width: 120 | image_tag: loading: 'lazy', alt: alt, class: 'pb__img' }}
+                    {%- endif -%}
+                  </a>
+                  <div class="pb__item-meta">
+                    <a class="pb__item-title" href="{{ pr.url }}">{{ pr.title }}</a>
+
+                    {%- if s.show_individual_prices and v != blank -%}
+                      <div class="pb__item-price">
+                        <span class="pb__price">{{ v.price | money }}</span>
+                        {%- if v.compare_at_price != blank and v.compare_at_price > v.price -%}
+                          <s class="pb__compare">{{ v.compare_at_price | money }}</s>
+                        {%- endif -%}
+                      </div>
+                    {%- endif -%}
+                  </div>
+                </li>
+              {%- endfor -%}
+            </ul>
+
+            <div class="pb__summary">
+              {%- if s.show_bundle_total -%}
+                <div class="pb__total">
+                  <span class="pb__total-label">Total</span>
+                  <span class="pb__total-value">{{ total_price | money }}</span>
+                </div>
+              {%- endif -%}
+
+              {%- if s.show_savings and savings_amount > 0 -%}
+                <div class="pb__savings">
+                  <span class="pb__savings-label">{{ s.savings_label | escape }}</span>
+                  <span class="pb__savings-value">-{{ savings_amount | money }}</span>
+                </div>
+              {%- endif -%}
+            </div>
+
+            <div class="pb__cta">
+              <button
+                type="button"
+                class="pb__add button"
+                data-pb-add
+                data-items="{{ data_items | escape }}"
+                aria-busy="false"
+                {% if disabled %}disabled{% endif %}
+              >
+                {{ s.button_label | escape }}
+              </button>
+
+              <div class="pb__error" role="alert" hidden></div>
+
+              {%- if disabled and s.disable_if_unavailable -%}
+                <p class="pb__note">Some items in this bundle are currently unavailable.</p>
+              {%- endif -%}
+            </div>
+          </div>
+        </article>
       {%- endif -%}
     {%- endfor -%}
   {%- endif -%}
 
-  {%- comment -%} =========================
-    METAFIELD MODE
-  ========================== {%- endcomment -%}
-  {%- if s.source == 'metafield' and p != nil -%}
-    {%- liquid
-      assign ns = s.metafield_namespace | default: 'custom'
-      assign key = s.metafield_key | default: 'bundles'
-      assign mf = p.metafields[ns][key]
-    -%}
-
-    {%- if mf != blank and mf.value != blank -%}
-
-      {%- comment -%} Pattern A: product_list -> one bundle (up to 6) {%- endcomment -%}
-      {%- if s.metafield_type == 'product_list' -%}
-        {%- liquid
-          assign list = mf.value
-          assign seen = '|'
-          assign products = '' | split: ','
-
-          for pr in list
-            if pr == blank
-              continue
-            endif
-            assign pid = pr.id | append: ''
-            assign tok = '|' | append: pid | append: '|'
-            if seen contains tok
-              continue
-            endif
-            assign seen = seen | append: pid | append: '|'
-            assign products = products | push: pr
-            if products.size >= 6
-              break
-            endif
-          endfor
-        -%}
-
-        {%- if products.size >= 2 -%}
-          {%- render 'pb-bundle-card',
-            section_id: section.id,
-            block: nil,
-            bundle_title: s.title,
-            bundle_description: blank,
-            products: products,
-            settings: s
-          -%}
-        {%- endif -%}
-      {%- endif -%}
-
-      {%- comment -%} Pattern B: metaobject_list -> multiple bundles {%- endcomment -%}
-      {%- if s.metafield_type == 'metaobject_list' -%}
-        {%- liquid
-          assign mos = mf.value
-          assign max_b = s.max_bundles | default: 3
-          assign count = 0
-        -%}
-
-        {%- for mo in mos -%}
-          {%- if mo == blank -%}{% continue %}{%- endif -%}
-
-          {%- liquid
-            assign count = count | plus: 1
-            if count > max_b
-              break
-            endif
-
-            assign mo_title = blank
-            if mo.title != blank and mo.title.value != blank
-              assign mo_title = mo.title.value
-            elsif mo.title != blank
-              assign mo_title = mo.title
-            endif
-
-            assign mo_desc = blank
-            if mo.description != blank and mo.description.value != blank
-              assign mo_desc = mo.description.value
-            elsif mo.description != blank
-              assign mo_desc = mo.description
-            endif
-
-            assign mo_products = blank
-            if mo.products != blank and mo.products.value != blank
-              assign mo_products = mo.products.value
-            elsif mo.products != blank
-              assign mo_products = mo.products
-            endif
-
-            assign mo_savings_label = blank
-            if mo.savings_label != blank and mo.savings_label.value != blank
-              assign mo_savings_label = mo.savings_label.value
-            elsif mo.savings_label != blank
-              assign mo_savings_label = mo.savings_label
-            endif
-
-            assign seen = '|'
-            assign products = '' | split: ','
-
-            if mo_products != blank
-              for pr in mo_products
-                if pr == blank
-                  continue
-                endif
-                assign pid = pr.id | append: ''
-                assign tok = '|' | append: pid | append: '|'
-                if seen contains tok
-                  continue
-                endif
-                assign seen = seen | append: pid | append: '|'
-                assign products = products | push: pr
-                if products.size >= 6
-                  break
-                endif
-              endfor
-            endif
-          -%}
-
-          {%- if products.size >= 2 -%}
-            {%- render 'pb-bundle-card',
-              section_id: section.id,
-              block: nil,
-              bundle_title: mo_title,
-              bundle_description: mo_desc,
-              products: products,
-              settings: s,
-              savings_label_override: mo_savings_label
-            -%}
-          {%- endif -%}
-        {%- endfor -%}
-      {%- endif -%}
-
-    {%- endif -%}
-  {%- endif -%}
 {%- endcapture -%}
 
 {%- assign pb_cards_stripped = pb_cards | strip -%}
-
-{%- comment -%}
-  RENDER RULE:
-  - If we have cards => render section always
-  - If we have NO cards:
-      - in Theme Editor (design_mode) => render placeholder so you can SEE/EDIT the section
-      - on live storefront => render nothing (no empty wrapper)
-{%- endcomment -%}
 
 {%- if pb_cards_stripped != blank or request.design_mode -%}
   <section
@@ -251,12 +244,10 @@
           {{ pb_cards }}
         </div>
       {%- else -%}
-        {%- comment -%} Editor-only placeholder (visible) {%- endcomment -%}
         <div class="pb__placeholder" style="padding:16px;border:1px dashed rgba(0,0,0,.35);border-radius:12px;">
           <strong>Product bundles:</strong> No bundles resolved yet.
           <div style="margin-top:6px;opacity:.85;">
-            Set <em>Source = Manual</em> and choose at least <strong>2 products</strong> in a bundle block,
-            or populate metafield <code>{{ s.metafield_namespace }}.{{ s.metafield_key }}</code>.
+            Source is currently <code>{{ s.source }}</code>. In manual mode, ensure products are picked in the bundle block.
           </div>
         </div>
       {%- endif -%}
@@ -288,14 +279,14 @@
     { "type": "text", "id": "metafield_namespace", "label": "Metafield namespace", "default": "custom" },
     { "type": "text", "id": "metafield_key", "label": "Metafield key", "default": "bundles" },
     {
-      "type": "select",
-      "id": "metafield_type",
-      "label": "Metafield type",
-      "default": "product_list",
-      "options": [
+    "type": "select",
+    "id": "metafield_type",
+    "label": "Metafield type",
+    "default": "product_list",
+    "options": [
         { "value": "product_list", "label": "Product list" },
         { "value": "metaobject_list", "label": "Metaobject list" }
-      ]
+    ]
     },
 
     { "type": "header", "content": "Layout" },
@@ -362,10 +353,7 @@
         { "type": "product", "id": "product_3", "label": "Product 3" },
         { "type": "product", "id": "product_4", "label": "Product 4" },
         { "type": "product", "id": "product_5", "label": "Product 5" },
-        { "type": "product", "id": "product_6", "label": "Product 6" },
-
-        { "type": "checkbox", "id": "show_savings_override", "label": "Override savings visibility", "default": false },
-        { "type": "text", "id": "savings_label_override", "label": "Savings label override" }
+        { "type": "product", "id": "product_6", "label": "Product 6" }
       ]
     }
   ],
