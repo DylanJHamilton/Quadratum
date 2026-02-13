@@ -1,0 +1,356 @@
+{%- comment -%}
+  SECTION: product-cross-sell.liquid
+  Role: Related / complementary products near bottom of PDP.
+
+  Modes:
+  - manual (blocks)
+  - collection
+  - dynamic (Shopify recommendations JSON) with fallback
+
+  Rendering: MUST use product-card snippet.
+{%- endcomment -%}
+
+{%- liquid
+  assign s = section.settings
+  assign p = product
+  if p == blank
+    break
+  endif
+
+  assign mode = s.mode | default: 'dynamic'
+  assign layout = s.layout | default: 'grid'
+  assign max_products = s.max_products | default: 4
+
+  assign cols_desktop = s.columns_desktop | default: 4
+  assign cols_tablet  = s.columns_tablet  | default: 2
+
+  # columns_mobile is a select (string). Cast to integer-like via plus: 0
+  assign cols_mobile  = s.columns_mobile | default: '1' | plus: 0
+
+  assign current_id = p.id
+  assign c = s.collection
+
+  # Determine if we can render anything server-side (for non-dynamic)
+  assign has_manual = false
+  for block in section.blocks
+    if block.type == 'product_reference' and block.settings.product != blank
+      assign bp = block.settings.product
+      if bp.id != current_id and bp.available
+        assign has_manual = true
+        break
+      endif
+    endif
+  endfor
+
+  assign has_collection = false
+  if c != blank
+    for cp in c.products
+      if cp != blank and cp.id != current_id and cp.available
+        assign has_collection = true
+        break
+      endif
+    endfor
+  endif
+
+  assign should_render = false
+  if mode == 'dynamic'
+    assign should_render = true
+  elsif mode == 'collection' and has_collection
+    assign should_render = true
+  elsif mode == 'manual' and has_manual
+    assign should_render = true
+  endif
+
+  if should_render == false
+    break
+  endif
+-%}
+
+<section id="product-cross-sell" class="q-product-cross-sell" data-mode="{{ mode }}" data-layout="{{ layout }}">
+  <div class="q-product-cross-sell__inner">
+
+    {%- if s.title != blank -%}
+      <h2 class="q-product-cross-sell__title">{{ s.title }}</h2>
+    {%- endif -%}
+
+    {%- if s.subheading != blank -%}
+      <div class="q-product-cross-sell__subheading rte">
+        {{ s.subheading }}
+      </div>
+    {%- endif -%}
+
+    {%- liquid
+      assign grid_style = ''
+      if layout == 'grid'
+        assign grid_style = ' --q-cols-desktop:' | append: cols_desktop | append: '; --q-cols-tablet:' | append: cols_tablet | append: '; --q-cols-mobile:' | append: cols_mobile | append: ';'
+      endif
+    -%}
+
+    <div class="q-product-cross-sell__products q-product-cross-sell__products--{{ layout }}"
+         style="{{ grid_style }}"
+         data-products-container
+         data-current-id="{{ current_id }}"
+         data-max="{{ max_products }}">
+      {%- if mode != 'dynamic' -%}
+        {%- liquid
+          assign rendered = 0
+          assign seen_ids = ''
+        -%}
+
+        {%- if mode == 'collection' and c != blank -%}
+          {%- for cp in c.products -%}
+            {%- if cp != blank and cp.id != current_id and cp.available -%}
+              {%- assign id_token = '|' | append: cp.id | append: '|' -%}
+              {%- unless seen_ids contains id_token -%}
+                {%- assign seen_ids = seen_ids | append: id_token -%}
+                {% render 'product-card', product: cp %}
+                {%- assign rendered = rendered | plus: 1 -%}
+                {%- if rendered >= max_products -%}{%- break -%}{%- endif -%}
+              {%- endunless -%}
+            {%- endif -%}
+          {%- endfor -%}
+        {%- elsif mode == 'manual' -%}
+          {%- for block in section.blocks -%}
+            {%- if block.type == 'product_reference' -%}
+              {%- assign bp = block.settings.product -%}
+              {%- if bp != blank and bp.id != current_id and bp.available -%}
+                {%- assign id_token = '|' | append: bp.id | append: '|' -%}
+                {%- unless seen_ids contains id_token -%}
+                  {%- assign seen_ids = seen_ids | append: id_token -%}
+                  {% render 'product-card', product: bp %}
+                  {%- assign rendered = rendered | plus: 1 -%}
+                  {%- if rendered >= max_products -%}{%- break -%}{%- endif -%}
+                {%- endunless -%}
+              {%- endif -%}
+            {%- endif -%}
+          {%- endfor -%}
+        {%- endif -%}
+
+        {%- if rendered == 0 -%}
+          {%- comment -%} No products resolved => render nothing {%- endcomment -%}
+          {%- break -%}
+        {%- endif -%}
+      {%- endif -%}
+    </div>
+
+    {%- comment -%}
+      Hidden fallback markup for Dynamic mode:
+      - Collection fallback first (if selected)
+      - Manual fallback second
+    {%- endcomment -%}
+    {%- if mode == 'dynamic' -%}
+      <div hidden>
+        <div data-fallback-collection>
+          {%- if c != blank -%}
+            {%- liquid
+              assign rendered_c = 0
+              assign seen_c = ''
+            -%}
+            {%- for cp in c.products -%}
+              {%- if cp != blank and cp.id != current_id and cp.available -%}
+                {%- assign id_token = '|' | append: cp.id | append: '|' -%}
+                {%- unless seen_c contains id_token -%}
+                  {%- assign seen_c = seen_c | append: id_token -%}
+                  {% render 'product-card', product: cp %}
+                  {%- assign rendered_c = rendered_c | plus: 1 -%}
+                  {%- if rendered_c >= max_products -%}{%- break -%}{%- endif -%}
+                {%- endunless -%}
+              {%- endif -%}
+            {%- endfor -%}
+          {%- endif -%}
+        </div>
+
+        <div data-fallback-manual>
+          {%- liquid
+            assign rendered_m = 0
+            assign seen_m = ''
+          -%}
+          {%- for block in section.blocks -%}
+            {%- if block.type == 'product_reference' -%}
+              {%- assign bp = block.settings.product -%}
+              {%- if bp != blank and bp.id != current_id and bp.available -%}
+                {%- assign id_token = '|' | append: bp.id | append: '|' -%}
+                {%- unless seen_m contains id_token -%}
+                  {%- assign seen_m = seen_m | append: id_token -%}
+                  {% render 'product-card', product: bp %}
+                  {%- assign rendered_m = rendered_m | plus: 1 -%}
+                  {%- if rendered_m >= max_products -%}{%- break -%}{%- endif -%}
+                {%- endunless -%}
+              {%- endif -%}
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+      </div>
+    {%- endif -%}
+
+  </div>
+
+  <style>
+    .q-product-cross-sell__inner {
+      max-width: var(--page-width, 1200px);
+      margin: 0 auto;
+      padding: 2rem 1rem;
+    }
+    .q-product-cross-sell__products--grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(var(--q-cols-desktop, 4), 1fr);
+    }
+    @media (max-width: 989px) {
+      .q-product-cross-sell__products--grid {
+        grid-template-columns: repeat(var(--q-cols-tablet, 2), 1fr);
+      }
+    }
+    @media (max-width: 749px) {
+      .q-product-cross-sell__products--grid {
+        grid-template-columns: repeat(var(--q-cols-mobile, 1), 1fr);
+      }
+    }
+    .q-product-cross-sell__products--carousel {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(240px, 1fr);
+      gap: 1rem;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 0.25rem;
+    }
+    .q-product-cross-sell__products--carousel > * {
+      scroll-snap-align: start;
+    }
+  </style>
+
+  {%- if mode == 'dynamic' -%}
+    <script>
+      (function() {
+        var section = document.getElementById('product-cross-sell');
+        if (!section) return;
+
+        var container = section.querySelector('[data-products-container]');
+        if (!container) return;
+
+        var currentId = container.getAttribute('data-current-id');
+        var max = parseInt(container.getAttribute('data-max') || '4', 10);
+
+        var fbCollection = section.querySelector('[data-fallback-collection]');
+        var fbManual = section.querySelector('[data-fallback-manual]');
+
+        function hideSection() { section.style.display = 'none'; }
+
+        function swapFallback() {
+          if (fbCollection && fbCollection.innerHTML.trim().length) {
+            container.innerHTML = fbCollection.innerHTML;
+            return;
+          }
+          if (fbManual && fbManual.innerHTML.trim().length) {
+            container.innerHTML = fbManual.innerHTML;
+            return;
+          }
+          hideSection();
+        }
+
+        function fetchRecommendations() {
+          var url = '/recommendations/products.json?product_id=' + encodeURIComponent(currentId) + '&limit=' + encodeURIComponent(max);
+          return fetch(url, { credentials: 'same-origin' })
+            .then(function(r){ if(!r.ok) throw new Error('recommendations failed'); return r.json(); });
+        }
+
+        function fetchCard(handle) {
+          // Uses your existing product-card view endpoint
+          return fetch('/products/' + handle + '?view=product-card', { credentials: 'same-origin' })
+            .then(function(r){ if(!r.ok) throw new Error('card fetch failed'); return r.text(); });
+        }
+
+        fetchRecommendations().then(function(data) {
+          var products = (data && data.products) ? data.products : [];
+          if (!products.length) { swapFallback(); return; }
+
+          var handles = [];
+          var seen = {};
+          for (var i = 0; i < products.length; i++) {
+            var pr = products[i];
+            if (!pr || !pr.handle) continue;
+            if (String(pr.id) === String(currentId)) continue;
+            if (seen[pr.handle]) continue;
+            seen[pr.handle] = true;
+            handles.push(pr.handle);
+            if (handles.length >= max) break;
+          }
+
+          if (!handles.length) { swapFallback(); return; }
+
+          Promise.all(handles.map(fetchCard)).then(function(htmlParts) {
+            var combined = htmlParts.join('');
+            if (!combined.trim()) { swapFallback(); return; }
+            container.innerHTML = combined;
+          }).catch(function(){ swapFallback(); });
+        }).catch(function(){ swapFallback(); });
+      })();
+    </script>
+  {%- endif -%}
+</section>
+
+{% schema %}
+{
+  "name": "Product Cross Sell",
+  "settings": [
+    { "type": "text", "id": "title", "default": "You may also like", "label": "Title" },
+    { "type": "richtext", "id": "subheading", "label": "Subheading" },
+    {
+      "type": "select",
+      "id": "mode",
+      "label": "Mode",
+      "default": "dynamic",
+      "options": [
+        { "value": "manual", "label": "Manual" },
+        { "value": "collection", "label": "Collection" },
+        { "value": "dynamic", "label": "Dynamic" }
+      ]
+    },
+    {
+      "type": "collection",
+      "id": "collection",
+      "label": "Collection",
+      "info": "Used for Collection mode and as fallback for Dynamic mode"
+    },
+    { "type": "range", "id": "max_products", "label": "Max products", "min": 2, "max": 12, "step": 1, "default": 4 },
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "grid",
+      "options": [
+        { "value": "grid", "label": "Grid" },
+        { "value": "carousel", "label": "Carousel" }
+      ]
+    },
+    { "type": "range", "id": "columns_desktop", "label": "Columns (desktop)", "min": 2, "max": 6, "step": 1, "default": 4 },
+    { "type": "range", "id": "columns_tablet", "label": "Columns (tablet)", "min": 1, "max": 4, "step": 1, "default": 2 },
+
+    {
+      "type": "select",
+      "id": "columns_mobile",
+      "label": "Columns (mobile)",
+      "default": "1",
+      "options": [
+        { "value": "1", "label": "1" },
+        { "value": "2", "label": "2" }
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "type": "product_reference",
+      "name": "Product",
+      "settings": [
+        { "type": "product", "id": "product", "label": "Product" }
+      ]
+    }
+  ],
+  "max_blocks": 12,
+  "presets": [
+    { "name": "Product Cross Sell" }
+  ]
+}
+{% endschema %}
