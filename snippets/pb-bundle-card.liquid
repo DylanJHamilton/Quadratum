@@ -1,0 +1,100 @@
+{%- comment -%}
+  pb-bundle-card — minimal, known-good render (no dependencies)
+{%- endcomment -%}
+
+{%- liquid
+  assign s = settings
+
+  assign title = bundle_title
+  if title == blank
+    assign title = 'Bundle'
+  endif
+
+  assign all_available = true
+  assign ids = '' | split: ','
+  assign seen = '|'
+  assign total_price = 0
+
+  for pr in products
+    if pr == blank
+      continue
+    endif
+
+    assign v = pr.selected_or_first_available_variant
+    if v == blank
+      assign v = pr.variants.first
+    endif
+
+    if v == blank or v.available == false
+      assign all_available = false
+    endif
+
+    if v != blank
+      assign total_price = total_price | plus: v.price
+      assign vid = v.id | append: ''
+      assign tok = '|' | append: vid | append: '|'
+      if seen contains tok
+        continue
+      endif
+      assign seen = seen | append: vid | append: '|'
+      assign ids = ids | push: vid
+    endif
+  endfor
+
+  assign disabled = false
+  if s.disable_if_unavailable and all_available == false
+    assign disabled = true
+  endif
+
+  assign data_items = ids | join: ','
+-%}
+
+<article class="pb__card" {% if block != nil %}{{ block.shopify_attributes }}{% endif %}>
+  <div class="pb__card-inner{% if s.card_border %} pb__card-inner--border{% endif %}" style="border-radius: {{ s.card_radius }}px;">
+    <h3 class="pb__card-title">{{ title | escape }}</h3>
+
+    {%- if bundle_description != blank -%}
+      <div class="pb__card-desc rte">{{ bundle_description }}</div>
+    {%- endif -%}
+
+    <ul class="pb__items" role="list">
+      {%- for pr in products -%}
+        {%- if pr == blank -%}{% continue %}{%- endif -%}
+        {%- assign img = pr.featured_image -%}
+        <li class="pb__item">
+          <a class="pb__item-media" href="{{ pr.url }}">
+            {%- if img != blank -%}
+              {{ img | image_url: width: 120 | image_tag: loading: 'lazy', alt: img.alt | default: pr.title, class: 'pb__img' }}
+            {%- endif -%}
+          </a>
+          <div class="pb__item-meta">
+            <a class="pb__item-title" href="{{ pr.url }}">{{ pr.title }}</a>
+          </div>
+        </li>
+      {%- endfor -%}
+    </ul>
+
+    {%- if s.show_bundle_total -%}
+      <div class="pb__summary">
+        <div class="pb__total">
+          <span>Total</span>
+          <span>{{ total_price | money }}</span>
+        </div>
+      </div>
+    {%- endif -%}
+
+    <div class="pb__cta">
+      <button
+        type="button"
+        class="pb__add button"
+        data-pb-add
+        data-items="{{ data_items | escape }}"
+        aria-busy="false"
+        {% if disabled %}disabled{% endif %}
+      >
+        {{ s.button_label | escape }}
+      </button>
+      <div class="pb__error" role="alert" hidden></div>
+    </div>
+  </div>
+</article>
