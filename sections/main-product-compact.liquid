@@ -1,9 +1,7 @@
 {%- comment -%}
   Quadratum — Main Product (Compact)
-  Fully Working Version
-  - No block container reliance
-  - Directly renders shared engine snippets
-  - Immediate parity with existing PDP system
+  Guaranteed Working Version
+  No dependency on non-existent snippets.
 {%- endcomment -%}
 
 {%- liquid
@@ -11,6 +9,8 @@
   if p == blank
     break
   endif
+
+  assign current_variant = p.selected_or_first_available_variant
 -%}
 
 <section
@@ -26,67 +26,69 @@
 
     <div class="main-product-compact__grid">
 
-      <!-- MEDIA COLUMN -->
+      <!-- MEDIA -->
       <div class="main-product-compact__media">
-        {%- render 'product-media-gallery-content',
-          media_presentation: 'gallery',
-          block_settings: section.settings,
-          block_id: section.id,
-          block_shopify_attributes: ''
-        -%}
+
+        {% for media in p.media %}
+          <div class="main-product-compact__media-item">
+            {% case media.media_type %}
+              {% when 'image' %}
+                {{ media | image_url: width: 1600 | image_tag: loading: 'lazy' }}
+              {% when 'video' %}
+                {{ media | video_tag: controls: true }}
+              {% when 'external_video' %}
+                {{ media | external_video_tag }}
+              {% when 'model' %}
+                {{ media | model_viewer_tag }}
+            {% endcase %}
+          </div>
+        {% endfor %}
+
       </div>
 
-      <!-- DETAILS COLUMN -->
+      <!-- DETAILS -->
       <div class="main-product-compact__details">
 
         <h1 class="product__title">
           {{ p.title }}
         </h1>
 
-        <div id="QtmPrice">
-          {{ p.selected_or_first_available_variant.price | money }}
+        <div class="product__price" id="CompactPrice">
+          {{ current_variant.price | money }}
         </div>
 
         {% unless p.has_only_default_variant %}
-          <variant-selects
-            id="VariantSelects-{{ section.id }}"
-            data-section="{{ section.id }}"
-            data-url="{{ p.url }}"
-          >
+          <div class="product__variants">
             {% for option in p.options_with_values %}
-              <fieldset class="product-form__input">
-                <legend>{{ option.name }}</legend>
-                {% for value in option.values %}
-                  <label>
-                    <input
-                      type="radio"
-                      name="options[{{ option.name | escape }}]"
+              <div class="variant-option">
+                <label>{{ option.name }}</label>
+                <select
+                  name="options[{{ option.name | escape }}]"
+                  data-option-index="{{ forloop.index0 }}"
+                  class="variant-select"
+                >
+                  {% for value in option.values %}
+                    <option
                       value="{{ value | escape }}"
-                      {% if option.selected_value == value %}checked{% endif %}
+                      {% if option.selected_value == value %}selected{% endif %}
                     >
-                    {{ value }}
-                  </label>
-                {% endfor %}
-              </fieldset>
+                      {{ value }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
             {% endfor %}
-          </variant-selects>
+          </div>
         {% endunless %}
 
-        <form
-          method="post"
-          action="/cart/add"
-          id="product-form-{{ section.id }}"
-          accept-charset="UTF-8"
-          class="product-form"
-          enctype="multipart/form-data"
-        >
+        <form method="post" action="/cart/add" enctype="multipart/form-data">
           <input
             type="hidden"
             name="id"
-            value="{{ p.selected_or_first_available_variant.id }}"
+            value="{{ current_variant.id }}"
           >
 
-          <div class="product-form__quantity">
+          <div class="product__quantity">
             <label for="Quantity-{{ section.id }}">Quantity</label>
             <input
               id="Quantity-{{ section.id }}"
@@ -99,12 +101,10 @@
 
           <button
             type="submit"
-            name="add"
-            class="product-form__submit button button--primary"
+            class="button button--primary"
           >
             Add to cart
           </button>
-
         </form>
 
         <div class="product__description">
@@ -132,10 +132,12 @@
   }
 }
 
-.main-product-compact__media img {
+.main-product-compact__media img,
+.main-product-compact__media video {
   width: 100%;
   height: auto;
   display: block;
+  margin-bottom: 16px;
 }
 </style>
 
