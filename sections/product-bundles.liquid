@@ -2,12 +2,9 @@
   Quadratum — Product Bundles (PDP companion)
   File: sections/product-bundles.liquid
 
-  Self-contained section.
-  - Manual bundles via blocks (2–6 products)
-  - Metafield mode:
-    A) product_list => one bundle (up to 6)
-    B) metaobject_list => multiple bundles (expects fields: title, description, products, savings_label optional)
-  - Adds all items via /cart/add.js (AJAX) or redirect to /cart
+  FIX:
+  - Do NOT rely on counters inside capture.
+  - Build cards into a capture and render only if non-blank.
 {%- endcomment -%}
 
 {%- liquid
@@ -17,8 +14,6 @@
   if p == blank
     assign p = nil
   endif
-
-  assign bundles_rendered = 0
 -%}
 
 {{ 'section-product-bundles.css' | asset_url | stylesheet_tag }}
@@ -28,115 +23,161 @@
   {%- if s.title != blank -%}{{ s.title | strip_html | escape }}{%- else -%}Product bundles{%- endif -%}
 {%- endcapture -%}
 
-<section
-  class="product-bundles color-{{ s.color_scheme }}"
-  data-section-id="{{ section.id }}"
-  data-add-mode="{{ s.add_mode }}"
-  aria-label="{{ section_aria | strip }}"
->
-  <div class="pb__inner">
-    {%- if s.title != blank or s.subheading != blank -%}
-      <header class="pb__header">
-        {%- if s.title != blank -%}
-          <h2 class="pb__title">{{ s.title | escape }}</h2>
-        {%- endif -%}
-        {%- if s.subheading != blank -%}
-          <div class="pb__subheading rte">{{ s.subheading }}</div>
-        {%- endif -%}
-      </header>
-    {%- endif -%}
+{%- capture pb_cards -%}
 
-    {%- comment -%} ---------- MANUAL MODE ---------- {%- endcomment -%}
-    {%- if s.source == 'manual' -%}
-      {%- capture cards -%}
-        {%- for block in section.blocks -%}
-          {%- if block.type != 'bundle' -%}{% continue %}{%- endif -%}
+  {%- comment -%} ---------- MANUAL MODE ---------- {%- endcomment -%}
+  {%- if s.source == 'manual' -%}
+    {%- for block in section.blocks -%}
+      {%- if block.type != 'bundle' -%}{% continue %}{%- endif -%}
 
-          {%- liquid
-            assign raw_products = '' | split: ','
-
-            if block.settings.product_1 != blank
-              assign raw_products = raw_products | push: block.settings.product_1
-            endif
-            if block.settings.product_2 != blank
-              assign raw_products = raw_products | push: block.settings.product_2
-            endif
-            if block.settings.product_3 != blank
-              assign raw_products = raw_products | push: block.settings.product_3
-            endif
-            if block.settings.product_4 != blank
-              assign raw_products = raw_products | push: block.settings.product_4
-            endif
-            if block.settings.product_5 != blank
-              assign raw_products = raw_products | push: block.settings.product_5
-            endif
-            if block.settings.product_6 != blank
-              assign raw_products = raw_products | push: block.settings.product_6
-            endif
-
-            assign unique_key = '|'
-            assign bundle_products = '' | split: ','
-            for pr in raw_products
-              if pr == blank
-                continue
-              endif
-              assign pid_str = pr.id | append: ''
-              assign token = '|' | append: pid_str | append: '|'
-              if unique_key contains token
-                continue
-              endif
-              assign unique_key = unique_key | append: pid_str | append: '|'
-              assign bundle_products = bundle_products | push: pr
-            endfor
-
-            assign product_count = bundle_products.size
-            if product_count < 2
-              assign should_render = false
-            else
-              assign should_render = true
-            endif
-          -%}
-
-          {%- if should_render -%}
-            {%- render 'pb-bundle-card',
-              section_id: section.id,
-              block: block,
-              bundle_title: block.settings.bundle_title,
-              bundle_description: block.settings.bundle_description,
-              products: bundle_products,
-              settings: s
-            -%}
-            {%- assign bundles_rendered = bundles_rendered | plus: 1 -%}
-          {%- endif -%}
-        {%- endfor -%}
-      {%- endcapture -%}
-
-      {%- if bundles_rendered > 0 -%}
-        <div class="pb__grid pb__grid--{{ s.layout }}">
-          {{ cards }}
-        </div>
-      {%- endif -%}
-    {%- endif -%}
-
-    {%- comment -%} ---------- METAFIELD MODE ---------- {%- endcomment -%}
-    {%- if s.source == 'metafield' and p != nil -%}
       {%- liquid
-        assign ns = s.metafield_namespace | default: 'custom'
-        assign key = s.metafield_key | default: 'bundles'
-        assign mf = p.metafields[ns][key]
+        assign raw_products = '' | split: ','
+
+        if block.settings.product_1 != blank
+          assign raw_products = raw_products | push: block.settings.product_1
+        endif
+        if block.settings.product_2 != blank
+          assign raw_products = raw_products | push: block.settings.product_2
+        endif
+        if block.settings.product_3 != blank
+          assign raw_products = raw_products | push: block.settings.product_3
+        endif
+        if block.settings.product_4 != blank
+          assign raw_products = raw_products | push: block.settings.product_4
+        endif
+        if block.settings.product_5 != blank
+          assign raw_products = raw_products | push: block.settings.product_5
+        endif
+        if block.settings.product_6 != blank
+          assign raw_products = raw_products | push: block.settings.product_6
+        endif
+
+        assign unique_key = '|'
+        assign bundle_products = '' | split: ','
+
+        for pr in raw_products
+          if pr == blank
+            continue
+          endif
+          assign pid_str = pr.id | append: ''
+          assign token = '|' | append: pid_str | append: '|'
+          if unique_key contains token
+            continue
+          endif
+          assign unique_key = unique_key | append: pid_str | append: '|'
+          assign bundle_products = bundle_products | push: pr
+        endfor
       -%}
 
-      {%- if mf != blank -%}
-        {%- capture mf_cards -%}
+      {%- if bundle_products.size >= 2 -%}
+        {%- render 'pb-bundle-card',
+          section_id: section.id,
+          block: block,
+          bundle_title: block.settings.bundle_title,
+          bundle_description: block.settings.bundle_description,
+          products: bundle_products,
+          settings: s
+        -%}
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
 
-          {%- comment -%} Pattern A: product_list => one bundle from list (up to 6) {%- endcomment -%}
-          {%- if s.metafield_type == 'product_list' and mf.value != blank -%}
-            {%- liquid
-              assign list_products = mf.value
-              assign bundle_products = '' | split: ','
-              assign unique_key = '|'
+  {%- comment -%} ---------- METAFIELD MODE ---------- {%- endcomment -%}
+  {%- if s.source == 'metafield' and p != nil -%}
+    {%- liquid
+      assign ns = s.metafield_namespace | default: 'custom'
+      assign key = s.metafield_key | default: 'bundles'
+      assign mf = p.metafields[ns][key]
+    -%}
 
-              for pr in list_products
+    {%- if mf != blank and mf.value != blank -%}
+
+      {%- comment -%} Pattern A: product_list metafield -> one bundle (up to 6) {%- endcomment -%}
+      {%- if s.metafield_type == 'product_list' -%}
+        {%- liquid
+          assign list_products = mf.value
+          assign bundle_products = '' | split: ','
+          assign unique_key = '|'
+
+          for pr in list_products
+            if pr == blank
+              continue
+            endif
+            assign pid_str = pr.id | append: ''
+            assign token = '|' | append: pid_str | append: '|'
+            if unique_key contains token
+              continue
+            endif
+            assign unique_key = unique_key | append: pid_str | append: '|'
+            assign bundle_products = bundle_products | push: pr
+            if bundle_products.size >= 6
+              break
+            endif
+          endfor
+        -%}
+
+        {%- if bundle_products.size >= 2 -%}
+          {%- render 'pb-bundle-card',
+            section_id: section.id,
+            block: nil,
+            bundle_title: s.title,
+            bundle_description: blank,
+            products: bundle_products,
+            settings: s
+          -%}
+        {%- endif -%}
+      {%- endif -%}
+
+      {%- comment -%} Pattern B: metaobject_list metafield -> multiple bundles {%- endcomment -%}
+      {%- if s.metafield_type == 'metaobject_list' -%}
+        {%- liquid
+          assign mos = mf.value
+          assign max_b = s.max_bundles | default: 3
+          assign mo_count = 0
+        -%}
+
+        {%- for mo in mos -%}
+          {%- if mo == blank -%}{% continue %}{%- endif -%}
+
+          {%- liquid
+            assign mo_count = mo_count | plus: 1
+            if mo_count > max_b
+              break
+            endif
+
+            assign mo_title = blank
+            if mo.title != blank and mo.title.value != blank
+              assign mo_title = mo.title.value
+            elsif mo.title != blank
+              assign mo_title = mo.title
+            endif
+
+            assign mo_desc = blank
+            if mo.description != blank and mo.description.value != blank
+              assign mo_desc = mo.description.value
+            elsif mo.description != blank
+              assign mo_desc = mo.description
+            endif
+
+            assign mo_products = blank
+            if mo.products != blank and mo.products.value != blank
+              assign mo_products = mo.products.value
+            elsif mo.products != blank
+              assign mo_products = mo.products
+            endif
+
+            assign mo_savings_label = blank
+            if mo.savings_label != blank and mo.savings_label.value != blank
+              assign mo_savings_label = mo.savings_label.value
+            elsif mo.savings_label != blank
+              assign mo_savings_label = mo.savings_label
+            endif
+
+            assign bundle_products = '' | split: ','
+            assign unique_key = '|'
+
+            if mo_products != blank
+              for pr in mo_products
                 if pr == blank
                   continue
                 endif
@@ -151,124 +192,55 @@
                   break
                 endif
               endfor
-            -%}
+            endif
+          -%}
 
-            {%- if bundle_products.size >= 2 -%}
-              {%- render 'pb-bundle-card',
-                section_id: section.id,
-                block: nil,
-                bundle_title: s.title,
-                bundle_description: blank,
-                products: bundle_products,
-                settings: s
-              -%}
-              {%- assign bundles_rendered = bundles_rendered | plus: 1 -%}
-            {%- endif -%}
+          {%- if bundle_products.size >= 2 -%}
+            {%- render 'pb-bundle-card',
+              section_id: section.id,
+              block: nil,
+              bundle_title: mo_title,
+              bundle_description: mo_desc,
+              products: bundle_products,
+              settings: s,
+              savings_label_override: mo_savings_label
+            -%}
           {%- endif -%}
 
-          {%- comment -%} Pattern B: metaobject_list => multiple bundles {%- endcomment -%}
-          {%- if s.metafield_type == 'metaobject_list' and mf.value != blank -%}
-            {%- liquid
-              assign mos = mf.value
-              assign max_b = s.max_bundles | default: 3
-              assign mo_count = 0
-            -%}
-
-            {%- for mo in mos -%}
-              {%- if mo == blank -%}{% continue %}{%- endif -%}
-
-              {%- liquid
-                assign mo_count = mo_count | plus: 1
-                if mo_count > max_b
-                  break
-                endif
-
-                assign mo_title = blank
-                if mo.title != blank and mo.title.value != blank
-                  assign mo_title = mo.title.value
-                elsif mo.title != blank
-                  assign mo_title = mo.title
-                endif
-
-                assign mo_desc = blank
-                if mo.description != blank and mo.description.value != blank
-                  assign mo_desc = mo.description.value
-                elsif mo.description != blank
-                  assign mo_desc = mo.description
-                endif
-
-                assign mo_products = blank
-                if mo.products != blank and mo.products.value != blank
-                  assign mo_products = mo.products.value
-                elsif mo.products != blank
-                  assign mo_products = mo.products
-                endif
-
-                assign mo_savings_label = blank
-                if mo.savings_label != blank and mo.savings_label.value != blank
-                  assign mo_savings_label = mo.savings_label.value
-                elsif mo.savings_label != blank
-                  assign mo_savings_label = mo.savings_label
-                endif
-
-                assign bundle_products = '' | split: ','
-                assign unique_key = '|'
-
-                if mo_products != blank
-                  for pr in mo_products
-                    if pr == blank
-                      continue
-                    endif
-                    assign pid_str = pr.id | append: ''
-                    assign token = '|' | append: pid_str | append: '|'
-                    if unique_key contains token
-                      continue
-                    endif
-                    assign unique_key = unique_key | append: pid_str | append: '|'
-                    assign bundle_products = bundle_products | push: pr
-                    if bundle_products.size >= 6
-                      break
-                    endif
-                  endfor
-                endif
-
-                assign should_render = true
-                if bundle_products.size < 2
-                  assign should_render = false
-                endif
-              -%}
-
-              {%- if should_render -%}
-                {%- render 'pb-bundle-card',
-                  section_id: section.id,
-                  block: nil,
-                  bundle_title: mo_title,
-                  bundle_description: mo_desc,
-                  products: bundle_products,
-                  settings: s,
-                  savings_label_override: mo_savings_label
-                -%}
-                {%- assign bundles_rendered = bundles_rendered | plus: 1 -%}
-              {%- endif -%}
-            {%- endfor -%}
-          {%- endif -%}
-
-        {%- endcapture -%}
-
-        {%- if bundles_rendered > 0 -%}
-          <div class="pb__grid pb__grid--{{ s.layout }}">
-            {{ mf_cards }}
-          </div>
-        {%- endif -%}
+        {%- endfor -%}
       {%- endif -%}
-    {%- endif -%}
 
-    {%- comment -%} If nothing rendered, output nothing inside section (no empty wrappers). {%- endcomment -%}
-    {%- if bundles_rendered == 0 -%}
-      {%- comment -%} Intentionally blank {%- endcomment -%}
     {%- endif -%}
-  </div>
-</section>
+  {%- endif -%}
+
+{%- endcapture -%}
+
+{%- assign pb_cards_stripped = pb_cards | strip -%}
+{%- if pb_cards_stripped != blank -%}
+  <section
+    class="product-bundles color-{{ s.color_scheme }}"
+    data-section-id="{{ section.id }}"
+    data-add-mode="{{ s.add_mode }}"
+    aria-label="{{ section_aria | strip }}"
+  >
+    <div class="pb__inner" style="--pb-pt: {{ s.padding_top }}px; --pb-pb: {{ s.padding_bottom }}px;">
+      {%- if s.title != blank or s.subheading != blank -%}
+        <header class="pb__header">
+          {%- if s.title != blank -%}
+            <h2 class="pb__title">{{ s.title | escape }}</h2>
+          {%- endif -%}
+          {%- if s.subheading != blank -%}
+            <div class="pb__subheading rte">{{ s.subheading }}</div>
+          {%- endif -%}
+        </header>
+      {%- endif -%}
+
+      <div class="pb__grid pb__grid--{{ s.layout }}">
+        {{ pb_cards }}
+      </div>
+    </div>
+  </section>
+{%- endif -%}
 
 {% schema %}
 {
@@ -276,25 +248,11 @@
   "tag": "section",
   "class": "section product-bundles-section",
   "settings": [
-    {
-      "type": "header",
-      "content": "Content"
-    },
-    {
-      "type": "text",
-      "id": "title",
-      "label": "Title",
-      "default": "Frequently bought together"
-    },
-    {
-      "type": "richtext",
-      "id": "subheading",
-      "label": "Subheading"
-    },
-    {
-      "type": "header",
-      "content": "Source"
-    },
+    { "type": "header", "content": "Content" },
+    { "type": "text", "id": "title", "label": "Title", "default": "Frequently bought together" },
+    { "type": "richtext", "id": "subheading", "label": "Subheading" },
+
+    { "type": "header", "content": "Source" },
     {
       "type": "select",
       "id": "source",
@@ -305,18 +263,8 @@
         { "value": "manual", "label": "Manual" }
       ]
     },
-    {
-      "type": "text",
-      "id": "metafield_namespace",
-      "label": "Metafield namespace",
-      "default": "custom"
-    },
-    {
-      "type": "text",
-      "id": "metafield_key",
-      "label": "Metafield key",
-      "default": "bundles"
-    },
+    { "type": "text", "id": "metafield_namespace", "label": "Metafield namespace", "default": "custom" },
+    { "type": "text", "id": "metafield_key", "label": "Metafield key", "default": "bundles" },
     {
       "type": "select",
       "id": "metafield_type",
@@ -327,10 +275,8 @@
         { "value": "metaobject_list", "label": "Metaobject list" }
       ]
     },
-    {
-      "type": "header",
-      "content": "Layout"
-    },
+
+    { "type": "header", "content": "Layout" },
     {
       "type": "select",
       "id": "layout",
@@ -342,43 +288,14 @@
         { "value": "carousel", "label": "Carousel" }
       ]
     },
-    {
-      "type": "range",
-      "id": "max_bundles",
-      "label": "Max bundles (metafield mode)",
-      "min": 1,
-      "max": 6,
-      "step": 1,
-      "default": 3
-    },
-    {
-      "type": "checkbox",
-      "id": "show_savings",
-      "label": "Show savings",
-      "default": true
-    },
-    {
-      "type": "text",
-      "id": "savings_label",
-      "label": "Savings label",
-      "default": "Save when purchased together"
-    },
-    {
-      "type": "checkbox",
-      "id": "show_individual_prices",
-      "label": "Show individual prices",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_bundle_total",
-      "label": "Show bundle total",
-      "default": true
-    },
-    {
-      "type": "header",
-      "content": "Behavior / cart add"
-    },
+    { "type": "range", "id": "max_bundles", "label": "Max bundles (metafield mode)", "min": 1, "max": 6, "step": 1, "default": 3 },
+
+    { "type": "checkbox", "id": "show_savings", "label": "Show savings", "default": true },
+    { "type": "text", "id": "savings_label", "label": "Savings label", "default": "Save when purchased together" },
+    { "type": "checkbox", "id": "show_individual_prices", "label": "Show individual prices", "default": true },
+    { "type": "checkbox", "id": "show_bundle_total", "label": "Show bundle total", "default": true },
+
+    { "type": "header", "content": "Behavior / cart add" },
     {
       "type": "select",
       "id": "add_mode",
@@ -389,28 +306,11 @@
         { "value": "redirect_to_cart", "label": "Redirect to cart" }
       ]
     },
-    {
-      "type": "text",
-      "id": "button_label",
-      "label": "Button label",
-      "default": "Add bundle"
-    },
-    {
-      "type": "checkbox",
-      "id": "disable_if_unavailable",
-      "label": "Disable if any item unavailable",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "respect_quantity",
-      "label": "Respect quantity (v1: each item = 1)",
-      "default": false
-    },
-    {
-      "type": "header",
-      "content": "Styling"
-    },
+    { "type": "text", "id": "button_label", "label": "Button label", "default": "Add bundle" },
+    { "type": "checkbox", "id": "disable_if_unavailable", "label": "Disable if any item unavailable", "default": true },
+    { "type": "checkbox", "id": "respect_quantity", "label": "Respect quantity (v1: each item = 1)", "default": false },
+
+    { "type": "header", "content": "Styling" },
     {
       "type": "select",
       "id": "color_scheme",
@@ -422,39 +322,10 @@
         { "value": "inverse", "label": "Inverse" }
       ]
     },
-    {
-      "type": "range",
-      "id": "card_radius",
-      "label": "Card radius",
-      "min": 0,
-      "max": 28,
-      "step": 2,
-      "default": 16
-    },
-    {
-      "type": "checkbox",
-      "id": "card_border",
-      "label": "Card border",
-      "default": true
-    },
-    {
-      "type": "range",
-      "id": "padding_top",
-      "label": "Padding top",
-      "min": 0,
-      "max": 96,
-      "step": 4,
-      "default": 24
-    },
-    {
-      "type": "range",
-      "id": "padding_bottom",
-      "label": "Padding bottom",
-      "min": 0,
-      "max": 96,
-      "step": 4,
-      "default": 24
-    }
+    { "type": "range", "id": "card_radius", "label": "Card radius", "min": 0, "max": 28, "step": 2, "default": 16 },
+    { "type": "checkbox", "id": "card_border", "label": "Card border", "default": true },
+    { "type": "range", "id": "padding_top", "label": "Padding top", "min": 0, "max": 96, "step": 4, "default": 24 },
+    { "type": "range", "id": "padding_bottom", "label": "Padding bottom", "min": 0, "max": 96, "step": 4, "default": 24 }
   ],
   "blocks": [
     {
@@ -477,12 +348,7 @@
     }
   ],
   "presets": [
-    {
-      "name": "Product bundles",
-      "blocks": [
-        { "type": "bundle" }
-      ]
-    }
+    { "name": "Product bundles", "blocks": [{ "type": "bundle" }] }
   ]
 }
 {% endschema %}
