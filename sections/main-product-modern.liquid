@@ -1,766 +1,572 @@
 {%- comment -%}
-  Quadratum — Main Product Modern (Self-contained PDP)
+  Quadratum — Main Product Modern (Dawn-inspired)
   File: sections/main-product-modern.liquid
 
-  GOALS (This build)
-  - Works as a standalone PDP section (no Dawn dependency graph)
-  - Add to cart works (reliable hidden input name="id")
-  - Dawn-like layout modes + options (WITHOUT color scheme dependency)
-  - Variant selection updates variant id + price + ATC availability + URL ?variant= (minimal JS)
-  - Media gallery: viewer + thumbnails OR scroll gallery (reliable)
-  - Content: Tabs (desktop) / Accordion (mobile) OR clean H2 sections
-  - Blocks include: Description, Reviews (@app), Meta Data + Dawn-ish primitives
-{%- endcomment -%}
+  Uses existing Dawn-style snippets:
+    - product-media-gallery
+    - product-media-modal
+    - product-thumbnail (used by gallery)
+    - product-media (used by modal)
+    - price
+    - product-variant-options
 
-{{ 'main-product-modern.css' | asset_url | stylesheet_tag }}
-<script src="{{ 'main-product-modern.js' | asset_url }}" defer></script>
+  NOTE:
+  This section is self-contained for the "information" area (Dawn style).
+{%- endcomment -%}
 
 {%- liquid
   assign s = section.settings
   assign p = product
+
+  if p == blank
+    break
+  endif
+
+  assign current_variant = p.selected_or_first_available_variant
+  if current_variant == blank
+    assign current_variant = p.variants.first
+  endif
+
+  assign section_aria = s.section_aria_label
+  if section_aria == blank
+    assign section_aria = 'Product details'
+  endif
+
+  assign media_limit = s.media_limit | default: null
+
+  assign variant_images = p.images | where: 'attached_to_variant?', true | map: 'src'
+
+  assign first_3d_model = p.media | where: 'media_type', 'model' | first
+
+  assign product_form_id = 'product-form-' | append: section.id
 -%}
 
-{%- if p != blank -%}
-  {%- liquid
-    assign current_variant = p.selected_or_first_available_variant
-    if current_variant == blank
-      assign current_variant = p.variants.first
-    endif
+<section
+  class="qtm-main-product-modern color-{{ s.color_scheme }} gradient section-{{ section.id }}-padding"
+  aria-label="{{ section_aria | escape }}"
+  data-section-id="{{ section.id }}"
+  data-product-id="{{ p.id }}"
+>
+  {%- style -%}
+    .section-{{ section.id }}-padding {
+      padding-top: {{ s.padding_top | default: 36 | times: 0.75 | round: 0 }}px;
+      padding-bottom: {{ s.padding_bottom | default: 36 | times: 0.75 | round: 0 }}px;
+    }
+    @media (min-width: 750px) {
+      .section-{{ section.id }}-padding {
+        padding-top: {{ s.padding_top | default: 36 }}px;
+        padding-bottom: {{ s.padding_bottom | default: 36 }}px;
+      }
+    }
 
-    assign media_limit = s.media_limit | default: 12
-    assign layout_mode = s.layout_mode | default: 'classic'
-    assign content_mode = s.content_display_mode | default: 'tabs_auto'
+    .qtm-pdp-modern {
+      display: grid;
+      gap: 2rem;
+      align-items: start;
+    }
 
-    assign section_aria = s.section_aria_label | default: 'Product details'
-    assign media_aria = s.media_aria_label | default: 'Product media'
-    assign summary_aria = s.summary_aria_label | default: 'Product information'
+    @media (min-width: 990px) {
+      .qtm-pdp-modern {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      }
+      .qtm-pdp-modern--media-right .qtm-pdp-modern__media { order: 2; }
+      .qtm-pdp-modern--media-right .qtm-pdp-modern__info  { order: 1; }
+    }
 
-    assign active_media_id = ''
-    if current_variant.featured_media != blank
-      assign active_media_id = current_variant.featured_media.id
-    elsif p.featured_media != blank
-      assign active_media_id = p.featured_media.id
-    elsif p.media.size > 0
-      assign active_media_id = p.media.first.id
-    endif
+    .qtm-pdp-modern__media,
+    .qtm-pdp-modern__info {
+      min-width: 0;
+    }
 
-    assign show_thumbs = s.show_thumbnails
-    if p.media.size <= 1
-      assign show_thumbs = false
-    endif
+    .qtm-pdp-modern__info-inner {
+      display: grid;
+      gap: 1.25rem;
+    }
 
-    assign enable_sticky = s.enable_sticky_summary
+    .qtm-pdp-modern__info-inner.qtm-sticky {
+      position: sticky;
+      top: var(--header-height, 1rem);
+    }
 
-    # Disable sticky for layouts that should not stick (Dawn-ish behavior)
-    if layout_mode == 'stacked' or layout_mode == 'stacked_summary_top' or layout_mode == 'service_mode'
-      assign enable_sticky = false
-    endif
+    .qtm-modern-divider {
+      margin: 2rem 0;
+      border: 0;
+      border-top: 1px solid rgba(0,0,0,0.12);
+    }
 
-    assign thumbs_pos = s.thumbs_position | default: 'below'
+    /* Tabs */
+    .qtm-tabs {
+      display: grid;
+      gap: 1rem;
+      margin-top: 2.5rem;
+    }
+    .qtm-tabs__nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      border-bottom: 1px solid rgba(0,0,0,0.12);
+      padding-bottom: .5rem;
+    }
+    .qtm-tabs__btn {
+      appearance: none;
+      background: transparent;
+      border: 1px solid rgba(0,0,0,0.18);
+      padding: .5rem .75rem;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .qtm-tabs__btn[aria-selected="true"] {
+      border-color: rgba(0,0,0,0.45);
+      font-weight: 600;
+    }
+    .qtm-tabpanel[hidden] { display: none; }
+  {%- endstyle -%}
 
-    capture t_add
-      echo 'products.product.add_to_cart' | t
-    endcapture
-    if t_add contains 'Translation missing'
-      assign t_add = 'Add to cart'
-    endif
+  <div class="page-width">
+    <div class="qtm-pdp-modern {% if s.media_position == 'right' %}qtm-pdp-modern--media-right{% endif %}">
+      <!-- MEDIA -->
+      <div class="qtm-pdp-modern__media">
+        {%- render 'product-media-gallery',
+          product: p,
+          variant_images: variant_images,
+          limit: media_limit,
+          first_3d_model: first_3d_model
+        -%}
 
-    capture t_sold
-      echo 'products.product.sold_out' | t
-    endcapture
-    if t_sold contains 'Translation missing'
-      assign t_sold = 'Sold out'
-    endif
-
-    capture t_unavail
-      echo 'products.product.unavailable' | t
-    endcapture
-    if t_unavail contains 'Translation missing'
-      assign t_unavail = 'Unavailable'
-    endif
-  -%}
-
-  <section
-    id="q-pdp-modern-{{ section.id }}"
-    class="
-      q-pdp-modern
-      q-pdp-modern--{{ layout_mode }}
-      q-tabs--{{ s.tabs_style | default: 'pills' }}
-      q-pad-y--{{ s.pad_y | default: 'md' }}
-      q-pad-x--{{ s.pad_x | default: 'md' }}
-      q-maxw--{{ s.max_width | default: 'lg' }}
-      {% if enable_sticky %}q-sticky--on{% else %}q-sticky--off{% endif %}
-    "
-    aria-label="{{ section_aria | escape }}"
-    data-section-id="{{ section.id }}"
-    data-product-id="{{ p.id }}"
-    data-initial-variant-id="{{ current_variant.id }}"
-    data-initial-media-id="{{ active_media_id }}"
-    data-layout-mode="{{ layout_mode }}"
-    style="
-      --q-maxw: {%- case s.max_width -%}
-        {%- when 'sm' -%} 40rem
-        {%- when 'md' -%} 56rem
-        {%- when 'lg' -%} 72rem
-        {%- when 'xl' -%} 84rem
-        {%- when 'full' -%} 100%
-        {%- else -%} 72rem
-      {%- endcase -%};
-      --q-py: {%- case s.pad_y -%}
-        {%- when 'none' -%} 0
-        {%- when 'sm' -%} 1rem
-        {%- when 'md' -%} 2rem
-        {%- when 'lg' -%} 3rem
-        {%- when 'xl' -%} 4rem
-        {%- else -%} 2rem
-      {%- endcase -%};
-      --q-px: {%- case s.pad_x -%}
-        {%- when 'none' -%} 0
-        {%- when 'sm' -%} 1rem
-        {%- when 'md' -%} 1.5rem
-        {%- when 'lg' -%} 2rem
-        {%- else -%} 1.5rem
-      {%- endcase -%};
-
-      --q-grid-gap: {{ s.grid_gap | default: 32 | times: 1 }}px;
-      --q-media-w: {%- case s.media_width -%}
-        {%- when 'sm' -%} 48%
-        {%- when 'md' -%} 54%
-        {%- when 'lg' -%} 60%
-        {%- else -%} 54%
-      {%- endcase -%};
-
-      --q-thumb-size: {%- case s.thumb_size -%}
-        {%- when 'sm' -%} 3rem
-        {%- when 'md' -%} 3.75rem
-        {%- when 'lg' -%} 4.5rem
-        {%- else -%} 3.75rem
-      {%- endcase -%};
-      --q-thumb-gap: {{ s.thumb_gap | default: 12 | times: 1 }}px;
-      --q-thumb-r: {{ s.thumb_radius | default: 10 | times: 1 }}px;
-      --q-media-r: {{ s.media_radius | default: 16 | times: 1 }}px;
-
-      --q-btn-r: {{ s.button_radius | default: 10 | times: 1 }}px;
-    "
-  >
-    <div class="q-pdp-modern__inner">
-      <div class="q-pdp-modern__grid" aria-label="Product layout grid">
-        <!-- MEDIA -->
-        <div class="q-pdp-modern__media" aria-label="{{ media_aria | escape }}">
-          <div
-            class="q-modern-media"
-            data-gallery
-            {% if thumbs_pos == 'left' or thumbs_pos == 'right' %}
-              data-thumbs-layout="side"
-              data-thumbs-side="{{ thumbs_pos }}"
-            {% endif %}
-          >
-            <div class="q-modern-media__viewer" data-viewer aria-label="Media viewer">
-              {%- for m in p.media limit: media_limit -%}
-                <div
-                  class="q-modern-media__item"
-                  data-media-id="{{ m.id }}"
-                  {% if m.id == active_media_id %}data-active="true"{% endif %}
-                >
-                  <div class="q-modern-media__frame">
-                    {{ m | media_tag }}
-                  </div>
-                </div>
-              {%- endfor -%}
-            </div>
-
-            {%- if show_thumbs -%}
-              <div class="q-modern-media__thumbs q-thumbs--{{ thumbs_pos }}" aria-label="Media thumbnails">
-                <div class="q-modern-thumbs" role="list">
-                  {%- for m in p.media limit: media_limit -%}
-                    {%- assign timg = m.preview_image -%}
-                    <button
-                      type="button"
-                      class="q-modern-thumb"
-                      role="listitem"
-                      data-thumb
-                      data-media-id="{{ m.id }}"
-                      aria-label="View media {{ forloop.index }}"
-                      {% if m.id == active_media_id %}aria-current="true"{% endif %}
-                    >
-                      {%- if timg != blank -%}
-                        <img
-                          src="{{ timg | image_url: width: 220 }}"
-                          alt="{{ timg.alt | default: p.title | escape }}"
-                          loading="lazy"
-                          width="220"
-                          height="220"
-                        >
-                      {%- else -%}
-                        <span class="q-modern-thumb__ph" aria-hidden="true"></span>
-                      {%- endif -%}
-                    </button>
-                  {%- endfor -%}
-                </div>
-              </div>
-            {%- endif -%}
-          </div>
-        </div>
-
-        <!-- INFO -->
-        <div class="q-pdp-modern__info" aria-label="{{ summary_aria | escape }}">
-          <div class="q-modern-info {% if enable_sticky %}q-modern-info--sticky{% endif %}">
-            {%- if s.show_vendor and p.vendor != blank -%}
-              <div class="q-modern-vendor">{{ p.vendor }}</div>
-            {%- endif -%}
-
-            <h1 class="q-modern-title">{{ p.title }}</h1>
-
-            {%- if s.show_price -%}
-              <div class="q-modern-price" aria-live="polite" data-price>
-                {%- if current_variant.compare_at_price > current_variant.price -%}
-                  <span class="q-modern-price__sale" data-price-sale>{{ current_variant.price | money }}</span>
-                  <span class="q-modern-price__compare" data-price-compare>{{ current_variant.compare_at_price | money }}</span>
-                {%- else -%}
-                  <span class="q-modern-price__regular" data-price-regular>{{ current_variant.price | money }}</span>
-                {%- endif -%}
-              </div>
-            {%- endif -%}
-
-            {%- if s.show_tax_note -%}
-              <div class="q-modern-taxnote" data-tax-note>
-                {%- if cart.taxes_included -%}
-                  Taxes included.
-                {%- else -%}
-                  Taxes calculated at checkout.
-                {%- endif -%}
-              </div>
-            {%- endif -%}
-
-            {%- form 'product', p, class: 'q-modern-form', novalidate: 'novalidate', data-product-form: '' -%}
-              <!-- Reliable variant id (JS updates this) -->
-              <input type="hidden" name="id" value="{{ current_variant.id }}" data-variant-id>
-
-              <!-- No-JS fallback -->
-              <noscript>
-                <div class="q-modern-field">
-                  <label class="q-modern-label" for="q-modern-noscript-variant-{{ section.id }}">Variant</label>
-                  <select id="q-modern-noscript-variant-{{ section.id }}" name="id" class="q-modern-select">
-                    {%- for v in p.variants -%}
-                      <option value="{{ v.id }}"
-                        {% if v.id == current_variant.id %}selected{% endif %}
-                        {% unless v.available %}disabled{% endunless %}
-                      >
-                        {{ v.title }}{%- unless v.available -%} — {{ t_sold }}{%- endunless -%}
-                      </option>
-                    {%- endfor -%}
-                  </select>
-                </div>
-              </noscript>
-
-              {%- unless p.has_only_default_variant -%}
-                {%- if s.variant_picker_style == 'select' -%}
-                  {%- for opt in p.options_with_values -%}
-                    <div class="q-modern-field">
-                      {%- if s.show_variant_labels -%}
-                        <label class="q-modern-label" for="q-modern-opt-{{ section.id }}-{{ forloop.index0 }}">
-                          {{ opt.name }}
-                        </label>
-                      {%- endif -%}
-                      <select
-                        id="q-modern-opt-{{ section.id }}-{{ forloop.index0 }}"
-                        class="q-modern-select"
-                        data-option-select
-                        data-option-index="{{ forloop.index0 }}"
-                      >
-                        {%- for val in opt.values -%}
-                          <option value="{{ val | escape }}" {% if opt.selected_value == val %}selected{% endif %}>
-                            {{ val }}
-                          </option>
-                        {%- endfor -%}
-                      </select>
-                    </div>
-                  {%- endfor -%}
-                {%- else -%}
-                  {%- for opt in p.options_with_values -%}
-                    <fieldset class="q-modern-field q-modern-field--buttons" data-option-fieldset data-option-index="{{ forloop.index0 }}">
-                      {%- if s.show_variant_labels -%}
-                        <legend class="q-modern-legend">{{ opt.name }}</legend>
-                      {%- endif -%}
-                      <div class="q-modern-swatchrow" role="list">
-                        {%- for val in opt.values -%}
-                          {%- assign rid = 'q-modern-optbtn-' | append: section.id | append: '-' | append: forloop.parentloop.index0 | append: '-' | append: forloop.index0 -%}
-                          <input
-                            class="q-modern-opt__radio"
-                            type="radio"
-                            name="q-modern-opt-{{ section.id }}-{{ forloop.parentloop.index0 }}"
-                            id="{{ rid }}"
-                            value="{{ val | escape }}"
-                            data-option-radio
-                            {% if opt.selected_value == val %}checked{% endif %}
-                          >
-                          <label class="q-modern-opt__label" for="{{ rid }}" role="listitem">
-                            {{ val }}
-                          </label>
-                        {%- endfor -%}
-                      </div>
-                    </fieldset>
-                  {%- endfor -%}
-                {%- endif -%}
-              {%- endunless -%}
-
-              {%- if s.show_quantity -%}
-                <div class="q-modern-field q-modern-field--qty">
-                  {%- if s.show_quantity_label -%}
-                    <label class="q-modern-label" for="q-modern-qty-{{ section.id }}">Quantity</label>
-                  {%- endif -%}
-                  <input
-                    id="q-modern-qty-{{ section.id }}"
-                    class="q-modern-input"
-                    type="number"
-                    name="quantity"
-                    value="1"
-                    min="1"
-                    inputmode="numeric"
-                  >
-                </div>
-              {%- endif -%}
-
-              <div class="q-modern-actions">
-                <button
-                  type="submit"
-                  class="q-modern-btn q-modern-btn--primary"
-                  name="add"
-                  data-atc
-                  {% unless current_variant.available %}disabled{% endunless %}
-                >
-                  <span data-atc-text>
-                    {%- if current_variant.available -%}{{ t_add }}{%- else -%}{{ t_sold }}{%- endif -%}
-                  </span>
-                </button>
-
-                {%- if s.show_dynamic_checkout -%}
-                  <div class="q-modern-dynamic-checkout">
-                    {{ form | payment_button }}
-                  </div>
-                {%- endif -%}
-              </div>
-            {%- endform -%}
-
-            <!-- Variants JSON for JS -->
-            <script type="application/json" data-variants-json>
-              {{ p.variants | json }}
-            </script>
-
-            <!-- Theme money format for JS -->
-            <script type="application/json" data-money-format>
-              {{ shop.money_format | json }}
-            </script>
-
-            <!-- UI strings for JS -->
-            <script type="application/json" data-ui-strings>
-              {
-                "add": {{ t_add | json }},
-                "sold": {{ t_sold | json }},
-                "unavail": {{ t_unavail | json }}
-              }
-            </script>
-
-            <!-- Content mode hint -->
-            <script type="application/json" data-content-mode>
-              {{ content_mode | json }}
-            </script>
-          </div>
-        </div>
-      </div>
-
-      <!-- CONTENT -->
-      <div class="q-pdp-modern__content" data-content>
-        {%- if section.blocks.size > 0 -%}
-
-          {%- if content_mode == 'tabs' or content_mode == 'tabs_auto' -%}
-            <div class="q-modern-tabs" role="tablist" aria-label="Product content">
-              {%- assign first_tab_checked = false -%}
-
-              {%- for block in section.blocks -%}
-                {%- case block.type -%}
-
-                  {%- when 'description' -%}
-                    {%- assign tab_title = block.settings.heading | default: 'Description' -%}
-                    <input
-                      class="q-modern-tab__radio"
-                      type="radio"
-                      name="q-modern-tabs-{{ section.id }}"
-                      id="q-modern-tab-{{ section.id }}-{{ block.id }}"
-                      {%- unless first_tab_checked -%}checked{%- assign first_tab_checked = true -%}{%- endunless -%}
-                    >
-                    <label class="q-modern-tab__label" for="q-modern-tab-{{ section.id }}-{{ block.id }}">
-                      {{ tab_title }}
-                    </label>
-                    <div class="q-modern-tab__panel" {{ block.shopify_attributes }}>
-                      <div class="q-modern-richtext">
-                        {{ p.description }}
-                      </div>
-                    </div>
-
-                  {%- when 'meta_data' -%}
-                    {%- assign tab_title = block.settings.heading | default: 'Meta data' -%}
-                    <input
-                      class="q-modern-tab__radio"
-                      type="radio"
-                      name="q-modern-tabs-{{ section.id }}"
-                      id="q-modern-tab-{{ section.id }}-{{ block.id }}"
-                      {%- unless first_tab_checked -%}checked{%- assign first_tab_checked = true -%}{%- endunless -%}
-                    >
-                    <label class="q-modern-tab__label" for="q-modern-tab-{{ section.id }}-{{ block.id }}">
-                      {{ tab_title }}
-                    </label>
-                    <div class="q-modern-tab__panel" {{ block.shopify_attributes }}>
-                      <div class="q-modern-specs">
-                        {%- for i in (1..12) -%}
-                          {%- assign label_key = 'label_' | append: i -%}
-                          {%- assign ns_key = 'namespace_' | append: i -%}
-                          {%- assign key_key = 'key_' | append: i -%}
-                          {%- assign row_label = block.settings[label_key] -%}
-                          {%- assign ns = block.settings[ns_key] -%}
-                          {%- assign k = block.settings[key_key] -%}
-                          {%- if ns != blank and k != blank -%}
-                            {%- assign mf = p.metafields[ns][k] -%}
-                            {%- if mf != blank -%}
-                              <div class="q-modern-spec">
-                                <div class="q-modern-spec__k">{{ row_label | default: 'Spec' }}</div>
-                                <div class="q-modern-spec__v">{{ mf | metafield_tag }}</div>
-                              </div>
-                            {%- endif -%}
-                          {%- endif -%}
-                        {%- endfor -%}
-                      </div>
-                    </div>
-
-                  {%- when '@app' -%}
-                    <input
-                      class="q-modern-tab__radio"
-                      type="radio"
-                      name="q-modern-tabs-{{ section.id }}"
-                      id="q-modern-tab-{{ section.id }}-{{ block.id }}"
-                      {%- unless first_tab_checked -%}checked{%- assign first_tab_checked = true -%}{%- endunless -%}
-                    >
-                    <label class="q-modern-tab__label" for="q-modern-tab-{{ section.id }}-{{ block.id }}">
-                      Reviews
-                    </label>
-                    <div class="q-modern-tab__panel" {{ block.shopify_attributes }}>
-                      {%- render block -%}
-                    </div>
-
-                  {%- when 'collapsible_row' -%}
-                    {%- assign tab_title = block.settings.heading | default: 'Details' -%}
-                    <input
-                      class="q-modern-tab__radio"
-                      type="radio"
-                      name="q-modern-tabs-{{ section.id }}"
-                      id="q-modern-tab-{{ section.id }}-{{ block.id }}"
-                      {%- unless first_tab_checked -%}checked{%- assign first_tab_checked = true -%}{%- endunless -%}
-                    >
-                    <label class="q-modern-tab__label" for="q-modern-tab-{{ section.id }}-{{ block.id }}">
-                      {{ tab_title }}
-                    </label>
-                    <div class="q-modern-tab__panel" {{ block.shopify_attributes }}>
-                      <div class="q-modern-richtext">
-                        {{ block.settings.content }}
-                      </div>
-                    </div>
-
-                  {%- when 'liquid' -%}
-                    {%- assign tab_title = block.settings.heading | default: 'More' -%}
-                    <input
-                      class="q-modern-tab__radio"
-                      type="radio"
-                      name="q-modern-tabs-{{ section.id }}"
-                      id="q-modern-tab-{{ section.id }}-{{ block.id }}"
-                      {%- unless first_tab_checked -%}checked{%- assign first_tab_checked = true -%}{%- endunless -%}
-                    >
-                    <label class="q-modern-tab__label" for="q-modern-tab-{{ section.id }}-{{ block.id }}">
-                      {{ tab_title }}
-                    </label>
-                    <div class="q-modern-tab__panel" {{ block.shopify_attributes }}>
-                      {{ block.settings.custom_liquid }}
-                    </div>
-
-                {%- endcase -%}
-              {%- endfor -%}
-            </div>
-
-          {%- else -%}
-            <div class="q-modern-sections">
-              {%- for block in section.blocks -%}
-                {%- case block.type -%}
-
-                  {%- when 'description' -%}
-                    <div class="q-modern-section" {{ block.shopify_attributes }}>
-                      <h2 class="q-modern-h2">{{ block.settings.heading | default: 'Description' }}</h2>
-                      <div class="q-modern-richtext">
-                        {{ p.description }}
-                      </div>
-                    </div>
-
-                  {%- when '@app' -%}
-                    <div class="q-modern-section" {{ block.shopify_attributes }}>
-                      <h2 class="q-modern-h2">Reviews</h2>
-                      {%- render block -%}
-                    </div>
-
-                  {%- when 'meta_data' -%}
-                    <div class="q-modern-section" {{ block.shopify_attributes }}>
-                      <h2 class="q-modern-h2">{{ block.settings.heading | default: 'Meta data' }}</h2>
-                      <div class="q-modern-specs">
-                        {%- for i in (1..12) -%}
-                          {%- assign label_key = 'label_' | append: i -%}
-                          {%- assign ns_key = 'namespace_' | append: i -%}
-                          {%- assign key_key = 'key_' | append: i -%}
-                          {%- assign row_label = block.settings[label_key] -%}
-                          {%- assign ns = block.settings[ns_key] -%}
-                          {%- assign k = block.settings[key_key] -%}
-                          {%- if ns != blank and k != blank -%}
-                            {%- assign mf = p.metafields[ns][k] -%}
-                            {%- if mf != blank -%}
-                              <div class="q-modern-spec">
-                                <div class="q-modern-spec__k">{{ row_label | default: 'Spec' }}</div>
-                                <div class="q-modern-spec__v">{{ mf | metafield_tag }}</div>
-                              </div>
-                            {%- endif -%}
-                          {%- endif -%}
-                        {%- endfor -%}
-                      </div>
-                    </div>
-
-                  {%- when 'collapsible_row' -%}
-                    <div class="q-modern-section" {{ block.shopify_attributes }}>
-                      <h2 class="q-modern-h2">{{ block.settings.heading | default: 'Details' }}</h2>
-                      <div class="q-modern-richtext">
-                        {{ block.settings.content }}
-                      </div>
-                    </div>
-
-                  {%- when 'liquid' -%}
-                    <div class="q-modern-section" {{ block.shopify_attributes }}>
-                      <h2 class="q-modern-h2">{{ block.settings.heading | default: 'More' }}</h2>
-                      {{ block.settings.custom_liquid }}
-                    </div>
-
-                {%- endcase -%}
-              {%- endfor -%}
-            </div>
-          {%- endif -%}
-
+        {%- if s.enable_lightbox -%}
+          {%- render 'product-media-modal',
+            product: p,
+            variant_images: variant_images
+          -%}
         {%- endif -%}
       </div>
-    </div>
-  </section>
 
-{%- endif -%}
+      <!-- INFO -->
+      <div class="qtm-pdp-modern__info" id="ProductInfo-{{ section.id }}">
+        <div class="qtm-pdp-modern__info-inner{% if s.enable_sticky_info %} qtm-sticky{% endif %}">
+          {%- for block in section.blocks -%}
+            {%- case block.type -%}
+
+              {%- when 'title' -%}
+                <div {{ block.shopify_attributes }}>
+                  <h1 class="product__title h2">{{ p.title | escape }}</h1>
+                  {%- if s.show_vendor -%}
+                    <p class="product__vendor caption">{{ p.vendor | escape }}</p>
+                  {%- endif -%}
+                </div>
+
+              {%- when 'price' -%}
+                <div {{ block.shopify_attributes }}>
+                  {% render 'price',
+                    product: p,
+                    use_variant: true,
+                    show_badges: true,
+                    price_class: 'price--large'
+                  %}
+                </div>
+
+              {%- when 'sku' -%}
+                <div class="caption" {{ block.shopify_attributes }}>
+                  {%- if current_variant.sku != blank -%}
+                    <span><strong>SKU:</strong> {{ current_variant.sku | escape }}</span>
+                  {%- endif -%}
+                </div>
+
+              {%- when 'variant_picker' -%}
+                <div {{ block.shopify_attributes }}>
+                  {%- unless p.has_only_default_variant -%}
+                    <product-form class="product-form">
+                      {%- form 'product', p, id: product_form_id, class: 'form', novalidate: 'novalidate' -%}
+                        <input type="hidden" name="id" value="{{ current_variant.id }}">
+
+                        {%- for option in p.options_with_values -%}
+                          {%- assign picker_type = block.settings.picker_type | default: 'button' -%}
+                          <fieldset class="product-form__input">
+                            <legend class="form__label">{{ option.name }}</legend>
+
+                            {%- if picker_type == 'dropdown' or picker_type == 'swatch_dropdown' -%}
+                              <div class="select">
+                                <select
+                                  id="Option-{{ section.id }}-{{ forloop.index0 }}"
+                                  name="options[{{ option.name | escape }}]"
+                                  form="{{ product_form_id }}"
+                                >
+                                  {% render 'product-variant-options',
+                                    product: p,
+                                    option: option,
+                                    block: block,
+                                    picker_type: picker_type
+                                  %}
+                                </select>
+                              </div>
+                            {%- else -%}
+                              <div class="product-form__controls">
+                                {% render 'product-variant-options',
+                                  product: p,
+                                  option: option,
+                                  block: block,
+                                  picker_type: picker_type
+                                %}
+                              </div>
+                            {%- endif -%}
+                          </fieldset>
+                        {%- endfor -%}
+                      {%- endform -%}
+                    </product-form>
+                  {%- endunless -%}
+                </div>
+
+              {%- when 'quantity' -%}
+                <div {{ block.shopify_attributes }}>
+                  <label class="form__label" for="Quantity-{{ section.id }}">Quantity</label>
+                  <quantity-input class="quantity">
+                    <button class="quantity__button" name="minus" type="button">-</button>
+                    <input
+                      class="quantity__input"
+                      type="number"
+                      name="quantity"
+                      id="Quantity-{{ section.id }}"
+                      min="1"
+                      value="1"
+                      form="{{ product_form_id }}"
+                    >
+                    <button class="quantity__button" name="plus" type="button">+</button>
+                  </quantity-input>
+                </div>
+
+              {%- when 'buy_buttons' -%}
+                <div {{ block.shopify_attributes }}>
+                  <product-form class="product-form">
+                    {%- form 'product', p, id: product_form_id, class: 'form', novalidate: 'novalidate' -%}
+                      <input type="hidden" name="id" value="{{ current_variant.id }}">
+
+                      <div class="product-form__buttons">
+                        <button
+                          type="submit"
+                          name="add"
+                          class="product-form__submit button button--full-width"
+                          {% unless current_variant.available %}disabled{% endunless %}
+                        >
+                          {%- if current_variant.available -%}
+                            {{ 'products.product.add_to_cart' | t }}
+                          {%- else -%}
+                            {{ 'products.product.sold_out' | t }}
+                          {%- endif -%}
+                        </button>
+
+                        {%- if s.enable_dynamic_checkout -%}
+                          {{ form | payment_button }}
+                        {%- endif -%}
+                      </div>
+                    {%- endform -%}
+                  </product-form>
+                </div>
+
+              {%- when 'description' -%}
+                <div class="rte" {{ block.shopify_attributes }}>
+                  {%- if p.description != blank -%}
+                    {{ p.description }}
+                  {%- endif -%}
+                </div>
+
+              {%- when 'custom_liquid' -%}
+                <div {{ block.shopify_attributes }}>
+                  {{ block.settings.custom_liquid }}
+                </div>
+
+              {%- when 'share' -%}
+                <div {{ block.shopify_attributes }}>
+                  <share-button>
+                    <button class="button button--secondary" type="button">
+                      {{ 'general.share.share' | t }}
+                    </button>
+                  </share-button>
+                </div>
+
+            {%- endcase -%}
+          {%- endfor -%}
+        </div>
+      </div>
+    </div>
+
+    {%- comment -%}
+      BELOW CONTENT: Description / Reviews / Meta
+      - If "tabs": render a lightweight tab UI (no snippet dependency)
+      - If "sections": render H2 blocks
+    {%- endcomment -%}
+
+    {%- assign mode = s.content_display_mode | default: 'tabs' -%}
+
+    {%- if mode == 'tabs' -%}
+      <div class="qtm-tabs" data-qtm-tabs>
+        <div class="qtm-tabs__nav" role="tablist" aria-label="Product content">
+          <button class="qtm-tabs__btn" type="button" role="tab" aria-selected="true" aria-controls="TabDesc-{{ section.id }}" id="TabBtnDesc-{{ section.id }}">
+            Product Description
+          </button>
+          <button class="qtm-tabs__btn" type="button" role="tab" aria-selected="false" aria-controls="TabReviews-{{ section.id }}" id="TabBtnReviews-{{ section.id }}">
+            Reviews
+          </button>
+          <button class="qtm-tabs__btn" type="button" role="tab" aria-selected="false" aria-controls="TabMeta-{{ section.id }}" id="TabBtnMeta-{{ section.id }}">
+            Meta Data
+          </button>
+        </div>
+
+        <div id="TabDesc-{{ section.id }}" class="qtm-tabpanel rte" role="tabpanel" aria-labelledby="TabBtnDesc-{{ section.id }}">
+          {%- if p.description != blank -%}
+            {{ p.description }}
+          {%- endif -%}
+        </div>
+
+        <div id="TabReviews-{{ section.id }}" class="qtm-tabpanel rte" role="tabpanel" aria-labelledby="TabBtnReviews-{{ section.id }}" hidden>
+          {%- comment -%}
+            Replace with your reviews app hook if needed.
+            This is a safe default.
+          {%- endcomment -%}
+          {%- if p.metafields.reviews.rating.value != blank -%}
+            <p>Rating: {{ p.metafields.reviews.rating.value }} ({{ p.metafields.reviews.rating_count }})</p>
+          {%- else -%}
+            <p>No reviews yet.</p>
+          {%- endif -%}
+        </div>
+
+        <div id="TabMeta-{{ section.id }}" class="qtm-tabpanel rte" role="tabpanel" aria-labelledby="TabBtnMeta-{{ section.id }}" hidden>
+          <p><strong>Vendor:</strong> {{ p.vendor | escape }}</p>
+          <p><strong>Type:</strong> {{ p.type | escape }}</p>
+          {%- if current_variant.sku != blank -%}
+            <p><strong>SKU:</strong> {{ current_variant.sku | escape }}</p>
+          {%- endif -%}
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          var root = document.querySelector('[data-qtm-tabs]');
+          if (!root) return;
+
+          var tabs = root.querySelectorAll('[role="tab"]');
+          var panels = root.querySelectorAll('[role="tabpanel"]');
+
+          function activate(tab) {
+            tabs.forEach(function (t) {
+              var selected = (t === tab);
+              t.setAttribute('aria-selected', selected ? 'true' : 'false');
+            });
+
+            panels.forEach(function (p) {
+              var isTarget = p.id === tab.getAttribute('aria-controls');
+              p.hidden = !isTarget;
+            });
+          }
+
+          tabs.forEach(function (tab) {
+            tab.addEventListener('click', function () { activate(tab); });
+            tab.addEventListener('keydown', function (e) {
+              if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+              e.preventDefault();
+              var idx = Array.prototype.indexOf.call(tabs, tab);
+              var next = e.key === 'ArrowRight' ? idx + 1 : idx - 1;
+              if (next < 0) next = tabs.length - 1;
+              if (next >= tabs.length) next = 0;
+              tabs[next].focus();
+              activate(tabs[next]);
+            });
+          });
+        })();
+      </script>
+    {%- else -%}
+      <div class="qtm-pdp-modern__below">
+        {%- if p.description != blank -%}
+          <h2 class="h3">Product Description</h2>
+          <div class="rte">{{ p.description }}</div>
+        {%- endif -%}
+
+        <hr class="qtm-modern-divider">
+
+        <h2 class="h3">Reviews</h2>
+        <div class="rte">
+          {%- if p.metafields.reviews.rating.value != blank -%}
+            <p>Rating: {{ p.metafields.reviews.rating.value }} ({{ p.metafields.reviews.rating_count }})</p>
+          {%- else -%}
+            <p>No reviews yet.</p>
+          {%- endif -%}
+        </div>
+
+        <hr class="qtm-modern-divider">
+
+        <h2 class="h3">Meta Data</h2>
+        <div class="rte">
+          <p><strong>Vendor:</strong> {{ p.vendor | escape }}</p>
+          <p><strong>Type:</strong> {{ p.type | escape }}</p>
+          {%- if current_variant.sku != blank -%}
+            <p><strong>SKU:</strong> {{ current_variant.sku | escape }}</p>
+          {%- endif -%}
+        </div>
+      </div>
+    {%- endif -%}
+
+    <script type="application/ld+json">
+      {{ p | structured_data }}
+    </script>
+  </div>
+</section>
 
 {% schema %}
 {
-  "name": "Main Product - Modern",
+  "name": "Main Product — Modern",
   "tag": "section",
   "class": "section",
   "settings": [
-    { "type": "header", "content": "Layout modes" },
+    { "type": "text", "id": "section_aria_label", "label": "ARIA label", "default": "Product details" },
+    { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "scheme-1" },
+
+    { "type": "header", "content": "Media layout" },
     {
       "type": "select",
-      "id": "layout_mode",
-      "label": "Layout mode",
-      "default": "classic",
+      "id": "media_position",
+      "label": "Media position",
+      "default": "left",
       "options": [
-        { "value": "classic", "label": "Classic (media left)" },
-        { "value": "classic_reverse", "label": "Classic (media right)" },
-        { "value": "stacked", "label": "Stacked (media then info)" },
-        { "value": "stacked_summary_top", "label": "Stacked (info then media)" },
-        { "value": "media_focus", "label": "Media focus (wider media)" },
-        { "value": "service_mode", "label": "Service mode (narrow media)" },
-        { "value": "scroll_gallery_left", "label": "Scroll gallery (media left)" },
-        { "value": "scroll_gallery_right", "label": "Scroll gallery (media right)" }
-      ]
-    },
-    { "type": "checkbox", "id": "enable_sticky_summary", "label": "Sticky info (desktop)", "default": true },
-    {
-      "type": "select",
-      "id": "max_width",
-      "label": "Max width",
-      "default": "lg",
-      "options": [
-        { "value": "sm", "label": "Small" },
-        { "value": "md", "label": "Medium" },
-        { "value": "lg", "label": "Large" },
-        { "value": "xl", "label": "Extra large" },
-        { "value": "full", "label": "Full width" }
+        { "value": "left", "label": "Left" },
+        { "value": "right", "label": "Right" }
       ]
     },
     {
       "type": "select",
-      "id": "pad_y",
-      "label": "Vertical padding",
-      "default": "md",
+      "id": "gallery_layout",
+      "label": "Desktop gallery layout",
+      "default": "thumbnail_slider",
       "options": [
-        { "value": "none", "label": "None" },
-        { "value": "sm", "label": "Small" },
-        { "value": "md", "label": "Medium" },
-        { "value": "lg", "label": "Large" },
-        { "value": "xl", "label": "Extra large" }
+        { "value": "stacked", "label": "Stacked" },
+        { "value": "columns", "label": "Columns" },
+        { "value": "thumbnail_slider", "label": "Thumbnail slider" }
       ]
     },
     {
       "type": "select",
-      "id": "pad_x",
-      "label": "Horizontal padding",
-      "default": "md",
+      "id": "mobile_thumbnails",
+      "label": "Mobile thumbnails",
+      "default": "columns",
       "options": [
-        { "value": "none", "label": "None" },
-        { "value": "sm", "label": "Small" },
-        { "value": "md", "label": "Medium" },
-        { "value": "lg", "label": "Large" }
-      ]
-    },
-    { "type": "range", "id": "grid_gap", "label": "Column gap", "min": 16, "max": 64, "step": 4, "default": 32 },
-    {
-      "type": "select",
-      "id": "media_width",
-      "label": "Media column width (desktop)",
-      "default": "md",
-      "options": [
-        { "value": "sm", "label": "Smaller" },
-        { "value": "md", "label": "Balanced" },
-        { "value": "lg", "label": "Larger" }
-      ]
-    },
-    { "type": "header", "content": "Media" },
-    { "type": "range", "id": "media_limit", "label": "Media limit", "min": 1, "max": 24, "step": 1, "default": 12 },
-    { "type": "checkbox", "id": "show_thumbnails", "label": "Show thumbnails", "default": true },
-    {
-      "type": "select",
-      "id": "thumbs_position",
-      "label": "Thumbnails position",
-      "default": "below",
-      "options": [
-        { "value": "below", "label": "Below" },
-        { "value": "left", "label": "Left (desktop)" },
-        { "value": "right", "label": "Right (desktop)" }
+        { "value": "hide", "label": "Hide" },
+        { "value": "show", "label": "Show" },
+        { "value": "columns", "label": "Columns" }
       ]
     },
     {
       "type": "select",
-      "id": "thumb_size",
-      "label": "Thumb size",
-      "default": "md",
+      "id": "media_size",
+      "label": "Media size",
+      "default": "large",
       "options": [
-        { "value": "sm", "label": "Small" },
-        { "value": "md", "label": "Medium" },
-        { "value": "lg", "label": "Large" }
+        { "value": "small", "label": "Small" },
+        { "value": "medium", "label": "Medium" },
+        { "value": "large", "label": "Large" }
       ]
     },
-    { "type": "range", "id": "thumb_gap", "label": "Thumb gap", "min": 6, "max": 20, "step": 1, "default": 12 },
-    { "type": "range", "id": "media_radius", "label": "Media radius", "min": 0, "max": 24, "step": 1, "default": 16 },
-    { "type": "range", "id": "thumb_radius", "label": "Thumb radius", "min": 0, "max": 20, "step": 1, "default": 10 },
-    { "type": "header", "content": "Purchase" },
-    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": true },
-    { "type": "checkbox", "id": "show_price", "label": "Show price", "default": true },
-    { "type": "checkbox", "id": "show_tax_note", "label": "Show tax note", "default": true },
-    { "type": "checkbox", "id": "show_quantity", "label": "Show quantity", "default": true },
-    { "type": "checkbox", "id": "show_quantity_label", "label": "Show quantity label", "default": true },
-    { "type": "checkbox", "id": "show_dynamic_checkout", "label": "Show dynamic checkout buttons", "default": false },
-    { "type": "header", "content": "Variants" },
     {
       "type": "select",
-      "id": "variant_picker_style",
-      "label": "Variant picker style",
-      "default": "buttons",
+      "id": "media_fit",
+      "label": "Media fit",
+      "default": "contain",
       "options": [
-        { "value": "buttons", "label": "Buttons (Dawn-like)" },
-        { "value": "select", "label": "Dropdowns" }
+        { "value": "contain", "label": "Contain" },
+        { "value": "cover", "label": "Cover" }
       ]
     },
-    { "type": "checkbox", "id": "show_variant_labels", "label": "Show option labels", "default": true },
+    { "type": "checkbox", "id": "constrain_to_viewport", "label": "Constrain media to viewport", "default": true },
+    { "type": "checkbox", "id": "enable_video_looping", "label": "Loop videos", "default": false },
+    { "type": "checkbox", "id": "hide_variants", "label": "Hide variant images", "default": false },
+    { "type": "checkbox", "id": "enable_lightbox", "label": "Enable media modal (lightbox)", "default": true },
+    { "type": "checkbox", "id": "enable_sticky_info", "label": "Sticky info column", "default": true },
+    {
+      "type": "range",
+      "id": "media_limit",
+      "label": "Max media items (optional)",
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "default": 8
+    },
+
     { "type": "header", "content": "Content" },
     {
       "type": "select",
       "id": "content_display_mode",
-      "label": "Content display mode",
-      "default": "tabs_auto",
+      "label": "Below content mode",
+      "default": "tabs",
       "options": [
-        { "value": "tabs_auto", "label": "Tabs desktop / Accordion mobile" },
         { "value": "tabs", "label": "Tabs" },
-        { "value": "sections", "label": "Sections (H2)" }
+        { "value": "sections", "label": "Sections (H2 dividers)" }
       ]
     },
+    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": false },
+    { "type": "checkbox", "id": "enable_dynamic_checkout", "label": "Enable dynamic checkout button", "default": true },
+
+    { "type": "header", "content": "Image zoom" },
     {
       "type": "select",
-      "id": "tabs_style",
-      "label": "Tabs style",
-      "default": "pills",
+      "id": "image_zoom",
+      "label": "Image zoom icon behavior",
+      "default": "lightbox",
       "options": [
-        { "value": "pills", "label": "Pills" },
-        { "value": "underline", "label": "Underline" },
-        { "value": "minimal", "label": "Minimal" }
+        { "value": "lightbox", "label": "Lightbox" },
+        { "value": "zoom", "label": "Zoom" },
+        { "value": "none", "label": "None" }
       ]
     },
-    { "type": "header", "content": "Buttons" },
-    { "type": "range", "id": "button_radius", "label": "Button radius", "min": 0, "max": 20, "step": 1, "default": 10 },
-    { "type": "header", "content": "Accessibility" },
-    { "type": "text", "id": "section_aria_label", "label": "Section aria label" },
-    { "type": "text", "id": "media_aria_label", "label": "Media aria label" },
-    { "type": "text", "id": "summary_aria_label", "label": "Summary aria label" }
+
+    { "type": "header", "content": "Section padding" },
+    { "type": "range", "id": "padding_top", "min": 0, "max": 120, "step": 4, "unit": "px", "label": "Padding top", "default": 36 },
+    { "type": "range", "id": "padding_bottom", "min": 0, "max": 120, "step": 4, "unit": "px", "label": "Padding bottom", "default": 36 }
   ],
   "blocks": [
-    { "type": "description", "name": "Description", "limit": 1, "settings": [{ "type": "text", "id": "heading", "label": "Heading", "default": "Description" }] },
-    { "type": "@app" },
+    { "type": "title", "name": "Title", "limit": 1 },
+    { "type": "price", "name": "Price", "limit": 1 },
+    { "type": "sku", "name": "SKU", "limit": 1 },
     {
-      "type": "meta_data",
-      "name": "Meta Data",
+      "type": "variant_picker",
+      "name": "Variant picker",
+      "limit": 1,
       "settings": [
-        { "type": "text", "id": "heading", "label": "Heading", "default": "Meta data" },
-        { "type": "text", "id": "label_1", "label": "Label 1" },
-        { "type": "text", "id": "namespace_1", "label": "Namespace 1" },
-        { "type": "text", "id": "key_1", "label": "Key 1" },
-        { "type": "text", "id": "label_2", "label": "Label 2" },
-        { "type": "text", "id": "namespace_2", "label": "Namespace 2" },
-        { "type": "text", "id": "key_2", "label": "Key 2" },
-        { "type": "text", "id": "label_3", "label": "Label 3" },
-        { "type": "text", "id": "namespace_3", "label": "Namespace 3" },
-        { "type": "text", "id": "key_3", "label": "Key 3" },
-        { "type": "text", "id": "label_4", "label": "Label 4" },
-        { "type": "text", "id": "namespace_4", "label": "Namespace 4" },
-        { "type": "text", "id": "key_4", "label": "Key 4" },
-        { "type": "text", "id": "label_5", "label": "Label 5" },
-        { "type": "text", "id": "namespace_5", "label": "Namespace 5" },
-        { "type": "text", "id": "key_5", "label": "Key 5" },
-        { "type": "text", "id": "label_6", "label": "Label 6" },
-        { "type": "text", "id": "namespace_6", "label": "Namespace 6" },
-        { "type": "text", "id": "key_6", "label": "Key 6" },
-        { "type": "text", "id": "label_7", "label": "Label 7" },
-        { "type": "text", "id": "namespace_7", "label": "Namespace 7" },
-        { "type": "text", "id": "key_7", "label": "Key 7" },
-        { "type": "text", "id": "label_8", "label": "Label 8" },
-        { "type": "text", "id": "namespace_8", "label": "Namespace 8" },
-        { "type": "text", "id": "key_8", "label": "Key 8" },
-        { "type": "text", "id": "label_9", "label": "Label 9" },
-        { "type": "text", "id": "namespace_9", "label": "Namespace 9" },
-        { "type": "text", "id": "key_9", "label": "Key 9" },
-        { "type": "text", "id": "label_10", "label": "Label 10" },
-        { "type": "text", "id": "namespace_10", "label": "Namespace 10" },
-        { "type": "text", "id": "key_10", "label": "Key 10" },
-        { "type": "text", "id": "label_11", "label": "Label 11" },
-        { "type": "text", "id": "namespace_11", "label": "Namespace 11" },
-        { "type": "text", "id": "key_11", "label": "Key 11" },
-        { "type": "text", "id": "label_12", "label": "Label 12" },
-        { "type": "text", "id": "namespace_12", "label": "Namespace 12" },
-        { "type": "text", "id": "key_12", "label": "Key 12" }
+        {
+          "type": "select",
+          "id": "picker_type",
+          "label": "Picker type",
+          "default": "button",
+          "options": [
+            { "value": "button", "label": "Buttons" },
+            { "value": "dropdown", "label": "Dropdown" },
+            { "value": "swatch", "label": "Swatches" },
+            { "value": "swatch_dropdown", "label": "Swatch dropdown" }
+          ]
+        },
+        {
+          "type": "select",
+          "id": "swatch_shape",
+          "label": "Swatch shape",
+          "default": "circle",
+          "options": [
+            { "value": "circle", "label": "Circle" },
+            { "value": "square", "label": "Square" }
+          ]
+        }
       ]
     },
-    { "type": "collapsible_row", "name": "Collapsible row", "settings": [{ "type": "text", "id": "heading", "label": "Heading", "default": "Details" }, { "type": "richtext", "id": "content", "label": "Content" }] },
-    { "type": "liquid", "name": "Custom liquid", "settings": [{ "type": "text", "id": "heading", "label": "Heading", "default": "More" }, { "type": "liquid", "id": "custom_liquid", "label": "Liquid" }] }
+    { "type": "quantity", "name": "Quantity", "limit": 1 },
+    { "type": "buy_buttons", "name": "Buy buttons", "limit": 1 },
+    { "type": "description", "name": "Description", "limit": 1 },
+    { "type": "share", "name": "Share", "limit": 1 },
+    { "type": "custom_liquid", "name": "Custom liquid" }
   ],
   "presets": [
     {
-      "name": "Main Product - Modern",
-      "category": "Product",
+      "name": "Main Product — Modern",
       "blocks": [
-        { "type": "description" },
-        { "type": "meta_data" }
+        { "type": "title" },
+        { "type": "price" },
+        { "type": "variant_picker" },
+        { "type": "quantity" },
+        { "type": "buy_buttons" }
       ]
     }
   ]
