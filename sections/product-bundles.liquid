@@ -1,13 +1,12 @@
 {%- comment -%}
-  Quadratum — Product Bundles (PDP companion) — WORKING SINGLE-FILE BUILD
+  Quadratum — Product Bundles (PDP companion)
   File: sections/product-bundles.liquid
 
-  Goals:
-  - Editor always shows settings (valid schema)
-  - Manual mode works immediately (2–6 products per bundle block)
-  - Metafield mode supports product_list + metaobject_list (fails safely)
-  - Add bundle -> /cart/add.js (AJAX) or redirect to /cart
-  - No snippet dependencies (to eliminate "nothing comes up" editor failures)
+  HARD FIX:
+  - If no bundles resolve, STILL render a visible placeholder in request.design_mode
+    so the editor never "disappears" the section.
+  - On live storefront, still renders nothing if empty (no empty wrappers).
+  - Manual + Metafield supported.
 {%- endcomment -%}
 
 {%- liquid
@@ -26,7 +25,6 @@
 {%- endcapture -%}
 
 {%- capture pb_cards -%}
-
   {%- comment -%} =========================
     MANUAL MODE
   ========================== {%- endcomment -%}
@@ -74,13 +72,13 @@
       -%}
 
       {%- if products.size >= 2 -%}
-        {%- render 'pb__bundle_card_inline',
+        {%- render 'pb-bundle-card',
           section_id: section.id,
-          settings: s,
           block: block,
           bundle_title: block.settings.bundle_title,
           bundle_description: block.settings.bundle_description,
-          products: products
+          products: products,
+          settings: s
         -%}
       {%- endif -%}
     {%- endfor -%}
@@ -123,13 +121,13 @@
         -%}
 
         {%- if products.size >= 2 -%}
-          {%- render 'pb__bundle_card_inline',
+          {%- render 'pb-bundle-card',
             section_id: section.id,
-            settings: s,
             block: nil,
             bundle_title: s.title,
             bundle_description: blank,
-            products: products
+            products: products,
+            settings: s
           -%}
         {%- endif -%}
       {%- endif -%}
@@ -144,6 +142,7 @@
 
         {%- for mo in mos -%}
           {%- if mo == blank -%}{% continue %}{%- endif -%}
+
           {%- liquid
             assign count = count | plus: 1
             if count > max_b
@@ -201,13 +200,13 @@
           -%}
 
           {%- if products.size >= 2 -%}
-            {%- render 'pb__bundle_card_inline',
+            {%- render 'pb-bundle-card',
               section_id: section.id,
-              settings: s,
               block: nil,
               bundle_title: mo_title,
               bundle_description: mo_desc,
               products: products,
+              settings: s,
               savings_label_override: mo_savings_label
             -%}
           {%- endif -%}
@@ -216,11 +215,19 @@
 
     {%- endif -%}
   {%- endif -%}
-
 {%- endcapture -%}
 
 {%- assign pb_cards_stripped = pb_cards | strip -%}
-{%- if pb_cards_stripped != blank -%}
+
+{%- comment -%}
+  RENDER RULE:
+  - If we have cards => render section always
+  - If we have NO cards:
+      - in Theme Editor (design_mode) => render placeholder so you can SEE/EDIT the section
+      - on live storefront => render nothing (no empty wrapper)
+{%- endcomment -%}
+
+{%- if pb_cards_stripped != blank or request.design_mode -%}
   <section
     class="product-bundles color-{{ s.color_scheme }}"
     data-section-id="{{ section.id }}"
@@ -239,23 +246,23 @@
         </header>
       {%- endif -%}
 
-      <div class="pb__grid pb__grid--{{ s.layout }}">
-        {{ pb_cards }}
-      </div>
+      {%- if pb_cards_stripped != blank -%}
+        <div class="pb__grid pb__grid--{{ s.layout }}">
+          {{ pb_cards }}
+        </div>
+      {%- else -%}
+        {%- comment -%} Editor-only placeholder (visible) {%- endcomment -%}
+        <div class="pb__placeholder" style="padding:16px;border:1px dashed rgba(0,0,0,.35);border-radius:12px;">
+          <strong>Product bundles:</strong> No bundles resolved yet.
+          <div style="margin-top:6px;opacity:.85;">
+            Set <em>Source = Manual</em> and choose at least <strong>2 products</strong> in a bundle block,
+            or populate metafield <code>{{ s.metafield_namespace }}.{{ s.metafield_key }}</code>.
+          </div>
+        </div>
+      {%- endif -%}
     </div>
   </section>
 {%- endif -%}
-
-{%- comment -%}
-  INLINE RENDER SNIPPET (NO DEPENDENCY):
-  We implement as a Liquid "render" to a snippet name that we define BELOW using {% capture %} is not possible.
-  So we use an actual snippet-style pattern via a section-level include:
-  Shopify requires real snippet files for render.
-  To keep this ONE FILE working, we implement a fallback using the "include" tag with a named snippet.
-  But "include" still requires a snippet file.
-  Therefore: we implement the card markup directly by using a Liquid trick:
-  Use a render call to a snippet that you MUST CREATE as a tiny passthrough.
-{%- endcomment -%}
 
 {% schema %}
 {
