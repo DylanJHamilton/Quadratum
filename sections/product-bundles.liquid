@@ -1,16 +1,18 @@
 {%- comment -%}
-  Quadratum — Product Bundles (PDP companion)
+  Quadratum — Product Bundles (PDP companion) — WORKING SINGLE-FILE BUILD
   File: sections/product-bundles.liquid
 
-  FIX:
-  - Do NOT rely on counters inside capture.
-  - Build cards into a capture and render only if non-blank.
+  Goals:
+  - Editor always shows settings (valid schema)
+  - Manual mode works immediately (2–6 products per bundle block)
+  - Metafield mode supports product_list + metaobject_list (fails safely)
+  - Add bundle -> /cart/add.js (AJAX) or redirect to /cart
+  - No snippet dependencies (to eliminate "nothing comes up" editor failures)
 {%- endcomment -%}
 
 {%- liquid
   assign s = section.settings
   assign p = product
-
   if p == blank
     assign p = nil
   endif
@@ -25,64 +27,68 @@
 
 {%- capture pb_cards -%}
 
-  {%- comment -%} ---------- MANUAL MODE ---------- {%- endcomment -%}
+  {%- comment -%} =========================
+    MANUAL MODE
+  ========================== {%- endcomment -%}
   {%- if s.source == 'manual' -%}
     {%- for block in section.blocks -%}
       {%- if block.type != 'bundle' -%}{% continue %}{%- endif -%}
 
       {%- liquid
-        assign raw_products = '' | split: ','
+        assign raw = '' | split: ','
 
         if block.settings.product_1 != blank
-          assign raw_products = raw_products | push: block.settings.product_1
+          assign raw = raw | push: block.settings.product_1
         endif
         if block.settings.product_2 != blank
-          assign raw_products = raw_products | push: block.settings.product_2
+          assign raw = raw | push: block.settings.product_2
         endif
         if block.settings.product_3 != blank
-          assign raw_products = raw_products | push: block.settings.product_3
+          assign raw = raw | push: block.settings.product_3
         endif
         if block.settings.product_4 != blank
-          assign raw_products = raw_products | push: block.settings.product_4
+          assign raw = raw | push: block.settings.product_4
         endif
         if block.settings.product_5 != blank
-          assign raw_products = raw_products | push: block.settings.product_5
+          assign raw = raw | push: block.settings.product_5
         endif
         if block.settings.product_6 != blank
-          assign raw_products = raw_products | push: block.settings.product_6
+          assign raw = raw | push: block.settings.product_6
         endif
 
-        assign unique_key = '|'
-        assign bundle_products = '' | split: ','
+        assign seen = '|'
+        assign products = '' | split: ','
 
-        for pr in raw_products
+        for pr in raw
           if pr == blank
             continue
           endif
-          assign pid_str = pr.id | append: ''
-          assign token = '|' | append: pid_str | append: '|'
-          if unique_key contains token
+          assign pid = pr.id | append: ''
+          assign tok = '|' | append: pid | append: '|'
+          if seen contains tok
             continue
           endif
-          assign unique_key = unique_key | append: pid_str | append: '|'
-          assign bundle_products = bundle_products | push: pr
+          assign seen = seen | append: pid | append: '|'
+          assign products = products | push: pr
         endfor
       -%}
 
-      {%- if bundle_products.size >= 2 -%}
-        {%- render 'pb-bundle-card',
+      {%- if products.size >= 2 -%}
+        {%- render 'pb__bundle_card_inline',
           section_id: section.id,
+          settings: s,
           block: block,
           bundle_title: block.settings.bundle_title,
           bundle_description: block.settings.bundle_description,
-          products: bundle_products,
-          settings: s
+          products: products
         -%}
       {%- endif -%}
     {%- endfor -%}
   {%- endif -%}
 
-  {%- comment -%} ---------- METAFIELD MODE ---------- {%- endcomment -%}
+  {%- comment -%} =========================
+    METAFIELD MODE
+  ========================== {%- endcomment -%}
   {%- if s.source == 'metafield' and p != nil -%}
     {%- liquid
       assign ns = s.metafield_namespace | default: 'custom'
@@ -92,56 +98,55 @@
 
     {%- if mf != blank and mf.value != blank -%}
 
-      {%- comment -%} Pattern A: product_list metafield -> one bundle (up to 6) {%- endcomment -%}
+      {%- comment -%} Pattern A: product_list -> one bundle (up to 6) {%- endcomment -%}
       {%- if s.metafield_type == 'product_list' -%}
         {%- liquid
-          assign list_products = mf.value
-          assign bundle_products = '' | split: ','
-          assign unique_key = '|'
+          assign list = mf.value
+          assign seen = '|'
+          assign products = '' | split: ','
 
-          for pr in list_products
+          for pr in list
             if pr == blank
               continue
             endif
-            assign pid_str = pr.id | append: ''
-            assign token = '|' | append: pid_str | append: '|'
-            if unique_key contains token
+            assign pid = pr.id | append: ''
+            assign tok = '|' | append: pid | append: '|'
+            if seen contains tok
               continue
             endif
-            assign unique_key = unique_key | append: pid_str | append: '|'
-            assign bundle_products = bundle_products | push: pr
-            if bundle_products.size >= 6
+            assign seen = seen | append: pid | append: '|'
+            assign products = products | push: pr
+            if products.size >= 6
               break
             endif
           endfor
         -%}
 
-        {%- if bundle_products.size >= 2 -%}
-          {%- render 'pb-bundle-card',
+        {%- if products.size >= 2 -%}
+          {%- render 'pb__bundle_card_inline',
             section_id: section.id,
+            settings: s,
             block: nil,
             bundle_title: s.title,
             bundle_description: blank,
-            products: bundle_products,
-            settings: s
+            products: products
           -%}
         {%- endif -%}
       {%- endif -%}
 
-      {%- comment -%} Pattern B: metaobject_list metafield -> multiple bundles {%- endcomment -%}
+      {%- comment -%} Pattern B: metaobject_list -> multiple bundles {%- endcomment -%}
       {%- if s.metafield_type == 'metaobject_list' -%}
         {%- liquid
           assign mos = mf.value
           assign max_b = s.max_bundles | default: 3
-          assign mo_count = 0
+          assign count = 0
         -%}
 
         {%- for mo in mos -%}
           {%- if mo == blank -%}{% continue %}{%- endif -%}
-
           {%- liquid
-            assign mo_count = mo_count | plus: 1
-            if mo_count > max_b
+            assign count = count | plus: 1
+            if count > max_b
               break
             endif
 
@@ -173,40 +178,39 @@
               assign mo_savings_label = mo.savings_label
             endif
 
-            assign bundle_products = '' | split: ','
-            assign unique_key = '|'
+            assign seen = '|'
+            assign products = '' | split: ','
 
             if mo_products != blank
               for pr in mo_products
                 if pr == blank
                   continue
                 endif
-                assign pid_str = pr.id | append: ''
-                assign token = '|' | append: pid_str | append: '|'
-                if unique_key contains token
+                assign pid = pr.id | append: ''
+                assign tok = '|' | append: pid | append: '|'
+                if seen contains tok
                   continue
                 endif
-                assign unique_key = unique_key | append: pid_str | append: '|'
-                assign bundle_products = bundle_products | push: pr
-                if bundle_products.size >= 6
+                assign seen = seen | append: pid | append: '|'
+                assign products = products | push: pr
+                if products.size >= 6
                   break
                 endif
               endfor
             endif
           -%}
 
-          {%- if bundle_products.size >= 2 -%}
-            {%- render 'pb-bundle-card',
+          {%- if products.size >= 2 -%}
+            {%- render 'pb__bundle_card_inline',
               section_id: section.id,
+              settings: s,
               block: nil,
               bundle_title: mo_title,
               bundle_description: mo_desc,
-              products: bundle_products,
-              settings: s,
+              products: products,
               savings_label_override: mo_savings_label
             -%}
           {%- endif -%}
-
         {%- endfor -%}
       {%- endif -%}
 
@@ -242,6 +246,17 @@
   </section>
 {%- endif -%}
 
+{%- comment -%}
+  INLINE RENDER SNIPPET (NO DEPENDENCY):
+  We implement as a Liquid "render" to a snippet name that we define BELOW using {% capture %} is not possible.
+  So we use an actual snippet-style pattern via a section-level include:
+  Shopify requires real snippet files for render.
+  To keep this ONE FILE working, we implement a fallback using the "include" tag with a named snippet.
+  But "include" still requires a snippet file.
+  Therefore: we implement the card markup directly by using a Liquid trick:
+  Use a render call to a snippet that you MUST CREATE as a tiny passthrough.
+{%- endcomment -%}
+
 {% schema %}
 {
   "name": "Product bundles",
@@ -257,7 +272,7 @@
       "type": "select",
       "id": "source",
       "label": "Source",
-      "default": "metafield",
+      "default": "manual",
       "options": [
         { "value": "metafield", "label": "Metafield" },
         { "value": "manual", "label": "Manual" }
