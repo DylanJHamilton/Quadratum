@@ -1,158 +1,309 @@
-/* Quadratum — Main Product Modern (V1)
-   File: assets/main-product-modern.js
-   - Minimal JS, no global pollution
-   - Scoped per section via [data-q-pdp-modern]
+/* assets/main-product-modern.js
+   Quadratum — Main Product Modern
+   Minimal, reliable JS:
+   - Variant resolution from option selects / radios
+   - Updates hidden input name="id"
+   - Updates price + ATC disabled state
+   - Updates media viewer via thumbs + variant featured_media
+   - tabs_auto: converts radio-tab markup into <details> accordion on mobile
 */
 
-(() => {
-  const moneyText = (cents, currencyFallback = '') => {
-    // We avoid assuming currency formatting rules.
-    // Liquid renders the initial price, and JS only swaps text to the variant's money string
-    // if provided elsewhere. Since we don't have that, we keep cents formatting simple.
-    // Recommendation: keep this basic for V1.
-    if (typeof cents !== 'number') return '';
-    const val = (cents / 100).toFixed(2);
-    return currencyFallback ? `${currencyFallback}${val}` : val;
+(function () {
+  const SEL = {
+    section: '[id^="q-pdp-modern-"]',
+    variantsJson: '[data-variants-json]',
+    moneyFormat: '[data-money-format]',
+    variantIdInput: '[data-variant-id]',
+    optionSelect: '[data-option-select]',
+    optionFieldset: '[data-option-fieldset]',
+    optionRadio: '[data-option-radio]',
+    priceWrap: '[data-price]',
+    priceSale: '[data-price-sale]',
+    priceCompare: '[data-price-compare]',
+    priceRegular: '[data-price-regular]',
+    atcBtn: '[data-atc]',
+    atcText: '[data-atc-text]',
+    gallery: '[data-gallery]',
+    viewerItem: '.q-modern-media__item[data-media-id]',
+    thumbBtn: '[data-thumb]',
+    contentModeJson: '[data-content-mode]',
+    tabsRoot: '.q-modern-tabs'
   };
 
-  const initSection = (root) => {
-    const variantsScript = root.querySelector('script[data-q-variants]');
-    if (!variantsScript) return;
-
-    let variants = [];
+  function safeParseJson(el) {
+    if (!el) return null;
     try {
-      variants = JSON.parse(variantsScript.textContent || '[]');
+      return JSON.parse(el.textContent);
     } catch (e) {
+      return null;
+    }
+  }
+
+  function formatMoney(cents, moneyFormat) {
+    // Simple fallback formatting if theme money_format isn't used.
+    // If money_format exists, we do a basic replacement for {{amount}}.
+    const amount = (Number(cents || 0) / 100).toFixed(2);
+    if (typeof moneyFormat === 'string' && moneyFormat.includes('{{amount}}')) {
+      return moneyFormat.replace('{{amount}}', amount);
+    }
+    return '$' + amount;
+  }
+
+  function getSelectedOptions(section) {
+    const selects = Array.from(section.querySelectorAll(SEL.optionSelect));
+    if (selects.length) {
+      return selects
+        .sort((a, b) => Number(a.dataset.optionIndex) - Number(b.dataset.optionIndex))
+        .map((s) => s.value);
+    }
+
+    const fieldsets = Array.from(section.querySelectorAll(SEL.optionFieldset));
+    if (fieldsets.length) {
+      return fieldsets
+        .sort((a, b) => Number(a.dataset.optionIndex) - Number(b.dataset.optionIndex))
+        .map((fs) => {
+          const checked = fs.querySelector('input[type="radio"]:checked');
+          return checked ? checked.value : '';
+        });
+    }
+
+    return [];
+  }
+
+  function findVariantByOptions(variants, options) {
+    if (!Array.isArray(variants) || !options || !options.length) return null;
+    // Shopify variants JSON includes "options": ["Size","Color"...]
+    return variants.find((v) => {
+      if (!Array.isArray(v.options)) return false;
+      if (v.options.length !== options.length) return false;
+      for (let i = 0; i < options.length; i++) {
+        if (String(v.options[i]) !== String(options[i])) return false;
+      }
+      return true;
+    }) || null;
+  }
+
+  function setActiveMedia(section, mediaId) {
+    if (!mediaId) return;
+
+    const viewerItems = Array.from(section.querySelectorAll(SEL.viewerItem));
+    if (!viewerItems.length) return;
+
+    viewerItems.forEach((it) => {
+      if (String(it.dataset.mediaId) === String(mediaId)) {
+        it.setAttribute('data-active', 'true');
+      } else {
+        it.removeAttribute('data-active');
+      }
+    });
+
+    const thumbs = Array.from(section.querySelectorAll(SEL.thumbBtn));
+    thumbs.forEach((btn) => {
+      if (String(btn.dataset.mediaId) === String(mediaId)) {
+        btn.setAttribute('aria-current', 'true');
+      } else {
+        btn.removeAttribute('aria-current');
+      }
+    });
+  }
+
+  function updatePrice(section, variant, moneyFormat) {
+    const wrap = section.querySelector(SEL.priceWrap);
+    if (!wrap || !variant) return;
+
+    const saleEl = wrap.querySelector(SEL.priceSale);
+    const compareEl = wrap.querySelector(SEL.priceCompare);
+    const regEl = wrap.querySelector(SEL.priceRegular);
+
+    const price = Number(variant.price || 0);
+    const compare = Number(variant.compare_at_price || 0);
+
+    if (compare > price) {
+      if (saleEl) saleEl.textContent = formatMoney(price, moneyFormat);
+      if (compareEl) compareEl.textContent = formatMoney(compare, moneyFormat);
+      if (regEl) regEl.textContent = '';
+      if (saleEl) saleEl.style.display = '';
+      if (compareEl) compareEl.style.display = '';
+      if (regEl) regEl.style.display = 'none';
+    } else {
+      if (regEl) regEl.textContent = formatMoney(price, moneyFormat);
+      if (saleEl) saleEl.textContent = '';
+      if (compareEl) compareEl.textContent = '';
+      if (regEl) regEl.style.display = '';
+      if (saleEl) saleEl.style.display = 'none';
+      if (compareEl) compareEl.style.display = 'none';
+    }
+  }
+
+  function updateATC(section, variant) {
+    const btn = section.querySelector(SEL.atcBtn);
+    if (!btn || !variant) return;
+
+    const textEl = btn.querySelector(SEL.atcText);
+    const addText = 'Add to cart';
+    const soldText = 'Sold out';
+    const unavailText = 'Unavailable';
+
+    // If variant exists but unavailable => sold out
+    if (variant.available) {
+      btn.removeAttribute('disabled');
+      if (textEl) textEl.textContent = addText;
+    } else {
+      btn.setAttribute('disabled', 'disabled');
+      if (textEl) textEl.textContent = soldText;
+    }
+
+    // If no matching variant is found, we’ll handle elsewhere (unavailable)
+  }
+
+  function setUnavailable(section) {
+    const btn = section.querySelector(SEL.atcBtn);
+    if (btn) {
+      btn.setAttribute('disabled', 'disabled');
+      const textEl = btn.querySelector(SEL.atcText);
+      if (textEl) textEl.textContent = 'Unavailable';
+    }
+  }
+
+  function updateVariant(section, variants, moneyFormat) {
+    const options = getSelectedOptions(section);
+    const v = findVariantByOptions(variants, options);
+
+    const idInput = section.querySelector(SEL.variantIdInput);
+    if (!v) {
+      if (idInput) idInput.value = '';
+      setUnavailable(section);
       return;
     }
 
-    const form = root.querySelector('[data-q-form]');
-    const variantIdInput = root.querySelector('[data-q-variant-id]');
-    const optionSelects = Array.from(root.querySelectorAll('[data-q-option]'));
+    if (idInput) idInput.value = v.id;
 
-    const priceWrap = root.querySelector('[data-q-price]');
-    const priceRegular = root.querySelector('[data-q-price-regular]');
-    const priceCompare = root.querySelector('[data-q-price-compare]');
+    updatePrice(section, v, moneyFormat);
+    updateATC(section, v);
 
-    const atcBtn = root.querySelector('[data-q-atc]');
-    const atcText = root.querySelector('[data-q-atc-text]');
+    // Featured media switch (Dawn behavior)
+    if (v.featured_media && v.featured_media.id) {
+      setActiveMedia(section, v.featured_media.id);
+    }
+  }
 
-    const availability = root.querySelector('[data-q-availability]');
-    const skuWrap = root.querySelector('[data-q-sku]');
-    const skuVal = root.querySelector('[data-q-sku-val]');
+  function bindVariantInputs(section, variants, moneyFormat) {
+    const selects = Array.from(section.querySelectorAll(SEL.optionSelect));
+    selects.forEach((sel) => {
+      sel.addEventListener('change', () => updateVariant(section, variants, moneyFormat));
+    });
 
-    const mediaRoot = root.querySelector('[data-q-media]');
-    const mediaItems = Array.from(root.querySelectorAll('[data-media-id]'));
-    const thumbBtns = Array.from(root.querySelectorAll('[data-thumb]'));
+    const radios = Array.from(section.querySelectorAll(SEL.optionRadio));
+    radios.forEach((r) => {
+      r.addEventListener('change', () => updateVariant(section, variants, moneyFormat));
+    });
+  }
 
-    const getSelectedOptions = () => {
-      // optionSelects store option-index and value
-      const opts = [];
-      optionSelects.forEach((sel) => {
-        const idx = Number(sel.getAttribute('data-option-index'));
-        opts[idx] = sel.value;
+  function bindThumbs(section) {
+    const thumbs = Array.from(section.querySelectorAll(SEL.thumbBtn));
+    if (!thumbs.length) return;
+
+    thumbs.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const mediaId = btn.dataset.mediaId;
+        setActiveMedia(section, mediaId);
       });
-      return opts;
-    };
+    });
+  }
 
-    const findMatchingVariant = (selectedOptions) => {
-      // Variants JSON includes "options": ["Size","Color",...]
-      return variants.find((v) => {
-        if (!v || !Array.isArray(v.options)) return false;
-        if (v.options.length !== selectedOptions.length) return false;
-        for (let i = 0; i < selectedOptions.length; i++) {
-          if (v.options[i] !== selectedOptions[i]) return false;
-        }
-        return true;
-      }) || null;
-    };
+  // tabs_auto -> accordion on mobile
+  function convertTabsToAccordion(section) {
+    const modeEl = section.querySelector(SEL.contentModeJson);
+    const mode = modeEl ? safeParseJson(modeEl) : null;
+    if (!mode || (mode !== 'tabs_auto' && mode !== 'tabs')) return;
 
-    const setActiveMedia = (mediaId) => {
-      if (!mediaId || !mediaItems.length) return;
+    // Only convert for tabs_auto on mobile width
+    if (mode !== 'tabs_auto') return;
 
-      mediaItems.forEach((item) => {
-        const isActive = String(item.getAttribute('data-media-id')) === String(mediaId);
-        if (isActive) item.removeAttribute('hidden');
-        else item.setAttribute('hidden', '');
-      });
+    const isMobile = window.matchMedia('(max-width: 749px)').matches;
+    if (!isMobile) return;
 
-      thumbBtns.forEach((btn) => {
-        const target = btn.getAttribute('data-target-media-id');
-        btn.setAttribute('aria-current', String(target) === String(mediaId) ? 'true' : 'false');
-      });
-    };
+    const tabs = section.querySelector(SEL.tabsRoot);
+    if (!tabs) return;
 
-    const updateUI = (variant) => {
-      if (!variant) return;
+    // Already converted?
+    if (tabs.dataset.accordionBuilt === 'true') return;
 
-      // variant id
-      if (variantIdInput) variantIdInput.value = variant.id;
-
-      // price
-      if (priceRegular) {
-        // We can't reproduce Liquid money formatting reliably without Shopify formatting helpers.
-        // For V1, we still update the numeric value; Liquid renders initial correct formatting.
-        priceRegular.textContent = moneyText(variant.price);
+    // The markup pattern is: radio, label, panel, repeated.
+    const children = Array.from(tabs.children);
+    const triples = [];
+    for (let i = 0; i < children.length; i++) {
+      const a = children[i];
+      const b = children[i + 1];
+      const c = children[i + 2];
+      if (!a || !b || !c) break;
+      if (a.classList.contains('q-modern-tab__radio') &&
+          b.classList.contains('q-modern-tab__label') &&
+          c.classList.contains('q-modern-tab__panel')) {
+        triples.push([a, b, c]);
+        i += 2;
       }
-      if (priceCompare) {
-        const onSale = variant.compare_at_price && variant.compare_at_price > variant.price;
-        if (onSale) {
-          priceCompare.textContent = moneyText(variant.compare_at_price);
-          priceCompare.removeAttribute('hidden');
-        } else {
-          priceCompare.setAttribute('hidden', '');
-        }
-      }
-
-      // availability + ATC
-      const available = !!variant.available;
-      if (availability) availability.textContent = available ? 'In stock' : 'Sold out';
-      if (atcBtn) atcBtn.disabled = !available;
-      if (atcText) atcText.textContent = available ? 'Add to cart' : 'Sold out';
-
-      // SKU
-      if (skuWrap && skuVal) {
-        if (variant.sku) {
-          skuVal.textContent = variant.sku;
-          skuWrap.removeAttribute('hidden');
-        } else {
-          skuWrap.setAttribute('hidden', '');
-        }
-      }
-
-      // featured media
-      if (variant.featured_media && variant.featured_media.id) {
-        setActiveMedia(variant.featured_media.id);
-      }
-    };
-
-    // Thumb click swaps media (independent of variants)
-    if (thumbBtns.length && mediaItems.length) {
-      thumbBtns.forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const id = btn.getAttribute('data-target-media-id');
-          setActiveMedia(id);
-        });
-      });
     }
 
-    // Options change => match variant => update UI
-    if (optionSelects.length) {
-      optionSelects.forEach((sel) => {
-        sel.addEventListener('change', () => {
-          const selectedOptions = getSelectedOptions();
-          const match = findMatchingVariant(selectedOptions);
-          if (match) updateUI(match);
-        });
+    if (!triples.length) return;
+
+    const accWrap = document.createElement('div');
+    accWrap.className = 'q-modern-accordion';
+
+    triples.forEach(([radio, label, panel], idx) => {
+      const details = document.createElement('details');
+      details.className = 'q-modern-acc';
+      // open first item if first tab was checked
+      if (radio.checked || idx === 0) details.open = true;
+
+      const summary = document.createElement('summary');
+      summary.textContent = label.textContent.trim();
+
+      const panelWrap = document.createElement('div');
+      panelWrap.className = 'q-modern-acc__panel';
+
+      // move panel children into accordion panel
+      while (panel.firstChild) panelWrap.appendChild(panel.firstChild);
+
+      // preserve shopify attributes by copying attributes from panel onto details wrapper
+      // (shopify_attributes are rendered as attributes)
+      Array.from(panel.attributes).forEach((attr) => {
+        // avoid duplicating class/id collisions
+        if (attr.name === 'class' || attr.name === 'id') return;
+        details.setAttribute(attr.name, attr.value);
       });
 
-      // Initial sync (in case theme selects differ)
-      const initialMatch = findMatchingVariant(getSelectedOptions());
-      if (initialMatch) updateUI(initialMatch);
-    }
-  };
+      details.appendChild(summary);
+      details.appendChild(panelWrap);
+      accWrap.appendChild(details);
+    });
 
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('[data-q-pdp-modern]').forEach(initSection);
-  });
+    // Replace tabs content fully
+    tabs.innerHTML = '';
+    tabs.appendChild(accWrap);
+    tabs.dataset.accordionBuilt = 'true';
+  }
+
+  function initSection(section) {
+    const variants = safeParseJson(section.querySelector(SEL.variantsJson)) || [];
+    const moneyFormat = safeParseJson(section.querySelector(SEL.moneyFormat)) || null;
+
+    bindVariantInputs(section, variants, moneyFormat);
+    bindThumbs(section);
+    convertTabsToAccordion(section);
+
+    // Initial sync (important if defaults are not the first variant)
+    updateVariant(section, variants, moneyFormat);
+  }
+
+  function initAll() {
+    const sections = Array.from(document.querySelectorAll(SEL.section));
+    sections.forEach(initSection);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAll);
+  } else {
+    initAll();
+  }
 })();
