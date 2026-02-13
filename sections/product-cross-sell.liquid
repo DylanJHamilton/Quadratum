@@ -7,8 +7,8 @@
   - collection
   - dynamic (Shopify recommendations JSON) with fallback
 
-  Rendering: MUST use product-card snippet. No inline product markup.
-  Styling: Section-level CSS targets common card selectors and/or your theme's card classes.
+  Rendering: MUST use product-card snippet. No inline card markup.
+  Styling: Section-only, applied via wrapper (.q-pcs__item) so it works regardless of card classes.
 {%- endcomment -%}
 
 {%- liquid
@@ -29,18 +29,19 @@
   assign current_id = p.id
   assign c = s.collection
 
-  # Determine if we can render anything server-side (for non-dynamic)
+  # determine if manual has any valid products
   assign has_manual = false
   for block in section.blocks
-    if block.type == 'product_reference' and block.settings.product != blank
+    if block.type == 'product_reference'
       assign bp = block.settings.product
-      if bp.id != current_id and bp.available
+      if bp != blank and bp.id != current_id and bp.available
         assign has_manual = true
         break
       endif
     endif
   endfor
 
+  # determine if collection has any valid products
   assign has_collection = false
   if c != blank
     for cp in c.products
@@ -64,42 +65,13 @@
     break
   endif
 
-  # Grid vars
   assign grid_style = ''
   if layout == 'grid'
     assign grid_style = ' --q-cols-desktop:' | append: cols_desktop | append: '; --q-cols-tablet:' | append: cols_tablet | append: '; --q-cols-mobile:' | append: cols_mobile | append: ';'
   endif
-
-  # Card style vars
-  assign card_border_width = s.card_border_width | default: 1
-  assign card_radius = s.card_radius | default: 12
-  assign card_padding = s.card_padding | default: 0
-  assign card_shadow = s.card_shadow | default: 'none'
-  assign card_text_align = s.card_text_align | default: 'left'
-
-  assign image_radius = s.image_radius | default: 12
-  assign image_aspect = s.image_aspect | default: '1 / 1'
-
-  assign title_size = s.title_size | default: 16
-  assign title_weight = s.title_weight | default: 600
-
-  assign price_size = s.price_size | default: 14
-  assign price_weight = s.price_weight | default: 600
-
-  assign btn_radius = s.button_radius | default: 12
-  assign btn_padding_y = s.button_padding_y | default: 12
-  assign btn_padding_x = s.button_padding_x | default: 16
-
-  assign override_label = s.override_button_label
-  assign button_label_text = s.button_label_text
 -%}
 
-<section
-  id="product-cross-sell"
-  class="q-product-cross-sell"
-  data-mode="{{ mode }}"
-  data-layout="{{ layout }}"
->
+<section id="product-cross-sell" class="q-product-cross-sell" data-mode="{{ mode }}" data-layout="{{ layout }}">
   <div class="q-product-cross-sell__inner">
 
     {%- if s.title != blank -%}
@@ -131,7 +103,9 @@
               {%- assign id_token = '|' | append: cp.id | append: '|' -%}
               {%- unless seen_ids contains id_token -%}
                 {%- assign seen_ids = seen_ids | append: id_token -%}
-                {% render 'product-card', product: cp %}
+                <div class="q-pcs__item">
+                  {% render 'product-card', product: cp %}
+                </div>
                 {%- assign rendered = rendered | plus: 1 -%}
                 {%- if rendered >= max_products -%}{%- break -%}{%- endif -%}
               {%- endunless -%}
@@ -145,7 +119,9 @@
                 {%- assign id_token = '|' | append: bp.id | append: '|' -%}
                 {%- unless seen_ids contains id_token -%}
                   {%- assign seen_ids = seen_ids | append: id_token -%}
-                  {% render 'product-card', product: bp %}
+                  <div class="q-pcs__item">
+                    {% render 'product-card', product: bp %}
+                  </div>
                   {%- assign rendered = rendered | plus: 1 -%}
                   {%- if rendered >= max_products -%}{%- break -%}{%- endif -%}
                 {%- endunless -%}
@@ -155,17 +131,11 @@
         {%- endif -%}
 
         {%- if rendered == 0 -%}
-          {%- comment -%} No products resolved => render nothing {%- endcomment -%}
           {%- break -%}
         {%- endif -%}
       {%- endif -%}
     </div>
 
-    {%- comment -%}
-      Hidden fallback markup for Dynamic mode:
-      - Collection fallback first
-      - Manual fallback second
-    {%- endcomment -%}
     {%- if mode == 'dynamic' -%}
       <div hidden>
         <div data-fallback-collection>
@@ -179,7 +149,9 @@
                 {%- assign id_token = '|' | append: cp.id | append: '|' -%}
                 {%- unless seen_c contains id_token -%}
                   {%- assign seen_c = seen_c | append: id_token -%}
-                  {% render 'product-card', product: cp %}
+                  <div class="q-pcs__item">
+                    {% render 'product-card', product: cp %}
+                  </div>
                   {%- assign rendered_c = rendered_c | plus: 1 -%}
                   {%- if rendered_c >= max_products -%}{%- break -%}{%- endif -%}
                 {%- endunless -%}
@@ -200,7 +172,9 @@
                 {%- assign id_token = '|' | append: bp.id | append: '|' -%}
                 {%- unless seen_m contains id_token -%}
                   {%- assign seen_m = seen_m | append: id_token -%}
-                  {% render 'product-card', product: bp %}
+                  <div class="q-pcs__item">
+                    {% render 'product-card', product: bp %}
+                  </div>
                   {%- assign rendered_m = rendered_m | plus: 1 -%}
                   {%- if rendered_m >= max_products -%}{%- break -%}{%- endif -%}
                 {%- endunless -%}
@@ -213,54 +187,38 @@
 
   </div>
 
-  {%- comment -%}
-    Section-level styling controls:
-    We target common card selectors without changing the card snippet.
-    Works best if your card uses standard .card / .card__* classes OR your own .q-card classes.
-  {%- endcomment -%}
-
   <style>
     #product-cross-sell {
-      --q-card-border-width: {{ card_border_width }}px;
-      --q-card-radius: {{ card_radius }}px;
-      --q-card-padding: {{ card_padding }}px;
-      --q-card-text-align: {{ card_text_align }};
-      --q-card-image-radius: {{ image_radius }}px;
-      --q-card-image-aspect: {{ image_aspect }};
+      --q-feed-gap: {{ s.grid_gap | default: 16 }}px;
+      --q-carousel-min: {{ s.carousel_item_min | default: 240 }}px;
 
-      --q-title-size: {{ title_size }}px;
-      --q-title-weight: {{ title_weight }};
-      --q-price-size: {{ price_size }}px;
-      --q-price-weight: {{ price_weight }};
+      --q-card-bg: {{ s.card_bg | default: 'transparent' }};
+      --q-card-border-color: {{ s.card_border_color | default: 'rgba(0,0,0,0.12)' }};
+      --q-card-border-width: {{ s.card_border_width | default: 1 }}px;
+      --q-card-radius: {{ s.card_radius | default: 12 }}px;
+      --q-card-padding: {{ s.card_padding | default: 0 }}px;
+      --q-card-shadow: {{ s.card_shadow | default: 'none' }};
+      --q-card-align: {{ s.card_text_align | default: 'left' }};
 
-      --q-btn-radius: {{ btn_radius }}px;
-      --q-btn-pad-y: {{ btn_padding_y }}px;
-      --q-btn-pad-x: {{ btn_padding_x }}px;
+      --q-image-radius: {{ s.image_radius | default: 12 }}px;
+      --q-image-aspect: {{ s.image_aspect | default: '1 / 1' }};
 
-      {%- if s.card_bg != blank -%}
-      --q-card-bg: {{ s.card_bg }};
-      {%- endif -%}
-      {%- if s.card_border_color != blank -%}
-      --q-card-border-color: {{ s.card_border_color }};
-      {%- endif -%}
-      {%- if s.title_color != blank -%}
-      --q-title-color: {{ s.title_color }};
-      {%- endif -%}
-      {%- if s.price_color != blank -%}
-      --q-price-color: {{ s.price_color }};
-      {%- endif -%}
-      {%- if s.button_bg != blank -%}
-      --q-btn-bg: {{ s.button_bg }};
-      {%- endif -%}
-      {%- if s.button_text != blank -%}
-      --q-btn-text: {{ s.button_text }};
-      {%- endif -%}
-      {%- if s.button_border_color != blank -%}
-      --q-btn-border: {{ s.button_border_color }};
-      {%- endif -%}
+      --q-title-color: {{ s.title_color | default: 'inherit' }};
+      --q-title-size: {{ s.title_size | default: 16 }}px;
+      --q-title-weight: {{ s.title_weight | default: 600 }};
+
+      --q-price-color: {{ s.price_color | default: 'inherit' }};
+      --q-price-size: {{ s.price_size | default: 14 }}px;
+      --q-price-weight: {{ s.price_weight | default: 600 }};
+
+      --q-btn-radius: {{ s.button_radius | default: 12 }}px;
+      --q-btn-pad-y: {{ s.button_padding_y | default: 12 }}px;
+      --q-btn-pad-x: {{ s.button_padding_x | default: 16 }}px;
+      --q-btn-bg: {{ s.button_bg | default: 'transparent' }};
+      --q-btn-text: {{ s.button_text | default: 'inherit' }};
+      --q-btn-border: {{ s.button_border_color | default: 'transparent' }};
     }
 
-    /* Layout */
     .q-product-cross-sell__inner {
       max-width: var(--page-width, 1200px);
       margin: 0 auto;
@@ -269,7 +227,7 @@
 
     .q-product-cross-sell__products--grid {
       display: grid;
-      gap: {{ s.grid_gap | default: 16 }}px;
+      gap: var(--q-feed-gap);
       grid-template-columns: repeat(var(--q-cols-desktop, 4), 1fr);
     }
     @media (max-width: 989px) {
@@ -282,8 +240,8 @@
     .q-product-cross-sell__products--carousel {
       display: grid;
       grid-auto-flow: column;
-      grid-auto-columns: minmax({{ s.carousel_item_min | default: 240 }}px, 1fr);
-      gap: {{ s.grid_gap | default: 16 }}px;
+      grid-auto-columns: minmax(var(--q-carousel-min), 1fr);
+      gap: var(--q-feed-gap);
       overflow-x: auto;
       scroll-snap-type: x mandatory;
       -webkit-overflow-scrolling: touch;
@@ -291,113 +249,105 @@
     }
     .q-product-cross-sell__products--carousel > * { scroll-snap-align: start; }
 
-    /* =========================================
-       Card styling (targets common structures)
-       ========================================= */
+    /* ==========
+      Section-only “universal” card styling applied via wrapper
+      (No reliance on snippet class names)
+    ========== */
 
-    /* Card root candidates: customize if your theme uses different classes */
-    #product-cross-sell .card,
-    #product-cross-sell .q-card,
-    #product-cross-sell [class*="product-card"] {
-      text-align: var(--q-card-text-align, left);
+    #product-cross-sell .q-pcs__item {
+      text-align: var(--q-card-align);
     }
 
-    /* Border / background / radius / shadow */
-    #product-cross-sell .card,
-    #product-cross-sell .q-card {
-      background: var(--q-card-bg, transparent);
-      border: var(--q-card-border-width, 0px) solid var(--q-card-border-color, rgba(0,0,0,0.12));
-      border-radius: var(--q-card-radius, 12px);
-      padding: var(--q-card-padding, 0px);
+    /* If the snippet has a root wrapper, this styles it indirectly by applying to first child */
+    #product-cross-sell .q-pcs__item > *:first-child {
+      background: var(--q-card-bg);
+      border: var(--q-card-border-width) solid var(--q-card-border-color);
+      border-radius: var(--q-card-radius);
+      padding: var(--q-card-padding);
       overflow: hidden;
     }
 
-    {%- if card_shadow == 'soft' -%}
-      #product-cross-sell .card, #product-cross-sell .q-card { box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
-    {%- elsif card_shadow == 'medium' -%}
-      #product-cross-sell .card, #product-cross-sell .q-card { box-shadow: 0 10px 30px rgba(0,0,0,0.14); }
+    /* shadow levels */
+    {%- if s.card_shadow == 'soft' -%}
+      #product-cross-sell .q-pcs__item > *:first-child { box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+    {%- elsif s.card_shadow == 'medium' -%}
+      #product-cross-sell .q-pcs__item > *:first-child { box-shadow: 0 10px 30px rgba(0,0,0,0.14); }
     {%- else -%}
-      #product-cross-sell .card, #product-cross-sell .q-card { box-shadow: none; }
+      #product-cross-sell .q-pcs__item > *:first-child { box-shadow: none; }
     {%- endif -%}
 
-    /* Media wrapper candidates */
-    #product-cross-sell .card__media,
-    #product-cross-sell .q-card__media,
-    #product-cross-sell .media {
-      border-radius: var(--q-card-image-radius, 12px);
+    /* Image styling (works regardless of structure) */
+    #product-cross-sell .q-pcs__item img {
+      border-radius: var(--q-image-radius);
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* Try to normalize media blocks if snippet uses wrappers */
+    #product-cross-sell .q-pcs__item :where(.media, .card__media, .product-card__media, .q-card__media) {
+      border-radius: var(--q-image-radius);
       overflow: hidden;
+      aspect-ratio: var(--q-image-aspect);
     }
 
-    /* Force consistent aspect ratio when possible */
-    #product-cross-sell .card__media,
-    #product-cross-sell .q-card__media,
-    #product-cross-sell .media {
-      aspect-ratio: var(--q-card-image-aspect, 1 / 1);
+    /* Title styling: headings + common title link patterns */
+    #product-cross-sell .q-pcs__item :where(h1,h2,h3,h4,h5,h6) {
+      color: var(--q-title-color);
+      font-size: var(--q-title-size);
+      font-weight: var(--q-title-weight);
+      margin: 0.5rem 0 0.25rem;
     }
 
-    /* Titles (common selectors) */
-    #product-cross-sell .card__heading,
-    #product-cross-sell .card__heading a,
-    #product-cross-sell .q-card__title,
-    #product-cross-sell .product-card__title {
-      font-size: var(--q-title-size, 16px);
-      font-weight: var(--q-title-weight, 600);
-      color: var(--q-title-color, inherit);
+    /* Also apply to likely “title link” elements */
+    #product-cross-sell .q-pcs__item :where(.card__heading, .product-card__title, .q-card__title) {
+      color: var(--q-title-color);
+      font-size: var(--q-title-size);
+      font-weight: var(--q-title-weight);
+    }
+    #product-cross-sell .q-pcs__item :where(.card__heading a, .product-card__title a, .q-card__title a) {
+      color: var(--q-title-color);
       text-decoration: none;
     }
 
-    /* Price (common selectors) */
-    #product-cross-sell .price,
-    #product-cross-sell .q-card__price,
-    #product-cross-sell .product-card__price {
-      font-size: var(--q-price-size, 14px);
-      font-weight: var(--q-price-weight, 600);
-      color: var(--q-price-color, inherit);
+    /* Price styling (common patterns) */
+    #product-cross-sell .q-pcs__item :where(.price, .product-card__price, .q-card__price, [data-price]) {
+      color: var(--q-price-color);
+      font-size: var(--q-price-size);
+      font-weight: var(--q-price-weight);
     }
 
-    /* Buttons (common quick-add selectors) */
-    #product-cross-sell .quick-add__submit,
-    #product-cross-sell .product-form__submit,
-    #product-cross-sell .button {
-      border-radius: var(--q-btn-radius, 12px);
-      padding: var(--q-btn-pad-y, 12px) var(--q-btn-pad-x, 16px);
+    /* Button styling (common patterns) */
+    #product-cross-sell .q-pcs__item :where(button, .button, a.button, input[type="submit"], [type="submit"]) {
+      border-radius: var(--q-btn-radius);
+      padding: var(--q-btn-pad-y) var(--q-btn-pad-x);
     }
 
-    /* Optional “custom button skin” */
+    /* Optional button skin */
     {%- if s.enable_button_skin -%}
-      #product-cross-sell .quick-add__submit,
-      #product-cross-sell .product-form__submit {
-        background: var(--q-btn-bg, currentColor);
-        color: var(--q-btn-text, #fff);
-        border: 1px solid var(--q-btn-border, transparent);
+      #product-cross-sell .q-pcs__item :where(button, .button, a.button, input[type="submit"], [type="submit"]) {
+        background: var(--q-btn-bg);
+        color: var(--q-btn-text);
+        border: 1px solid var(--q-btn-border);
       }
     {%- endif -%}
 
-    /* OPTIONAL: Override button label via CSS (hacky by nature, section-only) */
-    {%- if override_label and button_label_text != blank -%}
-      /* Common patterns: button text as direct text node or inside span */
-      #product-cross-sell .quick-add__submit,
-      #product-cross-sell .product-form__submit {
+    /* Optional label override (CSS hack) */
+    {%- if s.override_button_label and s.button_label_text != blank -%}
+      #product-cross-sell .q-pcs__item :where(button, input[type="submit"], [type="submit"], .button) {
         position: relative;
       }
-
-      /* Hide common inner label elements if present */
-      #product-cross-sell .quick-add__submit span,
-      #product-cross-sell .product-form__submit span {
+      #product-cross-sell .q-pcs__item :where(button, .button) span {
         visibility: hidden;
       }
-
-      /* Replace label */
-      #product-cross-sell .quick-add__submit::after,
-      #product-cross-sell .product-form__submit::after {
-        content: "{{ button_label_text | escape }}";
+      #product-cross-sell .q-pcs__item :where(button, input[type="submit"], [type="submit"], .button)::after {
+        content: "{{ s.button_label_text | escape }}";
         position: absolute;
         inset: 0;
         display: flex;
         align-items: center;
         justify-content: center;
         pointer-events: none;
-        color: inherit;
       }
     {%- endif -%}
   </style>
@@ -464,7 +414,20 @@
           Promise.all(handles.map(fetchCard)).then(function(htmlParts) {
             var combined = htmlParts.join('');
             if (!combined.trim()) { swapFallback(); return; }
-            container.innerHTML = combined;
+
+            // Ensure dynamic cards get wrapped in q-pcs__item for styling parity
+            var tmp = document.createElement('div');
+            tmp.innerHTML = combined;
+
+            var out = document.createElement('div');
+            while (tmp.firstChild) {
+              var wrap = document.createElement('div');
+              wrap.className = 'q-pcs__item';
+              wrap.appendChild(tmp.firstChild);
+              out.appendChild(wrap);
+            }
+
+            container.innerHTML = out.innerHTML;
           }).catch(function(){ swapFallback(); });
         }).catch(function(){ swapFallback(); });
       })();
@@ -491,12 +454,7 @@
       ]
     },
 
-    {
-      "type": "collection",
-      "id": "collection",
-      "label": "Collection",
-      "info": "Used for Collection mode and as fallback for Dynamic mode"
-    },
+    { "type": "collection", "id": "collection", "label": "Collection", "info": "Used for Collection mode and as fallback for Dynamic mode" },
 
     { "type": "range", "id": "max_products", "label": "Max products", "min": 2, "max": 12, "step": 1, "default": 4 },
 
@@ -525,7 +483,7 @@
       ]
     },
 
-    { "type": "header", "content": "Feed layout styling" },
+    { "type": "header", "content": "Feed spacing" },
     { "type": "range", "id": "grid_gap", "label": "Gap between items (px)", "min": 8, "max": 40, "step": 1, "default": 16 },
     { "type": "range", "id": "carousel_item_min", "label": "Carousel item min width (px)", "min": 180, "max": 420, "step": 10, "default": 240 },
 
