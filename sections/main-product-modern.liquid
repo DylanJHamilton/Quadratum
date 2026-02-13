@@ -1,26 +1,31 @@
 {%- comment -%}
-  Quadratum — Main Product Modern (Dawn-inspired)
+  Quadratum — Main Product Modern (Standalone / No Snippet Dependencies)
   File: sections/main-product-modern.liquid
 
-  Uses existing Dawn-style snippets:
-    - product-media-gallery
-    - product-media-modal
-    - product-thumbnail (used by gallery)
-    - product-media (used by modal)
-    - price
-    - product-variant-options
+  GOAL:
+  - A working PDP section that DOES NOT depend on Dawn snippets:
+    product-media-gallery, product-media-modal, product-thumbnail, price, product-variant-options, etc.
 
-  NOTE:
-  This section is self-contained for the "information" area (Dawn style).
+  INCLUDES:
+  - Media gallery (images) + thumbs
+  - Lightbox modal (X + prev/next)
+  - Variant picker (buttons or dropdown)
+  - Price / compare-at update on variant change
+  - SKU update + availability message
+  - Add to cart form + optional dynamic checkout button
+
+  NOTES:
+  - This focuses on images for media (video/model not fully replicated like Dawn).
+  - It will not crash if the theme lacks Dawn’s assets/snippets.
 {%- endcomment -%}
 
 {%- liquid
-  assign s = section.settings
   assign p = product
-
   if p == blank
     break
   endif
+
+  assign s = section.settings
 
   assign current_variant = p.selected_or_first_available_variant
   if current_variant == blank
@@ -32,382 +37,684 @@
     assign section_aria = 'Product details'
   endif
 
-  assign media_limit = s.media_limit | default: null
-
-  assign variant_images = p.images | where: 'attached_to_variant?', true | map: 'src'
-
-  assign first_3d_model = p.media | where: 'media_type', 'model' | first
-
-  assign product_form_id = 'product-form-' | append: section.id
+  assign padding_top_mobile = s.padding_top | times: 0.75 | round: 0
+  assign padding_bottom_mobile = s.padding_bottom | times: 0.75 | round: 0
 -%}
 
 <section
-  class="qtm-main-product-modern color-{{ s.color_scheme }} gradient section-{{ section.id }}-padding"
+  id="MainProductModern-{{ section.id }}"
+  class="qtm-modern section-{{ section.id }}-padding color-{{ s.color_scheme }} gradient"
   aria-label="{{ section_aria | escape }}"
   data-section-id="{{ section.id }}"
   data-product-id="{{ p.id }}"
 >
-  {%- style -%}
-    .section-{{ section.id }}-padding {
-      padding-top: {{ s.padding_top | default: 36 | times: 0.75 | round: 0 }}px;
-      padding-bottom: {{ s.padding_bottom | default: 36 | times: 0.75 | round: 0 }}px;
+  <style>
+    .section-{{ section.id }}-padding { padding-top: {{ padding_top_mobile }}px; padding-bottom: {{ padding_bottom_mobile }}px; }
+    @media (min-width: 750px){
+      .section-{{ section.id }}-padding { padding-top: {{ s.padding_top }}px; padding-bottom: {{ s.padding_bottom }}px; }
     }
-    @media (min-width: 750px) {
-      .section-{{ section.id }}-padding {
-        padding-top: {{ s.padding_top | default: 36 }}px;
-        padding-bottom: {{ s.padding_bottom | default: 36 }}px;
+
+    /* Layout */
+    #MainProductModern-{{ section.id }} .qtm-modern__grid{
+      display:grid;
+      gap: 2.5rem;
+      align-items:start;
+    }
+    @media (min-width: 990px){
+      #MainProductModern-{{ section.id }} .qtm-modern__grid{
+        grid-template-columns: 1.05fr 0.95fr;
       }
+      #MainProductModern-{{ section.id }}.qtm-modern--media-right .qtm-modern__media { order: 2; }
+      #MainProductModern-{{ section.id }}.qtm-modern--media-right .qtm-modern__info { order: 1; }
     }
 
-    .qtm-pdp-modern {
-      display: grid;
-      gap: 2rem;
-      align-items: start;
+    /* Media */
+    #MainProductModern-{{ section.id }} .qtm-modern__main-media{
+      position:relative;
+      border-radius: 12px;
+      overflow:hidden;
+      background: rgba(0,0,0,0.03);
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__main-media img{
+      display:block;
+      width:100%;
+      height:auto;
     }
 
-    @media (min-width: 990px) {
-      .qtm-pdp-modern {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      }
-      .qtm-pdp-modern--media-right .qtm-pdp-modern__media { order: 2; }
-      .qtm-pdp-modern--media-right .qtm-pdp-modern__info  { order: 1; }
+    #MainProductModern-{{ section.id }} .qtm-modern__zoom-btn{
+      position:absolute;
+      inset:auto 0 0 0;
+      width:100%;
+      background: rgba(0,0,0,0.55);
+      color:#fff;
+      border:0;
+      padding: .85rem 1rem;
+      cursor:pointer;
+      font-weight:600;
+      text-align:center;
     }
 
-    .qtm-pdp-modern__media,
-    .qtm-pdp-modern__info {
-      min-width: 0;
+    #MainProductModern-{{ section.id }} .qtm-modern__thumbs{
+      display:flex;
+      gap:.6rem;
+      flex-wrap:wrap;
+      margin-top:.75rem;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__thumb{
+      width:72px;
+      height:72px;
+      border-radius: 10px;
+      overflow:hidden;
+      border: 1px solid rgba(0,0,0,0.12);
+      padding:0;
+      background:#fff;
+      cursor:pointer;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__thumb[aria-current="true"]{
+      outline: 2px solid currentColor;
+      outline-offset: 2px;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__thumb img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
     }
 
-    .qtm-pdp-modern__info-inner {
-      display: grid;
-      gap: 1.25rem;
+    /* Info */
+    #MainProductModern-{{ section.id }} .qtm-modern__title{ margin: 0 0 .5rem; }
+    #MainProductModern-{{ section.id }} .qtm-modern__price{
+      display:flex;
+      gap:.75rem;
+      align-items:baseline;
+      margin: .75rem 0 1rem;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__compare{ text-decoration: line-through; opacity:.6; }
+    #MainProductModern-{{ section.id }} .qtm-modern__current{ font-weight:700; font-size: 1.35rem; }
+    #MainProductModern-{{ section.id }} .qtm-modern__meta{
+      display:flex;
+      flex-wrap:wrap;
+      gap: .75rem 1.25rem;
+      opacity: .85;
+      font-size: .95rem;
+      margin-bottom: 1rem;
     }
 
-    .qtm-pdp-modern__info-inner.qtm-sticky {
-      position: sticky;
-      top: var(--header-height, 1rem);
-    }
-
-    .qtm-modern-divider {
-      margin: 2rem 0;
-      border: 0;
-      border-top: 1px solid rgba(0,0,0,0.12);
-    }
-
-    /* Tabs */
-    .qtm-tabs {
-      display: grid;
+    #MainProductModern-{{ section.id }} .qtm-modern__form{
+      display:grid;
       gap: 1rem;
-      margin-top: 2.5rem;
+      margin-top: 1rem;
     }
-    .qtm-tabs__nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: .5rem;
-      border-bottom: 1px solid rgba(0,0,0,0.12);
-      padding-bottom: .5rem;
+
+    #MainProductModern-{{ section.id }} .qtm-modern__option label{
+      display:block;
+      font-weight:600;
+      margin-bottom:.35rem;
     }
-    .qtm-tabs__btn {
-      appearance: none;
-      background: transparent;
+    #MainProductModern-{{ section.id }} .qtm-modern__radios{
+      display:flex;
+      flex-wrap:wrap;
+      gap:.5rem;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__radios input{ position:absolute; opacity:0; pointer-events:none; }
+    #MainProductModern-{{ section.id }} .qtm-modern__radios label{
       border: 1px solid rgba(0,0,0,0.18);
-      padding: .5rem .75rem;
       border-radius: 999px;
-      cursor: pointer;
+      padding: .55rem .85rem;
+      cursor:pointer;
+      user-select:none;
+      margin:0;
+      font-weight:600;
+      background:#fff;
     }
-    .qtm-tabs__btn[aria-selected="true"] {
-      border-color: rgba(0,0,0,0.45);
-      font-weight: 600;
+    #MainProductModern-{{ section.id }} .qtm-modern__radios input:checked + label{
+      outline:2px solid currentColor;
+      outline-offset:2px;
     }
-    .qtm-tabpanel[hidden] { display: none; }
-  {%- endstyle -%}
+    #MainProductModern-{{ section.id }} .qtm-modern__radios input:disabled + label{
+      opacity:.45;
+      cursor:not-allowed;
+    }
+
+    #MainProductModern-{{ section.id }} .qtm-modern__qty input{
+      width: 110px;
+      padding: .6rem .7rem;
+    }
+
+    #MainProductModern-{{ section.id }} .qtm-modern__atc{
+      padding: 1rem 1.1rem;
+      font-weight: 700;
+      border:0;
+      border-radius: 12px;
+      cursor:pointer;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__atc[disabled]{ opacity:.55; cursor:not-allowed; }
+
+    /* Tabs / Accordions */
+    #MainProductModern-{{ section.id }} .qtm-modern__accordion details{
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 12px;
+      padding: .75rem 1rem;
+      background: rgba(255,255,255,0.65);
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__accordion summary{
+      cursor:pointer;
+      font-weight:700;
+      list-style:none;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:1rem;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__accordion summary::-webkit-details-marker{ display:none; }
+    #MainProductModern-{{ section.id }} .qtm-modern__accordion .qtm-modern__accordion-content{
+      margin-top:.75rem;
+    }
+
+    /* Modal */
+    #MainProductModern-{{ section.id }} dialog.qtm-modern__modal{
+      width:min(980px, 96vw);
+      border:0;
+      border-radius: 14px;
+      padding:0;
+      overflow:hidden;
+    }
+    #MainProductModern-{{ section.id }} dialog.qtm-modern__modal::backdrop{
+      background: rgba(0,0,0,0.7);
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__modal-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding: .75rem 1rem;
+      background: rgba(0,0,0,0.85);
+      color:#fff;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__modal-close{
+      border:0;
+      background: transparent;
+      color:#fff;
+      font-size: 1.15rem;
+      font-weight:800;
+      cursor:pointer;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__modal-body{
+      position:relative;
+      background:#000;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__modal-body img{
+      display:block;
+      width:100%;
+      height:auto;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__modal-nav{
+      position:absolute;
+      inset:0;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      pointer-events:none;
+      padding: 0 .5rem;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__modal-nav button{
+      pointer-events:auto;
+      border:0;
+      width:44px;
+      height:44px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.18);
+      color:#fff;
+      font-weight:900;
+      cursor:pointer;
+    }
+  </style>
+
+  {%- assign media_position_class = 'qtm-modern--media-left' -%}
+  {%- if s.media_position == 'right' -%}
+    {%- assign media_position_class = 'qtm-modern--media-right' -%}
+  {%- endif -%}
 
   <div class="page-width">
-    <div class="qtm-pdp-modern {% if s.media_position == 'right' %}qtm-pdp-modern--media-right{% endif %}">
-      <!-- MEDIA -->
-      <div class="qtm-pdp-modern__media">
-        {%- render 'product-media-gallery',
-          product: p,
-          variant_images: variant_images,
-          limit: media_limit,
-          first_3d_model: first_3d_model
-        -%}
+    <div class="qtm-modern__grid {{ media_position_class }}">
 
-        {%- if s.enable_lightbox -%}
-          {%- render 'product-media-modal',
-            product: p,
-            variant_images: variant_images
-          -%}
+      {%- comment -%} ================= MEDIA ================= {%- endcomment -%}
+      <div class="qtm-modern__media">
+        {%- assign image_media = p.media | where: 'media_type', 'image' -%}
+        {%- assign featured = p.selected_or_first_available_variant.featured_media | default: p.featured_media -%}
+        {%- assign featured_src = '' -%}
+        {%- if featured and featured.media_type == 'image' -%}
+          {%- assign featured_src = featured | image_url: width: 1600 -%}
+        {%- elsif image_media.first -%}
+          {%- assign featured_src = image_media.first | image_url: width: 1600 -%}
+        {%- endif -%}
+
+        <div class="qtm-modern__main-media">
+          <img
+            id="QtmMainImage-{{ section.id }}"
+            src="{{ featured_src }}"
+            alt="{{ featured.alt | escape }}"
+            loading="eager"
+          >
+
+          {%- if s.image_zoom == 'lightbox' -%}
+            <button
+              type="button"
+              class="qtm-modern__zoom-btn"
+              data-qtm-open-modal
+              aria-haspopup="dialog"
+            >
+              View larger
+            </button>
+          {%- endif -%}
+        </div>
+
+        {%- if image_media.size > 1 -%}
+          <div class="qtm-modern__thumbs" aria-label="Product images">
+            {%- for m in image_media -%}
+              {%- assign thumb_src = m | image_url: width: 240 -%}
+              {%- assign full_src = m | image_url: width: 1600 -%}
+              <button
+                type="button"
+                class="qtm-modern__thumb"
+                data-qtm-image="{{ full_src }}"
+                data-qtm-index="{{ forloop.index0 }}"
+                aria-current="{% if full_src == featured_src %}true{% else %}false{% endif %}"
+              >
+                <img src="{{ thumb_src }}" alt="{{ m.alt | escape }}" loading="lazy">
+              </button>
+            {%- endfor -%}
+          </div>
         {%- endif -%}
       </div>
 
-      <!-- INFO -->
-      <div class="qtm-pdp-modern__info" id="ProductInfo-{{ section.id }}">
-        <div class="qtm-pdp-modern__info-inner{% if s.enable_sticky_info %} qtm-sticky{% endif %}">
-          {%- for block in section.blocks -%}
-            {%- case block.type -%}
+      {%- comment -%} ================= INFO ================= {%- endcomment -%}
+      <div class="qtm-modern__info">
+        <h1 class="qtm-modern__title">{{ p.title | escape }}</h1>
 
-              {%- when 'title' -%}
-                <div {{ block.shopify_attributes }}>
-                  <h1 class="product__title h2">{{ p.title | escape }}</h1>
-                  {%- if s.show_vendor -%}
-                    <p class="product__vendor caption">{{ p.vendor | escape }}</p>
-                  {%- endif -%}
-                </div>
+        <div class="qtm-modern__price" id="QtmPriceWrap-{{ section.id }}">
+          <span class="qtm-modern__compare" id="QtmCompare-{{ section.id }}" {% unless current_variant.compare_at_price > current_variant.price %}style="display:none"{% endunless %}>
+            {{ current_variant.compare_at_price | money }}
+          </span>
+          <span class="qtm-modern__current" id="QtmPrice-{{ section.id }}">
+            {{ current_variant.price | money }}
+          </span>
+        </div>
 
-              {%- when 'price' -%}
-                <div {{ block.shopify_attributes }}>
-                  {% render 'price',
-                    product: p,
-                    use_variant: true,
-                    show_badges: true,
-                    price_class: 'price--large'
-                  %}
-                </div>
+        <div class="qtm-modern__meta">
+          <span id="QtmSkuWrap-{{ section.id }}" {% if current_variant.sku == blank %}style="display:none"{% endif %}>
+            <strong>SKU:</strong> <span id="QtmSku-{{ section.id }}">{{ current_variant.sku }}</span>
+          </span>
+          <span id="QtmAvail-{{ section.id }}">
+            <strong>Status:</strong>
+            <span id="QtmAvailText-{{ section.id }}">
+              {% if current_variant.available %}In stock{% else %}Sold out{% endif %}
+            </span>
+          </span>
+        </div>
 
-              {%- when 'sku' -%}
-                <div class="caption" {{ block.shopify_attributes }}>
-                  {%- if current_variant.sku != blank -%}
-                    <span><strong>SKU:</strong> {{ current_variant.sku | escape }}</span>
-                  {%- endif -%}
-                </div>
+        {%- assign product_form_id = 'product-form-' | append: section.id -%}
 
-              {%- when 'variant_picker' -%}
-                <div {{ block.shopify_attributes }}>
-                  {%- unless p.has_only_default_variant -%}
-                    <product-form class="product-form">
-                      {%- form 'product', p, id: product_form_id, class: 'form', novalidate: 'novalidate' -%}
-                        <input type="hidden" name="id" value="{{ current_variant.id }}">
+        <form
+          id="{{ product_form_id }}"
+          class="qtm-modern__form"
+          method="post"
+          action="{{ routes.cart_add_url }}"
+          enctype="multipart/form-data"
+        >
+          <input type="hidden" name="id" id="QtmVariantId-{{ section.id }}" value="{{ current_variant.id }}">
+          <input type="hidden" name="quantity" id="QtmQtyHidden-{{ section.id }}" value="1">
 
-                        {%- for option in p.options_with_values -%}
-                          {%- assign picker_type = block.settings.picker_type | default: 'button' -%}
-                          <fieldset class="product-form__input">
-                            <legend class="form__label">{{ option.name }}</legend>
+          {%- unless p.has_only_default_variant -%}
+            {%- for option in p.options_with_values -%}
+              <div class="qtm-modern__option" data-qtm-option data-index="{{ option.position }}">
+                <label>{{ option.name | escape }}</label>
 
-                            {%- if picker_type == 'dropdown' or picker_type == 'swatch_dropdown' -%}
-                              <div class="select">
-                                <select
-                                  id="Option-{{ section.id }}-{{ forloop.index0 }}"
-                                  name="options[{{ option.name | escape }}]"
-                                  form="{{ product_form_id }}"
-                                >
-                                  {% render 'product-variant-options',
-                                    product: p,
-                                    option: option,
-                                    block: block,
-                                    picker_type: picker_type
-                                  %}
-                                </select>
-                              </div>
-                            {%- else -%}
-                              <div class="product-form__controls">
-                                {% render 'product-variant-options',
-                                  product: p,
-                                  option: option,
-                                  block: block,
-                                  picker_type: picker_type
-                                %}
-                              </div>
-                            {%- endif -%}
-                          </fieldset>
-                        {%- endfor -%}
-                      {%- endform -%}
-                    </product-form>
-                  {%- endunless -%}
-                </div>
+                {%- assign picker_type = 'button' -%}
+                {%- comment -%}
+                  Dawn uses block settings to pick type, but we are standalone.
+                  We'll default to button radios for a "modern" feel.
+                {%- endcomment -%}
 
-              {%- when 'quantity' -%}
-                <div {{ block.shopify_attributes }}>
-                  <label class="form__label" for="Quantity-{{ section.id }}">Quantity</label>
-                  <quantity-input class="quantity">
-                    <button class="quantity__button" name="minus" type="button">-</button>
-                    <input
-                      class="quantity__input"
-                      type="number"
-                      name="quantity"
-                      id="Quantity-{{ section.id }}"
-                      min="1"
-                      value="1"
-                      form="{{ product_form_id }}"
-                    >
-                    <button class="quantity__button" name="plus" type="button">+</button>
-                  </quantity-input>
-                </div>
+                {%- if picker_type == 'button' -%}
+                  <div class="qtm-modern__radios" role="radiogroup" aria-label="{{ option.name | escape }}">
+                    {%- for value in option.values -%}
+                      {%- capture input_id -%}QtmOpt-{{ section.id }}-{{ option.position }}-{{ forloop.index0 }}{%- endcapture -%}
+                      <input
+                        type="radio"
+                        id="{{ input_id }}"
+                        name="qtm-option-{{ option.position }}"
+                        value="{{ value | escape }}"
+                        {% if value.selected %}checked{% endif %}
+                      >
+                      <label for="{{ input_id }}">{{ value }}</label>
+                    {%- endfor -%}
+                  </div>
+                {%- else -%}
+                  <select name="qtm-option-{{ option.position }}">
+                    {%- for value in option.values -%}
+                      <option value="{{ value | escape }}" {% if value.selected %}selected{% endif %}>
+                        {{ value }}
+                      </option>
+                    {%- endfor -%}
+                  </select>
+                {%- endif -%}
+              </div>
+            {%- endfor -%}
+          {%- endunless -%}
 
-              {%- when 'buy_buttons' -%}
-                <div {{ block.shopify_attributes }}>
-                  <product-form class="product-form">
-                    {%- form 'product', p, id: product_form_id, class: 'form', novalidate: 'novalidate' -%}
-                      <input type="hidden" name="id" value="{{ current_variant.id }}">
+          <div class="qtm-modern__qty">
+            <label for="QtmQty-{{ section.id }}">Quantity</label>
+            <input
+              id="QtmQty-{{ section.id }}"
+              type="number"
+              min="1"
+              value="1"
+            >
+          </div>
 
-                      <div class="product-form__buttons">
-                        <button
-                          type="submit"
-                          name="add"
-                          class="product-form__submit button button--full-width"
-                          {% unless current_variant.available %}disabled{% endunless %}
-                        >
-                          {%- if current_variant.available -%}
-                            {{ 'products.product.add_to_cart' | t }}
-                          {%- else -%}
-                            {{ 'products.product.sold_out' | t }}
-                          {%- endif -%}
-                        </button>
+          <button
+            type="submit"
+            class="qtm-modern__atc"
+            id="QtmAtc-{{ section.id }}"
+            {% unless current_variant.available %}disabled{% endunless %}
+          >
+            {% if current_variant.available %}Add to cart{% else %}Sold out{% endif %}
+          </button>
 
-                        {%- if s.enable_dynamic_checkout -%}
-                          {{ form | payment_button }}
-                        {%- endif -%}
-                      </div>
-                    {%- endform -%}
-                  </product-form>
-                </div>
+          {%- if s.show_dynamic_checkout -%}
+            {%- form 'product', p, id: 'QtmDyn-' | append: section.id -%}
+              <input type="hidden" name="id" value="{{ current_variant.id }}">
+              {{ form | payment_button }}
+            {%- endform -%}
+          {%- endif -%}
+        </form>
 
-              {%- when 'description' -%}
-                <div class="rte" {{ block.shopify_attributes }}>
-                  {%- if p.description != blank -%}
-                    {{ p.description }}
-                  {%- endif -%}
-                </div>
+        {%- if p.description != blank -%}
+          <div class="rte" style="margin-top:1.25rem;">
+            {{ p.description }}
+          </div>
+        {%- endif -%}
 
-              {%- when 'custom_liquid' -%}
-                <div {{ block.shopify_attributes }}>
-                  {{ block.settings.custom_liquid }}
-                </div>
+        {%- comment -%} Simple built-in accordion areas (Description + Reviews placeholder + Meta) {%- endcomment -%}
+        <div class="qtm-modern__accordion" style="margin-top:1.25rem; display:grid; gap:.75rem;">
+          <details open>
+            <summary>
+              <span>Product description</span>
+              <span aria-hidden="true">+</span>
+            </summary>
+            <div class="qtm-modern__accordion-content rte">
+              {{ p.description }}
+            </div>
+          </details>
 
-              {%- when 'share' -%}
-                <div {{ block.shopify_attributes }}>
-                  <share-button>
-                    <button class="button button--secondary" type="button">
-                      {{ 'general.share.share' | t }}
-                    </button>
-                  </share-button>
-                </div>
+          <details>
+            <summary>
+              <span>Reviews</span>
+              <span aria-hidden="true">+</span>
+            </summary>
+            <div class="qtm-modern__accordion-content rte">
+              {% comment %} Replace with your reviews app block in theme editor if needed. {% endcomment %}
+              <p>Reviews will display here once your reviews app block is added.</p>
+            </div>
+          </details>
 
-            {%- endcase -%}
-          {%- endfor -%}
+          <details>
+            <summary>
+              <span>Product details</span>
+              <span aria-hidden="true">+</span>
+            </summary>
+            <div class="qtm-modern__accordion-content rte">
+              {%- if p.vendor != blank -%}<p><strong>Vendor:</strong> {{ p.vendor | escape }}</p>{%- endif -%}
+              {%- if p.type != blank -%}<p><strong>Type:</strong> {{ p.type | escape }}</p>{%- endif -%}
+              <p><strong>Handle:</strong> {{ p.handle | escape }}</p>
+            </div>
+          </details>
         </div>
       </div>
     </div>
-
-    {%- comment -%}
-      BELOW CONTENT: Description / Reviews / Meta
-      - If "tabs": render a lightweight tab UI (no snippet dependency)
-      - If "sections": render H2 blocks
-    {%- endcomment -%}
-
-    {%- assign mode = s.content_display_mode | default: 'tabs' -%}
-
-    {%- if mode == 'tabs' -%}
-      <div class="qtm-tabs" data-qtm-tabs>
-        <div class="qtm-tabs__nav" role="tablist" aria-label="Product content">
-          <button class="qtm-tabs__btn" type="button" role="tab" aria-selected="true" aria-controls="TabDesc-{{ section.id }}" id="TabBtnDesc-{{ section.id }}">
-            Product Description
-          </button>
-          <button class="qtm-tabs__btn" type="button" role="tab" aria-selected="false" aria-controls="TabReviews-{{ section.id }}" id="TabBtnReviews-{{ section.id }}">
-            Reviews
-          </button>
-          <button class="qtm-tabs__btn" type="button" role="tab" aria-selected="false" aria-controls="TabMeta-{{ section.id }}" id="TabBtnMeta-{{ section.id }}">
-            Meta Data
-          </button>
-        </div>
-
-        <div id="TabDesc-{{ section.id }}" class="qtm-tabpanel rte" role="tabpanel" aria-labelledby="TabBtnDesc-{{ section.id }}">
-          {%- if p.description != blank -%}
-            {{ p.description }}
-          {%- endif -%}
-        </div>
-
-        <div id="TabReviews-{{ section.id }}" class="qtm-tabpanel rte" role="tabpanel" aria-labelledby="TabBtnReviews-{{ section.id }}" hidden>
-          {%- comment -%}
-            Replace with your reviews app hook if needed.
-            This is a safe default.
-          {%- endcomment -%}
-          {%- if p.metafields.reviews.rating.value != blank -%}
-            <p>Rating: {{ p.metafields.reviews.rating.value }} ({{ p.metafields.reviews.rating_count }})</p>
-          {%- else -%}
-            <p>No reviews yet.</p>
-          {%- endif -%}
-        </div>
-
-        <div id="TabMeta-{{ section.id }}" class="qtm-tabpanel rte" role="tabpanel" aria-labelledby="TabBtnMeta-{{ section.id }}" hidden>
-          <p><strong>Vendor:</strong> {{ p.vendor | escape }}</p>
-          <p><strong>Type:</strong> {{ p.type | escape }}</p>
-          {%- if current_variant.sku != blank -%}
-            <p><strong>SKU:</strong> {{ current_variant.sku | escape }}</p>
-          {%- endif -%}
-        </div>
-      </div>
-
-      <script>
-        (function () {
-          var root = document.querySelector('[data-qtm-tabs]');
-          if (!root) return;
-
-          var tabs = root.querySelectorAll('[role="tab"]');
-          var panels = root.querySelectorAll('[role="tabpanel"]');
-
-          function activate(tab) {
-            tabs.forEach(function (t) {
-              var selected = (t === tab);
-              t.setAttribute('aria-selected', selected ? 'true' : 'false');
-            });
-
-            panels.forEach(function (p) {
-              var isTarget = p.id === tab.getAttribute('aria-controls');
-              p.hidden = !isTarget;
-            });
-          }
-
-          tabs.forEach(function (tab) {
-            tab.addEventListener('click', function () { activate(tab); });
-            tab.addEventListener('keydown', function (e) {
-              if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-              e.preventDefault();
-              var idx = Array.prototype.indexOf.call(tabs, tab);
-              var next = e.key === 'ArrowRight' ? idx + 1 : idx - 1;
-              if (next < 0) next = tabs.length - 1;
-              if (next >= tabs.length) next = 0;
-              tabs[next].focus();
-              activate(tabs[next]);
-            });
-          });
-        })();
-      </script>
-    {%- else -%}
-      <div class="qtm-pdp-modern__below">
-        {%- if p.description != blank -%}
-          <h2 class="h3">Product Description</h2>
-          <div class="rte">{{ p.description }}</div>
-        {%- endif -%}
-
-        <hr class="qtm-modern-divider">
-
-        <h2 class="h3">Reviews</h2>
-        <div class="rte">
-          {%- if p.metafields.reviews.rating.value != blank -%}
-            <p>Rating: {{ p.metafields.reviews.rating.value }} ({{ p.metafields.reviews.rating_count }})</p>
-          {%- else -%}
-            <p>No reviews yet.</p>
-          {%- endif -%}
-        </div>
-
-        <hr class="qtm-modern-divider">
-
-        <h2 class="h3">Meta Data</h2>
-        <div class="rte">
-          <p><strong>Vendor:</strong> {{ p.vendor | escape }}</p>
-          <p><strong>Type:</strong> {{ p.type | escape }}</p>
-          {%- if current_variant.sku != blank -%}
-            <p><strong>SKU:</strong> {{ current_variant.sku | escape }}</p>
-          {%- endif -%}
-        </div>
-      </div>
-    {%- endif -%}
-
-    <script type="application/ld+json">
-      {{ p | structured_data }}
-    </script>
   </div>
+
+  {%- comment -%} ================= LIGHTBOX MODAL ================= {%- endcomment -%}
+  {%- if s.image_zoom == 'lightbox' -%}
+    <dialog class="qtm-modern__modal" id="QtmModal-{{ section.id }}" aria-label="Product images">
+      <div class="qtm-modern__modal-head">
+        <div style="font-weight:800;">{{ p.title | escape }}</div>
+        <button type="button" class="qtm-modern__modal-close" data-qtm-close-modal aria-label="Close">✕</button>
+      </div>
+      <div class="qtm-modern__modal-body">
+        <img id="QtmModalImg-{{ section.id }}" src="{{ featured_src }}" alt="{{ featured.alt | escape }}">
+        <div class="qtm-modern__modal-nav">
+          <button type="button" data-qtm-prev aria-label="Previous">‹</button>
+          <button type="button" data-qtm-next aria-label="Next">›</button>
+        </div>
+      </div>
+    </dialog>
+  {%- endif -%}
+
+  {%- comment -%} ================= PRODUCT JSON ================= {%- endcomment -%}
+  <script type="application/json" id="QtmProductJson-{{ section.id }}">
+    {{ p | json }}
+  </script>
+
+  <script>
+    (function(){
+      var root = document.getElementById('MainProductModern-{{ section.id }}');
+      if (!root) return;
+
+      var product = JSON.parse(document.getElementById('QtmProductJson-{{ section.id }}').textContent);
+      var variants = product.variants || [];
+
+      var mainImg = document.getElementById('QtmMainImage-{{ section.id }}');
+      var thumbs = root.querySelectorAll('.qtm-modern__thumb');
+
+      // Lightbox
+      var modal = document.getElementById('QtmModal-{{ section.id }}');
+      var modalImg = document.getElementById('QtmModalImg-{{ section.id }}');
+
+      var openBtn = root.querySelector('[data-qtm-open-modal]');
+      var closeBtn = root.querySelector('[data-qtm-close-modal]');
+      var prevBtn = root.querySelector('[data-qtm-prev]');
+      var nextBtn = root.querySelector('[data-qtm-next]');
+
+      var currentIndex = 0;
+
+      function setActiveThumb(idx){
+        thumbs.forEach(function(t){
+          t.setAttribute('aria-current','false');
+        });
+        if (thumbs[idx]) thumbs[idx].setAttribute('aria-current','true');
+      }
+
+      function setImageByIndex(idx){
+        if (!thumbs.length) return;
+        var btn = thumbs[idx];
+        if (!btn) return;
+        currentIndex = idx;
+        var src = btn.getAttribute('data-qtm-image');
+        if (src && mainImg) mainImg.src = src;
+        if (src && modalImg) modalImg.src = src;
+        setActiveThumb(idx);
+      }
+
+      // thumb click
+      thumbs.forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var idx = parseInt(btn.getAttribute('data-qtm-index'), 10) || 0;
+          setImageByIndex(idx);
+        });
+      });
+
+      // modal open/close
+      if (openBtn && modal){
+        openBtn.addEventListener('click', function(){
+          if (modal.showModal) modal.showModal();
+        });
+      }
+      if (closeBtn && modal){
+        closeBtn.addEventListener('click', function(){
+          modal.close();
+        });
+      }
+      if (modal){
+        modal.addEventListener('click', function(e){
+          // click outside image closes
+          var rect = modal.getBoundingClientRect();
+          var inDialog = (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom);
+          if (!inDialog) modal.close();
+        });
+      }
+
+      // prev/next
+      function prev(){
+        if (!thumbs.length) return;
+        var idx = currentIndex - 1;
+        if (idx < 0) idx = thumbs.length - 1;
+        setImageByIndex(idx);
+      }
+      function next(){
+        if (!thumbs.length) return;
+        var idx = currentIndex + 1;
+        if (idx >= thumbs.length) idx = 0;
+        setImageByIndex(idx);
+      }
+      if (prevBtn) prevBtn.addEventListener('click', prev);
+      if (nextBtn) nextBtn.addEventListener('click', next);
+
+      // Variant selection -> updates price/sku/availability + hidden variant id
+      var variantIdInput = document.getElementById('QtmVariantId-{{ section.id }}');
+      var priceEl = document.getElementById('QtmPrice-{{ section.id }}');
+      var compareEl = document.getElementById('QtmCompare-{{ section.id }}');
+      var skuWrap = document.getElementById('QtmSkuWrap-{{ section.id }}');
+      var skuEl = document.getElementById('QtmSku-{{ section.id }}');
+      var availText = document.getElementById('QtmAvailText-{{ section.id }}');
+      var atcBtn = document.getElementById('QtmAtc-{{ section.id }}');
+
+      var qtyInput = document.getElementById('QtmQty-{{ section.id }}');
+      var qtyHidden = document.getElementById('QtmQtyHidden-{{ section.id }}');
+
+      if (qtyInput && qtyHidden){
+        qtyInput.addEventListener('input', function(){
+          var v = parseInt(qtyInput.value, 10);
+          if (!v || v < 1) v = 1;
+          qtyHidden.value = String(v);
+        });
+      }
+
+      function formatMoney(cents){
+        // Basic money formatter fallback (Shopify normally formats server-side).
+        // We'll keep it simple: USD with $ and 2 decimals.
+        try{
+          return new Intl.NumberFormat(undefined, { style: 'currency', currency: '{{ cart.currency.iso_code | default: "USD" }}' }).format(cents/100);
+        }catch(e){
+          return '$' + (cents/100).toFixed(2);
+        }
+      }
+
+      function getSelectedOptions(){
+        var selections = [];
+        var optionGroups = root.querySelectorAll('[data-qtm-option]');
+        optionGroups.forEach(function(group){
+          var radios = group.querySelectorAll('input[type="radio"]');
+          if (radios.length){
+            var checked = group.querySelector('input[type="radio"]:checked');
+            selections.push(checked ? checked.value : '');
+          } else {
+            var select = group.querySelector('select');
+            selections.push(select ? select.value : '');
+          }
+        });
+        return selections;
+      }
+
+      function findVariantByOptions(opts){
+        return variants.find(function(v){
+          if (!v || !v.options) return false;
+          for (var i=0; i<opts.length; i++){
+            if (v.options[i] !== opts[i]) return false;
+          }
+          return true;
+        }) || null;
+      }
+
+      function applyVariant(v){
+        if (!v) return;
+
+        if (variantIdInput) variantIdInput.value = v.id;
+
+        if (priceEl) priceEl.textContent = formatMoney(v.price);
+
+        if (compareEl){
+          if (v.compare_at_price && v.compare_at_price > v.price){
+            compareEl.style.display = '';
+            compareEl.textContent = formatMoney(v.compare_at_price);
+          } else {
+            compareEl.style.display = 'none';
+          }
+        }
+
+        if (skuWrap && skuEl){
+          if (v.sku){
+            skuWrap.style.display = '';
+            skuEl.textContent = v.sku;
+          } else {
+            skuWrap.style.display = 'none';
+          }
+        }
+
+        if (availText && atcBtn){
+          if (v.available){
+            availText.textContent = 'In stock';
+            atcBtn.disabled = false;
+            atcBtn.textContent = 'Add to cart';
+          } else {
+            availText.textContent = 'Sold out';
+            atcBtn.disabled = true;
+            atcBtn.textContent = 'Sold out';
+          }
+        }
+
+        // If variant has a featured image, try to switch main image to match
+        if (v.featured_image && v.featured_image.src && mainImg){
+          mainImg.src = v.featured_image.src;
+          if (modalImg) modalImg.src = v.featured_image.src;
+
+          // update active thumb if it matches
+          thumbs.forEach(function(t, idx){
+            var src = t.getAttribute('data-qtm-image');
+            if (src && src.indexOf(v.featured_image.src) !== -1){
+              currentIndex = idx;
+              setActiveThumb(idx);
+            }
+          });
+        }
+
+        // Update URL with variant param
+        try{
+          var url = new URL(window.location.href);
+          url.searchParams.set('variant', v.id);
+          window.history.replaceState({}, '', url.toString());
+        }catch(e){}
+      }
+
+      // Listen to option changes
+      root.addEventListener('change', function(e){
+        if (!e.target) return;
+        if (e.target.name && e.target.name.indexOf('qtm-option-') === 0){
+          var opts = getSelectedOptions();
+          var v = findVariantByOptions(opts);
+          applyVariant(v);
+        }
+      });
+
+      // Initialize thumb active index
+      // Set currentIndex based on aria-current
+      thumbs.forEach(function(t, idx){
+        if (t.getAttribute('aria-current') === 'true') currentIndex = idx;
+      });
+
+    })();
+  </script>
+
 </section>
 
 {% schema %}
@@ -416,158 +723,72 @@
   "tag": "section",
   "class": "section",
   "settings": [
-    { "type": "text", "id": "section_aria_label", "label": "ARIA label", "default": "Product details" },
-    { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "scheme-1" },
-
-    { "type": "header", "content": "Media layout" },
+    {
+      "type": "text",
+      "id": "section_aria_label",
+      "label": "Section ARIA label",
+      "default": "Product details"
+    },
+    {
+      "type": "color_scheme",
+      "id": "color_scheme",
+      "label": "Color scheme",
+      "default": "scheme-1"
+    },
     {
       "type": "select",
       "id": "media_position",
-      "label": "Media position",
+      "options": [
+        { "value": "left", "label": "Media left" },
+        { "value": "right", "label": "Media right" }
+      ],
       "default": "left",
-      "options": [
-        { "value": "left", "label": "Left" },
-        { "value": "right", "label": "Right" }
-      ]
+      "label": "Media position"
     },
-    {
-      "type": "select",
-      "id": "gallery_layout",
-      "label": "Desktop gallery layout",
-      "default": "thumbnail_slider",
-      "options": [
-        { "value": "stacked", "label": "Stacked" },
-        { "value": "columns", "label": "Columns" },
-        { "value": "thumbnail_slider", "label": "Thumbnail slider" }
-      ]
-    },
-    {
-      "type": "select",
-      "id": "mobile_thumbnails",
-      "label": "Mobile thumbnails",
-      "default": "columns",
-      "options": [
-        { "value": "hide", "label": "Hide" },
-        { "value": "show", "label": "Show" },
-        { "value": "columns", "label": "Columns" }
-      ]
-    },
-    {
-      "type": "select",
-      "id": "media_size",
-      "label": "Media size",
-      "default": "large",
-      "options": [
-        { "value": "small", "label": "Small" },
-        { "value": "medium", "label": "Medium" },
-        { "value": "large", "label": "Large" }
-      ]
-    },
-    {
-      "type": "select",
-      "id": "media_fit",
-      "label": "Media fit",
-      "default": "contain",
-      "options": [
-        { "value": "contain", "label": "Contain" },
-        { "value": "cover", "label": "Cover" }
-      ]
-    },
-    { "type": "checkbox", "id": "constrain_to_viewport", "label": "Constrain media to viewport", "default": true },
-    { "type": "checkbox", "id": "enable_video_looping", "label": "Loop videos", "default": false },
-    { "type": "checkbox", "id": "hide_variants", "label": "Hide variant images", "default": false },
-    { "type": "checkbox", "id": "enable_lightbox", "label": "Enable media modal (lightbox)", "default": true },
-    { "type": "checkbox", "id": "enable_sticky_info", "label": "Sticky info column", "default": true },
-    {
-      "type": "range",
-      "id": "media_limit",
-      "label": "Max media items (optional)",
-      "min": 1,
-      "max": 20,
-      "step": 1,
-      "default": 8
-    },
-
-    { "type": "header", "content": "Content" },
-    {
-      "type": "select",
-      "id": "content_display_mode",
-      "label": "Below content mode",
-      "default": "tabs",
-      "options": [
-        { "value": "tabs", "label": "Tabs" },
-        { "value": "sections", "label": "Sections (H2 dividers)" }
-      ]
-    },
-    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": false },
-    { "type": "checkbox", "id": "enable_dynamic_checkout", "label": "Enable dynamic checkout button", "default": true },
-
-    { "type": "header", "content": "Image zoom" },
     {
       "type": "select",
       "id": "image_zoom",
-      "label": "Image zoom icon behavior",
-      "default": "lightbox",
       "options": [
         { "value": "lightbox", "label": "Lightbox" },
-        { "value": "zoom", "label": "Zoom" },
         { "value": "none", "label": "None" }
-      ]
+      ],
+      "default": "lightbox",
+      "label": "Image zoom"
     },
-
-    { "type": "header", "content": "Section padding" },
-    { "type": "range", "id": "padding_top", "min": 0, "max": 120, "step": 4, "unit": "px", "label": "Padding top", "default": 36 },
-    { "type": "range", "id": "padding_bottom", "min": 0, "max": 120, "step": 4, "unit": "px", "label": "Padding bottom", "default": 36 }
-  ],
-  "blocks": [
-    { "type": "title", "name": "Title", "limit": 1 },
-    { "type": "price", "name": "Price", "limit": 1 },
-    { "type": "sku", "name": "SKU", "limit": 1 },
     {
-      "type": "variant_picker",
-      "name": "Variant picker",
-      "limit": 1,
-      "settings": [
-        {
-          "type": "select",
-          "id": "picker_type",
-          "label": "Picker type",
-          "default": "button",
-          "options": [
-            { "value": "button", "label": "Buttons" },
-            { "value": "dropdown", "label": "Dropdown" },
-            { "value": "swatch", "label": "Swatches" },
-            { "value": "swatch_dropdown", "label": "Swatch dropdown" }
-          ]
-        },
-        {
-          "type": "select",
-          "id": "swatch_shape",
-          "label": "Swatch shape",
-          "default": "circle",
-          "options": [
-            { "value": "circle", "label": "Circle" },
-            { "value": "square", "label": "Square" }
-          ]
-        }
-      ]
+      "type": "checkbox",
+      "id": "show_dynamic_checkout",
+      "default": false,
+      "label": "Show dynamic checkout button"
     },
-    { "type": "quantity", "name": "Quantity", "limit": 1 },
-    { "type": "buy_buttons", "name": "Buy buttons", "limit": 1 },
-    { "type": "description", "name": "Description", "limit": 1 },
-    { "type": "share", "name": "Share", "limit": 1 },
-    { "type": "custom_liquid", "name": "Custom liquid" }
+    {
+      "type": "header",
+      "content": "Spacing"
+    },
+    {
+      "type": "range",
+      "id": "padding_top",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "label": "Padding top",
+      "default": 36
+    },
+    {
+      "type": "range",
+      "id": "padding_bottom",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "label": "Padding bottom",
+      "default": 36
+    }
   ],
   "presets": [
     {
-      "name": "Main Product — Modern",
-      "blocks": [
-        { "type": "title" },
-        { "type": "price" },
-        { "type": "variant_picker" },
-        { "type": "quantity" },
-        { "type": "buy_buttons" }
-      ]
+      "name": "Main Product — Modern"
     }
   ]
 }
