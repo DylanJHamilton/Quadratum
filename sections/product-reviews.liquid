@@ -1,0 +1,296 @@
+{% comment %}
+  Product Reviews – Standalone Behavioral Section
+  File: sections/product-reviews.liquid
+
+  Modes:
+  - app_block_area
+  - manual
+  - metaobject
+
+  Safe:
+  - Product template only
+  - No dependency on main product
+{% endcomment %}
+
+{% if template.name != 'product' %}
+  {% comment %} Do not render outside product templates {% endcomment %}
+  {% break %}
+{% endif %}
+
+{{ 'section-product-reviews.css' | asset_url | stylesheet_tag }}
+
+{% liquid
+  assign mode = section.settings.mode
+  assign review_count = 0
+  assign average_rating = 0
+  assign total_rating = 0
+%}
+
+<section
+  class="product-reviews"
+  id="product-reviews"
+  aria-labelledby="ProductReviews-{{ section.id }}"
+>
+
+  {% if section.settings.title != blank %}
+    <h2 id="ProductReviews-{{ section.id }}" class="product-reviews__title">
+      {{ section.settings.title }}
+    </h2>
+  {% endif %}
+
+  {% if section.settings.subheading != blank %}
+    <div class="product-reviews__subheading">
+      {{ section.settings.subheading }}
+    </div>
+  {% endif %}
+
+  {% if mode == 'app_block_area' %}
+
+    {% assign has_app_block = false %}
+
+    {% for block in section.blocks %}
+      {% if block.type == '@app' %}
+        {% assign has_app_block = true %}
+        {% render block %}
+      {% endif %}
+    {% endfor %}
+
+    {% if has_app_block == false and request.design_mode %}
+      <div class="product-reviews__placeholder">
+        Add a reviews app block here.
+      </div>
+    {% endif %}
+
+  {% elsif mode == 'manual' %}
+
+    <div class="product-reviews__grid">
+      {% for block in section.blocks %}
+        {% if block.type == 'review' %}
+          {% assign review_count = review_count | plus: 1 %}
+          {% assign total_rating = total_rating | plus: block.settings.rating %}
+
+          <article class="product-reviews__card" {{ block.shopify_attributes }}>
+
+            <div
+              class="product-reviews__stars"
+              aria-label="{{ block.settings.rating }} out of 5 stars"
+            >
+              {% for i in (1..5) %}
+                {% if i <= block.settings.rating %}
+                  <span class="star star--filled">★</span>
+                {% else %}
+                  <span class="star">★</span>
+                {% endif %}
+              {% endfor %}
+            </div>
+
+            {% if block.settings.headline != blank %}
+              <h3 class="product-reviews__headline">
+                {{ block.settings.headline }}
+              </h3>
+            {% endif %}
+
+            {% if block.settings.quote != blank %}
+              <div class="product-reviews__quote">
+                {{ block.settings.quote }}
+              </div>
+            {% endif %}
+
+            <div class="product-reviews__meta">
+              <strong>{{ block.settings.name }}</strong>
+              {% if block.settings.location != blank %}
+                · {{ block.settings.location }}
+              {% endif %}
+              {% if block.settings.date != blank %}
+                · {{ block.settings.date }}
+              {% endif %}
+              {% if block.settings.source != blank %}
+                <div class="product-reviews__source">
+                  {{ block.settings.source }}
+                </div>
+              {% endif %}
+            </div>
+
+          </article>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    {% if review_count > 0 %}
+      {% assign average_rating = total_rating | divided_by: review_count %}
+    {% endif %}
+
+  {% elsif mode == 'metaobject' %}
+
+    {% assign meta_list = product.metafields[section.settings.metaobject_namespace][section.settings.metaobject_key] %}
+
+    {% if meta_list != blank %}
+      <div class="product-reviews__grid">
+        {% for review in meta_list.value %}
+          {% assign review_count = review_count | plus: 1 %}
+          {% assign total_rating = total_rating | plus: review.rating.value %}
+
+          <article class="product-reviews__card">
+
+            <div
+              class="product-reviews__stars"
+              aria-label="{{ review.rating.value }} out of 5 stars"
+            >
+              {% for i in (1..5) %}
+                {% if i <= review.rating.value %}
+                  <span class="star star--filled">★</span>
+                {% else %}
+                  <span class="star">★</span>
+                {% endif %}
+              {% endfor %}
+            </div>
+
+            {% if review.headline.value != blank %}
+              <h3 class="product-reviews__headline">
+                {{ review.headline.value }}
+              </h3>
+            {% endif %}
+
+            {% if review.quote.value != blank %}
+              <div class="product-reviews__quote">
+                {{ review.quote.value }}
+              </div>
+            {% endif %}
+
+            <div class="product-reviews__meta">
+              <strong>{{ review.name.value }}</strong>
+              {% if review.location.value != blank %}
+                · {{ review.location.value }}
+              {% endif %}
+              {% if review.date.value != blank %}
+                · {{ review.date.value }}
+              {% endif %}
+            </div>
+
+          </article>
+        {% endfor %}
+      </div>
+
+      {% if review_count > 0 %}
+        {% assign average_rating = total_rating | divided_by: review_count %}
+      {% endif %}
+    {% endif %}
+
+  {% endif %}
+
+  {% if section.settings.show_average_rating and review_count > 0 and mode != 'app_block_area' %}
+    <div class="product-reviews__average" aria-label="Average rating {{ average_rating }} out of 5 stars">
+      <div class="product-reviews__stars">
+        {% assign rounded_avg = average_rating | round %}
+        {% for i in (1..5) %}
+          {% if i <= rounded_avg %}
+            <span class="star star--filled">★</span>
+          {% else %}
+            <span class="star">★</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <span class="product-reviews__count">
+        ({{ review_count }} reviews)
+      </span>
+    </div>
+  {% endif %}
+
+  {% if section.settings.show_write_review_button and section.settings.write_review_url != blank %}
+    <div class="product-reviews__cta">
+      <a
+        href="{{ section.settings.write_review_url }}"
+        class="button"
+      >
+        {{ section.settings.write_review_label }}
+      </a>
+    </div>
+  {% endif %}
+
+</section>
+
+{% schema %}
+{
+  "name": "Product Reviews",
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title",
+      "default": "Customer reviews"
+    },
+    {
+      "type": "richtext",
+      "id": "subheading",
+      "label": "Subheading"
+    },
+    {
+      "type": "select",
+      "id": "mode",
+      "label": "Mode",
+      "default": "app_block_area",
+      "options": [
+        { "value": "app_block_area", "label": "App Block Area" },
+        { "value": "metaobject", "label": "Metaobject" },
+        { "value": "manual", "label": "Manual" }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "metaobject_namespace",
+      "label": "Metaobject Namespace"
+    },
+    {
+      "type": "text",
+      "id": "metaobject_key",
+      "label": "Metaobject Key"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_average_rating",
+      "label": "Show Average Rating",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_write_review_button",
+      "label": "Show Write Review Button",
+      "default": false
+    },
+    {
+      "type": "text",
+      "id": "write_review_label",
+      "label": "Write Review Label",
+      "default": "Write a review"
+    },
+    {
+      "type": "url",
+      "id": "write_review_url",
+      "label": "Write Review URL"
+    }
+  ],
+  "blocks": [
+    {
+      "type": "@app"
+    },
+    {
+      "type": "review",
+      "name": "Review",
+      "settings": [
+        { "type": "range", "id": "rating", "min": 1, "max": 5, "step": 1, "default": 5, "label": "Rating" },
+        { "type": "text", "id": "headline", "label": "Headline" },
+        { "type": "richtext", "id": "quote", "label": "Quote" },
+        { "type": "text", "id": "name", "label": "Name" },
+        { "type": "text", "id": "location", "label": "Location" },
+        { "type": "text", "id": "date", "label": "Date" },
+        { "type": "text", "id": "source", "label": "Source" }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Product Reviews"
+    }
+  ]
+}
+{% endschema %}
