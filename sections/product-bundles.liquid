@@ -1,22 +1,14 @@
 {%- comment -%}
-  Quadratum — Product Bundles (PDP companion)
-  File: sections/product-bundles.liquid
-
-  STABLE FIX:
-  - Manual mode supports BOTH:
-      A) Product pickers (product_1..product_6)
-      B) Handle fallbacks (product_handle_1..product_handle_6) when pickers serialize as null
-  - Debug output is INSIDE the block loop (no undefined `block`).
-  - No empty wrappers on storefront. Editor shows placeholder.
-  - Cart add uses data-items (variant IDs) for section JS (/cart/add.js).
+QUADRATUM — PRODUCT BUNDLES (FINAL WORKING)
+- Uses product picker objects directly (no all_products lookups)
+- Dedupe products
+- Requires 2+ products to render a bundle
+- Builds variant ID list for /cart/add.js (your section JS)
+- Shows placeholder only in design mode
 {%- endcomment -%}
 
 {%- liquid
   assign s = section.settings
-  assign p = product
-  if p == blank
-    assign p = nil
-  endif
 -%}
 
 {{ 'section-product-bundles.css' | asset_url | stylesheet_tag }}
@@ -27,7 +19,6 @@
 {%- endcapture -%}
 
 {%- capture pb_cards -%}
-
   {%- if s.source == 'manual' -%}
     {%- for block in section.blocks -%}
       {%- if block.type != 'bundle' -%}{% continue %}{%- endif -%}
@@ -41,66 +32,19 @@
         assign picks = picks | push: block.settings.product_5
         assign picks = picks | push: block.settings.product_6
 
-        assign handles = '' | split: ','
-        assign handles = handles | push: block.settings.product_handle_1
-        assign handles = handles | push: block.settings.product_handle_2
-        assign handles = handles | push: block.settings.product_handle_3
-        assign handles = handles | push: block.settings.product_handle_4
-        assign handles = handles | push: block.settings.product_handle_5
-        assign handles = handles | push: block.settings.product_handle_6
-
-        assign seen = '|'
         assign products = '' | split: ','
+        assign seen = '|'
 
-        comment
-          Resolve product from either picker object OR handle fallback.
-          Order per slot:
-          - If picker exists: unwrap .value if present; resolve to product
-          - Else if handle provided: resolve via all_products[handle]
-        endcomment
-
-        for i in (0..5)
-          assign pick = picks[i]
-          assign hdl = handles[i]
-
-          assign pr = blank
-
-          if pick != blank
-            assign pick_obj = pick
-            if pick_obj.value != blank
-              assign pick_obj = pick_obj.value
-            endif
-
-            if pick_obj.variants != blank or pick_obj.selected_or_first_available_variant != blank
-              assign pr = pick_obj
-            elsif pick_obj.handle != blank
-              assign pr = all_products[pick_obj.handle]
-            elsif pick_obj.url != blank
-              assign h = pick_obj.url | split: '/products/' | last | split: '?' | first | split: '#' | first
-              if h != blank
-                assign pr = all_products[h]
-              endif
-            else
-              assign str = pick_obj | append: ''
-              if str != blank
-                assign pr = all_products[str]
-                if pr == blank
-                  assign h2 = str | split: '/products/' | last | split: '?' | first | split: '#' | first
-                  if h2 != blank
-                    assign pr = all_products[h2]
-                  endif
-                endif
-              endif
-            endif
-          endif
-
-          if pr == blank and hdl != blank
-            assign pr = all_products[hdl]
-          endif
-
+        for pr in picks
           if pr == blank
             continue
           endif
+
+          comment
+            IMPORTANT:
+            Shopify product setting returns a product object (not a handle).
+            Do NOT run all_products lookups here.
+          endcomment
 
           assign pid = pr.id | append: ''
           assign tok = '|' | append: pid | append: '|'
@@ -112,21 +56,6 @@
           assign products = products | push: pr
         endfor
       -%}
-
-      {%- if request.design_mode and s.debug -%}
-        <div class="pb__debug" style="padding:12px;margin:12px 0;border:2px solid #e11;background:#fff0f0;border-radius:10px;">
-          <div style="font-weight:700;">PB DEBUG — {{ block.settings.bundle_title | default: 'Bundle' }}</div>
-          <div style="font-size:12px;opacity:.9;margin-top:6px;">
-            <div><strong>product_1:</strong> {{ block.settings.product_1 | json }} <strong>handle_1:</strong> {{ block.settings.product_handle_1 | json }}</div>
-            <div><strong>product_2:</strong> {{ block.settings.product_2 | json }} <strong>handle_2:</strong> {{ block.settings.product_handle_2 | json }}</div>
-            <div><strong>product_3:</strong> {{ block.settings.product_3 | json }} <strong>handle_3:</strong> {{ block.settings.product_handle_3 | json }}</div>
-            <div><strong>product_4:</strong> {{ block.settings.product_4 | json }} <strong>handle_4:</strong> {{ block.settings.product_handle_4 | json }}</div>
-            <div><strong>product_5:</strong> {{ block.settings.product_5 | json }} <strong>handle_5:</strong> {{ block.settings.product_handle_5 | json }}</div>
-            <div><strong>product_6:</strong> {{ block.settings.product_6 | json }} <strong>handle_6:</strong> {{ block.settings.product_handle_6 | json }}</div>
-            <div style="margin-top:6px;"><strong>resolved_products.size:</strong> {{ products.size }}</div>
-          </div>
-        </div>
-      {%- endif -%}
 
       {%- if products.size >= 2 -%}
         {%- liquid
@@ -154,6 +83,7 @@
 
             if v != blank
               assign total_price = total_price | plus: v.price
+
               if v.compare_at_price != blank and v.compare_at_price > v.price
                 assign compare_total = compare_total | plus: v.compare_at_price
               else
@@ -260,20 +190,18 @@
     {%- endfor -%}
   {%- endif -%}
 
-  {%- if s.source == 'metafield' and p != nil -%}
+  {%- comment -%} Metafield mode (product_list only) {%- endcomment -%}
+  {%- if s.source == 'metafield' and product != blank and s.metafield_type == 'product_list' -%}
     {%- liquid
       assign ns = s.metafield_namespace | default: 'custom'
       assign key = s.metafield_key | default: 'bundles'
-      assign mf = p.metafields[ns][key]
+      assign mf = product.metafields[ns][key]
     -%}
-
-    {%- if mf != blank and mf.value != blank and s.metafield_type == 'product_list' -%}
+    {%- if mf != blank and mf.value != blank -%}
       {%- liquid
-        assign list = mf.value
-        assign seen = '|'
         assign products = '' | split: ','
-
-        for pr in list
+        assign seen = '|'
+        for pr in mf.value
           if pr == blank
             continue
           endif
@@ -292,11 +220,7 @@
 
       {%- if products.size >= 2 -%}
         {%- liquid
-          assign fake_title = s.title
-          if fake_title == blank
-            assign fake_title = 'Bundle'
-          endif
-
+          assign title = s.title | default: 'Bundle'
           assign all_available = true
           assign total_price = 0
           assign compare_total = 0
@@ -308,11 +232,9 @@
             if v == blank
               assign v = pr.variants.first
             endif
-
             if v == blank or v.available == false
               assign all_available = false
             endif
-
             if v != blank
               assign total_price = total_price | plus: v.price
               if v.compare_at_price != blank and v.compare_at_price > v.price
@@ -320,7 +242,6 @@
               else
                 assign compare_total = compare_total | plus: v.price
               endif
-
               assign vid = v.id | append: ''
               assign tok2 = '|' | append: vid | append: '|'
               if ids_seen contains tok2
@@ -347,7 +268,7 @@
         <article class="pb__card" style="--pb-radius: {{ s.card_radius }}px;">
           <div class="pb__card-inner{% if s.card_border %} pb__card-inner--border{% endif %}">
             <div class="pb__card-head">
-              <h3 class="pb__card-title">{{ fake_title | escape }}</h3>
+              <h3 class="pb__card-title">{{ title | escape }}</h3>
             </div>
 
             <ul class="pb__items" role="list">
@@ -412,7 +333,6 @@
       {%- endif -%}
     {%- endif -%}
   {%- endif -%}
-
 {%- endcapture -%}
 
 {%- assign pb_cards_stripped = pb_cards | strip -%}
@@ -444,7 +364,7 @@
         <div class="pb__placeholder" style="padding:16px;border:1px dashed rgba(0,0,0,.35);border-radius:12px;">
           <strong>Product bundles:</strong> No bundles resolved yet.
           <div style="margin-top:6px;opacity:.85;">
-            Source is <code>{{ s.source }}</code>. In manual mode, pick products OR paste handles in the fallback fields.
+            Source is <code>{{ s.source }}</code>. In manual mode, ensure at least 2 products are picked in the bundle block.
           </div>
         </div>
       {%- endif -%}
@@ -520,9 +440,6 @@
     { "type": "checkbox", "id": "disable_if_unavailable", "label": "Disable if any item unavailable", "default": true },
     { "type": "checkbox", "id": "respect_quantity", "label": "Respect quantity (v1: each item = 1)", "default": false },
 
-    { "type": "header", "content": "Developer" },
-    { "type": "checkbox", "id": "debug", "label": "Debug (editor only)", "default": false },
-
     { "type": "header", "content": "Styling" },
     {
       "type": "select",
@@ -553,15 +470,7 @@
         { "type": "product", "id": "product_3", "label": "Product 3" },
         { "type": "product", "id": "product_4", "label": "Product 4" },
         { "type": "product", "id": "product_5", "label": "Product 5" },
-        { "type": "product", "id": "product_6", "label": "Product 6" },
-
-        { "type": "header", "content": "Fallback handles (only if pickers bug)" },
-        { "type": "text", "id": "product_handle_1", "label": "Product handle 1" },
-        { "type": "text", "id": "product_handle_2", "label": "Product handle 2" },
-        { "type": "text", "id": "product_handle_3", "label": "Product handle 3" },
-        { "type": "text", "id": "product_handle_4", "label": "Product handle 4" },
-        { "type": "text", "id": "product_handle_5", "label": "Product handle 5" },
-        { "type": "text", "id": "product_handle_6", "label": "Product handle 6" }
+        { "type": "product", "id": "product_6", "label": "Product 6" }
       ]
     }
   ],
