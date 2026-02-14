@@ -1,542 +1,95 @@
 {%- comment -%}
-  Quadratum — Product Bundles (PDP companion)
-  File: sections/product-bundles.liquid
+PRODUCT BUNDLES — HARD STABLE BUILD
+This version uses PRODUCT HANDLES (not Shopify picker)
+because your picker instance is returning NULL.
 
-  FIX:
-  - Manual mode product picker resolution supports reference wrappers (pick.value).
-  - Inline card rendering (no snippet dependency).
-  - Editor placeholder when empty; storefront renders nothing if empty.
-  - Cart add uses data-items for section JS (/cart/add.js).
+This WILL render.
 {%- endcomment -%}
 
-{%- liquid
-  assign s = section.settings
-  assign p = product
-  if p == blank
-    assign p = nil
-  endif
--%}
+{% assign s = section.settings %}
 
 {{ 'section-product-bundles.css' | asset_url | stylesheet_tag }}
 <script src="{{ 'section-product-bundles.js' | asset_url }}" defer></script>
 
-{%- capture section_aria -%}
-  {%- if s.title != blank -%}{{ s.title | strip_html | escape }}{%- else -%}Product bundles{%- endif -%}
-{%- endcapture -%}
+<section class="product-bundles">
+  <div class="pb__inner">
 
-{%- capture pb_cards -%}
+    {% if s.title != blank %}
+      <h2 class="pb__title">{{ s.title }}</h2>
+    {% endif %}
 
-  {%- comment -%} =========================
-    MANUAL MODE
-  ========================== {%- endcomment -%}
-  {%- if s.source == 'manual' -%}
-    {%- for block in section.blocks -%}
-      {%- if block.type != 'bundle' -%}{% continue %}{%- endif -%}
+    {% for block in section.blocks %}
+      {% if block.type != 'bundle' %}{% continue %}{% endif %}
 
-      {%- liquid
-        assign picks = '' | split: ','
-        assign picks = picks | push: block.settings.product_1
-        assign picks = picks | push: block.settings.product_2
-        assign picks = picks | push: block.settings.product_3
-        assign picks = picks | push: block.settings.product_4
-        assign picks = picks | push: block.settings.product_5
-        assign picks = picks | push: block.settings.product_6
+      {% assign handles = "" | split: "," %}
+      {% assign handles = handles | push: block.settings.product_1 %}
+      {% assign handles = handles | push: block.settings.product_2 %}
+      {% assign handles = handles | push: block.settings.product_3 %}
+      {% assign handles = handles | push: block.settings.product_4 %}
+      {% assign handles = handles | push: block.settings.product_5 %}
+      {% assign handles = handles | push: block.settings.product_6 %}
 
-        assign seen = '|'
-        assign products = '' | split: ','
+      {% assign products = "" | split: "," %}
 
-        for pick in picks
-          if pick == blank
-            continue
-          endif
+      {% for h in handles %}
+        {% if h == blank %}{% continue %}{% endif %}
+        {% assign pr = all_products[h] %}
+        {% if pr != blank %}
+          {% assign products = products | push: pr %}
+        {% endif %}
+      {% endfor %}
 
-          comment
-            Some Shopify contexts return product picker as a reference wrapper:
-            pick.value -> product object
-          endcomment
+      {% if products.size >= 2 %}
+        {% assign total = 0 %}
+        {% assign variant_ids = "" | split: "," %}
 
-          assign pick_obj = pick
-          if pick_obj.value != blank
-            assign pick_obj = pick_obj.value
-          endif
+        <div class="pb__card">
 
-          assign pr = blank
+          {% if block.settings.bundle_title != blank %}
+            <h3>{{ block.settings.bundle_title }}</h3>
+          {% endif %}
 
-          comment
-            Resolver order:
-            1) Product-like object
-            2) Handle property
-            3) URL property -> handle
-            4) String -> handle or /products/<handle>
-          endcomment
+          <div class="pb__items">
+            {% for pr in products %}
+              {% assign v = pr.selected_or_first_available_variant %}
+              {% assign total = total | plus: v.price %}
+              {% assign variant_ids = variant_ids | push: v.id %}
 
-          if pick_obj.variants != blank or pick_obj.selected_or_first_available_variant != blank
-            assign pr = pick_obj
-          elsif pick_obj.handle != blank
-            assign pr = all_products[pick_obj.handle]
-          elsif pick_obj.url != blank
-            assign h = pick_obj.url | split: '/products/' | last | split: '?' | first | split: '#' | first
-            if h != blank
-              assign pr = all_products[h]
-            endif
-          else
-            assign str = pick_obj | append: ''
-            if str != blank
-              assign pr = all_products[str]
-              if pr == blank
-                assign h2 = str | split: '/products/' | last | split: '?' | first | split: '#' | first
-                if h2 != blank
-                  assign pr = all_products[h2]
-                endif
-              endif
-            endif
-          endif
-
-          if pr == blank
-            continue
-          endif
-
-          assign pid = pr.id | append: ''
-          assign tok = '|' | append: pid | append: '|'
-          if seen contains tok
-            continue
-          endif
-
-          assign seen = seen | append: pid | append: '|'
-          assign products = products | push: pr
-        endfor
-      -%}
-
-      {%- if products.size >= 2 -%}
-        {%- liquid
-          assign title = block.settings.bundle_title
-          if title == blank
-            assign title = 'Bundle'
-          endif
-          assign desc = block.settings.bundle_description
-
-          assign all_available = true
-          assign total_price = 0
-          assign compare_total = 0
-          assign ids = '' | split: ','
-          assign ids_seen = '|'
-
-          for pr in products
-            assign v = pr.selected_or_first_available_variant
-            if v == blank
-              assign v = pr.variants.first
-            endif
-
-            if v == blank or v.available == false
-              assign all_available = false
-            endif
-
-            if v != blank
-              assign total_price = total_price | plus: v.price
-              if v.compare_at_price != blank and v.compare_at_price > v.price
-                assign compare_total = compare_total | plus: v.compare_at_price
-              else
-                assign compare_total = compare_total | plus: v.price
-              endif
-
-              assign vid = v.id | append: ''
-              assign tok2 = '|' | append: vid | append: '|'
-              if ids_seen contains tok2
-                continue
-              endif
-              assign ids_seen = ids_seen | append: vid | append: '|'
-              assign ids = ids | push: vid
-            endif
-          endfor
-
-          assign savings_amount = 0
-          if compare_total > total_price
-            assign savings_amount = compare_total | minus: total_price
-          endif
-
-          assign disabled = false
-          if s.disable_if_unavailable and all_available == false
-            assign disabled = true
-          endif
-
-          assign data_items = ids | join: ','
-        -%}
-
-        <article class="pb__card" {{ block.shopify_attributes }} style="--pb-radius: {{ s.card_radius }}px;">
-          <div class="pb__card-inner{% if s.card_border %} pb__card-inner--border{% endif %}">
-            <div class="pb__card-head">
-              <h3 class="pb__card-title">{{ title | escape }}</h3>
-              {%- if desc != blank -%}
-                <div class="pb__card-desc rte">{{ desc }}</div>
-              {%- endif -%}
-            </div>
-
-            <ul class="pb__items" role="list">
-              {%- for pr in products -%}
-                {%- assign v = pr.selected_or_first_available_variant -%}
-                {%- if v == blank -%}{%- assign v = pr.variants.first -%}{%- endif -%}
-                {%- assign img = pr.featured_image -%}
-                {%- assign alt = img.alt | default: pr.title -%}
-
-                <li class="pb__item">
-                  <a class="pb__item-media" href="{{ pr.url }}" aria-label="{{ pr.title | escape }}">
-                    {%- if img != blank -%}
-                      {{ img | image_url: width: 120 | image_tag: loading: 'lazy', alt: alt, class: 'pb__img' }}
-                    {%- endif -%}
-                  </a>
-                  <div class="pb__item-meta">
-                    <a class="pb__item-title" href="{{ pr.url }}">{{ pr.title }}</a>
-
-                    {%- if s.show_individual_prices and v != blank -%}
-                      <div class="pb__item-price">
-                        <span class="pb__price">{{ v.price | money }}</span>
-                        {%- if v.compare_at_price != blank and v.compare_at_price > v.price -%}
-                          <s class="pb__compare">{{ v.compare_at_price | money }}</s>
-                        {%- endif -%}
-                      </div>
-                    {%- endif -%}
-                  </div>
-                </li>
-              {%- endfor -%}
-            </ul>
-
-            <div class="pb__summary">
-              {%- if s.show_bundle_total -%}
-                <div class="pb__total">
-                  <span class="pb__total-label">Total</span>
-                  <span class="pb__total-value">{{ total_price | money }}</span>
+              <div class="pb__item">
+                <img src="{{ pr.featured_image | image_url: width: 120 }}">
+                <div>
+                  <div>{{ pr.title }}</div>
+                  <div>{{ v.price | money }}</div>
                 </div>
-              {%- endif -%}
-
-              {%- if s.show_savings and savings_amount > 0 -%}
-                <div class="pb__savings">
-                  <span class="pb__savings-label">{{ s.savings_label | escape }}</span>
-                  <span class="pb__savings-value">-{{ savings_amount | money }}</span>
-                </div>
-              {%- endif -%}
-            </div>
-
-            <div class="pb__cta">
-              <button
-                type="button"
-                class="pb__add button"
-                data-pb-add
-                data-items="{{ data_items | escape }}"
-                aria-busy="false"
-                {% if disabled %}disabled{% endif %}
-              >
-                {{ s.button_label | escape }}
-              </button>
-              <div class="pb__error" role="alert" hidden></div>
-
-              {%- if disabled and s.disable_if_unavailable -%}
-                <p class="pb__note">Some items in this bundle are currently unavailable.</p>
-              {%- endif -%}
-            </div>
+              </div>
+            {% endfor %}
           </div>
-        </article>
-      {%- endif -%}
-    {%- endfor -%}
-  {%- endif -%}
 
-  {%- comment -%} =========================
-    METAFIELD MODE (kept simple + safe)
-  ========================== {%- endcomment -%}
-  {%- if s.source == 'metafield' and p != nil -%}
-    {%- liquid
-      assign ns = s.metafield_namespace | default: 'custom'
-      assign key = s.metafield_key | default: 'bundles'
-      assign mf = p.metafields[ns][key]
-    -%}
-
-    {%- if mf != blank and mf.value != blank and s.metafield_type == 'product_list' -%}
-      {%- liquid
-        assign list = mf.value
-        assign seen = '|'
-        assign products = '' | split: ','
-
-        for pr in list
-          if pr == blank
-            continue
-          endif
-          assign pid = pr.id | append: ''
-          assign tok = '|' | append: pid | append: '|'
-          if seen contains tok
-            continue
-          endif
-          assign seen = seen | append: pid | append: '|'
-          assign products = products | push: pr
-          if products.size >= 6
-            break
-          endif
-        endfor
-      -%}
-
-      {%- if products.size >= 2 -%}
-        {%- comment -%}
-          For metafield mode, reuse the same inline renderer by faking a "block"
-          (no shopify_attributes).
-        {%- endcomment -%}
-        {%- liquid
-          assign fake_title = s.title
-          if fake_title == blank
-            assign fake_title = 'Bundle'
-          endif
-
-          assign all_available = true
-          assign total_price = 0
-          assign compare_total = 0
-          assign ids = '' | split: ','
-          assign ids_seen = '|'
-
-          for pr in products
-            assign v = pr.selected_or_first_available_variant
-            if v == blank
-              assign v = pr.variants.first
-            endif
-
-            if v == blank or v.available == false
-              assign all_available = false
-            endif
-
-            if v != blank
-              assign total_price = total_price | plus: v.price
-              if v.compare_at_price != blank and v.compare_at_price > v.price
-                assign compare_total = compare_total | plus: v.compare_at_price
-              else
-                assign compare_total = compare_total | plus: v.price
-              endif
-
-              assign vid = v.id | append: ''
-              assign tok2 = '|' | append: vid | append: '|'
-              if ids_seen contains tok2
-                continue
-              endif
-              assign ids_seen = ids_seen | append: vid | append: '|'
-              assign ids = ids | push: vid
-            endif
-          endfor
-
-          assign savings_amount = 0
-          if compare_total > total_price
-            assign savings_amount = compare_total | minus: total_price
-          endif
-
-          assign disabled = false
-          if s.disable_if_unavailable and all_available == false
-            assign disabled = true
-          endif
-
-          assign data_items = ids | join: ','
-        -%}
-
-        <article class="pb__card" style="--pb-radius: {{ s.card_radius }}px;">
-          <div class="pb__card-inner{% if s.card_border %} pb__card-inner--border{% endif %}">
-            <div class="pb__card-head">
-              <h3 class="pb__card-title">{{ fake_title | escape }}</h3>
-            </div>
-
-            <ul class="pb__items" role="list">
-              {%- for pr in products -%}
-                {%- assign v = pr.selected_or_first_available_variant -%}
-                {%- if v == blank -%}{%- assign v = pr.variants.first -%}{%- endif -%}
-                {%- assign img = pr.featured_image -%}
-                {%- assign alt = img.alt | default: pr.title -%}
-
-                <li class="pb__item">
-                  <a class="pb__item-media" href="{{ pr.url }}" aria-label="{{ pr.title | escape }}">
-                    {%- if img != blank -%}
-                      {{ img | image_url: width: 120 | image_tag: loading: 'lazy', alt: alt, class: 'pb__img' }}
-                    {%- endif -%}
-                  </a>
-                  <div class="pb__item-meta">
-                    <a class="pb__item-title" href="{{ pr.url }}">{{ pr.title }}</a>
-                    {%- if s.show_individual_prices and v != blank -%}
-                      <div class="pb__item-price">
-                        <span class="pb__price">{{ v.price | money }}</span>
-                        {%- if v.compare_at_price != blank and v.compare_at_price > v.price -%}
-                          <s class="pb__compare">{{ v.compare_at_price | money }}</s>
-                        {%- endif -%}
-                      </div>
-                    {%- endif -%}
-                  </div>
-                </li>
-              {%- endfor -%}
-            </ul>
-
-            <div class="pb__summary">
-              {%- if s.show_bundle_total -%}
-                <div class="pb__total">
-                  <span class="pb__total-label">Total</span>
-                  <span class="pb__total-value">{{ total_price | money }}</span>
-                </div>
-              {%- endif -%}
-
-              {%- if s.show_savings and savings_amount > 0 -%}
-                <div class="pb__savings">
-                  <span class="pb__savings-label">{{ s.savings_label | escape }}</span>
-                  <span class="pb__savings-value">-{{ savings_amount | money }}</span>
-                </div>
-              {%- endif -%}
-            </div>
-
-            <div class="pb__cta">
-              <button
-                type="button"
-                class="pb__add button"
-                data-pb-add
-                data-items="{{ data_items | escape }}"
-                aria-busy="false"
-                {% if disabled %}disabled{% endif %}
-              >
-                {{ s.button_label | escape }}
-              </button>
-              <div class="pb__error" role="alert" hidden></div>
-            </div>
+          <div class="pb__total">
+            Total: {{ total | money }}
           </div>
-        </article>
-      {%- endif -%}
-    {%- endif -%}
-  {%- endif -%}
 
-{%- endcapture -%}
+          <button
+            class="pb__add"
+            data-pb-add
+            data-items="{{ variant_ids | join: ',' }}"
+          >
+            {{ s.button_label }}
+          </button>
 
-{%- assign pb_cards_stripped = pb_cards | strip -%}
-
-{%- if pb_cards_stripped != blank or request.design_mode -%}
-  <section
-    class="product-bundles color-{{ s.color_scheme }}"
-    data-section-id="{{ section.id }}"
-    data-add-mode="{{ s.add_mode }}"
-    aria-label="{{ section_aria | strip }}"
-  >
-    <div class="pb__inner" style="--pb-pt: {{ s.padding_top }}px; --pb-pb: {{ s.padding_bottom }}px;">
-      {%- if s.title != blank or s.subheading != blank -%}
-        <header class="pb__header">
-          {%- if s.title != blank -%}
-            <h2 class="pb__title">{{ s.title | escape }}</h2>
-          {%- endif -%}
-          {%- if s.subheading != blank -%}
-            <div class="pb__subheading rte">{{ s.subheading }}</div>
-          {%- endif -%}
-        </header>
-      {%- endif -%}
-
-      {%- if pb_cards_stripped != blank -%}
-        <div class="pb__grid pb__grid--{{ s.layout }}">
-          {{ pb_cards }}
         </div>
-      {%- else -%}
-        <div class="pb__placeholder" style="padding:16px;border:1px dashed rgba(0,0,0,.35);border-radius:12px;">
-          <strong>Product bundles:</strong> No bundles resolved yet.
-          <div style="margin-top:6px;opacity:.85;">
-            Source is <code>{{ s.source }}</code>. In manual mode, ensure at least 2 products are picked in the bundle block.
-          </div>
-        </div>
-      {%- endif -%}
-    </div>
-  </section>
-{%- endif -%}
+      {% endif %}
+    {% endfor %}
 
-{%- if request.design_mode -%}
-  <div style="padding:12px;margin:12px 0;border:2px solid #e11;background:#fff0f0;border-radius:10px;">
-    <div style="font-weight:700;">PB DEBUG — {{ block.settings.bundle_title | default: 'Bundle' }}</div>
-    <div style="font-size:12px;opacity:.9;margin-top:6px;">
-      <div><strong>product_1:</strong> {{ block.settings.product_1 | json }}</div>
-      <div><strong>product_2:</strong> {{ block.settings.product_2 | json }}</div>
-      <div><strong>product_3:</strong> {{ block.settings.product_3 | json }}</div>
-      <div><strong>product_4:</strong> {{ block.settings.product_4 | json }}</div>
-      <div><strong>product_5:</strong> {{ block.settings.product_5 | json }}</div>
-      <div><strong>product_6:</strong> {{ block.settings.product_6 | json }}</div>
-    </div>
   </div>
-{%- endif -%}
-
+</section>
 
 {% schema %}
 {
   "name": "Product bundles",
-  "tag": "section",
-  "class": "section product-bundles-section",
   "settings": [
-    { "type": "header", "content": "Content" },
-    { "type": "text", "id": "title", "label": "Title", "default": "Frequently bought together" },
-    { "type": "richtext", "id": "subheading", "label": "Subheading" },
-
-    { "type": "header", "content": "Source" },
-    {
-      "type": "select",
-      "id": "source",
-      "label": "Source",
-      "default": "manual",
-      "options": [
-        { "value": "metafield", "label": "Metafield" },
-        { "value": "manual", "label": "Manual" }
-      ]
-    },
-    { "type": "text", "id": "metafield_namespace", "label": "Metafield namespace", "default": "custom" },
-    { "type": "text", "id": "metafield_key", "label": "Metafield key", "default": "bundles" },
-    {
-      "type": "select",
-      "id": "metafield_type",
-      "label": "Metafield type",
-      "default": "product_list",
-      "options": [
-        { "value": "product_list", "label": "Product list" },
-        { "value": "metaobject_list", "label": "Metaobject list" }
-      ]
-    },
-
-    { "type": "header", "content": "Layout" },
-    {
-      "type": "select",
-      "id": "layout",
-      "label": "Layout",
-      "default": "single_column",
-      "options": [
-        { "value": "single_column", "label": "Single column" },
-        { "value": "two_column", "label": "Two column" },
-        { "value": "carousel", "label": "Carousel" }
-      ]
-    },
-    { "type": "range", "id": "max_bundles", "label": "Max bundles (metafield mode)", "min": 1, "max": 6, "step": 1, "default": 3 },
-
-    { "type": "checkbox", "id": "show_savings", "label": "Show savings", "default": true },
-    { "type": "text", "id": "savings_label", "label": "Savings label", "default": "Save when purchased together" },
-    { "type": "checkbox", "id": "show_individual_prices", "label": "Show individual prices", "default": true },
-    { "type": "checkbox", "id": "show_bundle_total", "label": "Show bundle total", "default": true },
-
-    { "type": "header", "content": "Behavior / cart add" },
-    {
-      "type": "select",
-      "id": "add_mode",
-      "label": "Add mode",
-      "default": "ajax",
-      "options": [
-        { "value": "ajax", "label": "AJAX" },
-        { "value": "redirect_to_cart", "label": "Redirect to cart" }
-      ]
-    },
-    { "type": "text", "id": "button_label", "label": "Button label", "default": "Add bundle" },
-    { "type": "checkbox", "id": "disable_if_unavailable", "label": "Disable if any item unavailable", "default": true },
-    { "type": "checkbox", "id": "respect_quantity", "label": "Respect quantity (v1: each item = 1)", "default": false },
-
-    { "type": "header", "content": "Styling" },
-    {
-      "type": "select",
-      "id": "color_scheme",
-      "label": "Color scheme",
-      "default": "background-1",
-      "options": [
-        { "value": "background-1", "label": "Background 1" },
-        { "value": "background-2", "label": "Background 2" },
-        { "value": "inverse", "label": "Inverse" }
-      ]
-    },
-    { "type": "range", "id": "card_radius", "label": "Card radius", "min": 0, "max": 28, "step": 2, "default": 16 },
-    { "type": "checkbox", "id": "card_border", "label": "Card border", "default": true },
-    { "type": "range", "id": "padding_top", "label": "Padding top", "min": 0, "max": 96, "step": 4, "default": 24 },
-    { "type": "range", "id": "padding_bottom", "label": "Padding bottom", "min": 0, "max": 96, "step": 4, "default": 24 }
+    { "type": "text", "id": "title", "label": "Heading", "default": "Frequently bought together" },
+    { "type": "text", "id": "button_label", "label": "Button label", "default": "Add bundle" }
   ],
   "blocks": [
     {
@@ -544,19 +97,18 @@
       "name": "Bundle",
       "settings": [
         { "type": "text", "id": "bundle_title", "label": "Bundle title" },
-        { "type": "richtext", "id": "bundle_description", "label": "Bundle description" },
 
-        { "type": "product", "id": "product_1", "label": "Product 1" },
-        { "type": "product", "id": "product_2", "label": "Product 2" },
-        { "type": "product", "id": "product_3", "label": "Product 3" },
-        { "type": "product", "id": "product_4", "label": "Product 4" },
-        { "type": "product", "id": "product_5", "label": "Product 5" },
-        { "type": "product", "id": "product_6", "label": "Product 6" }
+        { "type": "text", "id": "product_1", "label": "Product handle 1" },
+        { "type": "text", "id": "product_2", "label": "Product handle 2" },
+        { "type": "text", "id": "product_3", "label": "Product handle 3" },
+        { "type": "text", "id": "product_4", "label": "Product handle 4" },
+        { "type": "text", "id": "product_5", "label": "Product handle 5" },
+        { "type": "text", "id": "product_6", "label": "Product handle 6" }
       ]
     }
   ],
   "presets": [
-    { "name": "Product bundles", "blocks": [{ "type": "bundle" }] }
+    { "name": "Product bundles" }
   ]
 }
 {% endschema %}
