@@ -1,481 +1,2036 @@
 {%- comment -%}
-QUADRATUM — PRODUCT BUNDLES (FINAL WORKING)
-- Uses product picker objects directly (no all_products lookups)
-- Dedupe products
-- Requires 2+ products to render a bundle
-- Builds variant ID list for /cart/add.js (your section JS)
-- Shows placeholder only in design mode
+  Quadratum — Product Bundles (All Sources: Metaobject + Blocks + Collection/Rules)
+  File: sections/product-bundles.liquid
+
+  GOALS
+  - One section that can power bundles from:
+    A) Metaobject bundle (recommended)
+    B) Manual blocks (bundle_item)
+    C) Collection + rules (auto bundle)
+  - Add selected items to cart (multi-line add) via /cart/add.js
+  - Fully styleable: container, header, item cards, badges, prices, summary, buttons, toggles, messages
+  - Self-contained: no snippet dependencies
+  - Accessible: labels, aria-live, keyboard-friendly
+
+  NOTES
+  - "Real discounts" require Shopify Functions or a bundle app; this section computes and DISPLAYS savings, but cart lines are added at normal prices.
+  - Variant selection:
+    - For blocks: optional specific variant override, otherwise uses first available variant.
+    - For collection mode: uses first available variant.
+    - For metaobject: supports product or variant references when possible; falls back to product first available variant.
 {%- endcomment -%}
 
 {%- liquid
   assign s = section.settings
+  assign product_ctx = product
+
+  assign source_mode = s.source_mode | default: 'auto'
+  assign merge_mode = s.merge_mode | default: 'append'
+  assign currency_code_enabled = false
+
+  if shop.currency != blank
+    assign currency_code_enabled = s.show_currency_code
+  endif
+
+  assign max_items = s.max_items | default: 8
+
+  assign bundle_title = s.heading
+  assign bundle_kicker = s.kicker
+  assign bundle_subheading = s.subheading
+  assign bundle_desc = s.description
+
+  assign money_format = shop.money_format
 -%}
 
-{{ 'section-product-bundles.css' | asset_url | stylesheet_tag }}
-<script src="{{ 'section-product-bundles.js' | asset_url }}" defer></script>
+{%- comment -%}
+  ----------------------------
+  STYLE HELPERS (settings -> css)
+  ----------------------------
+{%- endcomment -%}
+{%- liquid
+  assign id = section.id
 
-{%- capture section_aria -%}
-  {%- if s.title != blank -%}{{ s.title | strip_html | escape }}{%- else -%}Product bundles{%- endif -%}
-{%- endcapture -%}
+  assign c_bg = s.container_bg
+  assign c_border = s.container_border_color
+  assign c_radius = s.container_radius
+  assign c_shadow = s.container_shadow
 
-{%- capture pb_cards -%}
-  {%- if s.source == 'manual' -%}
-    {%- for block in section.blocks -%}
-      {%- if block.type != 'bundle' -%}{% continue %}{%- endif -%}
+  assign pad_y = s.container_pad_y
+  assign pad_x = s.container_pad_x
+  assign max_w = s.container_max_width
 
-      {%- liquid
-        assign picks = '' | split: ','
-        assign picks = picks | push: block.settings.product_1
-        assign picks = picks | push: block.settings.product_2
-        assign picks = picks | push: block.settings.product_3
-        assign picks = picks | push: block.settings.product_4
-        assign picks = picks | push: block.settings.product_5
-        assign picks = picks | push: block.settings.product_6
+  assign h_align = s.header_align
 
-        assign products = '' | split: ','
-        assign seen = '|'
+  assign item_bg = s.item_bg
+  assign item_border = s.item_border_color
+  assign item_radius = s.item_radius
+  assign item_shadow = s.item_shadow
 
-        for pr in picks
-          if pr == blank
-            continue
-          endif
+  assign summary_bg = s.summary_bg
+  assign summary_border = s.summary_border_color
+  assign summary_radius = s.summary_radius
+  assign summary_shadow = s.summary_shadow
 
-          comment
-            IMPORTANT:
-            Shopify product setting returns a product object (not a handle).
-            Do NOT run all_products lookups here.
-          endcomment
+  assign btn_bg = s.btn_bg
+  assign btn_text = s.btn_text_color
+  assign btn_border = s.btn_border_color
+  assign btn_radius = s.btn_radius
+  assign btn_shadow = s.btn_shadow
+  assign btn_bg_hover = s.btn_bg_hover
+  assign btn_text_hover = s.btn_text_hover
 
-          assign pid = pr.id | append: ''
-          assign tok = '|' | append: pid | append: '|'
-          if seen contains tok
-            continue
-          endif
+  assign toggle_accent = s.toggle_accent
 
-          assign seen = seen | append: pid | append: '|'
-          assign products = products | push: pr
-        endfor
-      -%}
+  assign msg_ok_bg = s.msg_ok_bg
+  assign msg_ok_text = s.msg_ok_text
+  assign msg_err_bg = s.msg_err_bg
+  assign msg_err_text = s.msg_err_text
 
-      {%- if products.size >= 2 -%}
-        {%- liquid
-          assign title = block.settings.bundle_title
-          if title == blank
-            assign title = 'Bundle'
-          endif
-          assign desc = block.settings.bundle_description
+  assign badge_bg = s.badge_bg
+  assign badge_text = s.badge_text
+  assign badge_radius = s.badge_radius
 
-          assign all_available = true
-          assign total_price = 0
-          assign compare_total = 0
-          assign ids = '' | split: ','
-          assign ids_seen = '|'
+  assign price_color = s.price_color
+  assign compare_color = s.compare_color
+  assign savings_color = s.savings_color
+  assign savings_bg = s.savings_bg
 
-          for pr in products
-            assign v = pr.selected_or_first_available_variant
-            if v == blank
-              assign v = pr.variants.first
-            endif
+  assign title_color = s.title_color
+  assign meta_color = s.meta_color
 
-            if v == blank or v.available == false
-              assign all_available = false
-            endif
+  assign grid_mode = s.layout_mode | default: 'grid'
+  assign grid_cols = s.grid_cols | default: 2
+  assign gap = s.gap | default: 16
 
-            if v != blank
-              assign total_price = total_price | plus: v.price
+  assign image_ratio = s.image_ratio | default: 'square'
+  assign image_radius = s.image_radius
+  assign image_border = s.image_border_color
 
-              if v.compare_at_price != blank and v.compare_at_price > v.price
-                assign compare_total = compare_total | plus: v.compare_at_price
-              else
-                assign compare_total = compare_total | plus: v.price
+  assign sticky_summary = s.sticky_summary
+-%}
+
+<style>
+  #QtmBundles-{{ id }}{
+    width:100%;
+  }
+  #QtmBundles-{{ id }} .qtm-bundles-wrap{
+    max-width: {{ max_w }}px;
+    margin: 0 auto;
+    padding: {{ pad_y }}px {{ pad_x }}px;
+    background: {{ c_bg }};
+    border: 1px solid {{ c_border }};
+    border-radius: {{ c_radius }}px;
+    box-shadow: {{ c_shadow }};
+  }
+  #QtmBundles-{{ id }} .qtm-bundles-header{
+    text-align: {{ h_align }};
+    margin-bottom: {{ s.header_mb }}px;
+  }
+  #QtmBundles-{{ id }} .qtm-kicker{
+    color: {{ s.kicker_color }};
+    font-size: {{ s.kicker_size }}px;
+    font-weight: {{ s.kicker_weight }};
+    letter-spacing: {{ s.kicker_letter_spacing }}em;
+    line-height: {{ s.kicker_line_height }};
+    margin: 0 0 {{ s.kicker_mb }}px 0;
+  }
+  #QtmBundles-{{ id }} .qtm-heading{
+    color: {{ s.heading_color }};
+    font-size: {{ s.heading_size }}px;
+    font-weight: {{ s.heading_weight }};
+    letter-spacing: {{ s.heading_letter_spacing }}em;
+    line-height: {{ s.heading_line_height }};
+    margin: 0 0 {{ s.heading_mb }}px 0;
+  }
+  #QtmBundles-{{ id }} .qtm-subheading{
+    color: {{ s.subheading_color }};
+    font-size: {{ s.subheading_size }}px;
+    font-weight: {{ s.subheading_weight }};
+    letter-spacing: {{ s.subheading_letter_spacing }}em;
+    line-height: {{ s.subheading_line_height }};
+    margin: 0 0 {{ s.subheading_mb }}px 0;
+  }
+  #QtmBundles-{{ id }} .qtm-desc{
+    color: {{ s.description_color }};
+    font-size: {{ s.description_size }}px;
+    font-weight: {{ s.description_weight }};
+    letter-spacing: {{ s.description_letter_spacing }}em;
+    line-height: {{ s.description_line_height }};
+    margin: 0;
+  }
+
+  #QtmBundles-{{ id }} .qtm-bundles-body{
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: {{ gap }}px;
+  }
+
+  /* layout: split shows summary side-by-side on desktop */
+  #QtmBundles-{{ id }} .qtm-layout-split{
+    display:grid;
+    grid-template-columns: 1.35fr 0.65fr;
+    gap: {{ gap }}px;
+    align-items:start;
+  }
+
+  /* items container */
+  #QtmBundles-{{ id }} .qtm-items{
+    display: grid;
+    gap: {{ gap }}px;
+  }
+  #QtmBundles-{{ id }} .qtm-items.grid{
+    grid-template-columns: repeat({{ grid_cols }}, minmax(0, 1fr));
+  }
+  #QtmBundles-{{ id }} .qtm-items.stack{
+    grid-template-columns: 1fr;
+  }
+
+  #QtmBundles-{{ id }} .qtm-item{
+    background: {{ item_bg }};
+    border: 1px solid {{ item_border }};
+    border-radius: {{ item_radius }}px;
+    box-shadow: {{ item_shadow }};
+    padding: {{ s.item_pad }}px;
+    display:grid;
+    grid-template-columns: {{ s.item_image_col }}px 1fr;
+    gap: {{ s.item_inner_gap }}px;
+    align-items:start;
+  }
+
+  #QtmBundles-{{ id }} .qtm-item-media{
+    display:block;
+    width:100%;
+  }
+
+  #QtmBundles-{{ id }} .qtm-item-media .qtm-img{
+    width:100%;
+    display:block;
+    border-radius: {{ image_radius }}px;
+    border: 1px solid {{ image_border }};
+    overflow:hidden;
+    background: {{ s.image_bg }};
+    position:relative;
+  }
+  #QtmBundles-{{ id }} .qtm-item-media .qtm-img::before{
+    content:"";
+    display:block;
+    {% if image_ratio == 'square' %}
+      padding-top: 100%;
+    {% elsif image_ratio == 'portrait' %}
+      padding-top: 125%;
+    {% elsif image_ratio == 'landscape' %}
+      padding-top: 70%;
+    {% else %}
+      padding-top: 100%;
+    {% endif %}
+  }
+  #QtmBundles-{{ id }} .qtm-item-media img{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit: {{ s.image_fit }};
+  }
+
+  #QtmBundles-{{ id }} .qtm-item-content{
+    min-width:0;
+  }
+  #QtmBundles-{{ id }} .qtm-item-top{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap: 10px;
+  }
+  #QtmBundles-{{ id }} .qtm-item-title{
+    color: {{ title_color }};
+    font-size: {{ s.item_title_size }}px;
+    font-weight: {{ s.item_title_weight }};
+    line-height: {{ s.item_title_line_height }};
+    margin: 0 0 {{ s.item_title_mb }}px 0;
+  }
+  #QtmBundles-{{ id }} .qtm-item-meta{
+    color: {{ meta_color }};
+    font-size: {{ s.item_meta_size }}px;
+    font-weight: {{ s.item_meta_weight }};
+    line-height: {{ s.item_meta_line_height }};
+    margin: 0 0 {{ s.item_meta_mb }}px 0;
+  }
+  #QtmBundles-{{ id }} .qtm-badge{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding: {{ s.badge_pad_y }}px {{ s.badge_pad_x }}px;
+    background: {{ badge_bg }};
+    color: {{ badge_text }};
+    border-radius: {{ badge_radius }}px;
+    font-size: {{ s.badge_size }}px;
+    font-weight: {{ s.badge_weight }};
+    line-height: 1;
+    white-space:nowrap;
+  }
+
+  #QtmBundles-{{ id }} .qtm-price-row{
+    display:flex;
+    align-items:baseline;
+    gap: 10px;
+    margin-top: {{ s.price_mt }}px;
+  }
+  #QtmBundles-{{ id }} .qtm-price{
+    color: {{ price_color }};
+    font-size: {{ s.price_size }}px;
+    font-weight: {{ s.price_weight }};
+    line-height: 1.2;
+  }
+  #QtmBundles-{{ id }} .qtm-compare{
+    color: {{ compare_color }};
+    font-size: {{ s.compare_size }}px;
+    font-weight: {{ s.compare_weight }};
+    text-decoration: line-through;
+    opacity: {{ s.compare_opacity }};
+  }
+
+  #QtmBundles-{{ id }} .qtm-controls{
+    display:flex;
+    flex-wrap:wrap;
+    gap: {{ s.controls_gap }}px;
+    margin-top: {{ s.controls_mt }}px;
+    align-items:center;
+  }
+
+  #QtmBundles-{{ id }} .qtm-toggle{
+    display:flex;
+    align-items:center;
+    gap: 10px;
+    cursor:pointer;
+    user-select:none;
+  }
+  #QtmBundles-{{ id }} .qtm-toggle input{
+    width: 18px;
+    height: 18px;
+    accent-color: {{ toggle_accent }};
+  }
+  #QtmBundles-{{ id }} .qtm-toggle span{
+    color: {{ s.toggle_text_color }};
+    font-size: {{ s.toggle_text_size }}px;
+    font-weight: {{ s.toggle_text_weight }};
+  }
+
+  #QtmBundles-{{ id }} .qtm-qty{
+    display:flex;
+    align-items:center;
+    gap: 8px;
+  }
+  #QtmBundles-{{ id }} .qtm-qty label{
+    color: {{ s.qty_label_color }};
+    font-size: {{ s.qty_label_size }}px;
+    font-weight: {{ s.qty_label_weight }};
+  }
+  #QtmBundles-{{ id }} .qtm-qty input{
+    width: {{ s.qty_input_w }}px;
+    padding: {{ s.qty_input_pad_y }}px {{ s.qty_input_pad_x }}px;
+    border: 1px solid {{ s.qty_border }};
+    border-radius: {{ s.qty_radius }}px;
+    background: {{ s.qty_bg }};
+    color: {{ s.qty_text }};
+    font-size: {{ s.qty_text_size }}px;
+  }
+
+  /* summary */
+  #QtmBundles-{{ id }} .qtm-summary{
+    background: {{ summary_bg }};
+    border: 1px solid {{ summary_border }};
+    border-radius: {{ summary_radius }}px;
+    box-shadow: {{ summary_shadow }};
+    padding: {{ s.summary_pad }}px;
+  }
+  #QtmBundles-{{ id }} .qtm-summary.sticky{
+    position: sticky;
+    top: {{ s.sticky_top }}px;
+  }
+  #QtmBundles-{{ id }} .qtm-summary-title{
+    color: {{ s.summary_title_color }};
+    font-size: {{ s.summary_title_size }}px;
+    font-weight: {{ s.summary_title_weight }};
+    margin: 0 0 {{ s.summary_title_mb }}px 0;
+  }
+  #QtmBundles-{{ id }} .qtm-summary-rows{
+    display:grid;
+    gap: {{ s.summary_rows_gap }}px;
+    margin-bottom: {{ s.summary_rows_mb }}px;
+  }
+  #QtmBundles-{{ id }} .qtm-row{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap: 12px;
+  }
+  #QtmBundles-{{ id }} .qtm-row .lbl{
+    color: {{ s.summary_label_color }};
+    font-size: {{ s.summary_label_size }}px;
+    font-weight: {{ s.summary_label_weight }};
+  }
+  #QtmBundles-{{ id }} .qtm-row .val{
+    color: {{ s.summary_value_color }};
+    font-size: {{ s.summary_value_size }}px;
+    font-weight: {{ s.summary_value_weight }};
+  }
+  #QtmBundles-{{ id }} .qtm-divider{
+    height:1px;
+    background: {{ s.summary_divider }};
+    margin: {{ s.summary_divider_my }}px 0;
+    opacity: {{ s.summary_divider_opacity }};
+  }
+
+  #QtmBundles-{{ id }} .qtm-savings{
+    background: {{ savings_bg }};
+    color: {{ savings_color }};
+    border-radius: {{ s.savings_radius }}px;
+    padding: {{ s.savings_pad_y }}px {{ s.savings_pad_x }}px;
+    font-size: {{ s.savings_size }}px;
+    font-weight: {{ s.savings_weight }};
+    line-height: 1.2;
+  }
+
+  /* buttons */
+  #QtmBundles-{{ id }} .qtm-btn{
+    width:100%;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap: 10px;
+    padding: {{ s.btn_pad_y }}px {{ s.btn_pad_x }}px;
+    background: {{ btn_bg }};
+    color: {{ btn_text }};
+    border: 1px solid {{ btn_border }};
+    border-radius: {{ btn_radius }}px;
+    box-shadow: {{ btn_shadow }};
+    text-decoration:none;
+    cursor:pointer;
+    font-size: {{ s.btn_size }}px;
+    font-weight: {{ s.btn_weight }};
+    line-height: 1.2;
+    transition: background .15s ease, color .15s ease, transform .08s ease;
+  }
+  #QtmBundles-{{ id }} .qtm-btn:hover{
+    background: {{ btn_bg_hover }};
+    color: {{ btn_text_hover }};
+  }
+  #QtmBundles-{{ id }} .qtm-btn:active{
+    transform: translateY(1px);
+  }
+  #QtmBundles-{{ id }} .qtm-btn[disabled]{
+    opacity: .6;
+    cursor:not-allowed;
+  }
+
+  /* messages */
+  #QtmBundles-{{ id }} .qtm-msg{
+    margin-top: {{ s.msg_mt }}px;
+    border-radius: {{ s.msg_radius }}px;
+    padding: {{ s.msg_pad_y }}px {{ s.msg_pad_x }}px;
+    font-size: {{ s.msg_size }}px;
+    font-weight: {{ s.msg_weight }};
+    display:none;
+  }
+  #QtmBundles-{{ id }} .qtm-msg.ok{
+    background: {{ msg_ok_bg }};
+    color: {{ msg_ok_text }};
+  }
+  #QtmBundles-{{ id }} .qtm-msg.err{
+    background: {{ msg_err_bg }};
+    color: {{ msg_err_text }};
+  }
+
+  /* responsive */
+  @media (max-width: 990px){
+    #QtmBundles-{{ id }} .qtm-layout-split{
+      grid-template-columns: 1fr;
+    }
+    #QtmBundles-{{ id }} .qtm-items.grid{
+      grid-template-columns: 1fr;
+    }
+    #QtmBundles-{{ id }} .qtm-item{
+      grid-template-columns: {{ s.item_image_col_mobile }}px 1fr;
+    }
+    #QtmBundles-{{ id }} .qtm-summary.sticky{
+      position: static;
+      top:auto;
+    }
+  }
+</style>
+
+{%- comment -%}
+  ----------------------------
+  DATA BUILD: Collect bundle items from A/B/C based on source_mode & merge_mode
+  We'll build a JSON payload in JS by rendering each item as a <template> row with data-* attributes.
+  ----------------------------
+{%- endcomment -%}
+
+{%- liquid
+  assign items_rendered = 0
+
+  assign meta_bundle = s.bundle_metaobject
+  assign collection_bundle = s.bundle_collection
+
+  assign allow_meta = false
+  assign allow_blocks = false
+  assign allow_collection = false
+
+  if source_mode == 'auto'
+    assign allow_meta = true
+    assign allow_blocks = true
+    assign allow_collection = true
+  elsif source_mode == 'metaobject'
+    assign allow_meta = true
+  elsif source_mode == 'blocks'
+    assign allow_blocks = true
+  elsif source_mode == 'collection'
+    assign allow_collection = true
+  endif
+-%}
+
+<section id="QtmBundles-{{ id }}" class="qtm-bundles" data-section-id="{{ id }}">
+  <div class="qtm-bundles-wrap">
+    <header class="qtm-bundles-header">
+      {%- if bundle_kicker != blank -%}
+        <p class="qtm-kicker">{{ bundle_kicker }}</p>
+      {%- endif -%}
+      {%- if bundle_title != blank -%}
+        <h2 class="qtm-heading">{{ bundle_title }}</h2>
+      {%- endif -%}
+      {%- if bundle_subheading != blank -%}
+        <p class="qtm-subheading">{{ bundle_subheading }}</p>
+      {%- endif -%}
+      {%- if bundle_desc != blank -%}
+        <div class="qtm-desc">{{ bundle_desc }}</div>
+      {%- endif -%}
+    </header>
+
+    <div class="qtm-bundles-body {% if grid_mode == 'split' %}qtm-layout-split{% endif %}">
+      <div class="qtm-left">
+        <div class="qtm-items {% if grid_mode == 'stack' %}stack{% else %}grid{% endif %}" id="QtmBundleItems-{{ id }}">
+          {%- comment -%}
+            ---------
+            A) METAOBJECT
+            Expected fields (flexible):
+              - title (text)
+              - description (richtext/text)
+              - items (list) where each item may have:
+                  product (product reference) OR variant (variant reference)
+                  quantity (number)
+                  optional (boolean)
+                  badge (text)
+            Because metaobject schemas vary, we check common patterns.
+          {%- endcomment -%}
+
+          {%- if allow_meta and meta_bundle != blank -%}
+            {%- liquid
+              assign mo_title = meta_bundle.title | default: meta_bundle.name
+              assign mo_items = meta_bundle.items
+              if mo_items == blank
+                assign mo_items = meta_bundle.products
               endif
-
-              assign vid = v.id | append: ''
-              assign tok2 = '|' | append: vid | append: '|'
-              if ids_seen contains tok2
-                continue
+              if mo_items == blank
+                assign mo_items = meta_bundle.bundle_items
               endif
-              assign ids_seen = ids_seen | append: vid | append: '|'
-              assign ids = ids | push: vid
-            endif
-          endfor
+            -%}
 
-          assign savings_amount = 0
-          if compare_total > total_price
-            assign savings_amount = compare_total | minus: total_price
-          endif
+            {%- if merge_mode == 'replace' -%}
+              {%- assign items_rendered = 0 -%}
+            {%- endif -%}
 
-          assign disabled = false
-          if s.disable_if_unavailable and all_available == false
-            assign disabled = true
-          endif
+            {%- if mo_items != blank -%}
+              {%- for it in mo_items -%}
+                {%- if items_rendered >= max_items -%}{% break %}{%- endif -%}
 
-          assign data_items = ids | join: ','
-        -%}
+                {%- liquid
+                  assign it_qty = it.quantity | default: 1
+                  if it_qty == blank or it_qty < 1
+                    assign it_qty = 1
+                  endif
 
-        <article class="pb__card" {{ block.shopify_attributes }} style="--pb-radius: {{ s.card_radius }}px;">
-          <div class="pb__card-inner{% if s.card_border %} pb__card-inner--border{% endif %}">
-            <div class="pb__card-head">
-              <h3 class="pb__card-title">{{ title | escape }}</h3>
-              {%- if desc != blank -%}
-                <div class="pb__card-desc rte">{{ desc }}</div>
-              {%- endif -%}
-            </div>
+                  assign it_optional = it.optional | default: false
+                  assign it_badge = it.badge | default: it.badge_text
 
-            <ul class="pb__items" role="list">
-              {%- for pr in products -%}
-                {%- assign v = pr.selected_or_first_available_variant -%}
-                {%- if v == blank -%}{%- assign v = pr.variants.first -%}{%- endif -%}
-                {%- assign img = pr.featured_image -%}
-                {%- assign alt = img.alt | default: pr.title -%}
+                  assign it_variant = it.variant
+                  assign it_product = it.product
 
-                <li class="pb__item">
-                  <a class="pb__item-media" href="{{ pr.url }}" aria-label="{{ pr.title | escape }}">
-                    {%- if img != blank -%}
-                      {{ img | image_url: width: 120 | image_tag: loading: 'lazy', alt: alt, class: 'pb__img' }}
-                    {%- endif -%}
+                  if it_variant != blank
+                    assign v = it_variant
+                    assign p = v.product
+                  else
+                    assign p = it_product
+                    if p != blank
+                      assign v = p.selected_or_first_available_variant
+                      if v == blank
+                        assign v = p.variants.first
+                      endif
+                    endif
+                  endif
+
+                  if p == blank or v == blank
+                    continue
+                  endif
+
+                  assign img = p.featured_image
+                  if it.image != blank
+                    assign img = it.image
+                  endif
+
+                  assign is_available = v.available
+
+                  assign price = v.price
+                  assign compare = v.compare_at_price
+                -%}
+
+                <article class="qtm-item"
+                  data-source="metaobject"
+                  data-variant-id="{{ v.id }}"
+                  data-qty="{{ it_qty }}"
+                  data-optional="{{ it_optional }}"
+                  data-available="{{ is_available }}"
+                  data-price="{{ price }}"
+                  data-compare="{{ compare }}"
+                >
+                  <a class="qtm-item-media" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
+                    <span class="qtm-img">
+                      {%- if img != blank -%}
+                        <img src="{{ img | image_url: width: 600 }}" alt="{{ img.alt | default: p.title | escape }}" loading="lazy">
+                      {%- endif -%}
+                    </span>
                   </a>
-                  <div class="pb__item-meta">
-                    <a class="pb__item-title" href="{{ pr.url }}">{{ pr.title }}</a>
 
-                    {%- if s.show_individual_prices and v != blank -%}
-                      <div class="pb__item-price">
-                        <span class="pb__price">{{ v.price | money }}</span>
-                        {%- if v.compare_at_price != blank and v.compare_at_price > v.price -%}
-                          <s class="pb__compare">{{ v.compare_at_price | money }}</s>
-                        {%- endif -%}
+                  <div class="qtm-item-content">
+                    <div class="qtm-item-top">
+                      <div class="qtm-item-titles">
+                        <h3 class="qtm-item-title">{{ it.title | default: p.title }}</h3>
+                        <p class="qtm-item-meta">
+                          {%- if s.show_vendor and p.vendor != blank -%}{{ p.vendor }}{%- endif -%}
+                          {%- if s.show_sku -%}
+                            {%- if v.sku != blank -%}
+                              {%- if s.show_vendor and p.vendor != blank -%} · {%- endif -%}
+                              SKU: {{ v.sku }}
+                            {%- endif -%}
+                          {%- endif -%}
+                        </p>
+                      </div>
+                      {%- if it_badge != blank -%}
+                        <span class="qtm-badge">{{ it_badge }}</span>
+                      {%- endif -%}
+                    </div>
+
+                    <div class="qtm-price-row">
+                      <span class="qtm-price" data-price-display>
+                        {{ price | money }}
+                        {%- if currency_code_enabled -%} {{ shop.currency }}{%- endif -%}
+                      </span>
+                      {%- if compare != blank and compare > price -%}
+                        <span class="qtm-compare" data-compare-display>
+                          {{ compare | money }}
+                          {%- if currency_code_enabled -%} {{ shop.currency }}{%- endif -%}
+                        </span>
+                      {%- endif -%}
+                    </div>
+
+                    <div class="qtm-controls">
+                      <label class="qtm-toggle">
+                        <input type="checkbox" class="qtm-include" {% if it_optional == false %}checked{% endif %} {% if it_optional == false %}disabled{% endif %}>
+                        <span>
+                          {%- if it_optional -%}
+                            {{ s.optional_label }}
+                          {%- else -%}
+                            {{ s.included_label }}
+                          {%- endif -%}
+                        </span>
+                      </label>
+
+                      {%- if s.allow_item_qty -%}
+                        <div class="qtm-qty">
+                          <label for="QtmQty-{{ id }}-mo-{{ forloop.index0 }}">{{ s.qty_label }}</label>
+                          <input id="QtmQty-{{ id }}-mo-{{ forloop.index0 }}" class="qtm-item-qty" type="number" min="1" value="{{ it_qty }}">
+                        </div>
+                      {%- endif -%}
+
+                      {%- if s.show_view_link -%}
+                        <a class="qtm-view" href="{{ p.url }}" style="text-decoration:none;color:{{ s.view_link_color }};font-size:{{ s.view_link_size }}px;font-weight:{{ s.view_link_weight }};">
+                          {{ s.view_link_text }}
+                        </a>
+                      {%- endif -%}
+                    </div>
+
+                    {%- if s.show_item_note and it.note != blank -%}
+                      <div class="qtm-item-meta" style="margin-top:{{ s.note_mt }}px;color:{{ s.note_color }};font-size:{{ s.note_size }}px;">
+                        {{ it.note }}
                       </div>
                     {%- endif -%}
+
+                    {%- unless is_available -%}
+                      <div class="qtm-item-meta" style="margin-top:{{ s.oos_mt }}px;color:{{ s.oos_color }};font-size:{{ s.oos_size }}px;font-weight:{{ s.oos_weight }};">
+                        {{ s.oos_text }}
+                      </div>
+                    {%- endunless -%}
                   </div>
-                </li>
+                </article>
+
+                {%- assign items_rendered = items_rendered | plus: 1 -%}
               {%- endfor -%}
-            </ul>
+            {%- endif -%}
+          {%- endif -%}
 
-            <div class="pb__summary">
-              {%- if s.show_bundle_total -%}
-                <div class="pb__total">
-                  <span class="pb__total-label">Total</span>
-                  <span class="pb__total-value">{{ total_price | money }}</span>
-                </div>
-              {%- endif -%}
+          {%- comment -%}
+            B) BLOCKS
+          {%- endcomment -%}
+          {%- if allow_blocks -%}
+            {%- if merge_mode == 'replace' and allow_meta == false -%}
+              {%- assign items_rendered = 0 -%}
+            {%- endif -%}
 
-              {%- if s.show_savings and savings_amount > 0 -%}
-                <div class="pb__savings">
-                  <span class="pb__savings-label">{{ s.savings_label | escape }}</span>
-                  <span class="pb__savings-value">-{{ savings_amount | money }}</span>
-                </div>
-              {%- endif -%}
-            </div>
+            {%- for block in section.blocks -%}
+              {%- if block.type != 'bundle_item' -%}{% continue %}{%- endif -%}
+              {%- if items_rendered >= max_items -%}{% break %}{%- endif -%}
 
-            <div class="pb__cta">
-              <button
-                type="button"
-                class="pb__add button"
-                data-pb-add
-                data-items="{{ data_items | escape }}"
-                aria-busy="false"
-                {% if disabled %}disabled{% endif %}
+              {%- liquid
+                assign bp = block.settings.product
+                assign bv = block.settings.variant
+
+                if bv != blank
+                  assign v = bv
+                  assign p = v.product
+                else
+                  assign p = bp
+                  if p != blank
+                    assign v = p.selected_or_first_available_variant
+                    if v == blank
+                      assign v = p.variants.first
+                    endif
+                  endif
+                endif
+
+                if p == blank or v == blank
+                  continue
+                endif
+
+                assign qty = block.settings.quantity | default: 1
+                if qty < 1
+                  assign qty = 1
+                endif
+
+                assign optional = block.settings.optional | default: false
+                assign badge = block.settings.badge
+                assign img = block.settings.image
+                if img == blank
+                  assign img = p.featured_image
+                endif
+
+                assign is_available = v.available
+                assign price = v.price
+                assign compare = v.compare_at_price
+              -%}
+
+              <article class="qtm-item"
+                {{ block.shopify_attributes }}
+                data-source="blocks"
+                data-variant-id="{{ v.id }}"
+                data-qty="{{ qty }}"
+                data-optional="{{ optional }}"
+                data-available="{{ is_available }}"
+                data-price="{{ price }}"
+                data-compare="{{ compare }}"
               >
-                {{ s.button_label | escape }}
-              </button>
-              <div class="pb__error" role="alert" hidden></div>
-
-              {%- if disabled and s.disable_if_unavailable -%}
-                <p class="pb__note">Some items in this bundle are currently unavailable.</p>
-              {%- endif -%}
-            </div>
-          </div>
-        </article>
-      {%- endif -%}
-    {%- endfor -%}
-  {%- endif -%}
-
-  {%- comment -%} Metafield mode (product_list only) {%- endcomment -%}
-  {%- if s.source == 'metafield' and product != blank and s.metafield_type == 'product_list' -%}
-    {%- liquid
-      assign ns = s.metafield_namespace | default: 'custom'
-      assign key = s.metafield_key | default: 'bundles'
-      assign mf = product.metafields[ns][key]
-    -%}
-    {%- if mf != blank and mf.value != blank -%}
-      {%- liquid
-        assign products = '' | split: ','
-        assign seen = '|'
-        for pr in mf.value
-          if pr == blank
-            continue
-          endif
-          assign pid = pr.id | append: ''
-          assign tok = '|' | append: pid | append: '|'
-          if seen contains tok
-            continue
-          endif
-          assign seen = seen | append: pid | append: '|'
-          assign products = products | push: pr
-          if products.size >= 6
-            break
-          endif
-        endfor
-      -%}
-
-      {%- if products.size >= 2 -%}
-        {%- liquid
-          assign title = s.title | default: 'Bundle'
-          assign all_available = true
-          assign total_price = 0
-          assign compare_total = 0
-          assign ids = '' | split: ','
-          assign ids_seen = '|'
-
-          for pr in products
-            assign v = pr.selected_or_first_available_variant
-            if v == blank
-              assign v = pr.variants.first
-            endif
-            if v == blank or v.available == false
-              assign all_available = false
-            endif
-            if v != blank
-              assign total_price = total_price | plus: v.price
-              if v.compare_at_price != blank and v.compare_at_price > v.price
-                assign compare_total = compare_total | plus: v.compare_at_price
-              else
-                assign compare_total = compare_total | plus: v.price
-              endif
-              assign vid = v.id | append: ''
-              assign tok2 = '|' | append: vid | append: '|'
-              if ids_seen contains tok2
-                continue
-              endif
-              assign ids_seen = ids_seen | append: vid | append: '|'
-              assign ids = ids | push: vid
-            endif
-          endfor
-
-          assign savings_amount = 0
-          if compare_total > total_price
-            assign savings_amount = compare_total | minus: total_price
-          endif
-
-          assign disabled = false
-          if s.disable_if_unavailable and all_available == false
-            assign disabled = true
-          endif
-
-          assign data_items = ids | join: ','
-        -%}
-
-        <article class="pb__card" style="--pb-radius: {{ s.card_radius }}px;">
-          <div class="pb__card-inner{% if s.card_border %} pb__card-inner--border{% endif %}">
-            <div class="pb__card-head">
-              <h3 class="pb__card-title">{{ title | escape }}</h3>
-            </div>
-
-            <ul class="pb__items" role="list">
-              {%- for pr in products -%}
-                {%- assign v = pr.selected_or_first_available_variant -%}
-                {%- if v == blank -%}{%- assign v = pr.variants.first -%}{%- endif -%}
-                {%- assign img = pr.featured_image -%}
-                {%- assign alt = img.alt | default: pr.title -%}
-
-                <li class="pb__item">
-                  <a class="pb__item-media" href="{{ pr.url }}" aria-label="{{ pr.title | escape }}">
+                <a class="qtm-item-media" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
+                  <span class="qtm-img">
                     {%- if img != blank -%}
-                      {{ img | image_url: width: 120 | image_tag: loading: 'lazy', alt: alt, class: 'pb__img' }}
+                      <img src="{{ img | image_url: width: 600 }}" alt="{{ img.alt | default: p.title | escape }}" loading="lazy">
                     {%- endif -%}
-                  </a>
-                  <div class="pb__item-meta">
-                    <a class="pb__item-title" href="{{ pr.url }}">{{ pr.title }}</a>
-                    {%- if s.show_individual_prices and v != blank -%}
-                      <div class="pb__item-price">
-                        <span class="pb__price">{{ v.price | money }}</span>
-                        {%- if v.compare_at_price != blank and v.compare_at_price > v.price -%}
-                          <s class="pb__compare">{{ v.compare_at_price | money }}</s>
+                  </span>
+                </a>
+
+                <div class="qtm-item-content">
+                  <div class="qtm-item-top">
+                    <div class="qtm-item-titles">
+                      <h3 class="qtm-item-title">{{ block.settings.title | default: p.title }}</h3>
+                      <p class="qtm-item-meta">
+                        {%- if block.settings.meta_text != blank -%}
+                          {{ block.settings.meta_text }}
+                        {%- else -%}
+                          {%- if s.show_vendor and p.vendor != blank -%}{{ p.vendor }}{%- endif -%}
+                          {%- if s.show_sku and v.sku != blank -%}
+                            {%- if s.show_vendor and p.vendor != blank -%} · {%- endif -%}
+                            SKU: {{ v.sku }}
+                          {%- endif -%}
                         {%- endif -%}
+                      </p>
+                    </div>
+                    {%- if badge != blank -%}
+                      <span class="qtm-badge">{{ badge }}</span>
+                    {%- endif -%}
+                  </div>
+
+                  <div class="qtm-price-row">
+                    <span class="qtm-price" data-price-display>
+                      {{ price | money }}
+                      {%- if currency_code_enabled -%} {{ shop.currency }}{%- endif -%}
+                    </span>
+                    {%- if compare != blank and compare > price -%}
+                      <span class="qtm-compare" data-compare-display>
+                        {{ compare | money }}
+                        {%- if currency_code_enabled -%} {{ shop.currency }}{%- endif -%}
+                      </span>
+                    {%- endif -%}
+                  </div>
+
+                  <div class="qtm-controls">
+                    <label class="qtm-toggle">
+                      <input type="checkbox" class="qtm-include" {% if optional == false %}checked{% endif %} {% if optional == false %}disabled{% endif %}>
+                      <span>
+                        {%- if optional -%}
+                          {{ s.optional_label }}
+                        {%- else -%}
+                          {{ s.included_label }}
+                        {%- endif -%}
+                      </span>
+                    </label>
+
+                    {%- if s.allow_item_qty -%}
+                      <div class="qtm-qty">
+                        <label for="QtmQty-{{ id }}-b-{{ forloop.index0 }}">{{ s.qty_label }}</label>
+                        <input id="QtmQty-{{ id }}-b-{{ forloop.index0 }}" class="qtm-item-qty" type="number" min="1" value="{{ qty }}">
                       </div>
                     {%- endif -%}
+
+                    {%- if s.show_view_link -%}
+                      <a class="qtm-view" href="{{ p.url }}" style="text-decoration:none;color:{{ s.view_link_color }};font-size:{{ s.view_link_size }}px;font-weight:{{ s.view_link_weight }};">
+                        {{ s.view_link_text }}
+                      </a>
+                    {%- endif -%}
                   </div>
-                </li>
-              {%- endfor -%}
-            </ul>
 
-            <div class="pb__summary">
-              {%- if s.show_bundle_total -%}
-                <div class="pb__total">
-                  <span class="pb__total-label">Total</span>
-                  <span class="pb__total-value">{{ total_price | money }}</span>
+                  {%- if block.settings.note != blank and s.show_item_note -%}
+                    <div class="qtm-item-meta" style="margin-top:{{ s.note_mt }}px;color:{{ s.note_color }};font-size:{{ s.note_size }}px;">
+                      {{ block.settings.note }}
+                    </div>
+                  {%- endif -%}
+
+                  {%- unless is_available -%}
+                    <div class="qtm-item-meta" style="margin-top:{{ s.oos_mt }}px;color:{{ s.oos_color }};font-size:{{ s.oos_size }}px;font-weight:{{ s.oos_weight }};">
+                      {{ s.oos_text }}
+                    </div>
+                  {%- endunless -%}
                 </div>
-              {%- endif -%}
+              </article>
 
-              {%- if s.show_savings and savings_amount > 0 -%}
-                <div class="pb__savings">
-                  <span class="pb__savings-label">{{ s.savings_label | escape }}</span>
-                  <span class="pb__savings-value">-{{ savings_amount | money }}</span>
-                </div>
-              {%- endif -%}
-            </div>
+              {%- assign items_rendered = items_rendered | plus: 1 -%}
+            {%- endfor -%}
+          {%- endif -%}
 
-            <div class="pb__cta">
-              <button
-                type="button"
-                class="pb__add button"
-                data-pb-add
-                data-items="{{ data_items | escape }}"
-                aria-busy="false"
-                {% if disabled %}disabled{% endif %}
+          {%- comment -%}
+            C) COLLECTION + RULES
+            - We pull products from selected collection.
+            - Apply simple inclusion rule:
+              - require tag contains s.rule_tag (optional)
+              - exclude tag contains s.exclude_tag (optional)
+              - require vendor equals s.rule_vendor (optional)
+              - require product type equals s.rule_type (optional)
+            - For each product, pick first available variant.
+          {%- endcomment -%}
+          {%- if allow_collection and collection_bundle != blank -%}
+            {%- if merge_mode == 'replace' and allow_meta == false and allow_blocks == false -%}
+              {%- assign items_rendered = 0 -%}
+            {%- endif -%}
+
+            {%- liquid
+              assign rule_tag = s.rule_tag
+              assign exclude_tag = s.exclude_tag
+              assign rule_vendor = s.rule_vendor
+              assign rule_type = s.rule_type
+
+              assign limit_products = s.collection_limit | default: 12
+            -%}
+
+            {%- for p in collection_bundle.products limit: limit_products -%}
+              {%- if items_rendered >= max_items -%}{% break %}{%- endif -%}
+
+              {%- liquid
+                assign ok = true
+
+                if rule_vendor != blank and p.vendor != rule_vendor
+                  assign ok = false
+                endif
+                if rule_type != blank and p.type != rule_type
+                  assign ok = false
+                endif
+
+                if rule_tag != blank
+                  unless p.tags contains rule_tag
+                    assign ok = false
+                  endunless
+                endif
+
+                if exclude_tag != blank
+                  if p.tags contains exclude_tag
+                    assign ok = false
+                  endif
+                endif
+
+                if ok == false
+                  continue
+                endif
+
+                assign v = p.selected_or_first_available_variant
+                if v == blank
+                  assign v = p.variants.first
+                endif
+                if v == blank
+                  continue
+                endif
+
+                assign qty = s.collection_item_qty | default: 1
+                if qty < 1
+                  assign qty = 1
+                endif
+
+                assign optional = s.collection_items_optional
+
+                assign is_available = v.available
+                assign price = v.price
+                assign compare = v.compare_at_price
+                assign img = p.featured_image
+              -%}
+
+              <article class="qtm-item"
+                data-source="collection"
+                data-variant-id="{{ v.id }}"
+                data-qty="{{ qty }}"
+                data-optional="{{ optional }}"
+                data-available="{{ is_available }}"
+                data-price="{{ price }}"
+                data-compare="{{ compare }}"
               >
-                {{ s.button_label | escape }}
-              </button>
-              <div class="pb__error" role="alert" hidden></div>
+                <a class="qtm-item-media" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
+                  <span class="qtm-img">
+                    {%- if img != blank -%}
+                      <img src="{{ img | image_url: width: 600 }}" alt="{{ img.alt | default: p.title | escape }}" loading="lazy">
+                    {%- endif -%}
+                  </span>
+                </a>
+
+                <div class="qtm-item-content">
+                  <div class="qtm-item-top">
+                    <div class="qtm-item-titles">
+                      <h3 class="qtm-item-title">{{ p.title }}</h3>
+                      <p class="qtm-item-meta">
+                        {%- if s.show_vendor and p.vendor != blank -%}{{ p.vendor }}{%- endif -%}
+                        {%- if s.show_sku and v.sku != blank -%}
+                          {%- if s.show_vendor and p.vendor != blank -%} · {%- endif -%}
+                          SKU: {{ v.sku }}
+                        {%- endif -%}
+                      </p>
+                    </div>
+                    {%- if s.collection_badge != blank -%}
+                      <span class="qtm-badge">{{ s.collection_badge }}</span>
+                    {%- endif -%}
+                  </div>
+
+                  <div class="qtm-price-row">
+                    <span class="qtm-price" data-price-display>
+                      {{ price | money }}
+                      {%- if currency_code_enabled -%} {{ shop.currency }}{%- endif -%}
+                    </span>
+                    {%- if compare != blank and compare > price -%}
+                      <span class="qtm-compare" data-compare-display>
+                        {{ compare | money }}
+                        {%- if currency_code_enabled -%} {{ shop.currency }}{%- endif -%}
+                      </span>
+                    {%- endif -%}
+                  </div>
+
+                  <div class="qtm-controls">
+                    <label class="qtm-toggle">
+                      <input type="checkbox" class="qtm-include" {% if optional == false %}checked{% endif %} {% if optional == false %}disabled{% endif %}>
+                      <span>
+                        {%- if optional -%}
+                          {{ s.optional_label }}
+                        {%- else -%}
+                          {{ s.included_label }}
+                        {%- endif -%}
+                      </span>
+                    </label>
+
+                    {%- if s.allow_item_qty -%}
+                      <div class="qtm-qty">
+                        <label for="QtmQty-{{ id }}-c-{{ forloop.index0 }}">{{ s.qty_label }}</label>
+                        <input id="QtmQty-{{ id }}-c-{{ forloop.index0 }}" class="qtm-item-qty" type="number" min="1" value="{{ qty }}">
+                      </div>
+                    {%- endif -%}
+
+                    {%- if s.show_view_link -%}
+                      <a class="qtm-view" href="{{ p.url }}" style="text-decoration:none;color:{{ s.view_link_color }};font-size:{{ s.view_link_size }}px;font-weight:{{ s.view_link_weight }};">
+                        {{ s.view_link_text }}
+                      </a>
+                    {%- endif -%}
+                  </div>
+
+                  {%- unless is_available -%}
+                    <div class="qtm-item-meta" style="margin-top:{{ s.oos_mt }}px;color:{{ s.oos_color }};font-size:{{ s.oos_size }}px;font-weight:{{ s.oos_weight }};">
+                      {{ s.oos_text }}
+                    </div>
+                  {%- endunless -%}
+                </div>
+              </article>
+
+              {%- assign items_rendered = items_rendered | plus: 1 -%}
+                       {%- endfor -%}
+          {%- endif -%}
+
+          {%- if items_rendered == 0 -%}
+            <div class="qtm-item" style="grid-template-columns: 1fr;">
+              <div class="qtm-item-content">
+                <h3 class="qtm-item-title" style="margin:0;">{{ s.empty_title }}</h3>
+                <p class="qtm-item-meta" style="margin:6px 0 0 0;">{{ s.empty_text }}</p>
+              </div>
             </div>
-          </div>
-        </article>
-      {%- endif -%}
-    {%- endif -%}
-  {%- endif -%}
-{%- endcapture -%}
-
-{%- assign pb_cards_stripped = pb_cards | strip -%}
-
-{%- if pb_cards_stripped != blank or request.design_mode -%}
-  <section
-    class="product-bundles color-{{ s.color_scheme }}"
-    data-section-id="{{ section.id }}"
-    data-add-mode="{{ s.add_mode }}"
-    aria-label="{{ section_aria | strip }}"
-  >
-    <div class="pb__inner" style="--pb-pt: {{ s.padding_top }}px; --pb-pb: {{ s.padding_bottom }}px;">
-      {%- if s.title != blank or s.subheading != blank -%}
-        <header class="pb__header">
-          {%- if s.title != blank -%}
-            <h2 class="pb__title">{{ s.title | escape }}</h2>
           {%- endif -%}
-          {%- if s.subheading != blank -%}
-            <div class="pb__subheading rte">{{ s.subheading }}</div>
-          {%- endif -%}
-        </header>
-      {%- endif -%}
+        </div>
+      </div>
 
-      {%- if pb_cards_stripped != blank -%}
-        <div class="pb__grid pb__grid--{{ s.layout }}">
-          {{ pb_cards }}
-        </div>
-      {%- else -%}
-        <div class="pb__placeholder" style="padding:16px;border:1px dashed rgba(0,0,0,.35);border-radius:12px;">
-          <strong>Product bundles:</strong> No bundles resolved yet.
-          <div style="margin-top:6px;opacity:.85;">
-            Source is <code>{{ s.source }}</code>. In manual mode, ensure at least 2 products are picked in the bundle block.
+      <aside class="qtm-right">
+        <div class="qtm-summary {% if sticky_summary %}sticky{% endif %}" id="QtmBundleSummary-{{ id }}">
+          <h3 class="qtm-summary-title">{{ s.summary_title }}</h3>
+
+          <div class="qtm-summary-rows">
+            <div class="qtm-row">
+              <span class="lbl">{{ s.summary_items_label }}</span>
+              <span class="val" id="QtmBundleCount-{{ id }}">0</span>
+            </div>
+            <div class="qtm-row">
+              <span class="lbl">{{ s.summary_subtotal_label }}</span>
+              <span class="val" id="QtmBundleSubtotal-{{ id }}">{{ 0 | money }}</span>
+            </div>
+
+            {%- if s.show_compare_total -%}
+              <div class="qtm-row">
+                <span class="lbl">{{ s.summary_compare_label }}</span>
+                <span class="val" id="QtmBundleCompare-{{ id }}">{{ 0 | money }}</span>
+              </div>
+            {%- endif -%}
+
+            {%- if s.show_savings -%}
+              <div class="qtm-savings" id="QtmBundleSavings-{{ id }}" aria-live="polite">{{ s.savings_default_text }}</div>
+            {%- endif -%}
           </div>
+
+          <div class="qtm-divider"></div>
+
+          <button class="qtm-btn" id="QtmBundleAdd-{{ id }}" type="button">
+            {{ s.btn_text }}
+          </button>
+
+          <div class="qtm-msg ok" id="QtmMsgOk-{{ id }}" role="status" aria-live="polite"></div>
+          <div class="qtm-msg err" id="QtmMsgErr-{{ id }}" role="alert" aria-live="assertive"></div>
+
+          {%- if s.show_trust_row -%}
+            <div style="margin-top:{{ s.trust_mt }}px;display:grid;gap:{{ s.trust_gap }}px;">
+              {%- if s.trust_text_1 != blank -%}
+                <div style="color:{{ s.trust_color }};font-size:{{ s.trust_size }}px;font-weight:{{ s.trust_weight }};">{{ s.trust_text_1 }}</div>
+              {%- endif -%}
+              {%- if s.trust_text_2 != blank -%}
+                <div style="color:{{ s.trust_color }};font-size:{{ s.trust_size }}px;font-weight:{{ s.trust_weight }};">{{ s.trust_text_2 }}</div>
+              {%- endif -%}
+              {%- if s.trust_text_3 != blank -%}
+                <div style="color:{{ s.trust_color }};font-size:{{ s.trust_size }}px;font-weight:{{ s.trust_weight }};">{{ s.trust_text_3 }}</div>
+              {%- endif -%}
+            </div>
+          {%- endif -%}
         </div>
-      {%- endif -%}
+      </aside>
     </div>
-  </section>
-{%- endif -%}
+  </div>
+
+  <script>
+    (function(){
+      const root = document.getElementById('QtmBundles-{{ id }}');
+      if(!root) return;
+
+      const itemsWrap = root.querySelector('#QtmBundleItems-{{ id }}');
+      const btn = root.querySelector('#QtmBundleAdd-{{ id }}');
+      const msgOk = root.querySelector('#QtmMsgOk-{{ id }}');
+      const msgErr = root.querySelector('#QtmMsgErr-{{ id }}');
+
+      const elCount = root.querySelector('#QtmBundleCount-{{ id }}');
+      const elSubtotal = root.querySelector('#QtmBundleSubtotal-{{ id }}');
+      const elCompare = root.querySelector('#QtmBundleCompare-{{ id }}');
+      const elSavings = root.querySelector('#QtmBundleSavings-{{ id }}');
+
+      const moneyFormat = {{ shop.money_format | json }};
+      const showCompareTotal = {{ s.show_compare_total | json }};
+      const showSavings = {{ s.show_savings | json }};
+
+      const oosDisable = {{ s.disable_unavailable_items | json }};
+      const allowQty = {{ s.allow_item_qty | json }};
+
+      function formatMoney(cents){
+        // Lightweight money formatter for Shopify string templates
+        // Supports common {{amount}} variants in shop.money_format
+        const value = (cents / 100).toFixed(2);
+        const amount = value.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        return moneyFormat
+          .replace("{{amount}}", amount)
+          .replace("{{amount_no_decimals}}", Math.round(cents/100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","))
+          .replace("{{amount_with_comma_separator}}", value.replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, "."))
+          .replace("{{amount_no_decimals_with_comma_separator}}", Math.round(cents/100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."));
+      }
+
+      function showMessage(kind, text){
+        if(msgOk) msgOk.style.display = 'none';
+        if(msgErr) msgErr.style.display = 'none';
+
+        const target = kind === 'ok' ? msgOk : msgErr;
+        if(!target) return;
+        target.textContent = text;
+        target.style.display = 'block';
+      }
+
+      function getItems(){
+        const cards = itemsWrap ? Array.from(itemsWrap.querySelectorAll('.qtm-item[data-variant-id]')) : [];
+        const items = [];
+
+        cards.forEach(card => {
+          const include = card.querySelector('.qtm-include');
+          const optional = card.getAttribute('data-optional') === 'true';
+          const available = card.getAttribute('data-available') === 'true';
+          const variantId = parseInt(card.getAttribute('data-variant-id'), 10);
+          const baseQty = parseInt(card.getAttribute('data-qty') || "1", 10) || 1;
+
+          let qty = baseQty;
+          if(allowQty){
+            const qtyInput = card.querySelector('.qtm-item-qty');
+            if(qtyInput){
+              const v = parseInt(qtyInput.value || "1", 10);
+              qty = (isNaN(v) || v < 1) ? 1 : v;
+            }
+          }
+
+          // Included logic:
+          // - If optional=false: always included (checkbox disabled)
+          // - If optional=true: included when checkbox checked
+          let isIncluded = true;
+          if(optional){
+            isIncluded = include ? !!include.checked : false;
+          }
+
+          // If unavailable and setting says disable, treat as not included
+          if(oosDisable && !available){
+            isIncluded = false;
+          }
+
+          const price = parseInt(card.getAttribute('data-price') || "0", 10) || 0;
+          const compare = parseInt(card.getAttribute('data-compare') || "0", 10) || 0;
+
+          items.push({
+            card,
+            variantId,
+            qty,
+            included: isIncluded,
+            available,
+            price,
+            compare
+          });
+        });
+
+        return items;
+      }
+
+      function updateSummary(){
+        const items = getItems();
+        let count = 0;
+        let subtotal = 0;
+        let compareTotal = 0;
+
+        items.forEach(it => {
+          if(!it.included) return;
+          count += it.qty;
+          subtotal += (it.price * it.qty);
+          if(it.compare && it.compare > it.price){
+            compareTotal += (it.compare * it.qty);
+          }else{
+            compareTotal += (it.price * it.qty);
+          }
+        });
+
+        if(elCount) elCount.textContent = String(count);
+        if(elSubtotal) elSubtotal.textContent = formatMoney(subtotal);
+        if(showCompareTotal && elCompare) elCompare.textContent = formatMoney(compareTotal);
+
+        if(showSavings && elSavings){
+          const savings = Math.max(0, compareTotal - subtotal);
+          if(savings > 0){
+            elSavings.textContent = {{ s.savings_prefix | json }} + formatMoney(savings);
+          }else{
+            elSavings.textContent = {{ s.savings_default_text | json }};
+          }
+        }
+
+        if(btn){
+          btn.disabled = (count === 0);
+        }
+      }
+
+      async function addToCart(items){
+        const lines = items
+          .filter(it => it.included)
+          .map(it => ({ id: it.variantId, quantity: it.qty }));
+
+        if(!lines.length) throw new Error({{ s.err_no_items | json }});
+
+        const res = await fetch('/cart/add.js', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ items: lines })
+        });
+
+        if(!res.ok){
+          let txt = '';
+          try { txt = await res.text(); } catch(e){}
+          throw new Error(txt || 'Cart add failed');
+        }
+
+        return await res.json();
+      }
+
+      function wire(){
+        if(!itemsWrap) return;
+
+        // Disable optional checkbox for required items is done in HTML.
+        // Additionally disable unavailables if setting enabled.
+        if(oosDisable){
+          const cards = Array.from(itemsWrap.querySelectorAll('.qtm-item[data-variant-id]'));
+          cards.forEach(card => {
+            const available = card.getAttribute('data-available') === 'true';
+            if(!available){
+              const cb = card.querySelector('.qtm-include');
+              if(cb){
+                cb.checked = false;
+                cb.disabled = true;
+              }
+              card.style.opacity = '0.65';
+            }
+          });
+        }
+
+        itemsWrap.addEventListener('change', (e) => {
+          const t = e.target;
+          if(!t) return;
+          if(t.classList.contains('qtm-include') || t.classList.contains('qtm-item-qty')){
+            updateSummary();
+          }
+        });
+
+        if(btn){
+          btn.addEventListener('click', async () => {
+            try{
+              showMessage('ok', '');
+              showMessage('err', '');
+              btn.disabled = true;
+
+              const items = getItems();
+              await addToCart(items);
+
+              showMessage('ok', {{ s.msg_added | json }});
+
+              if({{ s.redirect_to_cart | json }}){
+                window.location.href = '/cart';
+                return;
+              }
+              // Otherwise refresh summary (in case)
+              updateSummary();
+            }catch(err){
+              showMessage('err', err && err.message ? err.message : {{ s.msg_error | json }});
+              updateSummary();
+            }
+          });
+        }
+
+        updateSummary();
+      }
+
+      wire();
+    })();
+  </script>
+</section>
 
 {% schema %}
 {
-  "name": "Product bundles",
-  "tag": "section",
-  "class": "section product-bundles-section",
+  "name": "Product Bundles",
   "settings": [
-    { "type": "header", "content": "Content" },
-    { "type": "text", "id": "title", "label": "Title", "default": "Frequently bought together" },
-    { "type": "richtext", "id": "subheading", "label": "Subheading" },
-
-    { "type": "header", "content": "Source" },
+    {
+      "type": "header",
+      "content": "Source"
+    },
     {
       "type": "select",
-      "id": "source",
-      "label": "Source",
-      "default": "manual",
+      "id": "source_mode",
+      "label": "Bundle source mode",
+      "default": "auto",
       "options": [
-        { "value": "metafield", "label": "Metafield" },
-        { "value": "manual", "label": "Manual" }
+        { "value": "auto", "label": "Auto (Metaobject + Blocks + Collection)" },
+        { "value": "metaobject", "label": "Metaobject only" },
+        { "value": "blocks", "label": "Blocks only" },
+        { "value": "collection", "label": "Collection + rules only" }
       ]
     },
-    { "type": "text", "id": "metafield_namespace", "label": "Metafield namespace", "default": "custom" },
-    { "type": "text", "id": "metafield_key", "label": "Metafield key", "default": "bundles" },
     {
       "type": "select",
-      "id": "metafield_type",
-      "label": "Metafield type",
-      "default": "product_list",
+      "id": "merge_mode",
+      "label": "When multiple sources exist",
+      "default": "append",
       "options": [
-        { "value": "product_list", "label": "Product list" },
-        { "value": "metaobject_list", "label": "Metaobject list" }
+        { "value": "append", "label": "Append (combine sources)" },
+        { "value": "replace", "label": "Replace Priority Order" }
       ]
     },
+    {
+      "type": "range",
+      "id": "max_items",
+      "label": "Max bundle items rendered",
+      "min": 1,
+      "max": 16,
+      "step": 1,
+      "default": 8
+    },
+    {
+      "type": "checkbox",
+      "id": "show_currency_code",
+      "label": "Show currency code",
+      "default": false
+    },
 
-    { "type": "header", "content": "Layout" },
+    {
+      "type": "header",
+      "content": "Metaobject bundle (A)"
+    },
+    {
+    "type": "metaobject",
+    "id": "bundle_metaobject",
+    "label": "Bundle metaobject",
+    "metaobject_type": "bundle"
+    },
+
+    {
+      "type": "header",
+      "content": "Collection bundle (C)"
+    },
+    {
+      "type": "collection",
+      "id": "bundle_collection",
+      "label": "Collection source"
+    },
+    {
+      "type": "range",
+      "id": "collection_limit",
+      "label": "Max collection products to scan",
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "default": 12
+    },
+    {
+      "type": "text",
+      "id": "rule_tag",
+      "label": "Require tag (optional)",
+    },
+    {
+      "type": "text",
+      "id": "exclude_tag",
+      "label": "Exclude tag (optional)",
+    },
+    {
+      "type": "text",
+      "id": "rule_vendor",
+      "label": "Require vendor (optional)",
+    },
+    {
+      "type": "text",
+      "id": "rule_type",
+      "label": "Require product type",
+    },
+    {
+      "type": "number",
+      "id": "collection_item_qty",
+      "label": "Default quantity per collection item",
+      "default": 1
+    },
+    {
+      "type": "checkbox",
+      "id": "collection_items_optional",
+      "label": "Collection items are optional",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "collection_badge",
+      "label": "Collection badge text (optional)",
+    },
+
+    {
+      "type": "header",
+      "content": "Header content"
+    },
+    {
+      "type": "text",
+      "id": "kicker",
+      "label": "Kicker",
+      "default": "Bundle & Save"
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Recommended Bundle"
+    },
+    {
+      "type": "text",
+      "id": "subheading",
+      "label": "Subheading",
+      "default": "Add everything you need in one click"
+    },
+    {
+      "type": "richtext",
+      "id": "description",
+      "label": "Description",
+      "default": "<p>Choose your bundle items below. Optional add-ons can be toggled on or off.</p>"
+    },
+
+    {
+      "type": "header",
+      "content": "Behavior"
+    },
+    {
+      "type": "checkbox",
+      "id": "allow_item_qty",
+      "label": "Allow quantity per item",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "disable_unavailable_items",
+      "label": "Disable unavailable items",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "redirect_to_cart",
+      "label": "Redirect to cart after add",
+      "default": false
+    },
+
+    {
+      "type": "header",
+      "content": "Labels & microcopy"
+    },
+    {
+      "type": "text",
+      "id": "included_label",
+      "label": "Included label",
+      "default": "Included"
+    },
+    {
+      "type": "text",
+      "id": "optional_label",
+      "label": "Optional label",
+      "default": "Add to bundle"
+    },
+    {
+      "type": "text",
+      "id": "qty_label",
+      "label": "Quantity label",
+      "default": "Qty"
+    },
+    {
+      "type": "text",
+      "id": "btn_text",
+      "label": "Button text",
+      "default": "Add bundle to cart"
+    },
+    {
+      "type": "text",
+      "id": "msg_added",
+      "label": "Success message",
+      "default": "Bundle added to cart."
+    },
+    {
+      "type": "text",
+      "id": "msg_error",
+      "label": "Error fallback message",
+      "default": "Sorry — something went wrong adding your bundle."
+    },
+    {
+      "type": "text",
+      "id": "err_no_items",
+      "label": "No items selected error",
+      "default": "Please select at least one bundle item."
+    },
+    {
+      "type": "text",
+      "id": "oos_text",
+      "label": "Out of stock text",
+      "default": "Unavailable"
+    },
+
+    {
+      "type": "header",
+      "content": "Summary panel"
+    },
+    {
+      "type": "text",
+      "id": "summary_title",
+      "label": "Summary title",
+      "default": "Bundle Summary"
+    },
+    {
+      "type": "text",
+      "id": "summary_items_label",
+      "label": "Items label",
+      "default": "Items"
+    },
+    {
+      "type": "text",
+      "id": "summary_subtotal_label",
+      "label": "Subtotal label",
+      "default": "Subtotal"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_compare_total",
+      "label": "Show compare total",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "summary_compare_label",
+      "label": "Compare label",
+      "default": "Compare"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_savings",
+      "label": "Show savings",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "savings_prefix",
+      "label": "Savings prefix",
+      "default": "You save "
+    },
+    {
+      "type": "text",
+      "id": "savings_default_text",
+      "label": "Savings default text",
+      "default": "Bundle savings will appear here."
+    },
+
+    {
+      "type": "checkbox",
+      "id": "sticky_summary",
+      "label": "Sticky summary (desktop)",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "sticky_top",
+      "label": "Sticky offset top (px)",
+      "min": 0,
+      "max": 120,
+      "step": 4,
+      "default": 24
+    },
+
+    {
+      "type": "header",
+      "content": "Trust row"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_trust_row",
+      "label": "Show trust row",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "trust_text_1",
+      "label": "Trust line 1",
+      "default": "Fast shipping"
+    },
+    {
+      "type": "text",
+      "id": "trust_text_2",
+      "label": "Trust line 2",
+      "default": "Easy returns"
+    },
+    {
+      "type": "text",
+      "id": "trust_text_3",
+      "label": "Trust line 3",
+      "default": "Secure checkout"
+    },
+    {
+      "type": "range",
+      "id": "trust_mt",
+      "label": "Trust margin top",
+      "min": 0,
+      "max": 40,
+      "step": 2,
+      "default": 14
+    },
+    {
+      "type": "range",
+      "id": "trust_gap",
+      "label": "Trust gap",
+      "min": 0,
+      "max": 20,
+      "step": 2,
+      "default": 6
+    },
+    {
+      "type": "color",
+      "id": "trust_color",
+      "label": "Trust color",
+      "default": "#111111"
+    },
+    {
+      "type": "range",
+      "id": "trust_size",
+      "label": "Trust font size",
+      "min": 10,
+      "max": 18,
+      "step": 1,
+      "default": 13
+    },
+    {
+      "type": "range",
+      "id": "trust_weight",
+      "label": "Trust font weight",
+      "min": 300,
+      "max": 800,
+      "step": 100,
+      "default": 500
+    },
+
+    {
+      "type": "header",
+      "content": "Empty state"
+    },
+    {
+      "type": "text",
+      "id": "empty_title",
+      "label": "Empty title",
+      "default": "No bundle items configured"
+    },
+    {
+      "type": "text",
+      "id": "empty_text",
+      "label": "Empty text",
+      "default": "Add bundle items via metaobject, blocks, or collection mode."
+    },
+
+    {
+      "type": "header",
+      "content": "Layout"
+    },
     {
       "type": "select",
-      "id": "layout",
-      "label": "Layout",
-      "default": "single_column",
+      "id": "layout_mode",
+      "label": "Layout mode",
+      "default": "grid",
       "options": [
-        { "value": "single_column", "label": "Single column" },
-        { "value": "two_column", "label": "Two column" },
-        { "value": "carousel", "label": "Carousel" }
+        { "value": "grid", "label": "Grid (items + summary below on mobile)" },
+        { "value": "stack", "label": "Stack (single column)" },
+        { "value": "split", "label": "Split (items left, summary right)" }
       ]
     },
-    { "type": "range", "id": "max_bundles", "label": "Max bundles (metafield mode)", "min": 1, "max": 6, "step": 1, "default": 3 },
+    {
+      "type": "range",
+      "id": "grid_cols",
+      "label": "Grid columns (desktop)",
+      "min": 1,
+      "max": 4,
+      "step": 1,
+      "default": 2
+    },
+    {
+      "type": "range",
+      "id": "gap",
+      "label": "Gap",
+      "min": 8,
+      "max": 40,
+      "step": 2,
+      "default": 16
+    },
 
-    { "type": "checkbox", "id": "show_savings", "label": "Show savings", "default": true },
-    { "type": "text", "id": "savings_label", "label": "Savings label", "default": "Save when purchased together" },
-    { "type": "checkbox", "id": "show_individual_prices", "label": "Show individual prices", "default": true },
-    { "type": "checkbox", "id": "show_bundle_total", "label": "Show bundle total", "default": true },
+    {
+      "type": "header",
+      "content": "Container styling"
+    },
+    {
+      "type": "range",
+      "id": "container_max_width",
+      "label": "Max width (px)",
+      "min": 680,
+      "max": 1400,
+      "step": 10,
+      "default": 1200
+    },
+    {
+      "type": "range",
+      "id": "container_pad_y",
+      "label": "Padding Y",
+      "min": 0,
+      "max": 80,
+      "step": 2,
+      "default": 24
+    },
+    {
+      "type": "range",
+      "id": "container_pad_x",
+      "label": "Padding X",
+      "min": 0,
+      "max": 80,
+      "step": 2,
+      "default": 24
+    },
+    {
+      "type": "color",
+      "id": "container_bg",
+      "label": "Background",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "container_border_color",
+      "label": "Border color",
+      "default": "#e6e6e6"
+    },
+    {
+      "type": "range",
+      "id": "container_radius",
+      "label": "Border radius",
+      "min": 0,
+      "max": 40,
+      "step": 1,
+      "default": 16
+    },
+    {
+      "type": "text",
+      "id": "container_shadow",
+      "label": "Box shadow",
+      "default": "0 6px 20px rgba(0,0,0,.06)"
+    },
 
-    { "type": "header", "content": "Behavior / cart add" },
+    {
+      "type": "header",
+      "content": "Header styling"
+    },
     {
       "type": "select",
-      "id": "add_mode",
-      "label": "Add mode",
-      "default": "ajax",
+      "id": "header_align",
+      "label": "Header alignment",
+      "default": "left",
       "options": [
-        { "value": "ajax", "label": "AJAX" },
-        { "value": "redirect_to_cart", "label": "Redirect to cart" }
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
       ]
     },
-    { "type": "text", "id": "button_label", "label": "Button label", "default": "Add bundle" },
-    { "type": "checkbox", "id": "disable_if_unavailable", "label": "Disable if any item unavailable", "default": true },
-    { "type": "checkbox", "id": "respect_quantity", "label": "Respect quantity (v1: each item = 1)", "default": false },
+    {
+      "type": "range",
+      "id": "header_mb",
+      "label": "Header margin bottom",
+      "min": 0,
+      "max": 60,
+      "step": 2,
+      "default": 16
+    },
 
-    { "type": "header", "content": "Styling" },
+    {
+      "type": "header",
+      "content": "Kicker styling"
+    },
+    { "type": "color", "id": "kicker_color", "label": "Kicker color", "default": "#111111" },
+    { "type": "range", "id": "kicker_size", "label": "Kicker size", "min": 10, "max": 22, "step": 1, "default": 12 },
+    { "type": "range", "id": "kicker_weight", "label": "Kicker weight", "min": 300, "max": 900, "step": 100, "default": 600 },
+    { "type": "range", "id": "kicker_letter_spacing", "label": "Kicker letter spacing (em)", "min": 0, "max": 20, "step": 1, "default": 6 },
+    { "type": "range", "id": "kicker_line_height", "label": "Kicker line height", "min": 1, "max": 2, "step": 0.1, "default": 1.2 },
+    { "type": "range", "id": "kicker_mb", "label": "Kicker margin bottom", "min": 0, "max": 40, "step": 1, "default": 8 },
+
+    {
+      "type": "header",
+      "content": "Heading styling"
+    },
+    { "type": "color", "id": "heading_color", "label": "Heading color", "default": "#111111" },
+    { "type": "range", "id": "heading_size", "label": "Heading size", "min": 18, "max": 64, "step": 1, "default": 32 },
+    { "type": "range", "id": "heading_weight", "label": "Heading weight", "min": 300, "max": 900, "step": 100, "default": 700 },
+    { "type": "range", "id": "heading_letter_spacing", "label": "Heading letter spacing (em)", "min": 0, "max": 10, "step": 1, "default": 0 },
+    { "type": "range", "id": "heading_line_height", "label": "Heading line height", "min": 1, "max": 3, "step": 1, "default": 1 },
+    { "type": "range", "id": "heading_mb", "label": "Heading margin bottom", "min": 0, "max": 50, "step": 1, "default": 8 },
+
+    {
+      "type": "header",
+      "content": "Subheading styling"
+    },
+    { "type": "color", "id": "subheading_color", "label": "Subheading color", "default": "#333333" },
+    { "type": "range", "id": "subheading_size", "label": "Subheading size", "min": 12, "max": 26, "step": 1, "default": 16 },
+    { "type": "range", "id": "subheading_weight", "label": "Subheading weight", "min": 300, "max": 900, "step": 100, "default": 500 },
+    { "type": "range", "id": "subheading_letter_spacing", "label": "Subheading letter spacing (em)", "min": 0, "max": 10, "step": 1, "default": 0 },
+    { "type": "range", "id": "subheading_line_height", "label": "Subheading line height", "min": 1, "max": 2, "step": 0.1, "default": 1.4 },
+    { "type": "range", "id": "subheading_mb", "label": "Subheading margin bottom", "min": 0, "max": 50, "step": 1, "default": 10 },
+
+    {
+      "type": "header",
+      "content": "Description styling"
+    },
+    { "type": "color", "id": "description_color", "label": "Description color", "default": "#444444" },
+    { "type": "range", "id": "description_size", "label": "Description size", "min": 12, "max": 22, "step": 1, "default": 14 },
+    { "type": "range", "id": "description_weight", "label": "Description weight", "min": 300, "max": 900, "step": 100, "default": 400 },
+    { "type": "range", "id": "description_letter_spacing", "label": "Description letter spacing (em)", "min": 0, "max": 10, "step": 1, "default": 0 },
+    { "type": "range", "id": "description_line_height", "label": "Description line height", "min": 1, "max": 2.2, "step": 0.1, "default": 1.6 },
+
+    {
+      "type": "header",
+      "content": "Item card styling"
+    },
+    { "type": "color", "id": "item_bg", "label": "Item background", "default": "#ffffff" },
+    { "type": "color", "id": "item_border_color", "label": "Item border color", "default": "#e6e6e6" },
+    { "type": "range", "id": "item_radius", "label": "Item radius", "min": 0, "max": 30, "step": 1, "default": 14 },
+    { "type": "text", "id": "item_shadow", "label": "Item shadow", "default": "0 4px 14px rgba(0,0,0,.05)" },
+    { "type": "range", "id": "item_pad", "label": "Item padding", "min": 0, "max": 40, "step": 1, "default": 14 },
+    { "type": "range", "id": "item_inner_gap", "label": "Item inner gap", "min": 6, "max": 26, "step": 1, "default": 14 },
+    { "type": "range", "id": "item_image_col", "label": "Image column width", "min": 70, "max": 180, "step": 2, "default": 110 },
+    { "type": "range", "id": "item_image_col_mobile", "label": "Image column width (mobile)", "min": 56, "max": 140, "step": 2, "default": 90 },
+
+    {
+      "type": "header",
+      "content": "Image styling"
+    },
     {
       "type": "select",
-      "id": "color_scheme",
-      "label": "Color scheme",
-      "default": "background-1",
+      "id": "image_ratio",
+      "label": "Image ratio",
+      "default": "square",
       "options": [
-        { "value": "background-1", "label": "Background 1" },
-        { "value": "background-2", "label": "Background 2" },
-        { "value": "inverse", "label": "Inverse" }
+        { "value": "square", "label": "Square" },
+        { "value": "portrait", "label": "Portrait" },
+        { "value": "landscape", "label": "Landscape" }
       ]
     },
-    { "type": "range", "id": "card_radius", "label": "Card radius", "min": 0, "max": 28, "step": 2, "default": 16 },
-    { "type": "checkbox", "id": "card_border", "label": "Card border", "default": true },
-    { "type": "range", "id": "padding_top", "label": "Padding top", "min": 0, "max": 96, "step": 4, "default": 24 },
-    { "type": "range", "id": "padding_bottom", "label": "Padding bottom", "min": 0, "max": 96, "step": 4, "default": 24 }
+    {
+      "type": "select",
+      "id": "image_fit",
+      "label": "Image fit",
+      "default": "cover",
+      "options": [
+        { "value": "cover", "label": "Cover" },
+        { "value": "contain", "label": "Contain" }
+      ]
+    },
+    { "type": "color", "id": "image_bg", "label": "Image background", "default": "#f6f6f6" },
+    { "type": "color", "id": "image_border_color", "label": "Image border color", "default": "#eeeeee" },
+    { "type": "range", "id": "image_radius", "label": "Image radius", "min": 0, "max": 24, "step": 1, "default": 12 },
+
+    {
+      "type": "header",
+      "content": "Typography: item"
+    },
+    { "type": "color", "id": "title_color", "label": "Title color", "default": "#111111" },
+    { "type": "range", "id": "item_title_size", "label": "Title size", "min": 12, "max": 26, "step": 1, "default": 16 },
+    { "type": "range", "id": "item_title_weight", "label": "Title weight", "min": 300, "max": 900, "step": 100, "default": 700 },
+    { "type": "range", "id": "item_title_line_height", "label": "Title line height", "min": 1, "max": 3, "step": 1, "default": 1 },
+    { "type": "range", "id": "item_title_mb", "label": "Title margin bottom", "min": 0, "max": 24, "step": 1, "default": 6 },
+
+    { "type": "color", "id": "meta_color", "label": "Meta color", "default": "#444444" },
+    { "type": "range", "id": "item_meta_size", "label": "Meta size", "min": 10, "max": 18, "step": 1, "default": 12 },
+    { "type": "range", "id": "item_meta_weight", "label": "Meta weight", "min": 300, "max": 900, "step": 100, "default": 500 },
+    { "type": "range", "id": "item_meta_line_height", "label": "Meta line height", "min": 1, "max": 3, "step": 1, "default": 1 },
+    { "type": "range", "id": "item_meta_mb", "label": "Meta margin bottom", "min": 0, "max": 24, "step": 1, "default": 0 },
+
+    {
+      "type": "header",
+      "content": "Typography: price"
+    },
+    { "type": "color", "id": "price_color", "label": "Price color", "default": "#111111" },
+    { "type": "range", "id": "price_size", "label": "Price size", "min": 12, "max": 28, "step": 1, "default": 16 },
+    { "type": "range", "id": "price_weight", "label": "Price weight", "min": 300, "max": 900, "step": 100, "default": 700 },
+
+    { "type": "color", "id": "compare_color", "label": "Compare color", "default": "#666666" },
+    { "type": "range", "id": "compare_size", "label": "Compare size", "min": 10, "max": 22, "step": 1, "default": 13 },
+    { "type": "range", "id": "compare_weight", "label": "Compare weight", "min": 300, "max": 900, "step": 100, "default": 600 },
+    {
+    "type": "range",
+    "id": "compare_opacity",
+    "label": "Compare opacity",
+    "min": 0.2,
+    "max": 1,
+    "step": 0.1,
+    "default": 0.6
+    },
+
+    {
+      "type": "header",
+      "content": "Badge styling"
+    },
+    { "type": "color", "id": "badge_bg", "label": "Badge background", "default": "#111111" },
+    { "type": "color", "id": "badge_text", "label": "Badge text", "default": "#ffffff" },
+    { "type": "range", "id": "badge_radius", "label": "Badge radius", "min": 0, "max": 22, "step": 1, "default": 15 },
+    { "type": "range", "id": "badge_pad_y", "label": "Badge padding Y", "min": 2, "max": 14, "step": 1, "default": 6 },
+    { "type": "range", "id": "badge_pad_x", "label": "Badge padding X", "min": 6, "max": 22, "step": 1, "default": 10 },
+    { "type": "range", "id": "badge_size", "label": "Badge font size", "min": 10, "max": 18, "step": 1, "default": 12 },
+    { "type": "range", "id": "badge_weight", "label": "Badge font weight", "min": 300, "max": 900, "step": 100, "default": 700 },
+
+    {
+      "type": "header",
+      "content": "Toggle styling"
+    },
+    { "type": "color", "id": "toggle_accent", "label": "Toggle accent", "default": "#111111" },
+    { "type": "color", "id": "toggle_text_color", "label": "Toggle text color", "default": "#111111" },
+    { "type": "range", "id": "toggle_text_size", "label": "Toggle text size", "min": 10, "max": 18, "step": 1, "default": 12 },
+    { "type": "range", "id": "toggle_text_weight", "label": "Toggle text weight", "min": 300, "max": 900, "step": 100, "default": 600 },
+
+    {
+      "type": "header",
+      "content": "Quantity styling"
+    },
+    { "type": "color", "id": "qty_label_color", "label": "Qty label color", "default": "#111111" },
+    { "type": "range", "id": "qty_label_size", "label": "Qty label size", "min": 10, "max": 18, "step": 1, "default": 12 },
+    { "type": "range", "id": "qty_label_weight", "label": "Qty label weight", "min": 300, "max": 900, "step": 100, "default": 600 },
+    { "type": "range", "id": "qty_input_w", "label": "Qty input width", "min": 54, "max": 120, "step": 2, "default": 68 },
+    { "type": "range", "id": "qty_input_pad_y", "label": "Qty input padding Y", "min": 4, "max": 16, "step": 1, "default": 8 },
+    { "type": "range", "id": "qty_input_pad_x", "label": "Qty input padding X", "min": 6, "max": 20, "step": 1, "default": 10 },
+    { "type": "color", "id": "qty_border", "label": "Qty border", "default": "#dddddd" },
+    { "type": "color", "id": "qty_bg", "label": "Qty background", "default": "#ffffff" },
+    { "type": "color", "id": "qty_text", "label": "Qty text", "default": "#111111" },
+    { "type": "range", "id": "qty_text_size", "label": "Qty text size", "min": 10, "max": 18, "step": 1, "default": 13 },
+    { "type": "range", "id": "qty_radius", "label": "Qty radius", "min": 0, "max": 18, "step": 1, "default": 10 },
+
+    {
+      "type": "header",
+      "content": "Controls spacing"
+    },
+    { "type": "range", "id": "controls_gap", "label": "Controls gap", "min": 6, "max": 30, "step": 1, "default": 12 },
+    { "type": "range", "id": "controls_mt", "label": "Controls margin top", "min": 0, "max": 30, "step": 1, "default": 12 },
+
+    {
+      "type": "header",
+      "content": "Item extras"
+    },
+    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": false },
+    { "type": "checkbox", "id": "show_sku", "label": "Show SKU", "default": false },
+    { "type": "checkbox", "id": "show_view_link", "label": "Show view link", "default": true },
+    { "type": "text", "id": "view_link_text", "label": "View link text", "default": "View" },
+    { "type": "color", "id": "view_link_color", "label": "View link color", "default": "#111111" },
+    { "type": "range", "id": "view_link_size", "label": "View link size", "min": 10, "max": 18, "step": 1, "default": 12 },
+    { "type": "range", "id": "view_link_weight", "label": "View link weight", "min": 300, "max": 900, "step": 100, "default": 700 },
+
+    { "type": "checkbox", "id": "show_item_note", "label": "Show item note", "default": true },
+    { "type": "range", "id": "note_mt", "label": "Note margin top", "min": 0, "max": 24, "step": 1, "default": 10 },
+    { "type": "color", "id": "note_color", "label": "Note color", "default": "#444444" },
+    { "type": "range", "id": "note_size", "label": "Note size", "min": 10, "max": 18, "step": 1, "default": 12 },
+
+    { "type": "range", "id": "oos_mt", "label": "OOS margin top", "min": 0, "max": 24, "step": 1, "default": 10 },
+    { "type": "color", "id": "oos_color", "label": "OOS color", "default": "#B00020" },
+    { "type": "range", "id": "oos_size", "label": "OOS size", "min": 10, "max": 18, "step": 1, "default": 12 },
+    { "type": "range", "id": "oos_weight", "label": "OOS weight", "min": 300, "max": 900, "step": 100, "default": 700 },
+
+    {
+      "type": "header",
+      "content": "Summary styling"
+    },
+    { "type": "color", "id": "summary_bg", "label": "Summary background", "default": "#ffffff" },
+    { "type": "color", "id": "summary_border_color", "label": "Summary border", "default": "#e6e6e6" },
+    { "type": "range", "id": "summary_radius", "label": "Summary radius", "min": 0, "max": 30, "step": 1, "default": 16 },
+    { "type": "text", "id": "summary_shadow", "label": "Summary shadow", "default": "0 6px 20px rgba(0,0,0,.06)" },
+    { "type": "range", "id": "summary_pad", "label": "Summary padding", "min": 0, "max": 40, "step": 1, "default": 16 },
+
+    { "type": "color", "id": "summary_title_color", "label": "Summary title color", "default": "#111111" },
+    { "type": "range", "id": "summary_title_size", "label": "Summary title size", "min": 12, "max": 24, "step": 1, "default": 16 },
+    { "type": "range", "id": "summary_title_weight", "label": "Summary title weight", "min": 300, "max": 900, "step": 100, "default": 800 },
+    { "type": "range", "id": "summary_title_mb", "label": "Summary title margin bottom", "min": 0, "max": 30, "step": 1, "default": 10 },
+
+    { "type": "range", "id": "summary_rows_gap", "label": "Rows gap", "min": 4, "max": 20, "step": 1, "default": 8 },
+    { "type": "range", "id": "summary_rows_mb", "label": "Rows margin bottom", "min": 0, "max": 30, "step": 1, "default": 12 },
+
+    { "type": "color", "id": "summary_label_color", "label": "Label color", "default": "#444444" },
+    { "type": "range", "id": "summary_label_size", "label": "Label size", "min": 10, "max": 18, "step": 1, "default": 12 },
+    { "type": "range", "id": "summary_label_weight", "label": "Label weight", "min": 300, "max": 900, "step": 100, "default": 600 },
+
+    { "type": "color", "id": "summary_value_color", "label": "Value color", "default": "#111111" },
+    { "type": "range", "id": "summary_value_size", "label": "Value size", "min": 10, "max": 20, "step": 1, "default": 12 },
+    { "type": "range", "id": "summary_value_weight", "label": "Value weight", "min": 300, "max": 900, "step": 100, "default": 800 },
+
+    { "type": "color", "id": "summary_divider", "label": "Divider color", "default": "#e6e6e6" },
+    { "type": "range", "id": "summary_divider_my", "label": "Divider margin Y", "min": 6, "max": 26, "step": 1, "default": 12 },
+    { "type": "range", "id": "summary_divider_opacity", "label": "Divider opacity",   "min": 0.2, "max": 1, "step": 0.1, "default": 0.6},
+    {
+      "type": "header",
+      "content": "Savings styling"
+    },
+    { "type": "color", "id": "savings_bg", "label": "Savings background", "default": "#f2f7ff" },
+    { "type": "color", "id": "savings_color", "label": "Savings color", "default": "#0b3d91" },
+    { "type": "range", "id": "savings_radius", "label": "Savings radius", "min": 0, "max": 24, "step": 1, "default": 12 },
+    { "type": "range", "id": "savings_pad_y", "label": "Savings padding Y", "min": 6, "max": 20, "step": 1, "default": 10 },
+    { "type": "range", "id": "savings_pad_x", "label": "Savings padding X", "min": 8, "max": 26, "step": 1, "default": 12 },
+    { "type": "range", "id": "savings_size", "label": "Savings size", "min": 10, "max": 18, "step": 1, "default": 12 },
+    { "type": "range", "id": "savings_weight", "label": "Savings weight", "min": 300, "max": 900, "step": 100, "default": 700 },
+
+    {
+      "type": "header",
+      "content": "Button styling"
+    },
+    { "type": "color", "id": "btn_bg", "label": "Button background", "default": "#111111" },
+    { "type": "color", "id": "btn_text_color", "label": "Button text", "default": "#ffffff" },
+    { "type": "color", "id": "btn_border_color", "label": "Button border", "default": "#111111" },
+    { "type": "range", "id": "btn_radius", "label": "Button radius", "min": 0, "max": 24, "step": 1, "default": 14 },
+    { "type": "text", "id": "btn_shadow", "label": "Button shadow", "default": "0 10px 20px rgba(0,0,0,.12)" },
+    { "type": "range", "id": "btn_pad_y", "label": "Button padding Y", "min": 8, "max": 24, "step": 1, "default": 14 },
+    { "type": "range", "id": "btn_pad_x", "label": "Button padding X", "min": 10, "max": 30, "step": 1, "default": 16 },
+    { "type": "range", "id": "btn_size", "label": "Button font size", "min": 12, "max": 20, "step": 1, "default": 14 },
+    { "type": "range", "id": "btn_weight", "label": "Button font weight", "min": 300, "max": 900, "step": 100, "default": 800 },
+    { "type": "color", "id": "btn_bg_hover", "label": "Button hover background", "default": "#000000" },
+    { "type": "color", "id": "btn_text_hover", "label": "Button hover text", "default": "#ffffff" },
+
+    {
+      "type": "header",
+      "content": "Message styling"
+    },
+    { "type": "range", "id": "msg_mt", "label": "Message margin top", "min": 0, "max": 30, "step": 1, "default": 12 },
+    { "type": "range", "id": "msg_radius", "label": "Message radius", "min": 0, "max": 24, "step": 1, "default": 12 },
+    { "type": "range", "id": "msg_pad_y", "label": "Message padding Y", "min": 6, "max": 20, "step": 1, "default": 10 },
+    { "type": "range", "id": "msg_pad_x", "label": "Message padding X", "min": 8, "max": 26, "step": 1, "default": 12 },
+    { "type": "range", "id": "msg_size", "label": "Message font size", "min": 10, "max": 18, "step": 1, "default": 12 },
+    { "type": "range", "id": "msg_weight", "label": "Message font weight", "min": 300, "max": 900, "step": 100, "default": 700 },
+    { "type": "color", "id": "msg_ok_bg", "label": "Success background", "default": "#e9f7ee" },
+    { "type": "color", "id": "msg_ok_text", "label": "Success text", "default": "#0a5b2a" },
+    { "type": "color", "id": "msg_err_bg", "label": "Error background", "default": "#fdeaea" },
+    { "type": "color", "id": "msg_err_text", "label": "Error text", "default": "#8a1111" }
   ],
   "blocks": [
     {
-      "type": "bundle",
-      "name": "Bundle",
+      "type": "bundle_item",
+      "name": "Bundle item",
       "settings": [
-        { "type": "text", "id": "bundle_title", "label": "Bundle title" },
-        { "type": "richtext", "id": "bundle_description", "label": "Bundle description" },
-
-        { "type": "product", "id": "product_1", "label": "Product 1" },
-        { "type": "product", "id": "product_2", "label": "Product 2" },
-        { "type": "product", "id": "product_3", "label": "Product 3" },
-        { "type": "product", "id": "product_4", "label": "Product 4" },
-        { "type": "product", "id": "product_5", "label": "Product 5" },
-        { "type": "product", "id": "product_6", "label": "Product 6" }
+        { "type": "product", "id": "product", "label": "Product" },
+        { "type": "text", "id": "title", "label": "Custom title (optional)",  },
+        { "type": "text", "id": "meta_text", "label": "Meta text (optional)",  },
+        { "type": "image_picker", "id": "image", "label": "Image override (optional)" },
+        { "type": "number", "id": "quantity", "label": "Default quantity", "default": 1 },
+        { "type": "checkbox", "id": "optional", "label": "Optional item", "default": true },
+        { "type": "text", "id": "badge", "label": "Badge (optional)",  },
+        { "type": "text", "id": "note", "label": "Note (optional)",  }
       ]
     }
   ],
   "presets": [
-    { "name": "Product bundles", "blocks": [{ "type": "bundle" }] }
+    {
+      "name": "Product Bundles"
+    }
   ]
 }
 {% endschema %}
