@@ -1,0 +1,848 @@
+{%- comment -%}
+  QUADRATUM — PRODUCT FAQ
+  File: sections/product-faq.liquid
+
+  Supports:
+  - Source: manual (blocks) | metafields (JSON metafield OR metaobject list metafield)
+  - Layout: accordion_inline | accordion_split (interactive media stage)
+  - Optional per-item media: image | video | external_video | model
+  - A11y accordion semantics
+  - Safe empty state (placeholders in design mode only)
+  - Scoped assets: section-product-faq.css + optional section-product-faq.js (split only)
+
+  Notes:
+  - Standalone behavioral section (does not modify main-product-* sections).
+  - Split mode: pre-renders stage media nodes and toggles visibility (no network calls).
+{%- endcomment -%}
+
+{%- liquid
+  assign s = section.settings
+  assign product_obj = product | default: nil
+
+  assign layout = s.layout | default: 'accordion_inline'
+  assign source = s.source | default: 'manual'
+
+  assign in_design_mode = false
+  if request.design_mode
+    assign in_design_mode = true
+  endif
+
+  assign open_first = s.open_first_item
+
+  assign media_gate = s.media_display | default: 'mixed'
+  assign media_enabled = true
+  if media_gate == 'none'
+    assign media_enabled = false
+  endif
+
+  assign split_mode = false
+  if layout == 'accordion_split'
+    assign split_mode = true
+  endif
+
+  assign has_items = false
+  assign item_count = 0
+
+  assign widths = '360,540,720,900,1080,1440'
+  assign sizes_inline = '(min-width: 990px) 48vw, 100vw'
+  assign sizes_split = '(min-width: 990px) 44vw, 100vw'
+
+  assign wrapper_width_class = 'q-maxw'
+  if s.content_width == 'content-full-width'
+    assign wrapper_width_class = 'q-maxw--full'
+  endif
+-%}
+
+{{ 'section-product-faq.css' | asset_url | stylesheet_tag }}
+
+{%- if split_mode and media_enabled -%}
+  <script src="{{ 'section-product-faq.js' | asset_url }}" defer></script>
+{%- endif -%}
+
+{%- capture header_markup -%}
+  {%- if s.title != blank or s.subheading != blank -%}
+    <header class="q-pfaq__header">
+      {%- if s.title != blank -%}
+        <h2 class="q-pfaq__title">{{ s.title | escape }}</h2>
+      {%- endif -%}
+      {%- if s.subheading != blank -%}
+        <div class="q-pfaq__subheading rte">
+          {{ s.subheading }}
+        </div>
+      {%- endif -%}
+    </header>
+  {%- endif -%}
+{%- endcapture -%}
+
+{%- comment -%} Normalized output targets {%- endcomment -%}
+{%- capture accordion_items_markup -%}{%- endcapture -%}
+{%- capture stage_media_markup -%}{%- endcapture -%}
+
+{%- liquid
+  assign first_media_index = -1
+-%}
+
+{%- comment -%} =========================
+  SOURCE: MANUAL (BLOCKS)
+========================= {%- endcomment -%}
+{%- if source == 'manual' -%}
+  {%- for block in section.blocks -%}
+    {%- if block.type != 'faq_item' -%}{% continue %}{%- endif -%}
+
+    {%- liquid
+      assign q = block.settings.question
+      assign a_html = block.settings.answer
+
+      assign m_type = block.settings.media_type | default: 'none'
+      assign img = block.settings.image
+      assign vid = block.settings.video
+      assign ext = block.settings.external_video_url
+      assign mdl = block.settings.model
+      assign poster = block.settings.poster_image
+
+      assign item_has_media = false
+
+      if media_enabled == false or m_type == 'none'
+        assign item_has_media = false
+      else
+        case m_type
+          when 'image'
+            if img != blank
+              if media_gate == 'mixed' or media_gate == 'image'
+                assign item_has_media = true
+              endif
+            endif
+
+          when 'video'
+            if vid != blank
+              if media_gate == 'mixed' or media_gate == 'video'
+                assign item_has_media = true
+              endif
+            endif
+
+          when 'external_video'
+            if ext != blank
+              if media_gate == 'mixed' or media_gate == 'video'
+                assign item_has_media = true
+              endif
+            endif
+
+          when 'model'
+            if mdl != blank
+              if media_gate == 'mixed'
+                assign item_has_media = true
+              endif
+            endif
+        endcase
+      endif
+
+      assign item_index0 = forloop.index0
+      assign is_open = false
+      if open_first and item_index0 == 0
+        assign is_open = true
+      endif
+
+      if q != blank and a_html != blank
+        assign has_items = true
+      endif
+
+      assign item_count = item_count | plus: 1
+
+      if item_has_media and first_media_index == -1
+        assign first_media_index = item_index0
+      endif
+    -%}
+
+    {%- capture one_item -%}
+      <div class="q-pfaq__item" {{ block.shopify_attributes }}>
+        <h3 class="q-pfaq__q">
+          <button
+            class="q-pfaq__btn"
+            type="button"
+            id="faq-button-{{ section.id }}-{{ item_index0 }}"
+            aria-expanded="{% if is_open %}true{% else %}false{% endif %}"
+            aria-controls="faq-panel-{{ section.id }}-{{ item_index0 }}"
+            data-faq-index="{{ item_index0 }}"
+          >
+            <span class="q-pfaq__qtext">{{ q | default: 'Question' | escape }}</span>
+            <span class="q-pfaq__icon" aria-hidden="true"></span>
+          </button>
+        </h3>
+
+        <div
+          class="q-pfaq__panel rte"
+          id="faq-panel-{{ section.id }}-{{ item_index0 }}"
+          role="region"
+          aria-labelledby="faq-button-{{ section.id }}-{{ item_index0 }}"
+          {% unless is_open %}hidden{% endunless %}
+          data-faq-panel
+        >
+          {%- if a_html != blank -%}
+            {{ a_html }}
+          {%- endif -%}
+
+          {%- if split_mode == false and item_has_media -%}
+            <div class="q-pfaq__inlineMedia" data-faq-inline-media>
+              {%- render 'product-faq-media',
+                media_type: m_type,
+                image: img,
+                video: vid,
+                external_url: ext,
+                model: mdl,
+                poster: poster,
+                alt: q,
+                aspect_ratio: s.media_aspect_ratio,
+                fit: s.media_fit,
+                radius: s.media_radius,
+                enable_zoom: s.media_enable_zoom,
+                sizes: sizes_inline,
+                widths: widths
+              -%}
+            </div>
+          {%- endif -%}
+        </div>
+      </div>
+    {%- endcapture -%}
+
+    {%- capture accordion_items_markup -%}{{ accordion_items_markup }}{{ one_item }}{%- endcapture -%}
+
+    {%- if split_mode and media_enabled -%}
+      {%- capture stage_node -%}
+        <div
+          class="q-pfaq__stageNode"
+          data-faq-stage-node
+          data-faq-index="{{ item_index0 }}"
+          {% if item_index0 != first_media_index and item_index0 != 0 %}hidden{% endif %}
+          {% unless item_has_media %}data-has-media="false"{% else %}data-has-media="true"{% endunless %}
+        >
+          {%- if item_has_media -%}
+            {%- render 'product-faq-media',
+              media_type: m_type,
+              image: img,
+              video: vid,
+              external_url: ext,
+              model: mdl,
+              poster: poster,
+              alt: q,
+              aspect_ratio: s.media_aspect_ratio,
+              fit: s.media_fit,
+              radius: s.media_radius,
+              enable_zoom: s.media_enable_zoom,
+              sizes: sizes_split,
+              widths: widths
+            -%}
+          {%- else -%}
+            <div class="q-pfaq__stageEmpty" aria-hidden="true"></div>
+          {%- endif -%}
+        </div>
+      {%- endcapture -%}
+      {%- capture stage_media_markup -%}{{ stage_media_markup }}{{ stage_node }}{%- endcapture -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endif -%}
+
+{%- comment -%} =========================
+  SOURCE: METAFIELDS
+  - JSON metafield (namespace/key)
+  - OR metaobject list metafield (namespace/key)
+========================= {%- endcomment -%}
+{%- if source == 'metafields' and product_obj != nil -%}
+  {%- liquid
+    assign mf_json = product_obj.metafields[s.faq_json_namespace][s.faq_json_key]
+    assign mf_mo = product_obj.metafields[s.faq_metaobject_namespace][s.faq_metaobject_key]
+
+    assign json_items = blank
+    if mf_json != blank
+      assign json_items = mf_json.value
+    endif
+
+    assign mo_items = blank
+    if mf_mo != blank
+      assign mo_items = mf_mo.value
+    endif
+
+    assign use_json = false
+    if json_items != blank
+      assign use_json = true
+    endif
+  -%}
+
+  {%- if use_json -%}
+    {%- liquid
+      assign parsed = json_items
+      assign parsed_try = blank
+
+      if parsed != blank
+        assign parsed_try = parsed | parse_json
+        if parsed_try != blank
+          assign parsed = parsed_try
+        endif
+      endif
+    -%}
+
+    {%- if parsed != blank -%}
+      {%- for it in parsed -%}
+        {%- liquid
+          assign q = it.question
+          assign a_html = it.answer_html
+
+          assign m = it.media
+          assign m_type = 'none'
+          assign m_alt = ''
+          assign m_url = ''
+
+          if m != blank
+            assign m_type = m.type | default: 'none'
+            assign m_alt = m.alt | default: q
+            assign m_url = m.id_or_url | default: ''
+          endif
+
+          assign item_has_media = false
+
+          if media_enabled == false or m_type == 'none'
+            assign item_has_media = false
+          else
+            case m_type
+              when 'image'
+                if m_url != blank
+                  if media_gate == 'mixed' or media_gate == 'image'
+                    assign item_has_media = true
+                  endif
+                endif
+              when 'video'
+                if m_url != blank
+                  if media_gate == 'mixed' or media_gate == 'video'
+                    assign item_has_media = true
+                  endif
+                endif
+              when 'external_video'
+                if m_url != blank
+                  if media_gate == 'mixed' or media_gate == 'video'
+                    assign item_has_media = true
+                  endif
+                endif
+              when 'model'
+                if m_url != blank
+                  if media_gate == 'mixed'
+                    assign item_has_media = true
+                  endif
+                endif
+            endcase
+          endif
+
+          assign item_index0 = forloop.index0
+          assign is_open = false
+          if open_first and item_index0 == 0
+            assign is_open = true
+          endif
+
+          if q != blank and a_html != blank
+            assign has_items = true
+          endif
+
+          assign item_count = item_count | plus: 1
+          if item_has_media and first_media_index == -1
+            assign first_media_index = item_index0
+          endif
+        -%}
+
+        {%- capture one_item -%}
+          <div class="q-pfaq__item">
+            <h3 class="q-pfaq__q">
+              <button
+                class="q-pfaq__btn"
+                type="button"
+                id="faq-button-{{ section.id }}-{{ item_index0 }}"
+                aria-expanded="{% if is_open %}true{% else %}false{% endif %}"
+                aria-controls="faq-panel-{{ section.id }}-{{ item_index0 }}"
+                data-faq-index="{{ item_index0 }}"
+              >
+                <span class="q-pfaq__qtext">{{ q | default: 'Question' | escape }}</span>
+                <span class="q-pfaq__icon" aria-hidden="true"></span>
+              </button>
+            </h3>
+
+            <div
+              class="q-pfaq__panel rte"
+              id="faq-panel-{{ section.id }}-{{ item_index0 }}"
+              role="region"
+              aria-labelledby="faq-button-{{ section.id }}-{{ item_index0 }}"
+              {% unless is_open %}hidden{% endunless %}
+              data-faq-panel
+            >
+              {%- if a_html != blank -%}
+                {{ a_html }}
+              {%- endif -%}
+
+              {%- if split_mode == false and item_has_media -%}
+                <div class="q-pfaq__inlineMedia" data-faq-inline-media>
+                  {%- render 'product-faq-media',
+                    media_type: m_type,
+                    external_url: m_url,
+                    alt: m_alt,
+                    aspect_ratio: s.media_aspect_ratio,
+                    fit: s.media_fit,
+                    radius: s.media_radius,
+                    enable_zoom: s.media_enable_zoom,
+                    sizes: sizes_inline,
+                    widths: widths
+                  -%}
+                </div>
+              {%- endif -%}
+            </div>
+          </div>
+        {%- endcapture -%}
+
+        {%- capture accordion_items_markup -%}{{ accordion_items_markup }}{{ one_item }}{%- endcapture -%}
+
+        {%- if split_mode and media_enabled -%}
+          {%- capture stage_node -%}
+            <div
+              class="q-pfaq__stageNode"
+              data-faq-stage-node
+              data-faq-index="{{ item_index0 }}"
+              {% if item_index0 != first_media_index and item_index0 != 0 %}hidden{% endif %}
+              {% unless item_has_media %}data-has-media="false"{% else %}data-has-media="true"{% endunless %}
+            >
+              {%- if item_has_media -%}
+                {%- render 'product-faq-media',
+                  media_type: m_type,
+                  external_url: m_url,
+                  alt: m_alt,
+                  aspect_ratio: s.media_aspect_ratio,
+                  fit: s.media_fit,
+                  radius: s.media_radius,
+                  enable_zoom: s.media_enable_zoom,
+                  sizes: sizes_split,
+                  widths: widths
+                -%}
+              {%- else -%}
+                <div class="q-pfaq__stageEmpty" aria-hidden="true"></div>
+              {%- endif -%}
+            </div>
+          {%- endcapture -%}
+          {%- capture stage_media_markup -%}{{ stage_media_markup }}{{ stage_node }}{%- endcapture -%}
+        {%- endif -%}
+      {%- endfor -%}
+    {%- endif -%}
+
+  {%- elsif mo_items != blank -%}
+    {%- assign list = mo_items -%}
+    {%- if list.value != blank -%}{%- assign list = list.value -%}{%- endif -%}
+
+    {%- for obj in list -%}
+      {%- liquid
+        assign q = obj.question | default: obj.fields.question.value
+        assign a_rte = obj.answer | default: obj.fields.answer.value
+
+        assign m_type = obj.media_type | default: obj.fields.media_type.value | default: 'none'
+        assign media_field = obj.media | default: obj.fields.media.value
+
+        assign img = blank
+        assign vid = blank
+        assign mdl = blank
+        assign ext = blank
+
+        if media_field != blank
+          if media_field.media_type != blank
+            case media_field.media_type
+              when 'image'
+                assign img = media_field
+                if m_type == 'none'
+                  assign m_type = 'image'
+                endif
+              when 'video'
+                assign vid = media_field
+                if m_type == 'none'
+                  assign m_type = 'video'
+                endif
+              when 'model'
+                assign mdl = media_field
+                if m_type == 'none'
+                  assign m_type = 'model'
+                endif
+              else
+                assign img = media_field
+                if m_type == 'none'
+                  assign m_type = 'image'
+                endif
+            endcase
+          else
+            assign ext = media_field
+            if m_type == 'none'
+              assign m_type = 'external_video'
+            endif
+          endif
+        endif
+
+        assign item_has_media = false
+
+        if media_enabled == false or m_type == 'none'
+          assign item_has_media = false
+        else
+          case m_type
+            when 'image'
+              if img != blank
+                if media_gate == 'mixed' or media_gate == 'image'
+                  assign item_has_media = true
+                endif
+              endif
+            when 'video'
+              if vid != blank
+                if media_gate == 'mixed' or media_gate == 'video'
+                  assign item_has_media = true
+                endif
+              endif
+            when 'external_video'
+              if ext != blank
+                if media_gate == 'mixed' or media_gate == 'video'
+                  assign item_has_media = true
+                endif
+              endif
+            when 'model'
+              if mdl != blank
+                if media_gate == 'mixed'
+                  assign item_has_media = true
+                endif
+              endif
+          endcase
+        endif
+
+        assign item_index0 = forloop.index0
+        assign is_open = false
+        if open_first and item_index0 == 0
+          assign is_open = true
+        endif
+
+        if q != blank and a_rte != blank
+          assign has_items = true
+        endif
+
+        assign item_count = item_count | plus: 1
+        if item_has_media and first_media_index == -1
+          assign first_media_index = item_index0
+        endif
+      -%}
+
+      {%- capture one_item -%}
+        <div class="q-pfaq__item">
+          <h3 class="q-pfaq__q">
+            <button
+              class="q-pfaq__btn"
+              type="button"
+              id="faq-button-{{ section.id }}-{{ item_index0 }}"
+              aria-expanded="{% if is_open %}true{% else %}false{% endif %}"
+              aria-controls="faq-panel-{{ section.id }}-{{ item_index0 }}"
+              data-faq-index="{{ item_index0 }}"
+            >
+              <span class="q-pfaq__qtext">{{ q | default: 'Question' | escape }}</span>
+              <span class="q-pfaq__icon" aria-hidden="true"></span>
+            </button>
+          </h3>
+
+          <div
+            class="q-pfaq__panel rte"
+            id="faq-panel-{{ section.id }}-{{ item_index0 }}"
+            role="region"
+            aria-labelledby="faq-button-{{ section.id }}-{{ item_index0 }}"
+            {% unless is_open %}hidden{% endunless %}
+            data-faq-panel
+          >
+            {%- if a_rte != blank -%}
+              {{ a_rte }}
+            {%- endif -%}
+
+            {%- if split_mode == false and item_has_media -%}
+              <div class="q-pfaq__inlineMedia" data-faq-inline-media>
+                {%- render 'product-faq-media',
+                  media_type: m_type,
+                  image: img,
+                  video: vid,
+                  external_url: ext,
+                  model: mdl,
+                  alt: q,
+                  aspect_ratio: s.media_aspect_ratio,
+                  fit: s.media_fit,
+                  radius: s.media_radius,
+                  enable_zoom: s.media_enable_zoom,
+                  sizes: sizes_inline,
+                  widths: widths
+                -%}
+              </div>
+            {%- endif -%}
+          </div>
+        </div>
+      {%- endcapture -%}
+
+      {%- capture accordion_items_markup -%}{{ accordion_items_markup }}{{ one_item }}{%- endcapture -%}
+
+      {%- if split_mode and media_enabled -%}
+        {%- capture stage_node -%}
+          <div
+            class="q-pfaq__stageNode"
+            data-faq-stage-node
+            data-faq-index="{{ item_index0 }}"
+            {% if item_index0 != first_media_index and item_index0 != 0 %}hidden{% endif %}
+            {% unless item_has_media %}data-has-media="false"{% else %}data-has-media="true"{% endunless %}
+          >
+            {%- if item_has_media -%}
+              {%- render 'product-faq-media',
+                media_type: m_type,
+                image: img,
+                video: vid,
+                external_url: ext,
+                model: mdl,
+                alt: q,
+                aspect_ratio: s.media_aspect_ratio,
+                fit: s.media_fit,
+                radius: s.media_radius,
+                enable_zoom: s.media_enable_zoom,
+                sizes: sizes_split,
+                widths: widths
+              -%}
+            {%- else -%}
+              <div class="q-pfaq__stageEmpty" aria-hidden="true"></div>
+            {%- endif -%}
+          </div>
+        {%- endcapture -%}
+        {%- capture stage_media_markup -%}{{ stage_media_markup }}{{ stage_node }}{%- endcapture -%}
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+{%- endif -%}
+
+{%- comment -%} =========================
+  EMPTY STATE
+  - Live storefront: render nothing if no items
+  - Theme editor: render placeholders (2–3)
+========================= {%- endcomment -%}
+
+{%- if has_items == false and in_design_mode -%}
+  {%- assign has_items = true -%}
+  {%- capture accordion_items_markup -%}
+    <div class="q-pfaq__item">
+      <h3 class="q-pfaq__q">
+        <button class="q-pfaq__btn" type="button" id="faq-button-{{ section.id }}-0" aria-expanded="true" aria-controls="faq-panel-{{ section.id }}-0" data-faq-index="0">
+          <span class="q-pfaq__qtext">Do you ship?</span><span class="q-pfaq__icon" aria-hidden="true"></span>
+        </button>
+      </h3>
+      <div class="q-pfaq__panel rte" id="faq-panel-{{ section.id }}-0" role="region" aria-labelledby="faq-button-{{ section.id }}-0" data-faq-panel>
+        <p>Yes — we ship to most locations. Shipping times vary by region and product availability.</p>
+      </div>
+    </div>
+    <div class="q-pfaq__item">
+      <h3 class="q-pfaq__q">
+        <button class="q-pfaq__btn" type="button" id="faq-button-{{ section.id }}-1" aria-expanded="false" aria-controls="faq-panel-{{ section.id }}-1" data-faq-index="1">
+          <span class="q-pfaq__qtext">Can I return this item?</span><span class="q-pfaq__icon" aria-hidden="true"></span>
+        </button>
+      </h3>
+      <div class="q-pfaq__panel rte" id="faq-panel-{{ section.id }}-1" role="region" aria-labelledby="faq-button-{{ section.id }}-1" hidden data-faq-panel>
+        <p>Returns are accepted within the return window as long as the item is unused and in original packaging.</p>
+      </div>
+    </div>
+    <div class="q-pfaq__item">
+      <h3 class="q-pfaq__q">
+        <button class="q-pfaq__btn" type="button" id="faq-button-{{ section.id }}-2" aria-expanded="false" aria-controls="faq-panel-{{ section.id }}-2" data-faq-index="2">
+          <span class="q-pfaq__qtext">How do I contact support?</span><span class="q-pfaq__icon" aria-hidden="true"></span>
+        </button>
+      </h3>
+      <div class="q-pfaq__panel rte" id="faq-panel-{{ section.id }}-2" role="region" aria-labelledby="faq-button-{{ section.id }}-2" hidden data-faq-panel>
+        <p>Use the contact form on our site and we’ll respond as quickly as possible during business hours.</p>
+      </div>
+    </div>
+  {%- endcapture -%}
+
+  {%- if split_mode and media_enabled -%}
+    {%- capture stage_media_markup -%}
+      <div class="q-pfaq__stageNode" data-faq-stage-node data-faq-index="0" data-has-media="false">
+        <div class="q-pfaq__stageEmpty" aria-hidden="true"></div>
+      </div>
+    {%- endcapture -%}
+  {%- endif -%}
+{%- endif -%}
+
+{%- if has_items -%}
+  <section
+    id="ProductFAQ-{{ section.id }}"
+    class="q-pfaq color-{{ s.color_scheme }} {% if split_mode %}q-pfaq--split{% else %}q-pfaq--inline{% endif %}"
+    data-product-faq
+    data-layout="{{ layout }}"
+    data-open-first="{{ open_first | json }}"
+    data-media-enabled="{{ media_enabled | json }}"
+    data-first-media-index="{{ first_media_index }}"
+  >
+    {%- render 'spacing-style', section: section -%}
+
+    <div class="q-pfaq__wrap {{ wrapper_width_class }}">
+      {{ header_markup }}
+
+      <div class="q-pfaq__body {% if split_mode and media_enabled %}q-pfaq__body--hasStage{% endif %}">
+        <div class="q-pfaq__col q-pfaq__col--accordion">
+          <div class="q-pfaq__accordion" role="presentation">
+            {{ accordion_items_markup }}
+          </div>
+        </div>
+
+        {%- if split_mode and media_enabled -%}
+          <div class="q-pfaq__col q-pfaq__col--stage q-pfaq__col--{{ s.split_media_position }} {% if s.split_media_sticky %}q-pfaq__col--sticky{% endif %}">
+            <div class="q-pfaq__stage" aria-label="{{ s.title | default: 'Frequently asked questions' | escape }}">
+              {{ stage_media_markup }}
+            </div>
+          </div>
+        {%- endif -%}
+      </div>
+    </div>
+  </section>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Product FAQ",
+  "tag": "section",
+  "class": "q-section q-section--product-faq",
+  "settings": [
+    { "type": "text", "id": "title", "label": "Title", "default": "Frequently asked questions" },
+    { "type": "richtext", "id": "subheading", "label": "Subheading" },
+
+    {
+      "type": "select",
+      "id": "source",
+      "label": "Source",
+      "default": "manual",
+      "options": [
+        { "value": "manual", "label": "Manual (blocks)" },
+        { "value": "metafields", "label": "Metafields (JSON or Metaobjects)" }
+      ]
+    },
+
+    { "type": "header", "content": "Metafields — JSON format (A)" },
+    { "type": "text", "id": "faq_json_namespace", "label": "JSON metafield namespace", "default": "custom" },
+    { "type": "text", "id": "faq_json_key", "label": "JSON metafield key", "default": "faq" },
+
+    { "type": "header", "content": "Metafields — Metaobject list (B)" },
+    { "type": "text", "id": "faq_metaobject_namespace", "label": "Metaobject list metafield namespace", "default": "custom" },
+    { "type": "text", "id": "faq_metaobject_key", "label": "Metaobject list metafield key", "default": "faq_items" },
+
+    { "type": "header", "content": "Layout" },
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "accordion_inline",
+      "options": [
+        { "value": "accordion_inline", "label": "Accordion (inline media)" },
+        { "value": "accordion_split", "label": "Accordion + media stage (split)" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "split_media_position",
+      "label": "Media position",
+      "default": "right",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "right", "label": "Right" }
+      ]
+    },
+    { "type": "checkbox", "id": "split_media_sticky", "label": "Sticky media column", "default": true },
+    { "type": "checkbox", "id": "open_first_item", "label": "Open first item", "default": true },
+
+    { "type": "header", "content": "Media behavior" },
+    {
+      "type": "select",
+      "id": "media_display",
+      "label": "Media display",
+      "default": "mixed",
+      "options": [
+        { "value": "none", "label": "None (disable all media)" },
+        { "value": "image", "label": "Images only" },
+        { "value": "video", "label": "Videos only" },
+        { "value": "mixed", "label": "Mixed (images + videos + models)" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "media_aspect_ratio",
+      "label": "Aspect ratio",
+      "default": "adapt",
+      "options": [
+        { "value": "adapt", "label": "Adapt" },
+        { "value": "1/1", "label": "1:1" },
+        { "value": "4/3", "label": "4:3" },
+        { "value": "16/9", "label": "16:9" },
+        { "value": "3/4", "label": "3:4" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "media_fit",
+      "label": "Media fit",
+      "default": "cover",
+      "options": [
+        { "value": "cover", "label": "Cover" },
+        { "value": "contain", "label": "Contain" }
+      ]
+    },
+    { "type": "range", "id": "media_radius", "label": "Media corner radius (px)", "min": 0, "max": 40, "step": 1, "default": 12 },
+    { "type": "checkbox", "id": "media_enable_zoom", "label": "Enable image zoom (optional)", "default": false },
+
+    { "type": "header", "content": "Styling" },
+    {
+      "type": "select",
+      "id": "color_scheme",
+      "label": "Color scheme",
+      "default": "background-1",
+      "options": [
+        { "value": "background-1", "label": "Background 1" },
+        { "value": "background-2", "label": "Background 2" },
+        { "value": "inverse", "label": "Inverse" },
+        { "value": "accent-1", "label": "Accent 1" },
+        { "value": "accent-2", "label": "Accent 2" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "content_width",
+      "label": "Content width",
+      "default": "content-center-aligned",
+      "options": [
+        { "value": "content-center-aligned", "label": "Centered content" },
+        { "value": "content-full-width", "label": "Full width" }
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "type": "faq_item",
+      "name": "FAQ item",
+      "settings": [
+        { "type": "text", "id": "question", "label": "Question", "default": "Question" },
+        { "type": "richtext", "id": "answer", "label": "Answer", "default": "<p>Add your answer here.</p>" },
+
+        {
+          "type": "select",
+          "id": "media_type",
+          "label": "Media type",
+          "default": "none",
+          "options": [
+            { "value": "none", "label": "None" },
+            { "value": "image", "label": "Image" },
+            { "value": "video", "label": "Hosted video" },
+            { "value": "external_video", "label": "External video (URL)" },
+            { "value": "model", "label": "3D model" }
+          ]
+        },
+
+        { "type": "image_picker", "id": "image", "label": "Image" },
+        { "type": "video", "id": "video", "label": "Hosted video" },
+        { "type": "url", "id": "external_video_url", "label": "External video URL (use an embed URL if possible)" },
+        { "type": "product", "id": "model", "label": "Model (optional — use a product with a 3D model)" },
+        { "type": "image_picker", "id": "poster_image", "label": "Poster image (optional)" }
+      ]
+    }
+  ],
+  "presets": [
+    { "name": "Product FAQ" }
+  ]
+}
+{% endschema %}
