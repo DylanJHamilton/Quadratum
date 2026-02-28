@@ -71,15 +71,16 @@
     background:var(--q-pmp-tab-bg-active);
     border-color:var(--q-pmp-tab-border-active);
   }
+
   .q-pmp__panelwrap{
     padding:.75rem;
     background:var(--q-pmp-inner-bg);
     color:var(--q-pmp-inner-text);
   }
   .q-pmp__panel{display:none}
-  /* This relies on DOM order: each tab's radio appears before the shared panelwrap */
-  .q-pmp__tabs input:checked ~ .q-pmp__panelwrap .q-pmp__panel{display:none}
-  /* We'll map nth checked to nth panel via inline CSS generated per-block count */
+  /* Important: each panel must be the next sibling of its input for this selector */
+  .q-pmp__tab input:checked ~ .q-pmp__panelwrap .q-pmp__panel{display:none}
+
   .q-pmp__panel :where(p){margin:.5rem 0}
   .q-pmp__panel :where(ul,ol){margin:.5rem 0 .75rem 1.25rem}
 
@@ -136,10 +137,6 @@
   }
   .q-pmp__dl-term{margin:0;font-weight:600}
   .q-pmp__dl-def{margin:0}
-
-  /* Respect <details> inside manual richtext if merchants use it */
-  .q-pmp :where(details){border:1px solid var(--q-pmp-tabs-divider);border-radius:.5rem;padding:.5rem .75rem}
-  .q-pmp :where(summary){cursor:pointer;font-weight:600}
 {% endstylesheet %}
 
 {%- liquid
@@ -169,7 +166,6 @@
   endif
 
   assign has_any = false
-  assign count_resolved = 0
 
   for block in section.blocks
     if block.type != 'meta_panel'
@@ -267,121 +263,46 @@
     assign resolved_text = resolved_html | strip_html | strip
     if resolved_html != blank and resolved_text != blank
       assign has_any = true
-      assign count_resolved = count_resolved | plus: 1
+      break
     endif
   endfor
+
+  capture css_vars
+    echo '--q-pmp-pt:' | append: pt | append: 'px;'
+    echo '--q-pmp-pb:' | append: pb | append: 'px;'
+
+    echo '--q-pmp-section-bg:' | append: s.section_bg | append: ';'
+    echo '--q-pmp-section-text:' | append: s.section_text | append: ';'
+
+    echo '--q-pmp-tabs-bar-bg:' | append: s.tabs_bar_bg | append: ';'
+    echo '--q-pmp-tabs-divider:' | append: s.tabs_divider | append: ';'
+
+    echo '--q-pmp-tabs-border:' | append: s.tabs_border_color | append: ';'
+    echo '--q-pmp-tabs-border-style:' | append: s.tabs_border_style | append: ';'
+    echo '--q-pmp-tabs-border-width:' | append: s.tabs_border_width | append: 'px;'
+
+    echo '--q-pmp-tab-text:' | append: s.tab_text | append: ';'
+    echo '--q-pmp-tab-bg:' | append: s.tab_bg | append: ';'
+    echo '--q-pmp-tab-border:' | append: s.tab_border_color | append: ';'
+    echo '--q-pmp-tab-border-style:' | append: s.tab_border_style | append: ';'
+    echo '--q-pmp-tab-border-width:' | append: s.tab_border_width | append: 'px;'
+
+    echo '--q-pmp-tab-text-active:' | append: s.tab_text_active | append: ';'
+    echo '--q-pmp-tab-bg-active:' | append: s.tab_bg_active | append: ';'
+    echo '--q-pmp-tab-border-active:' | append: s.tab_border_color_active | append: ';'
+
+    echo '--q-pmp-inner-bg:' | append: s.inner_bg | append: ';'
+    echo '--q-pmp-inner-text:' | append: s.inner_text | append: ';'
+  endcapture
 -%}
 
 {%- if has_any -%}
-{%- capture css_vars -%}
-  --q-pmp-pt: {{ pt }}px;
-  --q-pmp-pb: {{ pb }}px;
-
-  --q-pmp-section-bg: {{ s.section_bg | default: 'transparent' }};
-  --q-pmp-section-text: {{ s.section_text | default: 'inherit' }};
-
-  --q-pmp-tabs-bar-bg: {{ s.tabs_bar_bg | default: 'transparent' }};
-  --q-pmp-tabs-divider: {{ s.tabs_divider | default: 'rgba(0,0,0,.12)' }};
-
-  --q-pmp-tabs-border: {{ s.tabs_border_color | default: 'rgba(0,0,0,.12)' }};
-  --q-pmp-tabs-border-style: {{ s.tabs_border_style | default: 'solid' }};
-  --q-pmp-tabs-border-width: {{ s.tabs_border_width | default: 1 }}px;
-
-  --q-pmp-tab-text: {{ s.tab_text | default: 'inherit' }};
-  --q-pmp-tab-bg: {{ s.tab_bg | default: 'transparent' }};
-  --q-pmp-tab-border: {{ s.tab_border_color | default: 'rgba(0,0,0,.12)' }};
-  --q-pmp-tab-border-style: {{ s.tab_border_style | default: 'solid' }};
-  --q-pmp-tab-border-width: {{ s.tab_border_width | default: 1 }}px;
-
-  --q-pmp-tab-text-active: {{ s.tab_text_active | default: 'inherit' }};
-  --q-pmp-tab-bg-active: {{ s.tab_bg_active | default: 'rgba(0,0,0,.04)' }};
-  --q-pmp-tab-border-active: {{ s.tab_border_color_active | default: 'rgba(0,0,0,.20)' }};
-
-  --q-pmp-inner-bg: {{ s.inner_bg | default: 'transparent' }};
-  --q-pmp-inner-text: {{ s.inner_text | default: 'inherit' }};
-{%- endcapture -%}
-
 <section
   id="product-meta-panels"
   class="q-pmp"
-  style="{{ css_vars | strip | replace: '  ', '' }}"
+  style="{{ css_vars | strip }}"
   aria-label="{{ section_label | escape }}"
 >
-  {%- comment -%}
-    Tabs content visibility mapping:
-    We render tab radios first, then panels. To show the correct panel without JS,
-    we output scoped selectors based on the resolved tab order.
-  {%- endcomment -%}
-
-  {%- if layout == 'tabs' -%}
-    <style>
-      {%- assign show_idx = 0 -%}
-      {%- assign resolved_i = 0 -%}
-      {%- for block in section.blocks -%}
-        {%- if block.type != 'meta_panel' -%}{%- continue -%}{%- endif -%}
-        {%- liquid
-          assign b = block.settings
-          assign resolved_html = ''
-
-          case b.source_type
-            when 'manual'
-              assign resolved_html = b.content
-            when 'metafield'
-              assign ns = b.namespace | strip
-              assign ky = b.key | strip
-              if product_obj != blank and ns != blank and ky != blank
-                assign mf = product_obj.metafields[ns][ky]
-                if mf != blank
-                  capture resolved_html
-                    if mf.type contains 'rich_text'
-                      echo mf | metafield_tag
-                    elsif mf.type contains 'json'
-                      echo mf.value | json
-                    else
-                      if mf.value == blank
-                        echo mf | metafield_tag
-                      else
-                        echo mf.value | escape | newline_to_br
-                      endif
-                    endif
-                  endcapture
-                endif
-              endif
-            when 'metaobject'
-              assign mo = b.metaobject_reference
-              if mo != blank
-                capture resolved_html
-                  assign any_field = false
-                  for f in mo.fields
-                    assign fv = f.value
-                    if fv == blank
-                      continue
-                    endif
-                    assign any_field = true
-                    break
-                  endfor
-                  if any_field
-                    echo 'x'
-                  endif
-                endcapture
-              endif
-          endcase
-
-          assign resolved_text = resolved_html | strip_html | strip
-        -%}
-
-        {%- if resolved_html == blank or resolved_text == blank -%}
-          {%- continue -%}
-        {%- endif -%}
-
-        {%- assign resolved_i = resolved_i | plus: 1 -%}
-        {%- assign radio_id = 'q-pmp-' | append: section.id | append: '-' | append: resolved_i -%}
-        {%- assign panel_id = 'q-pmp-panel-' | append: section.id | append: '-' | append: resolved_i -%}
-        #{{ radio_id }}:checked ~ .q-pmp__panelwrap #{{ panel_id }}{display:block;}
-      {%- endfor -%}
-    </style>
-  {%- endif -%}
-
   <div class="q-pmp__inner">
     {%- if s.title != blank or s.subheading != blank -%}
       <header class="q-pmp__header">
@@ -396,8 +317,12 @@
 
     {%- case layout -%}
       {%- when 'tabs' -%}
+        {%- comment -%}
+          Fix: tabs must place each panel adjacent to its radio so pure CSS selector can work.
+          Structure is: input + label + panel within the same wrapper.
+        {%- endcomment -%}
         <div class="q-pmp__tabs" role="group" aria-label="{{ section_label | escape }}">
-          <div class="q-pmp__tablist" aria-label="Product detail tabs">
+          <div class="q-pmp__tablist" role="tablist" aria-label="Product detail tabs">
             {%- assign resolved_i = 0 -%}
             {%- for block in section.blocks -%}
               {%- if block.type != 'meta_panel' -%}{%- continue -%}{%- endif -%}
@@ -443,6 +368,7 @@
                           assign any_field = true
                           break
                         endfor
+
                         if any_field
                           echo '<dl class="q-pmp__dl">'
                           for f in mo.fields
@@ -450,6 +376,7 @@
                             if fv == blank
                               continue
                             endif
+
                             echo '<div class="q-pmp__dl-row">'
                               echo '<dt class="q-pmp__dl-term">' | append: f.name | escape | append: '</dt>'
                               echo '<dd class="q-pmp__dl-def">'
@@ -508,7 +435,7 @@
                   id="{{ radio_id }}"
                   {% if resolved_i == 1 %}checked{% endif %}
                 >
-                <label for="{{ radio_id }}">{{ tab_title | escape }}</label>
+                <label for="{{ radio_id }}" role="tab">{{ tab_title | escape }}</label>
               </div>
             {%- endfor -%}
           </div>
@@ -559,6 +486,7 @@
                           assign any_field = true
                           break
                         endfor
+
                         if any_field
                           echo '<dl class="q-pmp__dl">'
                           for f in mo.fields
@@ -566,6 +494,7 @@
                             if fv == blank
                               continue
                             endif
+
                             echo '<div class="q-pmp__dl-row">'
                               echo '<dt class="q-pmp__dl-term">' | append: f.name | escape | append: '</dt>'
                               echo '<dd class="q-pmp__dl-def">'
@@ -613,14 +542,78 @@
               {%- endif -%}
 
               {%- assign resolved_i = resolved_i | plus: 1 -%}
-              {%- assign panel_id = 'q-pmp-panel-' | append: section.id | append: '-' | append: resolved_i -%}
+              {%- assign radio_id = 'q-pmp-' | append: section.id | append: '-' | append: resolved_i -%}
               {%- assign tab_title = b.title | strip | strip_html -%}
               {%- if tab_title == blank -%}{%- assign tab_title = 'Details' -%}{%- endif -%}
 
-              <div id="{{ panel_id }}" class="q-pmp__panel rte" aria-label="{{ tab_title | escape }}">
+              <div class="q-pmp__panel rte" role="tabpanel" aria-label="{{ tab_title | escape }}">
                 {{ resolved_html }}
               </div>
             {%- endfor -%}
+
+            {%- comment -%}
+              Show the first panel by default (when the first radio is checked).
+              We do this via a tiny scoped style block per-section to map checked radio index to panel index.
+            {%- endcomment -%}
+            <style>
+              {%- assign idx = 0 -%}
+              {%- for block in section.blocks -%}
+                {%- if block.type != 'meta_panel' -%}{%- continue -%}{%- endif -%}
+                {%- liquid
+                  assign b = block.settings
+                  assign tmp = ''
+                  case b.source_type
+                    when 'manual'
+                      assign tmp = b.content
+                    when 'metafield'
+                      assign ns = b.namespace | strip
+                      assign ky = b.key | strip
+                      if product_obj != blank and ns != blank and ky != blank
+                        assign mf = product_obj.metafields[ns][ky]
+                        if mf != blank
+                          capture tmp
+                            if mf.type contains 'rich_text'
+                              echo mf | metafield_tag
+                            elsif mf.type contains 'json'
+                              echo mf.value | json
+                            else
+                              if mf.value == blank
+                                echo mf | metafield_tag
+                              else
+                                echo mf.value | escape | newline_to_br
+                              endif
+                            endif
+                          endcapture
+                        endif
+                      endif
+                    when 'metaobject'
+                      assign mo = b.metaobject_reference
+                      if mo != blank
+                        capture tmp
+                          assign any_field = false
+                          for f in mo.fields
+                            assign fv = f.value
+                            if fv == blank
+                              continue
+                            endif
+                            assign any_field = true
+                            break
+                          endfor
+                          if any_field
+                            echo 'x'
+                          endif
+                        endcapture
+                      endif
+                  endcase
+                  assign tmp_text = tmp | strip_html | strip
+                -%}
+                {%- if tmp == blank or tmp_text == blank -%}{%- continue -%}{%- endif -%}
+                {%- assign idx = idx | plus: 1 -%}
+                {%- assign rid = 'q-pmp-' | append: section.id | append: '-' | append: idx -%}
+                {%- assign nth = idx -%}
+                #{{ rid }}:checked ~ .q-pmp__panelwrap .q-pmp__panel:nth-of-type({{ nth }}){display:block;}
+              {%- endfor -%}
+            </style>
           </div>
         </div>
 
@@ -899,7 +892,7 @@
 
     { "type": "header", "content": "Tab styles" },
     { "type": "color", "id": "tab_text", "label": "Tab title color", "default": "#111111" },
-    { "type": "color", "id": "tab_bg", "label": "Tab background", "default": "rgba(0,0,0,0)" },
+    { "type": "color", "id": "tab_bg", "label": "Tab background", "default": "#ffffff" },
     { "type": "color", "id": "tab_border_color", "label": "Tab border color", "default": "#e6e6e6" },
     {
       "type": "select",
