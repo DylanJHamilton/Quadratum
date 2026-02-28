@@ -14,6 +14,10 @@
   KEEP:
   - Media behavior/settings unchanged.
   - JS expects IDs: QtmVariantId, QtmPrice, QtmCompare, QtmSkuWrap, QtmSku, QtmAvailText, QtmAtc, QtmQty, QtmQtyHidden.
+
+  ADDITIONS (MATCH MAIN PRODUCT CLASSIC ADD-ONS)
+  A) Variant compatibility select (hidden <select name="id">) for apps/scripts that expect it
+  B) Wishlist block + localStorage toggle (no external deps)
 {%- endcomment -%}
 
 {%- liquid
@@ -520,6 +524,24 @@
       font-weight:900;
       cursor:pointer;
     }
+
+    /* ========= ADDITION: Wishlist ========= */
+    #MainProductModern-{{ section.id }} .qtm-modern__wishlist{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:.6rem;
+      width:100%;
+      border-radius: 12px;
+      border: 1px solid rgba(0,0,0,0.18);
+      background: rgba(255,255,255,0.75);
+      cursor:pointer;
+      font-weight:700;
+    }
+    #MainProductModern-{{ section.id }} .qtm-modern__wishlist[aria-pressed="true"]{
+      border-color: currentColor;
+      box-shadow: 0 0 0 1px currentColor;
+    }
   </style>
 
   <div class="page-width">
@@ -770,6 +792,13 @@
           <input type="hidden" name="id" id="QtmVariantId-{{ section.id }}" value="{{ current_variant.id }}">
           <input type="hidden" name="quantity" id="QtmQtyHidden-{{ section.id }}" value="1">
 
+          {%- comment -%} ADDITION A: Variant compatibility select (hidden). {%- endcomment -%}
+          <select name="id" id="QtmVariantSelect-{{ section.id }}" style="display:none !important" aria-hidden="true" tabindex="-1">
+            {%- for v in p.variants -%}
+              <option value="{{ v.id }}" {% if v.id == current_variant.id %}selected{% endif %}>{{ v.title | escape }}</option>
+            {%- endfor -%}
+          </select>
+
           {%- for block in section.blocks -%}
             {%- case block.type -%}
 
@@ -912,6 +941,32 @@
                     {%- endif -%}
                   </div>
                 {%- endunless -%}
+
+              {%- when 'wishlist' -%}
+                {%- comment -%} ADDITION B: Wishlist block {%- endcomment -%}
+                <div
+                  class="qtm-block-style"
+                  style="
+                    --qtm-bc: {{ block.settings.text_color | default: '#111111' }};
+                    --qtm-bfs: {{ block.settings.font_size | default: 18 }}px;
+                    --qtm-bfw: {{ block.settings.font_weight | default: '600' }};
+                    margin-bottom: {{ block.settings.margin_bottom | default: 16 }}px;
+                  "
+                  {{ block.shopify_attributes }}
+                >
+                  <button
+                    type="button"
+                    class="qtm-modern__wishlist qtm-btn--{{ block.settings.button_size | default: 'medium' }}"
+                    data-qtm-wishlist
+                    aria-pressed="false"
+                    data-product-id="{{ p.id }}"
+                    data-product-handle="{{ p.handle }}"
+                    data-variant-id="{{ current_variant.id }}"
+                  >
+                    <span data-qtm-wl-icon aria-hidden="true">{{ block.settings.icon_inactive | default: '♡' }}</span>
+                    <span data-qtm-wl-text>{{ block.settings.label_add | default: 'Add to wishlist' }}</span>
+                  </button>
+                </div>
 
             {%- endcase -%}
           {%- endfor -%}
@@ -1228,6 +1283,9 @@
       var qtyInput = document.getElementById('QtmQty-{{ section.id }}');
       var qtyHidden = document.getElementById('QtmQtyHidden-{{ section.id }}');
 
+      /* ADDITION A: hidden select reference */
+      var variantSelect = document.getElementById('QtmVariantSelect-{{ section.id }}');
+
       if (qtyInput && qtyHidden){
         qtyInput.addEventListener('input', function(){
           var v = parseInt(qtyInput.value, 10);
@@ -1274,6 +1332,9 @@
         if (!v) return;
 
         if (variantIdInput) variantIdInput.value = v.id;
+
+        /* ADDITION A: keep hidden select in sync */
+        if (variantSelect) variantSelect.value = String(v.id);
 
         if (priceEl) priceEl.textContent = formatMoney(v.price);
 
@@ -1328,6 +1389,15 @@
           url.searchParams.set('variant', v.id);
           window.history.replaceState({}, '', url.toString());
         }catch(e){}
+
+        /* ADDITION B: keep wishlist button variant-id in sync + refresh label/state */
+        try{
+          var wlBtn = root.querySelector('[data-qtm-wishlist]');
+          if (wlBtn){
+            wlBtn.setAttribute('data-variant-id', String(v.id));
+            updateWishlistUI(wlBtn);
+          }
+        }catch(e){}
       }
 
       // Listen to option changes
@@ -1343,6 +1413,88 @@
       // Initialize currentIndex based on aria-current (if thumbs exist)
       thumbs.forEach(function(t, idx){
         if (t.getAttribute('aria-current') === 'true') currentIndex = idx;
+      });
+
+      /* ================= ADDITION B: Wishlist logic ================= */
+      var WL_KEY = 'qtm_wishlist_v1';
+
+      function readWishlist(){
+        try{
+          var raw = window.localStorage.getItem(WL_KEY);
+          var arr = raw ? JSON.parse(raw) : [];
+          return Array.isArray(arr) ? arr : [];
+        }catch(e){
+          return [];
+        }
+      }
+
+      function writeWishlist(arr){
+        try{
+          window.localStorage.setItem(WL_KEY, JSON.stringify(arr || []));
+        }catch(e){}
+      }
+
+      function wlId(btn){
+        // store by product id by default; optionally variant if merchant wants (toggle by setting below)
+        var mode = (btn && btn.getAttribute('data-wishlist-mode')) || 'product';
+        var pid = btn.getAttribute('data-product-id') || '';
+        var vid = btn.getAttribute('data-variant-id') || '';
+        return (mode === 'variant') ? ('v:' + vid) : ('p:' + pid);
+      }
+
+      function isWishlisted(id){
+        var list = readWishlist();
+        return list.indexOf(id) !== -1;
+      }
+
+      function toggleWishlist(id){
+        var list = readWishlist();
+        var i = list.indexOf(id);
+        if (i === -1) list.push(id);
+        else list.splice(i, 1);
+        writeWishlist(list);
+        return (i === -1); // now added?
+      }
+
+      function updateWishlistUI(btn){
+        if (!btn) return;
+        var id = wlId(btn);
+        var active = isWishlisted(id);
+
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+
+        var iconEl = btn.querySelector('[data-qtm-wl-icon]');
+        var textEl = btn.querySelector('[data-qtm-wl-text]');
+
+        var iconOn = btn.getAttribute('data-icon-active') || '♥';
+        var iconOff = btn.getAttribute('data-icon-inactive') || '♡';
+
+        var labelAdd = btn.getAttribute('data-label-add') || 'Add to wishlist';
+        var labelRemove = btn.getAttribute('data-label-remove') || 'Remove from wishlist';
+
+        if (iconEl) iconEl.textContent = active ? iconOn : iconOff;
+        if (textEl) textEl.textContent = active ? labelRemove : labelAdd;
+      }
+
+      // Init wishlist buttons in this section
+      var wlBtns = root.querySelectorAll('[data-qtm-wishlist]');
+      wlBtns.forEach(function(btn){
+        // map settings to data-attrs without changing markup structure
+        btn.setAttribute('data-label-add', btn.getAttribute('data-label-add') || btn.textContent.trim());
+        btn.setAttribute('data-label-add', btn.getAttribute('data-label-add') || 'Add to wishlist');
+        btn.setAttribute('data-label-remove', btn.getAttribute('data-label-remove') || 'Remove from wishlist');
+        btn.setAttribute('data-icon-active', btn.getAttribute('data-icon-active') || '♥');
+        btn.setAttribute('data-icon-inactive', btn.getAttribute('data-icon-inactive') || '♡');
+
+        // allow variant-level if merchant wants
+        // (block setting wires this)
+        updateWishlistUI(btn);
+
+        btn.addEventListener('click', function(){
+          var id = wlId(btn);
+          toggleWishlist(id);
+          updateWishlistUI(btn);
+        });
       });
 
     })();
@@ -1676,6 +1828,56 @@
         { "type": "range", "id": "margin_bottom", "min": 0, "max": 60, "step": 4, "unit": "px", "label": "Bottom spacing", "default": 16 }
       ]
     },
+
+    {
+      "type": "wishlist",
+      "name": "Wishlist button",
+      "limit": 1,
+      "settings": [
+        {
+          "type": "select",
+          "id": "button_size",
+          "label": "Button size",
+          "default": "medium",
+          "options": [
+            { "value": "small", "label": "Small" },
+            { "value": "medium", "label": "Medium" },
+            { "value": "large", "label": "Large" }
+          ]
+        },
+        {
+          "type": "select",
+          "id": "wishlist_mode",
+          "label": "Save mode",
+          "default": "product",
+          "options": [
+            { "value": "product", "label": "By product" },
+            { "value": "variant", "label": "By variant" }
+          ]
+        },
+        { "type": "text", "id": "label_add", "label": "Label (add)", "default": "Add to wishlist" },
+        { "type": "text", "id": "label_remove", "label": "Label (remove)", "default": "Remove from wishlist" },
+        { "type": "text", "id": "icon_inactive", "label": "Icon (inactive)", "default": "♡" },
+        { "type": "text", "id": "icon_active", "label": "Icon (active)", "default": "♥" },
+
+        { "type": "color", "id": "text_color", "label": "Text color", "default": "#111111" },
+        { "type": "range", "id": "font_size", "min": 12, "max": 60, "step": 1, "unit": "px", "label": "Font size", "default": 18 },
+        {
+          "type": "select",
+          "id": "font_weight",
+          "label": "Font weight",
+          "default": "600",
+          "options": [
+            { "value": "400", "label": "Normal" },
+            { "value": "500", "label": "Medium" },
+            { "value": "600", "label": "Semi Bold" },
+            { "value": "700", "label": "Bold" }
+          ]
+        },
+        { "type": "range", "id": "margin_bottom", "min": 0, "max": 60, "step": 4, "unit": "px", "label": "Bottom spacing", "default": 16 }
+      ]
+    },
+
     {
       "type": "description",
       "name": "Description",
