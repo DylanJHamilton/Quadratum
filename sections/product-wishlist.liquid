@@ -1,0 +1,285 @@
+{%- comment -%}
+  SECTION: product-wishlist.liquid
+  Quadratum — PDP Wishlist + Wishlist List (LocalStorage v1)
+
+  - Works on PDP (toggle button) and Wishlist Page (list renderer)
+  - No app required
+  - Storage fallback: in-memory + notice
+  - Sync via window event: q:wishlist:updated
+{%- endcomment -%}
+
+{%- liquid
+  assign s = section.settings
+  assign ctx_product = product
+  assign is_product = false
+  if ctx_product and request.page_type == 'product'
+    assign is_product = true
+  endif
+
+  assign variant_id = blank
+  assign product_handle = blank
+  assign product_url = blank
+
+  if is_product
+    assign product_handle = ctx_product.handle
+    assign variant_id = ctx_product.selected_or_first_available_variant.id
+    assign product_url = ctx_product.url
+  endif
+
+  assign show_button = false
+  assign show_list = false
+
+  case s.mode
+    when 'button_only'
+      assign show_button = true
+    when 'list_only'
+      assign show_list = true
+    when 'button_and_list'
+      assign show_button = true
+      assign show_list = true
+  endcase
+
+  assign pad_top = s.padding_top | default: 40
+  assign pad_bottom = s.padding_bottom | default: 40
+-%}
+
+{{ 'section-product-wishlist.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-product-wishlist.js' | asset_url }}" defer></script>
+
+<section
+  class="product-wishlist color-{{ s.color_scheme }}"
+  data-section-id="{{ section.id }}"
+  data-wishlist-key="{{ section.settings.wishlist_key | escape }}"
+  data-use-variant-id="{{ section.settings.use_variant_id }}"
+  data-show-count-badge="{{ section.settings.show_count_badge }}"
+  data-show-clear-all="{{ section.settings.show_clear_all }}"
+  data-max-products="{{ section.settings.max_products }}"
+  data-layout="{{ section.settings.layout }}"
+  data-columns-desktop="{{ section.settings.columns_desktop }}"
+  data-columns-tablet="{{ section.settings.columns_tablet }}"
+  data-columns-mobile="{{ section.settings.columns_mobile }}"
+  data-show-remove-buttons="{{ section.settings.show_remove_buttons }}"
+  data-button-style="{{ section.settings.button_style }}"
+  data-icon-style="{{ section.settings.icon_style }}"
+  {%- if is_product -%}
+    data-product-handle="{{ product_handle | escape }}"
+    data-variant-id="{{ variant_id }}"
+    data-product-url="{{ product_url | escape }}"
+  {%- endif -%}
+  style="--q-pw-pad-top: {{ pad_top }}px; --q-pw-pad-bottom: {{ pad_bottom }}px;"
+>
+  <div class="product-wishlist__inner">
+    {%- if section.settings.title != blank or section.settings.subheading != blank -%}
+      <header class="product-wishlist__header">
+        <div class="product-wishlist__header-text">
+          {%- if section.settings.title != blank -%}
+            <h2 class="product-wishlist__title">{{ section.settings.title }}</h2>
+          {%- endif -%}
+          {%- if section.settings.subheading != blank -%}
+            <div class="product-wishlist__subheading rte">{{ section.settings.subheading }}</div>
+          {%- endif -%}
+        </div>
+
+        {%- if show_list and section.settings.show_clear_all -%}
+          <div class="product-wishlist__header-actions">
+            <button
+              type="button"
+              class="product-wishlist__clear"
+              data-wishlist-clear
+            >
+              Clear all
+            </button>
+            <span class="product-wishlist__count" data-wishlist-count aria-live="polite"></span>
+          </div>
+        {%- endif -%}
+      </header>
+    {%- endif -%}
+
+    {%- if show_button -%}
+      {%- if is_product -%}
+        <div class="product-wishlist__buttonwrap">
+          <button
+            type="button"
+            class="product-wishlist__toggle btn btn--{{ section.settings.button_style }}"
+            data-wishlist-toggle
+            aria-pressed="false"
+            aria-label="Add to wishlist"
+          >
+            <span class="product-wishlist__icon" aria-hidden="true">
+              {%- if section.settings.icon_style == 'bookmark' -%}
+                <svg viewBox="0 0 24 24" focusable="false" role="presentation"><path d="M6 3h12a1 1 0 0 1 1 1v18l-7-4-7 4V4a1 1 0 0 1 1-1zm1 2v13.6l5-2.9 5 2.9V5H7z"/></svg>
+              {%- else -%}
+                <svg viewBox="0 0 24 24" focusable="false" role="presentation"><path d="M12 21s-7.5-4.6-10-9.2C.6 9.2 2 6 5.5 5.2 7.7 4.7 9.6 5.6 12 8c2.4-2.4 4.3-3.3 6.5-2.8C22 6 23.4 9.2 22 11.8 19.5 16.4 12 21 12 21zm0-2.2c2.1-1.4 6.7-4.7 8.4-8 .9-1.9.2-4.5-2.3-5-1.7-.3-3.3.6-6.1 3.6-2.8-3-4.4-3.9-6.1-3.6-2.5.5-3.2 3.1-2.3 5 1.7 3.3 6.3 6.6 8.4 8z"/></svg>
+              {%- endif -%}
+            </span>
+
+            <span class="product-wishlist__label" data-wishlist-label>Add to wishlist</span>
+
+            {%- if section.settings.show_count_badge -%}
+              <span class="product-wishlist__badge" data-wishlist-badge aria-hidden="true">0</span>
+            {%- endif -%}
+          </button>
+
+          <div class="product-wishlist__notice" data-wishlist-notice hidden>
+            Wishlist isn’t available in this browser mode.
+          </div>
+        </div>
+      {%- else -%}
+        {%- if request.design_mode -%}
+          <div class="product-wishlist__placeholder">
+            <strong>Wishlist button placeholder</strong>
+            <div>This section is in <em>button</em> mode but there is no product context on this page.</div>
+          </div>
+        {%- endif -%}
+      {%- endif -%}
+    {%- endif -%}
+
+    {%- if show_list -%}
+      <div class="product-wishlist__listwrap">
+        <div class="product-wishlist__toolbar" data-wishlist-toolbar>
+          {%- unless section.settings.show_clear_all -%}
+            <span class="product-wishlist__count" data-wishlist-count aria-live="polite"></span>
+          {%- endunless -%}
+        </div>
+
+        <div class="product-wishlist__list" data-wishlist-list></div>
+
+        <div class="product-wishlist__empty" data-wishlist-empty hidden>
+          <h3 class="product-wishlist__empty-title">{{ section.settings.empty_title }}</h3>
+          <div class="product-wishlist__empty-text rte">{{ section.settings.empty_text }}</div>
+          {%- if section.settings.empty_button_link != blank and section.settings.empty_button_label != blank -%}
+            <a class="product-wishlist__empty-btn btn btn--primary" href="{{ section.settings.empty_button_link }}">
+              {{ section.settings.empty_button_label }}
+            </a>
+          {%- endif -%}
+        </div>
+
+        <div class="product-wishlist__notice" data-wishlist-notice hidden>
+          Wishlist isn’t available in this browser mode.
+        </div>
+      </div>
+    {%- endif -%}
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Product Wishlist",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Content"
+    },
+    { "type": "text", "id": "title", "label": "Title", "default": "Wishlist" },
+    { "type": "richtext", "id": "subheading", "label": "Subheading" },
+
+    { "type": "text", "id": "empty_title", "label": "Empty title", "default": "Your wishlist is empty" },
+    {
+      "type": "richtext",
+      "id": "empty_text",
+      "label": "Empty text",
+      "default": "<p>Save products you love and come back anytime. Add items from a product page using the wishlist button.</p>"
+    },
+    { "type": "text", "id": "empty_button_label", "label": "Empty button label", "default": "Browse products" },
+    { "type": "url", "id": "empty_button_link", "label": "Empty button link" },
+
+    {
+      "type": "header",
+      "content": "Behavior"
+    },
+    {
+      "type": "select",
+      "id": "mode",
+      "label": "Mode",
+      "default": "list_only",
+      "options": [
+        { "value": "button_only", "label": "Button only" },
+        { "value": "list_only", "label": "List only" },
+        { "value": "button_and_list", "label": "Button and list" }
+      ]
+    },
+    { "type": "text", "id": "wishlist_key", "label": "Wishlist storage key (advanced)", "default": "q:wishlist:v1" },
+    { "type": "checkbox", "id": "use_variant_id", "label": "Deduplicate by variant ID (recommended)", "default": true },
+    { "type": "checkbox", "id": "show_count_badge", "label": "Show count badge", "default": true },
+    { "type": "checkbox", "id": "show_clear_all", "label": "Show clear all button", "default": true },
+    { "type": "range", "id": "max_products", "label": "Max products to render", "min": 2, "max": 50, "step": 1, "default": 12 },
+
+    {
+      "type": "header",
+      "content": "Layout (list)"
+    },
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "grid",
+      "options": [
+        { "value": "grid", "label": "Grid" },
+        { "value": "carousel", "label": "Carousel" }
+      ]
+    },
+    { "type": "range", "id": "columns_desktop", "label": "Columns desktop", "min": 2, "max": 6, "step": 1, "default": 4 },
+    { "type": "range", "id": "columns_tablet", "label": "Columns tablet", "min": 1, "max": 4, "step": 1, "default": 2 },
+
+    { "type": "range", "id": "columns_mobile", "label": "Columns mobile", "min": 1, "max": 3, "step": 1, "default": 1 },
+
+    { "type": "checkbox", "id": "show_price", "label": "Show price (if supported by product card)", "default": true },
+    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor (if supported by product card)", "default": false },
+    { "type": "checkbox", "id": "show_remove_buttons", "label": "Show remove buttons", "default": true },
+
+    {
+      "type": "header",
+      "content": "Styling"
+    },
+    { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "scheme-1" },
+    {
+      "type": "select",
+      "id": "button_style",
+      "label": "Button style",
+      "default": "secondary",
+      "options": [
+        { "value": "primary", "label": "Primary" },
+        { "value": "secondary", "label": "Secondary" },
+        { "value": "text", "label": "Text" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "icon_style",
+      "label": "Icon style",
+      "default": "heart",
+      "options": [
+        { "value": "heart", "label": "Heart" },
+        { "value": "bookmark", "label": "Bookmark" }
+      ]
+    },
+    { "type": "range", "id": "padding_top", "label": "Padding top", "min": 0, "max": 120, "step": 4, "default": 40 },
+    { "type": "range", "id": "padding_bottom", "label": "Padding bottom", "min": 0, "max": 120, "step": 4, "default": 40 }
+  ],
+  "presets": [
+    {
+      "name": "Product Wishlist Button",
+      "category": "Product",
+      "settings": {
+        "mode": "button_only",
+        "show_count_badge": true,
+        "button_style": "secondary"
+      }
+    },
+    {
+      "name": "Wishlist List",
+      "category": "Product",
+      "settings": {
+        "mode": "list_only",
+        "layout": "grid",
+        "max_products": 12,
+        "columns_desktop": 4,
+        "columns_tablet": 2,
+        "columns_mobile": 1
+      }
+    }
+  ]
+}
+{% endschema %}
