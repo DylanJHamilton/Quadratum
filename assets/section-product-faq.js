@@ -1,73 +1,62 @@
 (() => {
-  const roots = document.querySelectorAll('[data-product-faq][data-layout="accordion_split"]');
-  if (!roots.length) return;
+  const sections = document.querySelectorAll('[data-product-faq][data-layout="accordion_split"]');
+  if (!sections.length) return;
 
-  roots.forEach((root) => {
-    const accordionButtons = Array.from(root.querySelectorAll('.q-pfaq__btn[data-faq-index]'));
-    const panels = Array.from(root.querySelectorAll('[data-faq-panel]'));
-    const stageNodes = Array.from(root.querySelectorAll('[data-faq-stage-node]'));
+  sections.forEach((section) => {
+    const buttons = Array.from(section.querySelectorAll('.q-pfaq__btn[data-faq-index]'));
+    const panels = Array.from(section.querySelectorAll('[data-faq-panel]'));
+    const stageNodes = Array.from(section.querySelectorAll('[data-faq-stage-node]'));
 
-    const mediaEnabled = root.getAttribute('data-media-enabled') === 'true';
-    const firstMediaIndex = parseInt(root.getAttribute('data-first-media-index') || '-1', 10);
+    if (!buttons.length) return;
 
-    const getStageNodeByIndex = (idx) => stageNodes.find((n) => n.getAttribute('data-faq-index') === String(idx));
+    const hideAllStage = () => {
+      stageNodes.forEach((n) => n.setAttribute('hidden', 'hidden'));
+    };
 
-    const showStageForIndex = (idx) => {
-      if (!mediaEnabled) return;
-
-      // prefer exact match if it has media; else fallback to first available
-      let node = getStageNodeByIndex(idx);
-      const hasMedia = node && node.getAttribute('data-has-media') === 'true';
-
-      if (!hasMedia) {
-        if (firstMediaIndex >= 0) node = getStageNodeByIndex(firstMediaIndex);
-      }
-
-      // if still no node, bail
+    const showStageFor = (index) => {
+      // If the selected item has no media, keep existing stage media (do nothing)
+      const node = stageNodes.find((n) => n.dataset.faqIndex === String(index));
       if (!node) return;
+      if (node.getAttribute('data-has-media') === 'false') return;
 
-      stageNodes.forEach((n) => n.hidden = true);
-      node.hidden = false;
+      hideAllStage();
+      node.removeAttribute('hidden');
     };
 
-    const closeAllExcept = (keepIndex) => {
-      accordionButtons.forEach((btn) => {
-        const idx = parseInt(btn.getAttribute('data-faq-index'), 10);
-        const shouldKeep = idx === keepIndex;
-        btn.setAttribute('aria-expanded', shouldKeep ? 'true' : 'false');
-
-        const panel = root.querySelector(`#${btn.getAttribute('aria-controls')}`);
-        if (panel) panel.hidden = !shouldKeep;
-      });
+    const closeAllPanels = () => {
+      buttons.forEach((btn) => btn.setAttribute('aria-expanded', 'false'));
+      panels.forEach((p) => p.setAttribute('hidden', 'hidden'));
     };
 
-    const findOpenIndex = () => {
-      const openBtn = accordionButtons.find((b) => b.getAttribute('aria-expanded') === 'true');
-      return openBtn ? parseInt(openBtn.getAttribute('data-faq-index'), 10) : -1;
+    const openPanel = (index) => {
+      const btn = buttons.find((b) => b.dataset.faqIndex === String(index));
+      const panel = section.querySelector(`#faq-panel-${section.id.replace('ProductFAQ-', '')}-${index}`) || panels[index];
+      if (!btn || !panel) return;
+
+      btn.setAttribute('aria-expanded', 'true');
+      panel.removeAttribute('hidden');
     };
 
-    accordionButtons.forEach((btn) => {
+    // Click handling
+    buttons.forEach((btn) => {
       btn.addEventListener('click', () => {
-        const idx = parseInt(btn.getAttribute('data-faq-index'), 10);
-        const isOpen = btn.getAttribute('aria-expanded') === 'true';
+        const idx = btn.dataset.faqIndex;
+        const expanded = btn.getAttribute('aria-expanded') === 'true';
 
-        if (isOpen) {
-          // close it (allowed). keep stage as-is.
-          btn.setAttribute('aria-expanded', 'false');
-          const panel = root.querySelector(`#${btn.getAttribute('aria-controls')}`);
-          if (panel) panel.hidden = true;
-          return;
+        // Toggle accordion
+        closeAllPanels();
+        if (!expanded) {
+          openPanel(idx);
+          showStageFor(idx);
+        } else {
+          // All closed: keep last media visible (no stage change)
         }
-
-        // open this, close others
-        closeAllExcept(idx);
-        showStageForIndex(idx);
       });
     });
 
-    // Initial stage: if something is open, use it; else fall back to first media if present.
-    const initialOpen = findOpenIndex();
-    if (initialOpen >= 0) showStageForIndex(initialOpen);
-    else if (firstMediaIndex >= 0) showStageForIndex(firstMediaIndex);
+    // Initial stage: show first item’s media if possible else first media index
+    const firstMediaIndex = section.getAttribute('data-first-media-index');
+    const initIdx = firstMediaIndex && firstMediaIndex !== '-1' ? firstMediaIndex : '0';
+    showStageFor(initIdx);
   });
 })();
