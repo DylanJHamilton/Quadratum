@@ -1,98 +1,109 @@
 {%- comment -%}
-  product-faq-media.liquid (section helper)
+  Snippet: product-faq-media.liquid
   Inputs:
-  - media_type: 'image' | 'video' | 'external_video' | 'model'
-  - image: ImageDrop
-  - video: VideoDrop
-  - external_url: string/url
-  - model: MediaDrop OR (fallback) product reference (optional)
-  - poster: ImageDrop (optional)
-  - alt: string
-  - sizes: string
-  - widths: string
-  - aspect_ratio: 'adapt' | '1/1' | '4/3' | '16/9' | '3/4'
-  - fit: 'cover' | 'contain'
-  - radius: number (px)
-  - enable_zoom: boolean (image only)
+  - section (required for settings)
+  - media_type: image | video | external_video | model
+  - image, video, model (objects)
+  - external_url (string)
+  - poster (image object, optional)
+  - alt (string)
+  - sizes, widths
+  - mode: 'inline' | 'stage'
 {%- endcomment -%}
 
 {%- liquid
-  assign t = media_type | default: 'none'
-  assign ratio = aspect_ratio | default: 'adapt'
-  assign obj_fit = fit | default: 'cover'
-  assign r = radius | default: 12
+  assign s = section.settings
+  assign m_type = media_type | default: 'none'
+  assign fit = s.media_fit | default: 'cover'
+  assign radius = s.media_radius | default: 12
+  assign zoom = s.media_enable_zoom
+  assign ar = s.media_aspect_ratio | default: 'adapt'
+  assign ar_style = ''
+
+  if ar != 'adapt'
+    assign ar_style = 'aspect-ratio:' | append: ar | append: ';'
+  endif
+
+  assign wrap_classes = 'q-pfaq__media'
+  if zoom
+    assign wrap_classes = wrap_classes | append: ' q-pfaq__media--zoom'
+  endif
 
   assign alt_text = alt | default: ''
-  assign use_ratio = true
-  if ratio == 'adapt'
-    assign use_ratio = false
-  endif
 -%}
 
-<div
-  class="q-pfaqMedia"
-  style="--q-pfaq-radius: {{ r }}px; --q-pfaq-fit: {{ obj_fit }};"
-  data-pfaq-media
-  data-type="{{ t }}"
->
-  {%- if t == 'image' and image != blank -%}
-    <div class="q-pfaqMedia__frame {% if use_ratio %}q-pfaqMedia__frame--ratio{% endif %}" {% if use_ratio %}style="--q-pfaq-ratio: {{ ratio }};"{% endif %}>
-      {{ image | image_url: width: 1440 | image_tag:
-        loading: 'lazy',
-        decoding: 'async',
-        sizes: sizes,
-        widths: widths,
-        alt: alt_text,
-        class: 'q-pfaqMedia__img'
-      }}
-      {%- if enable_zoom -%}
-        <button class="q-pfaqMedia__zoom" type="button" aria-label="Zoom image" data-pfaq-zoom>
-          <span aria-hidden="true">+</span>
-        </button>
+<div class="{{ wrap_classes }}" style="{{ ar_style }} border-radius: {{ radius }}px;">
+  {%- case m_type -%}
+    {%- when 'image' -%}
+      {%- if image != blank -%}
+        {{ image
+          | image_url: width: 1600
+          | image_tag:
+            widths: widths,
+            sizes: sizes,
+            loading: 'lazy',
+            class: 'q-pfaq__img',
+            alt: alt_text
+        }}
       {%- endif -%}
-    </div>
 
-  {%- elsif t == 'video' and video != blank -%}
-    <div class="q-pfaqMedia__frame {% if use_ratio %}q-pfaqMedia__frame--ratio{% endif %}" {% if use_ratio %}style="--q-pfaq-ratio: {{ ratio }};"{% endif %}>
-      {{ video | video_tag:
-        controls: true,
-        muted: false,
-        autoplay: false,
-        loop: false,
-        preload: 'metadata',
-        class: 'q-pfaqMedia__video',
-        poster: poster
-      }}
-    </div>
-
-  {%- elsif t == 'external_video' and external_url != blank -%}
-    <div class="q-pfaqMedia__frame {% if use_ratio %}q-pfaqMedia__frame--ratio{% endif %}" {% if use_ratio %}style="--q-pfaq-ratio: {{ ratio }};"{% endif %}>
-      <iframe
-        class="q-pfaqMedia__iframe"
-        src="{{ external_url | escape }}"
-        title="{{ alt_text | escape }}"
-        loading="lazy"
-        referrerpolicy="strict-origin-when-cross-origin"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        allowfullscreen
-      ></iframe>
-    </div>
-
-  {%- elsif t == 'model' and model != blank -%}
-    <div class="q-pfaqMedia__frame {% if use_ratio %}q-pfaqMedia__frame--ratio{% endif %}" {% if use_ratio %}style="--q-pfaq-ratio: {{ ratio }};"{% endif %}>
-      {%- comment -%}
-        Prefer a MediaDrop model if provided (file_reference).
-        If a product reference was provided, merchant should attach a 3D model to that product and your
-        theme’s global model-viewer assets should handle it. If not available, this safely degrades.
-      {%- endcomment -%}
-      {%- if model.media_type == 'model' -%}
-        {{ model | media_tag: class: 'q-pfaqMedia__model', image_size: '900x' }}
-      {%- else -%}
-        <div class="q-pfaqMedia__modelFallback" role="img" aria-label="{{ alt_text | escape }}"></div>
+    {%- when 'video' -%}
+      {%- if video != blank -%}
+        {{ video | video_tag: class: 'q-pfaq__video', controls: true, preload: 'metadata' }}
       {%- endif -%}
-    </div>
 
-  {%- else -%}
-    <div class="q-pfaqMedia__empty" aria-hidden="true"></div>
-  {%- endif -%}
+    {%- when 'external_video' -%}
+      {%- if external_url != blank -%}
+        <div class="q-pfaq__ext">
+          <iframe
+            class="q-pfaq__iframe"
+            src="{{ external_url | escape }}"
+            loading="lazy"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen
+            title="{{ alt_text | escape }}"
+          ></iframe>
+        </div>
+      {%- endif -%}
+
+    {%- when 'model' -%}
+      {%- if model != blank -%}
+        {%- comment -%}
+          Minimal safe fallback: if model is actually a product reference, attempt first 3D model.
+        {%- endcomment -%}
+        {%- assign model_media = blank -%}
+        {%- if model.media != blank -%}
+          {%- for pm in model.media -%}
+            {%- if pm.media_type == 'model' -%}
+              {%- assign model_media = pm -%}
+              {%- break -%}
+            {%- endif -%}
+          {%- endfor -%}
+        {%- endif -%}
+
+        {%- if model_media != blank -%}
+          {{ model_media | model_viewer_tag: class: 'q-pfaq__model', reveal: 'interaction', toggleable: true }}
+        {%- elsif poster != blank -%}
+          {{ poster | image_url: width: 1600 | image_tag: widths: widths, sizes: sizes, loading: 'lazy', class: 'q-pfaq__img', alt: alt_text }}
+        {%- endif -%}
+      {%- endif -%}
+  {%- endcase -%}
 </div>
+
+<style>
+  /* Fit applies across image/video/iframe/model inside wrapper */
+  #ProductFAQ-{{ section.id }} .q-pfaq__img,
+  #ProductFAQ-{{ section.id }} .q-pfaq__video,
+  #ProductFAQ-{{ section.id }} .q-pfaq__iframe,
+  #ProductFAQ-{{ section.id }} .q-pfaq__model {
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    display: block;
+  }
+  #ProductFAQ-{{ section.id }} .q-pfaq__img,
+  #ProductFAQ-{{ section.id }} .q-pfaq__video,
+  #ProductFAQ-{{ section.id }} .q-pfaq__iframe {
+    object-fit: {{ s.media_fit | default: 'cover' }};
+  }
+</style>
