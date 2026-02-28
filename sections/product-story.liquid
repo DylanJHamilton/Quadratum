@@ -1,0 +1,659 @@
+{%- comment -%}
+  SECTION: product-story.liquid
+
+  Standalone PDP support section for brand/product narrative.
+
+  Sources:
+  - manual (blocks)
+  - metafield (product rich_text metafield)
+  - metaobject (single reference with content + optional media + optional timeline list)
+
+  Product resolution:
+  - closest.product
+  - product
+  - If none: placeholder only in Theme Editor; otherwise render nothing
+
+  Shopify Liquid constraints handled:
+  - {% schema %} is TOP-LEVEL only
+  - No {{ }} output inside {% liquid %} blocks
+  - No parentheses in boolean conditions
+{%- endcomment -%}
+
+{%- liquid
+  assign s = section.settings
+
+  assign q_product = nil
+  if closest and closest.product
+    assign q_product = closest.product
+  elsif product
+    assign q_product = product
+  endif
+-%}
+
+{%- if q_product == nil -%}
+  {%- if request.design_mode -%}
+    <section class="q-section product-story product-story--placeholder" aria-label="Product story placeholder">
+      <div class="product-story__outer">
+        <div class="product-story__inner">
+          <div class="product-story__header">
+            <h2 class="product-story__title">Product story</h2>
+          </div>
+          <div class="product-story__body rte">
+            <p>Add this section on a product page (or a Featured product section) to render the story.</p>
+          </div>
+        </div>
+      </div>
+
+      <style>
+        .product-story{padding:24px 0}
+        .product-story__outer{width:100%}
+        .product-story__inner{
+          max-width:var(--q-content-max,1100px);
+          margin-inline:auto;
+          padding-inline:var(--q-gutter,16px);
+          border:1px dashed rgba(0,0,0,.2);
+          border-radius:var(--q-radius-2xl,16px);
+          padding:20px;
+        }
+        .product-story__title{margin:0 0 12px;font:inherit;font-weight:700}
+      </style>
+    </section>
+  {%- endif -%}
+
+{%- else -%}
+
+  {%- liquid
+    assign story_heading = s.title
+    assign story_intro = s.intro
+
+    assign mf = q_product.metafields[s.metafield_namespace][s.metafield_key]
+    assign meta_story = s.metaobject_reference
+
+    comment
+      Media resolution targets
+      resolved_media_kind: image | video | blank
+    endcomment
+    assign resolved_media_kind = ''
+    assign resolved_image = nil
+    assign resolved_video = nil
+    assign resolved_caption = s.media_caption
+
+    comment
+      Timeline resolution
+    endcomment
+    assign timeline_items = nil
+    assign timeline_heading = s.timeline_heading
+
+    if s.source == 'metaobject' and meta_story
+      if meta_story.heading != blank
+        assign story_heading = meta_story.heading
+      endif
+
+      if meta_story.media_caption != blank
+        assign resolved_caption = meta_story.media_caption
+      endif
+
+      if s.show_media
+        if s.media_type == 'video'
+          if meta_story.media_video != blank
+            assign resolved_media_kind = 'video'
+            assign resolved_video = meta_story.media_video
+          elsif meta_story.media_image != blank
+            assign resolved_media_kind = 'image'
+            assign resolved_image = meta_story.media_image
+          endif
+        else
+          if meta_story.media_image != blank
+            assign resolved_media_kind = 'image'
+            assign resolved_image = meta_story.media_image
+          elsif meta_story.media_video != blank
+            assign resolved_media_kind = 'video'
+            assign resolved_video = meta_story.media_video
+          endif
+        endif
+      endif
+
+      if s.show_timeline and meta_story.timeline_items != blank
+        assign timeline_items = meta_story.timeline_items
+      endif
+    endif
+
+    if s.source == 'manual'
+      if s.show_media and s.layout == 'split'
+        for block in section.blocks
+          if resolved_media_kind == blank and block.type == 'story_image' and block.settings.image != blank
+            assign resolved_media_kind = 'image'
+            assign resolved_image = block.settings.image
+            assign resolved_caption = block.settings.caption | default: s.media_caption
+          elsif resolved_media_kind == blank and block.type == 'story_video' and block.settings.video != blank
+            assign resolved_media_kind = 'video'
+            assign resolved_video = block.settings.video
+            assign resolved_caption = block.settings.caption | default: s.media_caption
+          endif
+        endfor
+      endif
+    endif
+
+    if s.show_media and resolved_media_kind == blank
+      if s.media_type == 'video' and s.video != blank
+        assign resolved_media_kind = 'video'
+        assign resolved_video = s.video
+      elsif s.image != blank
+        assign resolved_media_kind = 'image'
+        assign resolved_image = s.image
+      elsif s.video != blank
+        assign resolved_media_kind = 'video'
+        assign resolved_video = s.video
+      endif
+    endif
+
+    if s.show_timeline and s.timeline_source == 'metaobject_list' and s.timeline_metaobject_list != blank
+      assign timeline_items = s.timeline_metaobject_list
+    endif
+
+    assign effective_layout = s.layout
+    if effective_layout == 'split'
+      if s.show_media == false
+        assign effective_layout = 'stack'
+      elsif resolved_media_kind == blank
+        assign effective_layout = 'stack'
+      endif
+    endif
+
+    assign width_class = ' product-story--center'
+    if s.content_width == 'content-full-width'
+      assign width_class = ' product-story--full'
+    endif
+
+    assign align_class = ' product-story--align-left'
+    if s.text_alignment == 'center'
+      assign align_class = ' product-story--align-center'
+    endif
+
+    assign media_pos_class = ' product-story--media-right'
+    if s.media_position_desktop == 'left'
+      assign media_pos_class = ' product-story--media-left'
+    endif
+
+    assign scheme_class = ''
+    if s.color_scheme != blank
+      assign scheme_class = ' color-' | append: s.color_scheme
+    endif
+
+    assign ratio_class = ' product-story__media--' | append: s.media_ratio
+    assign fit_class = ' product-story__media--fit-' | append: s.media_fit
+
+    assign pad_top = s.padding_top | default: 40
+    assign pad_bottom = s.padding_bottom | default: 40
+  -%}
+
+  <section
+    class="q-section product-story{{ scheme_class }} product-story--{{ effective_layout }}{{ media_pos_class }}{{ width_class }}{{ align_class }}"
+    style="--ps-pad-top: {{ pad_top }}px; --ps-pad-bottom: {{ pad_bottom }}px;"
+    aria-label="{{ story_heading | strip_html | escape }}"
+  >
+    <div class="product-story__outer">
+      <div class="product-story__inner">
+
+        <div class="product-story__header">
+          {%- if story_heading != blank -%}
+            <h2 class="product-story__title">{{ story_heading }}</h2>
+          {%- endif -%}
+
+          {%- if story_intro != blank -%}
+            <div class="product-story__intro rte">{{ story_intro }}</div>
+          {%- endif -%}
+        </div>
+
+        <div class="product-story__grid">
+          <div class="product-story__content">
+
+            {%- if s.source == 'manual' -%}
+              <div class="product-story__body rte">
+                {%- for block in section.blocks -%}
+                  {%- case block.type -%}
+                    {%- when 'story_paragraph' -%}
+                      {%- if block.settings.content != blank -%}
+                        <div class="product-story__block product-story__block--paragraph" {{ block.shopify_attributes }}>
+                          {{ block.settings.content }}
+                        </div>
+                      {%- endif -%}
+
+                    {%- when 'story_image' -%}
+                      {%- if effective_layout != 'split' or s.show_media == false -%}
+                        {%- if block.settings.image != blank -%}
+                          {%- liquid
+                            assign b_ratio = block.settings.ratio | default: 'inherit'
+                            assign ratio_override_class = ''
+                            if b_ratio != 'inherit'
+                              assign ratio_override_class = ' product-story__media--' | append: b_ratio
+                            endif
+                          -%}
+                          <figure class="product-story__block product-story__block--image" {{ block.shopify_attributes }}>
+                            <div class="product-story__media product-story__media--image{{ ratio_override_class }}">
+                              {{ block.settings.image | image_url: width: 1600 | image_tag:
+                                loading: 'lazy',
+                                alt: block.settings.image.alt | default: q_product.title
+                              }}
+                            </div>
+                            {%- if block.settings.caption != blank -%}
+                              <figcaption class="product-story__caption">{{ block.settings.caption }}</figcaption>
+                            {%- endif -%}
+                          </figure>
+                        {%- endif -%}
+                      {%- endif -%}
+
+                    {%- when 'story_video' -%}
+                      {%- if effective_layout != 'split' or s.show_media == false -%}
+                        {%- if block.settings.video != blank -%}
+                          <figure class="product-story__block product-story__block--video" {{ block.shopify_attributes }}>
+                            <div class="product-story__media product-story__media--video product-story__media--{{ s.media_ratio }}">
+                              {{ block.settings.video | video_tag:
+                                autoplay: s.video_autoplay,
+                                loop: s.video_loop,
+                                muted: true,
+                                controls: true,
+                                playsinline: true
+                              }}
+                            </div>
+                            {%- if block.settings.caption != blank -%}
+                              <figcaption class="product-story__caption">{{ block.settings.caption }}</figcaption>
+                            {%- endif -%}
+                          </figure>
+                        {%- endif -%}
+                      {%- endif -%}
+                  {%- endcase -%}
+                {%- endfor -%}
+              </div>
+
+            {%- elsif s.source == 'metaobject' -%}
+              {%- if meta_story and meta_story.content != blank -%}
+                <div class="product-story__body rte">
+                  {{ meta_story.content }}
+                </div>
+              {%- elsif request.design_mode -%}
+                <div class="product-story__body rte"><p><em>No metaobject content found.</em></p></div>
+              {%- endif -%}
+
+            {%- else -%}
+              {%- if mf != blank -%}
+                <div class="product-story__body rte">
+                  {%- if mf.type == 'rich_text' -%}
+                    {{ mf | metafield_tag }}
+                  {%- else -%}
+                    <p>{{ mf.value | default: mf | escape }}</p>
+                  {%- endif -%}
+                </div>
+              {%- elsif request.design_mode -%}
+                <div class="product-story__body rte"><p><em>No metafield content found.</em></p></div>
+              {%- endif -%}
+            {%- endif -%}
+
+          </div>
+
+          {%- if effective_layout == 'split' and s.show_media and resolved_media_kind != blank -%}
+            <div class="product-story__media-col">
+              {%- if resolved_media_kind == 'image' and resolved_image != blank -%}
+                <figure class="product-story__figure">
+                  <div class="product-story__media product-story__media--image{{ ratio_class }}{{ fit_class }}">
+                    {{ resolved_image | image_url: width: 1800 | image_tag:
+                      loading: 'lazy',
+                      alt: resolved_image.alt | default: q_product.title
+                    }}
+                  </div>
+                  {%- if resolved_caption != blank -%}
+                    <figcaption class="product-story__caption">{{ resolved_caption }}</figcaption>
+                  {%- endif -%}
+                </figure>
+              {%- elsif resolved_media_kind == 'video' and resolved_video != blank -%}
+                <figure class="product-story__figure">
+                  <div class="product-story__media product-story__media--video{{ ratio_class }}">
+                    {{ resolved_video | video_tag:
+                      autoplay: s.video_autoplay,
+                      loop: s.video_loop,
+                      muted: true,
+                      controls: true,
+                      playsinline: true
+                    }}
+                  </div>
+                  {%- if resolved_caption != blank -%}
+                    <figcaption class="product-story__caption">{{ resolved_caption }}</figcaption>
+                  {%- endif -%}
+                </figure>
+              {%- endif -%}
+            </div>
+          {%- endif -%}
+        </div>
+
+        {%- if s.show_timeline -%}
+          {%- liquid
+            assign should_render_timeline = false
+            if s.timeline_source == 'manual'
+              for block in section.blocks
+                if block.type == 'timeline_item'
+                  assign should_render_timeline = true
+                  break
+                endif
+              endfor
+            elsif s.timeline_source == 'metaobject_list'
+              if timeline_items != blank
+                assign should_render_timeline = true
+              endif
+            endif
+          -%}
+
+          {%- if should_render_timeline -%}
+            <div class="product-story__timeline" role="region" aria-label="{{ timeline_heading | strip_html | escape }}">
+              {%- if timeline_heading != blank -%}
+                <h3 class="product-story__timeline-title">{{ timeline_heading }}</h3>
+              {%- endif -%}
+
+              <ol class="product-story__timeline-list">
+                {%- if s.timeline_source == 'manual' -%}
+                  {%- for block in section.blocks -%}
+                    {%- if block.type == 'timeline_item' -%}
+                      <li class="product-story__timeline-item" {{ block.shopify_attributes }}>
+                        <div class="product-story__timeline-card">
+                          {%- if block.settings.date != blank -%}
+                            <div class="product-story__timeline-date">{{ block.settings.date }}</div>
+                          {%- endif -%}
+                          {%- if block.settings.title != blank -%}
+                            <div class="product-story__timeline-heading">{{ block.settings.title }}</div>
+                          {%- endif -%}
+                          {%- if block.settings.text != blank -%}
+                            <div class="product-story__timeline-text rte">{{ block.settings.text }}</div>
+                          {%- endif -%}
+                          {%- if block.settings.media_image != blank -%}
+                            <div class="product-story__timeline-media">
+                              {{ block.settings.media_image | image_url: width: 1400 | image_tag:
+                                loading: 'lazy',
+                                alt: block.settings.media_image.alt | default: block.settings.title | default: q_product.title
+                              }}
+                            </div>
+                          {%- endif -%}
+                        </div>
+                      </li>
+                    {%- endif -%}
+                  {%- endfor -%}
+                {%- else -%}
+                  {%- for item in timeline_items -%}
+                    <li class="product-story__timeline-item">
+                      <div class="product-story__timeline-card">
+                        {%- if item.date != blank -%}
+                          <div class="product-story__timeline-date">{{ item.date }}</div>
+                        {%- endif -%}
+                        {%- if item.title != blank -%}
+                          <div class="product-story__timeline-heading">{{ item.title }}</div>
+                        {%- endif -%}
+                        {%- if item.text != blank -%}
+                          <div class="product-story__timeline-text rte">{{ item.text }}</div>
+                        {%- endif -%}
+                        {%- if item.image != blank -%}
+                          <div class="product-story__timeline-media">
+                            {{ item.image | image_url: width: 1400 | image_tag:
+                              loading: 'lazy',
+                              alt: item.image.alt | default: item.title | default: q_product.title
+                            }}
+                          </div>
+                        {%- endif -%}
+                      </div>
+                    </li>
+                  {%- endfor -%}
+                {%- endif -%}
+              </ol>
+            </div>
+          {%- elsif request.design_mode -%}
+            <div class="product-story__timeline product-story__timeline--empty">
+              <p class="product-story__empty-note"><em>Timeline is enabled, but no items are available.</em></p>
+            </div>
+          {%- endif -%}
+        {%- endif -%}
+
+      </div>
+    </div>
+
+    <style>
+      .product-story{padding-top:var(--ps-pad-top,40px);padding-bottom:var(--ps-pad-bottom,40px)}
+      .product-story__outer{width:100%}
+      .product-story--center .product-story__inner{max-width:var(--q-content-max,1100px);margin-inline:auto;padding-inline:var(--q-gutter,16px)}
+      .product-story--full .product-story__inner{width:100%;padding-inline:var(--q-gutter,16px)}
+      .product-story__header{margin-bottom:var(--q-space-6,24px)}
+      .product-story__title{margin:0 0 var(--q-space-3,12px);font:inherit;font-weight:700;line-height:1.2;font-size:clamp(1.25rem,1.1rem + .6vw,1.75rem)}
+      .product-story--align-center .product-story__title,
+      .product-story--align-center .product-story__intro,
+      .product-story--align-center .product-story__content,
+      .product-story--align-center .product-story__timeline{text-align:center}
+      .product-story__grid{display:grid;gap:var(--q-space-7,28px);align-items:start}
+      .product-story--split .product-story__grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+      .product-story--media-left.product-story--split .product-story__content{order:2}
+      .product-story--media-left.product-story--split .product-story__media-col{order:1}
+      .product-story__body{overflow-wrap:anywhere}
+      .product-story__figure{margin:0}
+      .product-story__caption{margin-top:var(--q-space-3,12px);font-size:.925rem;opacity:.85}
+      .product-story__media{border-radius:var(--q-radius-2xl,16px);overflow:hidden;background:var(--q-surface-2,rgba(0,0,0,.04))}
+      .product-story__media--image img,.product-story__timeline-media img{width:100%;height:100%;display:block;object-fit:var(--ps-fit,cover)}
+      .product-story__media--fit-cover{--ps-fit:cover}
+      .product-story__media--fit-contain{--ps-fit:contain}
+      .product-story__media--adapt{aspect-ratio:auto}
+      .product-story__media--square{aspect-ratio:1/1}
+      .product-story__media--landscape{aspect-ratio:16/9}
+      .product-story__media--portrait{aspect-ratio:4/5}
+      .product-story__media--video video{width:100%;height:100%;display:block}
+      .product-story__timeline{margin-top:var(--q-space-8,32px)}
+      .product-story__timeline-title{margin:0 0 var(--q-space-4,16px);font:inherit;font-weight:700;font-size:1.125rem}
+      .product-story__timeline-list{list-style:none;padding:0;margin:0;display:grid;gap:var(--q-space-5,20px)}
+      .product-story__timeline-card{border-radius:var(--q-radius-2xl,16px);padding:var(--q-space-5,20px);background:var(--q-surface-1,rgba(0,0,0,.03));border:1px solid var(--q-border,rgba(0,0,0,.08))}
+      .product-story__timeline-date{font-size:.9rem;opacity:.8;margin-bottom:var(--q-space-2,8px)}
+      .product-story__timeline-heading{font-weight:700;margin-bottom:var(--q-space-2,8px)}
+      .product-story__timeline-media{margin-top:var(--q-space-4,16px);border-radius:var(--q-radius-xl,14px);overflow:hidden}
+      .product-story__empty-note{opacity:.85}
+      @media (max-width:989px){
+        .product-story--split .product-story__grid{grid-template-columns:1fr}
+        .product-story--media-left.product-story--split .product-story__content,
+        .product-story--media-left.product-story--split .product-story__media-col{order:initial}
+      }
+    </style>
+  </section>
+
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Product story",
+  "tag": "section",
+  "class": "q-section-wrapper",
+  "settings": [
+    { "type": "header", "content": "Content" },
+    { "type": "text", "id": "title", "label": "Title", "default": "The story behind this product" },
+    { "type": "richtext", "id": "intro", "label": "Intro (optional)" },
+
+    { "type": "header", "content": "Source" },
+    {
+      "type": "select",
+      "id": "source",
+      "label": "Story source",
+      "default": "metafield",
+      "options": [
+        { "value": "manual", "label": "Manual (blocks)" },
+        { "value": "metafield", "label": "Product metafield" },
+        { "value": "metaobject", "label": "Metaobject reference" }
+      ]
+    },
+    { "type": "text", "id": "metafield_namespace", "label": "Metafield namespace (when source = metafield)", "default": "custom" },
+    { "type": "text", "id": "metafield_key", "label": "Metafield key (when source = metafield)", "default": "story" },
+
+    {
+      "type": "metaobject",
+      "id": "metaobject_reference",
+      "label": "Story metaobject (when source = metaobject)",
+      "metaobject_type": "product_story"
+    },
+    { "type": "text", "id": "metaobject_expected_type", "label": "Expected metaobject type (safety hint)", "default": "product_story" },
+
+    { "type": "header", "content": "Layout" },
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "split",
+      "options": [
+        { "value": "stack", "label": "Stack" },
+        { "value": "split", "label": "Split" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "media_position_desktop",
+      "label": "Media position (desktop)",
+      "default": "right",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "right", "label": "Right" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "media_ratio",
+      "label": "Media ratio",
+      "default": "adapt",
+      "options": [
+        { "value": "adapt", "label": "Adapt" },
+        { "value": "square", "label": "Square" },
+        { "value": "landscape", "label": "Landscape (16:9)" },
+        { "value": "portrait", "label": "Portrait (4:5)" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "media_fit",
+      "label": "Media fit",
+      "default": "cover",
+      "options": [
+        { "value": "cover", "label": "Cover" },
+        { "value": "contain", "label": "Contain" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "content_width",
+      "label": "Content width",
+      "default": "content-center-aligned",
+      "options": [
+        { "value": "content-center-aligned", "label": "Center aligned" },
+        { "value": "content-full-width", "label": "Full width" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "text_alignment",
+      "label": "Text alignment",
+      "default": "left",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" }
+      ]
+    },
+
+    { "type": "header", "content": "Media" },
+    { "type": "checkbox", "id": "show_media", "label": "Show media", "default": true },
+    {
+      "type": "select",
+      "id": "media_type",
+      "label": "Preferred media type",
+      "default": "image",
+      "options": [
+        { "value": "image", "label": "Image" },
+        { "value": "video", "label": "Video" }
+      ]
+    },
+    { "type": "image_picker", "id": "image", "label": "Fallback image (manual)" },
+    { "type": "video", "id": "video", "label": "Fallback video (manual)" },
+    { "type": "checkbox", "id": "video_autoplay", "label": "Autoplay video", "default": false },
+    { "type": "checkbox", "id": "video_loop", "label": "Loop video", "default": true },
+    { "type": "text", "id": "media_caption", "label": "Media caption (optional)" },
+
+    { "type": "header", "content": "Timeline (optional)" },
+    { "type": "checkbox", "id": "show_timeline", "label": "Show timeline", "default": false },
+    {
+      "type": "select",
+      "id": "timeline_source",
+      "label": "Timeline source",
+      "default": "manual",
+      "options": [
+        { "value": "manual", "label": "Manual (blocks)" },
+        { "value": "metaobject_list", "label": "Metaobject list" }
+      ]
+    },
+    { "type": "text", "id": "timeline_heading", "label": "Timeline heading", "default": "Timeline" },
+    {
+      "type": "metaobject_list",
+      "id": "timeline_metaobject_list",
+      "label": "Timeline items (metaobject list)",
+      "metaobject_type": "product_story_timeline_item"
+    },
+
+    { "type": "header", "content": "Style" },
+    { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "background-1" },
+    { "type": "range", "id": "padding_top", "label": "Padding top", "min": 0, "max": 100, "step": 4, "unit": "px", "default": 40 },
+    { "type": "range", "id": "padding_bottom", "label": "Padding bottom", "min": 0, "max": 100, "step": 4, "unit": "px", "default": 40 }
+  ],
+  "blocks": [
+    {
+      "type": "story_paragraph",
+      "name": "Story paragraph",
+      "settings": [
+        { "type": "richtext", "id": "content", "label": "Content", "default": "<p>Share the inspiration, materials, and craft behind this product.</p>" }
+      ]
+    },
+    {
+      "type": "story_image",
+      "name": "Story image",
+      "settings": [
+        { "type": "image_picker", "id": "image", "label": "Image" },
+        { "type": "text", "id": "caption", "label": "Caption (optional)" },
+        {
+          "type": "select",
+          "id": "ratio",
+          "label": "Ratio override",
+          "default": "inherit",
+          "options": [
+            { "value": "inherit", "label": "Inherit section setting" },
+            { "value": "adapt", "label": "Adapt" },
+            { "value": "square", "label": "Square" },
+            { "value": "landscape", "label": "Landscape (16:9)" },
+            { "value": "portrait", "label": "Portrait (4:5)" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "story_video",
+      "name": "Story video",
+      "settings": [
+        { "type": "video", "id": "video", "label": "Video" },
+        { "type": "text", "id": "caption", "label": "Caption (optional)" }
+      ]
+    },
+    {
+      "type": "timeline_item",
+      "name": "Timeline item",
+      "settings": [
+        { "type": "text", "id": "date", "label": "Date" },
+        { "type": "text", "id": "title", "label": "Title" },
+        { "type": "richtext", "id": "text", "label": "Text" },
+        { "type": "image_picker", "id": "media_image", "label": "Image (optional)" }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Product story",
+      "blocks": [
+        { "type": "story_paragraph" },
+        { "type": "story_paragraph", "settings": { "content": "<p>Explain what makes this product different—process, sourcing, and real-world use.</p>" } },
+        { "type": "story_paragraph", "settings": { "content": "<p>Close with how this product fits your brand values and what customers can expect.</p>" } }
+      ]
+    }
+  ]
+}
+{% endschema %}
