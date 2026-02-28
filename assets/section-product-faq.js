@@ -1,62 +1,77 @@
 (() => {
-  const sections = document.querySelectorAll('[data-product-faq][data-layout="accordion_split"]');
+  const sections = document.querySelectorAll('[data-product-faq]');
   if (!sections.length) return;
 
   sections.forEach((section) => {
+    const layout = section.getAttribute('data-layout') || 'accordion_inline';
     const buttons = Array.from(section.querySelectorAll('.q-pfaq__btn[data-faq-index]'));
-    const panels = Array.from(section.querySelectorAll('[data-faq-panel]'));
-    const stageNodes = Array.from(section.querySelectorAll('[data-faq-stage-node]'));
 
     if (!buttons.length) return;
 
-    const hideAllStage = () => {
-      stageNodes.forEach((n) => n.setAttribute('hidden', 'hidden'));
+    // Map index -> panel by aria-controls (most reliable)
+    const panelByIndex = new Map();
+    buttons.forEach((btn) => {
+      const idx = btn.dataset.faqIndex;
+      const panelId = btn.getAttribute('aria-controls');
+      const panel = panelId ? section.querySelector(`#${CSS.escape(panelId)}`) : null;
+      if (idx != null && panel) panelByIndex.set(String(idx), panel);
+    });
+
+    const closeAll = () => {
+      buttons.forEach((b) => b.setAttribute('aria-expanded', 'false'));
+      panelByIndex.forEach((p) => p.setAttribute('hidden', 'hidden'));
     };
 
-    const showStageFor = (index) => {
-      // If the selected item has no media, keep existing stage media (do nothing)
-      const node = stageNodes.find((n) => n.dataset.faqIndex === String(index));
+    const openOne = (idx) => {
+      const btn = buttons.find((b) => b.dataset.faqIndex === String(idx));
+      const panel = panelByIndex.get(String(idx));
+      if (!btn || !panel) return;
+      btn.setAttribute('aria-expanded', 'true');
+      panel.removeAttribute('hidden');
+    };
+
+    // --- Split stage support (optional) ---
+    const stageNodes = Array.from(section.querySelectorAll('[data-faq-stage-node]'));
+    const hasStage = layout === 'accordion_split' && stageNodes.length;
+
+    const hideAllStage = () => stageNodes.forEach((n) => n.setAttribute('hidden', 'hidden'));
+
+    const showStageFor = (idx) => {
+      if (!hasStage) return;
+
+      const node = stageNodes.find((n) => n.dataset.faqIndex === String(idx));
       if (!node) return;
+
+      // If selected item has no media, keep current stage (no change)
       if (node.getAttribute('data-has-media') === 'false') return;
 
       hideAllStage();
       node.removeAttribute('hidden');
     };
 
-    const closeAllPanels = () => {
-      buttons.forEach((btn) => btn.setAttribute('aria-expanded', 'false'));
-      panels.forEach((p) => p.setAttribute('hidden', 'hidden'));
-    };
-
-    const openPanel = (index) => {
-      const btn = buttons.find((b) => b.dataset.faqIndex === String(index));
-      const panel = section.querySelector(`#faq-panel-${section.id.replace('ProductFAQ-', '')}-${index}`) || panels[index];
-      if (!btn || !panel) return;
-
-      btn.setAttribute('aria-expanded', 'true');
-      panel.removeAttribute('hidden');
-    };
-
-    // Click handling
+    // Click behavior
     buttons.forEach((btn) => {
       btn.addEventListener('click', () => {
         const idx = btn.dataset.faqIndex;
         const expanded = btn.getAttribute('aria-expanded') === 'true';
 
-        // Toggle accordion
-        closeAllPanels();
+        // Always behave like an accordion: only one open at a time
+        closeAll();
+
         if (!expanded) {
-          openPanel(idx);
+          openOne(idx);
           showStageFor(idx);
         } else {
-          // All closed: keep last media visible (no stage change)
+          // closed all; in split we keep last stage media visible (do nothing)
         }
       });
     });
 
-    // Initial stage: show first item’s media if possible else first media index
-    const firstMediaIndex = section.getAttribute('data-first-media-index');
-    const initIdx = firstMediaIndex && firstMediaIndex !== '-1' ? firstMediaIndex : '0';
-    showStageFor(initIdx);
+    // Initial stage selection in split layout
+    if (hasStage) {
+      const firstMediaIndex = section.getAttribute('data-first-media-index');
+      const initIdx = firstMediaIndex && firstMediaIndex !== '-1' ? firstMediaIndex : '0';
+      showStageFor(initIdx);
+    }
   });
 })();
