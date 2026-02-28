@@ -1,0 +1,331 @@
+{% comment %}
+  Quadratum — Product Recommended
+  File: sections/product-recommended.liquid
+{% endcomment %}
+
+{%- liquid
+  assign s = section.settings
+
+  if product == blank
+    break
+  endif
+
+  assign max_products = s.max_products | default: 4
+  assign mode = s.mode | default: 'dynamic'
+  assign layout = s.layout | default: 'grid'
+  assign intent = s.intent | default: 'related'
+
+  assign is_endpoint_render = false
+  if recommendations != blank
+    assign is_endpoint_render = true
+  endif
+
+  assign has_collection_fallback = false
+  if s.collection != blank and s.collection.products_count > 0
+    for fp in s.collection.products limit: 1
+      if fp != blank and fp.id != product.id
+        assign has_collection_fallback = true
+      endif
+    endfor
+  endif
+
+  assign has_manual_fallback = false
+  for b in section.blocks
+    if b.type != 'product_reference'
+      continue
+    endif
+    assign bp = b.settings.product
+    if bp == blank
+      continue
+    endif
+    if bp.id == product.id
+      continue
+    endif
+    assign has_manual_fallback = true
+    break
+  endfor
+
+  assign recos_url = routes.product_recommendations_url
+  assign recos_url = recos_url | append: '?section_id=product-recommended'
+  assign recos_url = recos_url | append: '&product_id=' | append: product.id
+  assign recos_url = recos_url | append: '&limit=' | append: max_products
+  assign recos_url = recos_url | append: '&intent=' | append: intent
+-%}
+
+{%- if mode == 'dynamic' -%}
+  <script src="{{ 'section-product-recommended.js' | asset_url }}" defer></script>
+{%- endif -%}
+
+{%- capture items_markup -%}
+  {%- liquid
+    assign seen = ''
+    assign rendered_count = 0
+  -%}
+
+  {%- if mode == 'dynamic' and is_endpoint_render -%}
+    {%- if recommendations.products_count > 0 -%}
+      {%- for rp in recommendations.products -%}
+        {%- if rendered_count >= max_products -%}{%- break -%}{%- endif -%}
+        {%- if rp == blank -%}{%- continue -%}{%- endif -%}
+        {%- if rp.id == product.id -%}{%- continue -%}{%- endif -%}
+        {%- assign token = '||' | append: rp.id | append: '||' -%}
+        {%- if seen contains token -%}{%- continue -%}{%- endif -%}
+        {%- assign seen = seen | append: token -%}
+        <div class="product-recommended__item">
+          {% render 'product-card', product: rp %}
+        </div>
+        {%- assign rendered_count = rendered_count | plus: 1 -%}
+      {%- endfor -%}
+    {%- endif -%}
+
+    {%- if rendered_count == 0 and s.collection != blank and s.collection.products_count > 0 -%}
+      {%- for cp in s.collection.products -%}
+        {%- if rendered_count >= max_products -%}{%- break -%}{%- endif -%}
+        {%- if cp == blank -%}{%- continue -%}{%- endif -%}
+        {%- if cp.id == product.id -%}{%- continue -%}{%- endif -%}
+        {%- assign token = '||' | append: cp.id | append: '||' -%}
+        {%- if seen contains token -%}{%- continue -%}{%- endif -%}
+        {%- assign seen = seen | append: token -%}
+        <div class="product-recommended__item">
+          {% render 'product-card', product: cp %}
+        </div>
+        {%- assign rendered_count = rendered_count | plus: 1 -%}
+      {%- endfor -%}
+    {%- endif -%}
+
+    {%- if rendered_count == 0 -%}
+      {%- for block in section.blocks -%}
+        {%- if rendered_count >= max_products -%}{%- break -%}{%- endif -%}
+        {%- if block.type != 'product_reference' -%}{%- continue -%}{%- endif -%}
+        {%- assign mp = block.settings.product -%}
+        {%- if mp == blank -%}{%- continue -%}{%- endif -%}
+        {%- if mp.id == product.id -%}{%- continue -%}{%- endif -%}
+        {%- assign token = '||' | append: mp.id | append: '||' -%}
+        {%- if seen contains token -%}{%- continue -%}{%- endif -%}
+        {%- assign seen = seen | append: token -%}
+        <div class="product-recommended__item">
+          {% render 'product-card', product: mp %}
+        </div>
+        {%- assign rendered_count = rendered_count | plus: 1 -%}
+      {%- endfor -%}
+    {%- endif -%}
+
+  {%- elsif mode == 'collection' -%}
+    {%- if s.collection != blank and s.collection.products_count > 0 -%}
+      {%- for cp in s.collection.products -%}
+        {%- if rendered_count >= max_products -%}{%- break -%}{%- endif -%}
+        {%- if cp == blank -%}{%- continue -%}{%- endif -%}
+        {%- if cp.id == product.id -%}{%- continue -%}{%- endif -%}
+        {%- assign token = '||' | append: cp.id | append: '||' -%}
+        {%- if seen contains token -%}{%- continue -%}{%- endif -%}
+        {%- assign seen = seen | append: token -%}
+        <div class="product-recommended__item">
+          {% render 'product-card', product: cp %}
+        </div>
+        {%- assign rendered_count = rendered_count | plus: 1 -%}
+      {%- endfor -%}
+    {%- endif -%}
+
+  {%- elsif mode == 'manual' -%}
+    {%- for block in section.blocks -%}
+      {%- if rendered_count >= max_products -%}{%- break -%}{%- endif -%}
+      {%- if block.type != 'product_reference' -%}{%- continue -%}{%- endif -%}
+      {%- assign mp = block.settings.product -%}
+      {%- if mp == blank -%}{%- continue -%}{%- endif -%}
+      {%- if mp.id == product.id -%}{%- continue -%}{%- endif -%}
+      {%- assign token = '||' | append: mp.id | append: '||' -%}
+      {%- if seen contains token -%}{%- continue -%}{%- endif -%}
+      {%- assign seen = seen | append: token -%}
+      <div class="product-recommended__item">
+        {% render 'product-card', product: mp %}
+      </div>
+      {%- assign rendered_count = rendered_count | plus: 1 -%}
+    {%- endfor -%}
+  {%- endif -%}
+{%- endcapture -%}
+
+{%- liquid
+  assign has_items = false
+  if items_markup contains 'product-recommended__item'
+    assign has_items = true
+  endif
+
+  if mode == 'collection' or mode == 'manual'
+    if has_items == false
+      break
+    endif
+  endif
+-%}
+
+<section
+  class="product-recommended"
+  id="product-recommended"
+  data-section-id="{{ section.id }}"
+  {% if mode == 'dynamic' and is_endpoint_render == false %}data-dynamic="true"{% endif %}
+>
+  {%- if s.title != blank or s.subheading != blank -%}
+    <header class="product-recommended__header">
+      {%- if s.title != blank -%}
+        <h2 class="product-recommended__title">{{ s.title | escape }}</h2>
+      {%- endif -%}
+      {%- if s.subheading != blank -%}
+        <div class="product-recommended__subheading rte">
+          {{ s.subheading }}
+        </div>
+      {%- endif -%}
+    </header>
+  {%- endif -%}
+
+  {%- if layout == 'carousel' -%}
+    <div
+      class="product-recommended__items product-recommended__items--carousel"
+      {% if mode == 'dynamic' and is_endpoint_render == false %}data-recommendations-url="{{ recos_url }}"{% endif %}
+      aria-label="{{ s.title | default: 'Recommended products' | strip_html | escape }}"
+      tabindex="0"
+    >
+      {%- if mode == 'dynamic' and is_endpoint_render == false -%}
+        {%- if has_collection_fallback or has_manual_fallback -%}
+          {{ items_markup }}
+        {%- endif -%}
+      {%- else -%}
+        {{ items_markup }}
+      {%- endif -%}
+    </div>
+  {%- else -%}
+    <div
+      class="product-recommended__items product-recommended__items--grid"
+      style="--cols-mobile: {{ s.columns_mobile }}; --cols-tablet: {{ s.columns_tablet }}; --cols-desktop: {{ s.columns_desktop }};"
+      {% if mode == 'dynamic' and is_endpoint_render == false %}data-recommendations-url="{{ recos_url }}"{% endif %}
+    >
+      {%- if mode == 'dynamic' and is_endpoint_render == false -%}
+        {%- if has_collection_fallback or has_manual_fallback -%}
+          {{ items_markup }}
+        {%- endif -%}
+      {%- else -%}
+        {{ items_markup }}
+      {%- endif -%}
+    </div>
+  {%- endif -%}
+
+  {% stylesheet %}
+    .product-recommended{ width:100%; }
+    .product-recommended__header{ margin: 0 0 1rem 0; }
+    .product-recommended__title{ margin:0; font-size: 1.35rem; line-height: 1.2; }
+    .product-recommended__subheading{ margin-top: .5rem; opacity: .9; }
+
+    .product-recommended__items--grid{
+      display:grid;
+      gap:1rem;
+      grid-template-columns: repeat(var(--cols-mobile, 2), minmax(0, 1fr));
+    }
+    @media (min-width: 750px){
+      .product-recommended__items--grid{
+        grid-template-columns: repeat(var(--cols-tablet, 3), minmax(0, 1fr));
+      }
+    }
+    @media (min-width: 990px){
+      .product-recommended__items--grid{
+        grid-template-columns: repeat(var(--cols-desktop, 4), minmax(0, 1fr));
+      }
+    }
+
+    .product-recommended__items--carousel{
+      display:flex;
+      gap:1rem;
+      overflow-x:auto;
+      scroll-snap-type:x mandatory;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: .25rem;
+      outline: none;
+    }
+    .product-recommended__item{
+      scroll-snap-align:start;
+      flex: 0 0 auto;
+      width: min(320px, 80%);
+    }
+    @media (min-width: 750px){
+      .product-recommended__item{ width: 280px; }
+    }
+  {% endstylesheet %}
+</section>
+
+{% schema %}
+{
+  "name": "Product recommended",
+  "tag": "section",
+  "class": "section product-recommended-section",
+  "settings": [
+    { "type": "text", "id": "title", "label": "Title", "default": "Recommended for you" },
+    { "type": "richtext", "id": "subheading", "label": "Subheading" },
+
+    {
+      "type": "select",
+      "id": "mode",
+      "label": "Mode",
+      "default": "dynamic",
+      "options": [
+        { "value": "dynamic", "label": "Dynamic" },
+        { "value": "collection", "label": "Collection" },
+        { "value": "manual", "label": "Manual" }
+      ]
+    },
+
+    {
+      "type": "collection",
+      "id": "collection",
+      "label": "Collection fallback",
+      "info": "Used when Mode is Collection, or as fallback when Dynamic returns no products."
+    },
+
+    { "type": "range", "id": "max_products", "label": "Max products", "min": 2, "max": 12, "step": 1, "default": 4 },
+
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "grid",
+      "options": [
+        { "value": "grid", "label": "Grid" },
+        { "value": "carousel", "label": "Carousel" }
+      ]
+    },
+
+    { "type": "range", "id": "columns_desktop", "label": "Columns (desktop)", "min": 2, "max": 6, "step": 1, "default": 4 },
+    { "type": "range", "id": "columns_tablet", "label": "Columns (tablet)", "min": 1, "max": 4, "step": 1, "default": 3 },
+
+    {
+      "type": "range",
+      "id": "columns_mobile",
+      "label": "Columns (mobile)",
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "default": 2
+    },
+
+    {
+      "type": "select",
+      "id": "intent",
+      "label": "Intent",
+      "default": "related",
+      "options": [
+        { "value": "related", "label": "Related" },
+        { "value": "complementary", "label": "Complementary" }
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "type": "product_reference",
+      "name": "Product",
+      "settings": [
+        { "type": "product", "id": "product", "label": "Product" }
+      ]
+    }
+  ],
+  "presets": [
+    { "name": "Product recommended" }
+  ],
+  "templates": ["product"]
+}
+{% endschema %}
