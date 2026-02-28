@@ -2,11 +2,19 @@
   Quadratum — Main Product Classic (MVP Master)
   File: sections/main-product-classic.liquid
 
-  PATCH (THIS EDIT)
-  ----------------
-  D) FIX: Tabs stacking on desktop (mobile tab rules were global)
+  PATCHES
+  -------
+  A) ADD-ONS: Wishlist + Variant UI Enhancements (opt-in, non-invasive)
+     - Assets prefixed with product-*
+     - No changes to existing form logic; enhancement UI drives existing <select name="id">
+     - Wishlist button never submits form and tracks current variant id
+
+  B) FIX: Tabs stacking on desktop (mobile tab rules were global)
      - Scope mobile-only tab stacking + mobile viewer single-image rules to max-width: 990px
      - Ensure checked panel display rule wins in mobile cascade
+
+  C) SCHEMA FIX: setting variant_ui_target_options default cannot be blank
+     - Default set to "Color" (safe, non-blank, common swatch option name)
 {%- endcomment -%}
 
 {%- liquid
@@ -63,6 +71,16 @@
 
   assign enable_lightbox = s.enable_lightbox
 -%}
+
+{%- comment -%} Q ADD-ON: Wishlist + Variant UI assets (opt-in only) {%- endcomment -%}
+{%- if s.enable_wishlist -%}
+  {{ 'product-wishlist.css' | asset_url | stylesheet_tag }}
+  <script src="{{ 'product-wishlist.js' | asset_url }}" defer></script>
+{%- endif -%}
+{%- if s.variant_ui_enable -%}
+  {{ 'product-variant-ui.css' | asset_url | stylesheet_tag }}
+  <script src="{{ 'product-variant-ui.js' | asset_url }}" defer></script>
+{%- endif -%}
 
 <section
   id="q-pdp-{{ section.id }}"
@@ -147,10 +165,8 @@
     --q-ui-bw: {{ s.ui_border_width | default: 1 | times: 1 }}px;
     --q-ui-bc: {{ s.ui_border_color | default: '#e5e7eb' }};
 
-    /* Media surface */
     --q-media-bg: {{ media_bg }};
 
-    /* Badges */
     --q-badge-r: {{ s.badge_radius | default: 5 | times: 1 }}px;
     --q-badge-bw: {{ s.badge_border_width | default: 1 | times: 1 }}px;
 
@@ -166,7 +182,6 @@
     --q-badge-out-text: {{ s.badge_out_text | default: '#991b1b' }};
     --q-badge-out-bc: {{ s.badge_out_border | default: '#fecaca' }};
 
-    /* Under-ATC spacing */
     --q-under-gap: {{ s.under_atc_gap | default: 10 | times: 1 }}px;
 
     {%- if s.use_custom_colors -%}
@@ -177,7 +192,6 @@
       --q-text: inherit;
     {%- endif -%}
 
-    /* Button vars ALWAYS from settings (preview-safe) */
     --q-btn-bg: {{ s.btn_bg | default: '#111827' }};
     --q-btn-text: {{ s.btn_text | default: '#ffffff' }};
     --q-btn-bc: {{ s.btn_border | default: '#111827' }};
@@ -263,7 +277,6 @@
           </div>
         </div>
 
-        {%- comment -%} NO-JS LIGHTBOX (CSS :target) {%- endcomment -%}
         {%- if enable_lightbox -%}
           <div class="q-lightboxes" aria-hidden="true">
             {%- for m in p.media limit: media_limit -%}
@@ -280,11 +293,7 @@
                   <div class="q-lb__dialog" role="dialog" aria-modal="true" aria-label="Enlarged image {{ idx }}">
                     <a class="q-lb__close" href="#q-pdp-{{ section.id }}" aria-label="Close lightbox">×</a>
 
-                    <a
-                      class="q-lb__nav q-lb__prev"
-                      href="#q-lb-{{ section.id }}-{{ prev_idx }}"
-                      aria-label="Previous image"
-                    >‹</a>
+                    <a class="q-lb__nav q-lb__prev" href="#q-lb-{{ section.id }}-{{ prev_idx }}" aria-label="Previous image">‹</a>
 
                     <img
                       src="{{ m.preview_image | image_url: width: 2400 }}"
@@ -294,11 +303,7 @@
                       height="{{ m.preview_image.height | default: 2400 }}"
                     >
 
-                    <a
-                      class="q-lb__nav q-lb__next"
-                      href="#q-lb-{{ section.id }}-{{ next_idx }}"
-                      aria-label="Next image"
-                    >›</a>
+                    <a class="q-lb__nav q-lb__next" href="#q-lb-{{ section.id }}-{{ next_idx }}" aria-label="Next image">›</a>
                   </div>
                 </div>
               {%- endif -%}
@@ -315,6 +320,16 @@
 
           <h1 class="q-title">{{ p.title }}</h1>
 
+          {%- if s.enable_wishlist and s.wishlist_position == 'near_title' -%}
+            {%- render 'product-wishlist-button',
+              product: p,
+              variant: current_variant,
+              style: s.wishlist_style,
+              label: s.wishlist_label,
+              section_id: section.id
+            -%}
+          {%- endif -%}
+
           <div class="q-price" aria-live="polite">
             {%- if current_variant.compare_at_price > current_variant.price -%}
               <span class="q-price__sale">{{ current_variant.price | money }}</span>
@@ -323,6 +338,16 @@
               <span class="q-price__regular">{{ current_variant.price | money }}</span>
             {%- endif -%}
           </div>
+
+          {%- if s.enable_wishlist and s.wishlist_position == 'near_price' -%}
+            {%- render 'product-wishlist-button',
+              product: p,
+              variant: current_variant,
+              style: s.wishlist_style,
+              label: s.wishlist_label,
+              section_id: section.id
+            -%}
+          {%- endif -%}
 
           <div class="q-meta-row">
             {%- if s.show_sale_badge and is_on_sale -%}
@@ -370,6 +395,14 @@
                   {%- endfor -%}
                 </select>
               </div>
+
+              {%- if s.variant_ui_enable -%}
+                {%- render 'product-variant-ui',
+                  product: p,
+                  section: section,
+                  current_variant: current_variant
+                -%}
+              {%- endif -%}
             {%- endif -%}
 
             <div class="q-atc">
@@ -395,6 +428,16 @@
                 {%- if current_variant.available -%}Add to cart{%- else -%}Sold out{%- endif -%}
               </button>
             </div>
+
+            {%- if s.enable_wishlist and s.wishlist_position == 'near_add_to_cart' -%}
+              {%- render 'product-wishlist-button',
+                product: p,
+                variant: current_variant,
+                style: s.wishlist_style,
+                label: s.wishlist_label,
+                section_id: section.id
+              -%}
+            {%- endif -%}
 
             {%- if s.show_dynamic_checkout -%}
               <div class="q-dynamic-checkout">
@@ -804,26 +847,10 @@
     #q-pdp-{{ section.id }} .q-thumb__ph{ width: 100%; height: 100%; display: block; }
 
     /* Lightbox (NO JS, :target) */
-    #q-pdp-{{ section.id }} .q-lb{
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      display: none;
-    }
+    #q-pdp-{{ section.id }} .q-lb{ position: fixed; inset: 0; z-index: 9999; display: none; }
     #q-pdp-{{ section.id }} .q-lb:target{ display: block; }
-    #q-pdp-{{ section.id }} .q-lb__overlay{
-      position: absolute;
-      inset: 0;
-      background: rgba(0,0,0,0.7);
-      display: block;
-    }
-    #q-pdp-{{ section.id }} .q-lb__dialog{
-      position: absolute;
-      inset: 3vh 3vw;
-      display: grid;
-      place-items: center;
-      padding: 1rem;
-    }
+    #q-pdp-{{ section.id }} .q-lb__overlay{ position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: block; }
+    #q-pdp-{{ section.id }} .q-lb__dialog{ position: absolute; inset: 3vh 3vw; display: grid; place-items: center; padding: 1rem; }
     #q-pdp-{{ section.id }} .q-lb__dialog img{
       max-width: 55%;
       max-height: 100%;
@@ -851,10 +878,7 @@
       backdrop-filter: blur(4px);
       z-index: 2;
     }
-    #q-pdp-{{ section.id }} .q-lb__close:focus-visible{
-      outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
+    #q-pdp-{{ section.id }} .q-lb__close:focus-visible{ outline: 2px solid #fff; outline-offset: 2px; }
 
     /* Lightbox arrows */
     #q-pdp-{{ section.id }} .q-lb__nav{
@@ -878,12 +902,8 @@
     }
     #q-pdp-{{ section.id }} .q-lb__prev{ left: 1.25rem; }
     #q-pdp-{{ section.id }} .q-lb__next{ right: 1.25rem; }
-    #q-pdp-{{ section.id }} .q-lb__nav:focus-visible{
-      outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
+    #q-pdp-{{ section.id }} .q-lb__nav:focus-visible{ outline: 2px solid #fff; outline-offset: 2px; }
 
-    /* UI surface controls */
     #q-pdp-{{ section.id }} .q-summary,
     #q-pdp-{{ section.id }} .q-section,
     #q-pdp-{{ section.id }} .q-tab__panel{ border-radius: var(--q-ui-r); }
@@ -910,10 +930,7 @@
       padding: 0;
     }
 
-    /* Optional summary border */
-    #q-pdp-{{ section.id }}.q-summary-border--on .q-summary{
-      border: var(--q-ui-bw) solid var(--q-ui-bc);
-    }
+    #q-pdp-{{ section.id }}.q-summary-border--on .q-summary{ border: var(--q-ui-bw) solid var(--q-ui-bc); }
 
     #q-pdp-{{ section.id }} .q-vendor{ font-size: 0.9rem; opacity: 0.8; }
     #q-pdp-{{ section.id }} .q-title{ font-size: var(--q-title); line-height: 1.15; margin: 0; }
@@ -932,21 +949,9 @@
       border: var(--q-badge-bw) solid var(--q-ui-bc);
       background: rgba(0,0,0,0.02);
     }
-    #q-pdp-{{ section.id }} .q-badge--sale{
-      background: var(--q-badge-sale-bg);
-      color: var(--q-badge-sale-text);
-      border-color: var(--q-badge-sale-bc);
-    }
-    #q-pdp-{{ section.id }} .q-badge--in{
-      background: var(--q-badge-in-bg);
-      color: var(--q-badge-in-text);
-      border-color: var(--q-badge-in-bc);
-    }
-    #q-pdp-{{ section.id }} .q-badge--out{
-      background: var(--q-badge-out-bg);
-      color: var(--q-badge-out-text);
-      border-color: var(--q-badge-out-bc);
-    }
+    #q-pdp-{{ section.id }} .q-badge--sale{ background: var(--q-badge-sale-bg); color: var(--q-badge-sale-text); border-color: var(--q-badge-sale-bc); }
+    #q-pdp-{{ section.id }} .q-badge--in{ background: var(--q-badge-in-bg); color: var(--q-badge-in-text); border-color: var(--q-badge-in-bc); }
+    #q-pdp-{{ section.id }} .q-badge--out{ background: var(--q-badge-out-bg); color: var(--q-badge-out-text); border-color: var(--q-badge-out-bc); }
 
     #q-pdp-{{ section.id }} .q-sku{ font-size: 0.9rem; opacity: 0.85; }
     #q-pdp-{{ section.id }} .q-excerpt{ font-size: 0.98rem; line-height: 1.55; opacity: 0.92; margin-top: 0.75rem; }
@@ -979,7 +984,6 @@
       outline-offset: 2px;
     }
 
-    /* Qty + ATC row */
     #q-pdp-{{ section.id }} .q-atc{ display: grid; gap: 0.75rem; }
     #q-pdp-{{ section.id }} .q-atc__qty{ display: grid; gap: 0.35rem; }
     #q-pdp-{{ section.id }} .q-atc__qty .q-input{ max-width: 7.5rem; }
@@ -995,15 +999,10 @@
       width: 100%;
       padding: 0;
     }
-
     #q-pdp-{{ section.id }}.q-atc-density--comfy .q-btn{ padding: 0.9rem 1rem; }
     #q-pdp-{{ section.id }}.q-atc-density--compact .q-btn{ padding: 0.7rem 0.9rem; }
 
-    #q-pdp-{{ section.id }} .q-btn:hover{
-      background: var(--q-btn-bg-h);
-      border-color: var(--q-btn-bc-h);
-      color: var(--q-btn-text-h);
-    }
+    #q-pdp-{{ section.id }} .q-btn:hover{ background: var(--q-btn-bg-h); border-color: var(--q-btn-bc-h); color: var(--q-btn-text-h); }
     #q-pdp-{{ section.id }} .q-btn:active{ transform: translateY(1px); }
     #q-pdp-{{ section.id }} .q-btn:disabled{
       background: var(--q-btn-dis-bg);
@@ -1015,42 +1014,20 @@
 
     #q-pdp-{{ section.id }} .q-dynamic-checkout{ margin-top: 0.5rem; }
     #q-pdp-{{ section.id }} .q-dynamic-checkout > *{ width: 100%; }
-    #q-pdp-{{ section.id }} .q-affirm{
-      margin-top: 0.35rem;
-      font-size: 0.92rem;
-      opacity: 0.8;
-      line-height: 1.45;
-    }
+    #q-pdp-{{ section.id }} .q-affirm{ margin-top: 0.35rem; font-size: 0.92rem; opacity: 0.8; line-height: 1.45; }
 
     #q-pdp-{{ section.id }} .q-payments-note,
-    #q-pdp-{{ section.id }} .q-policies{
-      font-size: 0.92rem;
-      opacity: 0.8;
-      line-height: 1.45;
-    }
+    #q-pdp-{{ section.id }} .q-policies{ font-size: 0.92rem; opacity: 0.8; line-height: 1.45; }
 
-    /* Under-ATC */
-    #q-pdp-{{ section.id }} .q-under-atc{
-      margin-top: 0.75rem;
-      display: grid;
-      gap: var(--q-under-gap);
-    }
-    #q-pdp-{{ section.id }} .q-under-banners{
-      display: grid;
-      gap: var(--q-under-gap);
-    }
+    #q-pdp-{{ section.id }} .q-under-atc{ margin-top: 0.75rem; display: grid; gap: var(--q-under-gap); }
+    #q-pdp-{{ section.id }} .q-under-banners{ display: grid; gap: var(--q-under-gap); }
     #q-pdp-{{ section.id }} .q-under-banner{
       border-radius: var(--q-ui-r);
       overflow: hidden;
       border: 1px solid rgba(0,0,0,0.08);
       background: rgba(0,0,0,0.01);
     }
-    #q-pdp-{{ section.id }} .q-under-banner img{
-      width: 100%;
-      height: auto;
-      display: block;
-      object-fit: cover;
-    }
+    #q-pdp-{{ section.id }} .q-under-banner img{ width: 100%; height: auto; display: block; object-fit: cover; }
     #q-pdp-{{ section.id }} .q-under-banner__link{ display: block; text-decoration: none; color: inherit; }
 
     #q-pdp-{{ section.id }} .q-trust{
@@ -1091,18 +1068,9 @@
       background: rgba(255,255,255,0.02);
       padding: 0.25rem 0.5rem;
     }
-    #q-pdp-{{ section.id }} .q-faq__q{
-      cursor: pointer;
-      font-weight: 600;
-      padding: 0.5rem 0.25rem;
-      list-style: none;
-    }
+    #q-pdp-{{ section.id }} .q-faq__q{ cursor: pointer; font-weight: 600; padding: 0.5rem 0.25rem; list-style: none; }
     #q-pdp-{{ section.id }} details.q-faq__item > summary::-webkit-details-marker{ display: none; }
-    #q-pdp-{{ section.id }} .q-faq__a{
-      padding: 0 0.25rem 0.5rem;
-      opacity: 0.92;
-      line-height: 1.5;
-    }
+    #q-pdp-{{ section.id }} .q-faq__a{ padding: 0 0.25rem 0.5rem; opacity: 0.92; line-height: 1.5; }
 
     #q-pdp-{{ section.id }} .q-pdp__content{ margin-top: 2rem; }
 
@@ -1153,9 +1121,7 @@
       background: transparent;
       padding: 0.75rem 0.25rem;
     }
-    #q-pdp-{{ section.id }}.q-tabs--underline .q-tab__radio:checked + .q-tab__label{
-      border-bottom-color: var(--q-thumb-bc-active);
-    }
+    #q-pdp-{{ section.id }}.q-tabs--underline .q-tab__radio:checked + .q-tab__label{ border-bottom-color: var(--q-thumb-bc-active); }
 
     #q-pdp-{{ section.id }}.q-tabs--minimal .q-tab__label{
       border: 0;
@@ -1254,7 +1220,6 @@
         top: auto !important;
       }
 
-      /* FIX: mobile thumb placement uses areas */
       #q-pdp-{{ section.id }} .q-pdp-media{
         display: grid;
         gap: 0.75rem;
@@ -1273,7 +1238,6 @@
       #q-pdp-{{ section.id }} .q-lb__dialog{ inset: 2vh 2vw; }
       #q-pdp-{{ section.id }} .q-lb__close{ top: 0.75rem; right: 0.75rem; }
 
-      /* Make arrows obvious on mobile */
       #q-pdp-{{ section.id }} .q-lb__dialog img{ max-width: 92%; }
       #q-pdp-{{ section.id }} .q-lb__nav{
         width: 3.5rem;
@@ -1285,42 +1249,27 @@
       #q-pdp-{{ section.id }} .q-lb__prev{ left: 0.6rem; }
       #q-pdp-{{ section.id }} .q-lb__next{ right: 0.6rem; }
 
-      /* ✅ Mobile-only: limit viewer to ONE image */
-      #q-pdp-{{ section.id }} .q-pdp-media__viewer{
-        display: block !important;
-      }
+      /* Mobile-only: limit viewer to ONE image */
+      #q-pdp-{{ section.id }} .q-pdp-media__viewer{ display: block !important; }
       #q-pdp-{{ section.id }} .q-pdp-media__viewer .q-media-item{ display: none; }
       #q-pdp-{{ section.id }} .q-pdp-media__viewer .q-media-item:first-child{ display: block; }
-
-      /* If any item is targeted, show ONLY the targeted one */
       #q-pdp-{{ section.id }} .q-pdp-media__viewer:has(.q-media-item:target) .q-media-item{ display: none; }
       #q-pdp-{{ section.id }} .q-pdp-media__viewer:has(.q-media-item:target) .q-media-item:target{ display: block; }
 
-      /* ✅ Mobile-only: stack tabs vertically */
+      /* Mobile-only: stack tabs vertically */
       #q-pdp-{{ section.id }} .q-tabs{
         grid-template-columns: 1fr;
         column-gap: 0;
         row-gap: 0.6rem;
       }
-
-      /* Let labels flow normally in mobile */
-      #q-pdp-{{ section.id }} .q-tab__label{
-        grid-row: auto;
-        width: 100%;
-      }
-
-      /* Hide panels by default in mobile */
+      #q-pdp-{{ section.id }} .q-tab__label{ grid-row: auto; width: 100%; }
       #q-pdp-{{ section.id }} .q-tab__panel{
         grid-row: auto;
         grid-column: auto;
         margin-top: -0.25rem;
         display: none;
       }
-
-      /* Show active panel directly under label */
-      #q-pdp-{{ section.id }} .q-tab__radio:checked + .q-tab__label + .q-tab__panel{
-        display: block;
-      }
+      #q-pdp-{{ section.id }} .q-tab__radio:checked + .q-tab__label + .q-tab__panel{ display: block; }
     }
   </style>
 </section>
@@ -1657,7 +1606,78 @@
     { "type": "header", "content": "Accessibility" },
     { "type": "text", "id": "section_aria_label", "label": "Section aria label" },
     { "type": "text", "id": "media_aria_label", "label": "Media aria label" },
-    { "type": "text", "id": "summary_aria_label", "label": "Summary aria label" }
+    { "type": "text", "id": "summary_aria_label", "label": "Summary aria label" },
+
+    { "type": "header", "content": "Add-ons — Wishlist" },
+    { "type": "checkbox", "id": "enable_wishlist", "label": "Enable wishlist button", "default": false },
+    {
+      "type": "select",
+      "id": "wishlist_style",
+      "label": "Wishlist style",
+      "default": "icon",
+      "options": [
+        { "value": "icon", "label": "Icon" },
+        { "value": "button", "label": "Button" }
+      ]
+    },
+    { "type": "text", "id": "wishlist_label", "label": "Wishlist label", "default": "Add to wishlist" },
+    {
+      "type": "select",
+      "id": "wishlist_position",
+      "label": "Wishlist position",
+      "default": "near_title",
+      "options": [
+        { "value": "near_title", "label": "Near title" },
+        { "value": "near_price", "label": "Near price" },
+        { "value": "near_add_to_cart", "label": "Near add to cart" }
+      ]
+    },
+
+    { "type": "header", "content": "Add-ons — Variant UI" },
+    { "type": "checkbox", "id": "variant_ui_enable", "label": "Enable variant UI enhancements", "default": false },
+    {
+      "type": "select",
+      "id": "variant_ui_style",
+      "label": "Variant UI style",
+      "default": "default",
+      "options": [
+        { "value": "default", "label": "Default (no-op)" },
+        { "value": "swatches", "label": "Swatches" },
+        { "value": "buttons", "label": "Buttons" },
+        { "value": "dropdown", "label": "Dropdown" },
+        { "value": "list", "label": "List" }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "variant_ui_target_options",
+      "label": "Swatch option names (comma-separated)",
+      "default": "Color"
+    },
+    {
+      "type": "select",
+      "id": "variant_swatch_source",
+      "label": "Swatch source",
+      "default": "variant_image",
+      "options": [
+        { "value": "variant_image", "label": "Variant image" },
+        { "value": "metafield", "label": "Metafield" }
+      ]
+    },
+    { "type": "text", "id": "variant_swatch_metafield_namespace", "label": "Swatch metafield namespace", "default": "custom" },
+    { "type": "text", "id": "variant_swatch_metafield_key", "label": "Swatch metafield key", "default": "swatch" },
+    { "type": "checkbox", "id": "variant_size_guide_enable", "label": "Enable size guide link", "default": false },
+    { "type": "url", "id": "variant_size_guide_url", "label": "Size guide URL" },
+    {
+      "type": "select",
+      "id": "variant_label_mode",
+      "label": "Option label mode",
+      "default": "show_selected_value",
+      "options": [
+        { "value": "show_selected_value", "label": "Show selected value" },
+        { "value": "hide", "label": "Hide" }
+      ]
+    }
   ],
   "blocks": [
     {
@@ -1699,7 +1719,6 @@
       ]
     },
     { "type": "@app" },
-
     {
       "type": "under_atc_banner",
       "name": "Under-ATC Banner",
