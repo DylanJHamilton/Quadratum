@@ -1,6 +1,6 @@
 {%- comment -%}
   SECTION: product-meta-panels.liquid
-  Role: Read-only structured product details (specs, ingredients, dimensions, warranty, supplier info).
+  Read-only structured product details (specs, ingredients, dimensions, warranty, supplier info).
   Independent, stackable PDP section. No cart/form interactions.
 {%- endcomment -%}
 
@@ -32,6 +32,7 @@
     background:var(--q-pmp-inner-bg);
     color:var(--q-pmp-inner-text);
   }
+  .q-pmp__radios{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
   .q-pmp__tablist{
     display:flex;
     flex-wrap:wrap;
@@ -40,13 +41,7 @@
     border-bottom:1px solid var(--q-pmp-tabs-divider);
     background:var(--q-pmp-tabs-bar-bg);
   }
-  .q-pmp__tab{position:relative}
-  .q-pmp__tab input{
-    position:absolute;
-    opacity:0;
-    pointer-events:none;
-  }
-  .q-pmp__tab label{
+  .q-pmp__tabbtn{
     display:inline-flex;
     align-items:center;
     justify-content:center;
@@ -62,15 +57,7 @@
     border-color:var(--q-pmp-tab-border);
     transition:background .12s ease, color .12s ease, border-color .12s ease;
   }
-  .q-pmp__tab input:focus-visible + label{
-    outline:2px solid currentColor;
-    outline-offset:2px;
-  }
-  .q-pmp__tab input:checked + label{
-    color:var(--q-pmp-tab-text-active);
-    background:var(--q-pmp-tab-bg-active);
-    border-color:var(--q-pmp-tab-border-active);
-  }
+  .q-pmp__tabbtn:focus-visible{outline:2px solid currentColor;outline-offset:2px}
 
   .q-pmp__panelwrap{
     padding:.75rem;
@@ -78,9 +65,6 @@
     color:var(--q-pmp-inner-text);
   }
   .q-pmp__panel{display:none}
-  /* Important: each panel must be the next sibling of its input for this selector */
-  .q-pmp__tab input:checked ~ .q-pmp__panelwrap .q-pmp__panel{display:none}
-
   .q-pmp__panel :where(p){margin:.5rem 0}
   .q-pmp__panel :where(ul,ol){margin:.5rem 0 .75rem 1.25rem}
 
@@ -166,6 +150,7 @@
   endif
 
   assign has_any = false
+  assign resolved_count = 0
 
   for block in section.blocks
     if block.type != 'meta_panel'
@@ -263,7 +248,7 @@
     assign resolved_text = resolved_html | strip_html | strip
     if resolved_html != blank and resolved_text != blank
       assign has_any = true
-      break
+      assign resolved_count = resolved_count | plus: 1
     endif
   endfor
 
@@ -317,304 +302,160 @@
 
     {%- case layout -%}
       {%- when 'tabs' -%}
-        {%- comment -%}
-          Fix: tabs must place each panel adjacent to its radio so pure CSS selector can work.
-          Structure is: input + label + panel within the same wrapper.
-        {%- endcomment -%}
-        <div class="q-pmp__tabs" role="group" aria-label="{{ section_label | escape }}">
-          <div class="q-pmp__tablist" role="tablist" aria-label="Product detail tabs">
-            {%- assign resolved_i = 0 -%}
-            {%- for block in section.blocks -%}
-              {%- if block.type != 'meta_panel' -%}{%- continue -%}{%- endif -%}
+        <div class="q-pmp__tabs" aria-label="{{ section_label | escape }}" style="position:relative;">
+          {%- comment -%}
+            CRITICAL FIX:
+            Radios MUST be direct children of .q-pmp__tabs (siblings of .q-pmp__panelwrap),
+            otherwise "#radio:checked ~ .q-pmp__panelwrap" will NEVER match.
+          {%- endcomment -%}
 
-              {%- liquid
-                assign b = block.settings
-                assign resolved_html = ''
+          {%- assign resolved_i = 0 -%}
+          {%- capture tabs_radios -%}{%- endcapture -%}
+          {%- capture tabs_buttons -%}{%- endcapture -%}
+          {%- capture tabs_panels -%}{%- endcapture -%}
 
-                case b.source_type
-                  when 'manual'
-                    assign resolved_html = b.content
-                  when 'metafield'
-                    assign ns = b.namespace | strip
-                    assign ky = b.key | strip
-                    if product_obj != blank and ns != blank and ky != blank
-                      assign mf = product_obj.metafields[ns][ky]
-                      if mf != blank
-                        capture resolved_html
-                          if mf.type contains 'rich_text'
-                            echo mf | metafield_tag
-                          elsif mf.type contains 'json'
-                            echo mf.value | json
-                          else
-                            if mf.value == blank
-                              echo mf | metafield_tag
-                            else
-                              echo mf.value | escape | newline_to_br
-                            endif
-                          endif
-                        endcapture
-                      endif
-                    endif
-                  when 'metaobject'
-                    assign mo = b.metaobject_reference
-                    if mo != blank
+          {%- for block in section.blocks -%}
+            {%- if block.type != 'meta_panel' -%}{%- continue -%}{%- endif -%}
+
+            {%- liquid
+              assign b = block.settings
+              assign resolved_html = ''
+
+              case b.source_type
+                when 'manual'
+                  assign resolved_html = b.content
+                when 'metafield'
+                  assign ns = b.namespace | strip
+                  assign ky = b.key | strip
+                  if product_obj != blank and ns != blank and ky != blank
+                    assign mf = product_obj.metafields[ns][ky]
+                    if mf != blank
                       capture resolved_html
-                        assign any_field = false
+                        if mf.type contains 'rich_text'
+                          echo mf | metafield_tag
+                        elsif mf.type contains 'json'
+                          echo mf.value | json
+                        else
+                          if mf.value == blank
+                            echo mf | metafield_tag
+                          else
+                            echo mf.value | escape | newline_to_br
+                          endif
+                        endif
+                      endcapture
+                    endif
+                  endif
+                when 'metaobject'
+                  assign mo = b.metaobject_reference
+                  if mo != blank
+                    capture resolved_html
+                      assign any_field = false
+                      for f in mo.fields
+                        assign fv = f.value
+                        if fv == blank
+                          continue
+                        endif
+                        assign any_field = true
+                        break
+                      endfor
+
+                      if any_field
+                        echo '<dl class="q-pmp__dl">'
                         for f in mo.fields
                           assign fv = f.value
                           if fv == blank
                             continue
                           endif
-                          assign any_field = true
-                          break
-                        endfor
 
-                        if any_field
-                          echo '<dl class="q-pmp__dl">'
-                          for f in mo.fields
-                            assign fv = f.value
-                            if fv == blank
-                              continue
-                            endif
+                          echo '<div class="q-pmp__dl-row">'
+                            echo '<dt class="q-pmp__dl-term">' | append: f.name | escape | append: '</dt>'
+                            echo '<dd class="q-pmp__dl-def">'
 
-                            echo '<div class="q-pmp__dl-row">'
-                              echo '<dt class="q-pmp__dl-term">' | append: f.name | escape | append: '</dt>'
-                              echo '<dd class="q-pmp__dl-def">'
+                              capture fv_out
+                                if f.type contains 'rich_text'
+                                  echo fv
+                                elsif f.type contains 'json'
+                                  echo fv | json
+                                else
+                                  echo fv | json
+                                endif
+                              endcapture
 
-                                capture fv_out
-                                  if f.type contains 'rich_text'
-                                    echo fv
-                                  elsif f.type contains 'json'
-                                    echo fv | json
-                                  else
-                                    echo fv | json
-                                  endif
-                                endcapture
+                              assign fv_out_stripped = fv_out | strip
+                              assign fv_len = fv_out_stripped.size
 
-                                assign fv_out_stripped = fv_out | strip
-                                assign fv_len = fv_out_stripped.size
-
-                                if fv_len > 1
-                                  assign first_char = fv_out_stripped | slice: 0, 1
-                                  assign last_idx = fv_len | minus: 1
-                                  assign last_char = fv_out_stripped | slice: last_idx, 1
-                                  if first_char == '"' and last_char == '"'
-                                    echo fv_out_stripped | remove_first: '"' | remove_last: '"'
-                                  else
-                                    echo fv_out
-                                  endif
+                              if fv_len > 1
+                                assign first_char = fv_out_stripped | slice: 0, 1
+                                assign last_idx = fv_len | minus: 1
+                                assign last_char = fv_out_stripped | slice: last_idx, 1
+                                if first_char == '"' and last_char == '"'
+                                  echo fv_out_stripped | remove_first: '"' | remove_last: '"'
                                 else
                                   echo fv_out
                                 endif
+                              else
+                                echo fv_out
+                              endif
 
-                              echo '</dd>'
-                            echo '</div>'
-                          endfor
-                          echo '</dl>'
-                        endif
-                      endcapture
-                    endif
-                endcase
+                            echo '</dd>'
+                          echo '</div>'
+                        endfor
+                        echo '</dl>'
+                      endif
+                    endcapture
+                  endif
+              endcase
 
-                assign resolved_text = resolved_html | strip_html | strip
-              -%}
+              assign resolved_text = resolved_html | strip_html | strip
+            -%}
 
-              {%- if resolved_html == blank or resolved_text == blank -%}
-                {%- continue -%}
-              {%- endif -%}
+            {%- if resolved_html == blank or resolved_text == blank -%}
+              {%- continue -%}
+            {%- endif -%}
 
-              {%- assign resolved_i = resolved_i | plus: 1 -%}
-              {%- assign radio_id = 'q-pmp-' | append: section.id | append: '-' | append: resolved_i -%}
-              {%- assign tab_title = b.title | strip | strip_html -%}
-              {%- if tab_title == blank -%}{%- assign tab_title = 'Details' -%}{%- endif -%}
+            {%- assign resolved_i = resolved_i | plus: 1 -%}
+            {%- assign rid = 'q-pmp-' | append: section.id | append: '-' | append: resolved_i -%}
+            {%- assign pid = 'q-pmp-panel-' | append: section.id | append: '-' | append: resolved_i -%}
+            {%- assign tab_title = b.title | strip | strip_html -%}
+            {%- if tab_title == blank -%}{%- assign tab_title = 'Details' -%}{%- endif -%}
 
-              <div class="q-pmp__tab" {{ block.shopify_attributes }}>
-                <input
-                  type="radio"
-                  name="q-pmp-tabs-{{ section.id }}"
-                  id="{{ radio_id }}"
-                  {% if resolved_i == 1 %}checked{% endif %}
-                >
-                <label for="{{ radio_id }}" role="tab">{{ tab_title | escape }}</label>
+            {%- capture tabs_radios -%}{{ tabs_radios }}
+              <input class="q-pmp__radios" type="radio" name="q-pmp-tabs-{{ section.id }}" id="{{ rid }}" {% if resolved_i == 1 %}checked{% endif %}>
+            {%- endcapture -%}
+
+            {%- capture tabs_buttons -%}{{ tabs_buttons }}
+              <label class="q-pmp__tabbtn" for="{{ rid }}">{{ tab_title | escape }}</label>
+            {%- endcapture -%}
+
+            {%- capture tabs_panels -%}{{ tabs_panels }}
+              <div id="{{ pid }}" class="q-pmp__panel rte" aria-label="{{ tab_title | escape }}">
+                {{ resolved_html }}
               </div>
-            {%- endfor -%}
+            {%- endcapture -%}
+          {%- endfor -%}
+
+          {{ tabs_radios }}
+
+          <div class="q-pmp__tablist" aria-label="Product detail tabs">
+            {{ tabs_buttons }}
           </div>
 
           <div class="q-pmp__panelwrap">
-            {%- assign resolved_i = 0 -%}
-            {%- for block in section.blocks -%}
-              {%- if block.type != 'meta_panel' -%}{%- continue -%}{%- endif -%}
-
-              {%- liquid
-                assign b = block.settings
-                assign resolved_html = ''
-
-                case b.source_type
-                  when 'manual'
-                    assign resolved_html = b.content
-                  when 'metafield'
-                    assign ns = b.namespace | strip
-                    assign ky = b.key | strip
-                    if product_obj != blank and ns != blank and ky != blank
-                      assign mf = product_obj.metafields[ns][ky]
-                      if mf != blank
-                        capture resolved_html
-                          if mf.type contains 'rich_text'
-                            echo mf | metafield_tag
-                          elsif mf.type contains 'json'
-                            echo mf.value | json
-                          else
-                            if mf.value == blank
-                              echo mf | metafield_tag
-                            else
-                              echo mf.value | escape | newline_to_br
-                            endif
-                          endif
-                        endcapture
-                      endif
-                    endif
-                  when 'metaobject'
-                    assign mo = b.metaobject_reference
-                    if mo != blank
-                      capture resolved_html
-                        assign any_field = false
-                        for f in mo.fields
-                          assign fv = f.value
-                          if fv == blank
-                            continue
-                          endif
-                          assign any_field = true
-                          break
-                        endfor
-
-                        if any_field
-                          echo '<dl class="q-pmp__dl">'
-                          for f in mo.fields
-                            assign fv = f.value
-                            if fv == blank
-                              continue
-                            endif
-
-                            echo '<div class="q-pmp__dl-row">'
-                              echo '<dt class="q-pmp__dl-term">' | append: f.name | escape | append: '</dt>'
-                              echo '<dd class="q-pmp__dl-def">'
-
-                                capture fv_out
-                                  if f.type contains 'rich_text'
-                                    echo fv
-                                  elsif f.type contains 'json'
-                                    echo fv | json
-                                  else
-                                    echo fv | json
-                                  endif
-                                endcapture
-
-                                assign fv_out_stripped = fv_out | strip
-                                assign fv_len = fv_out_stripped.size
-
-                                if fv_len > 1
-                                  assign first_char = fv_out_stripped | slice: 0, 1
-                                  assign last_idx = fv_len | minus: 1
-                                  assign last_char = fv_out_stripped | slice: last_idx, 1
-                                  if first_char == '"' and last_char == '"'
-                                    echo fv_out_stripped | remove_first: '"' | remove_last: '"'
-                                  else
-                                    echo fv_out
-                                  endif
-                                else
-                                  echo fv_out
-                                endif
-
-                              echo '</dd>'
-                            echo '</div>'
-                          endfor
-                          echo '</dl>'
-                        endif
-                      endcapture
-                    endif
-                endcase
-
-                assign resolved_text = resolved_html | strip_html | strip
-              -%}
-
-              {%- if resolved_html == blank or resolved_text == blank -%}
-                {%- continue -%}
-              {%- endif -%}
-
-              {%- assign resolved_i = resolved_i | plus: 1 -%}
-              {%- assign radio_id = 'q-pmp-' | append: section.id | append: '-' | append: resolved_i -%}
-              {%- assign tab_title = b.title | strip | strip_html -%}
-              {%- if tab_title == blank -%}{%- assign tab_title = 'Details' -%}{%- endif -%}
-
-              <div class="q-pmp__panel rte" role="tabpanel" aria-label="{{ tab_title | escape }}">
-                {{ resolved_html }}
-              </div>
-            {%- endfor -%}
-
-            {%- comment -%}
-              Show the first panel by default (when the first radio is checked).
-              We do this via a tiny scoped style block per-section to map checked radio index to panel index.
-            {%- endcomment -%}
-            <style>
-              {%- assign idx = 0 -%}
-              {%- for block in section.blocks -%}
-                {%- if block.type != 'meta_panel' -%}{%- continue -%}{%- endif -%}
-                {%- liquid
-                  assign b = block.settings
-                  assign tmp = ''
-                  case b.source_type
-                    when 'manual'
-                      assign tmp = b.content
-                    when 'metafield'
-                      assign ns = b.namespace | strip
-                      assign ky = b.key | strip
-                      if product_obj != blank and ns != blank and ky != blank
-                        assign mf = product_obj.metafields[ns][ky]
-                        if mf != blank
-                          capture tmp
-                            if mf.type contains 'rich_text'
-                              echo mf | metafield_tag
-                            elsif mf.type contains 'json'
-                              echo mf.value | json
-                            else
-                              if mf.value == blank
-                                echo mf | metafield_tag
-                              else
-                                echo mf.value | escape | newline_to_br
-                              endif
-                            endif
-                          endcapture
-                        endif
-                      endif
-                    when 'metaobject'
-                      assign mo = b.metaobject_reference
-                      if mo != blank
-                        capture tmp
-                          assign any_field = false
-                          for f in mo.fields
-                            assign fv = f.value
-                            if fv == blank
-                              continue
-                            endif
-                            assign any_field = true
-                            break
-                          endfor
-                          if any_field
-                            echo 'x'
-                          endif
-                        endcapture
-                      endif
-                  endcase
-                  assign tmp_text = tmp | strip_html | strip
-                -%}
-                {%- if tmp == blank or tmp_text == blank -%}{%- continue -%}{%- endif -%}
-                {%- assign idx = idx | plus: 1 -%}
-                {%- assign rid = 'q-pmp-' | append: section.id | append: '-' | append: idx -%}
-                {%- assign nth = idx -%}
-                #{{ rid }}:checked ~ .q-pmp__panelwrap .q-pmp__panel:nth-of-type({{ nth }}){display:block;}
-              {%- endfor -%}
-            </style>
+            {{ tabs_panels }}
           </div>
+
+          <style>
+            {%- comment -%}Active tab colors + panel visibility mapping (scoped to this section instance){%- endcomment -%}
+            {%- for i in (1..resolved_i) -%}
+              {%- assign rid = 'q-pmp-' | append: section.id | append: '-' | append: i -%}
+              #{{ rid }}:checked ~ .q-pmp__tablist label[for="{{ rid }}"]{
+                color:var(--q-pmp-tab-text-active);
+                background:var(--q-pmp-tab-bg-active);
+                border-color:var(--q-pmp-tab-border-active);
+              }
+              #{{ rid }}:checked ~ .q-pmp__panelwrap #q-pmp-panel-{{ section.id }}-{{ i }}{display:block;}
+            {%- endfor -%}
+          </style>
         </div>
 
       {%- when 'cards' -%}
@@ -663,6 +504,7 @@
                         assign any_field = true
                         break
                       endfor
+
                       if any_field
                         echo '<dl class="q-pmp__dl">'
                         for f in mo.fields
@@ -670,6 +512,7 @@
                           if fv == blank
                             continue
                           endif
+
                           echo '<div class="q-pmp__dl-row">'
                             echo '<dt class="q-pmp__dl-term">' | append: f.name | escape | append: '</dt>'
                             echo '<dd class="q-pmp__dl-def">'
@@ -776,6 +619,7 @@
                             assign any_field = true
                             break
                           endfor
+
                           if any_field
                             echo '<dl class="q-pmp__dl">'
                             for f in mo.fields
@@ -783,6 +627,7 @@
                               if fv == blank
                                 continue
                               endif
+
                               echo '<div class="q-pmp__dl-row">'
                                 echo '<dt class="q-pmp__dl-term">' | append: f.name | escape | append: '</dt>'
                                 echo '<dd class="q-pmp__dl-def">'
@@ -851,7 +696,7 @@
   "tag": "section",
   "class": "section",
   "settings": [
-    { "type": "text", "id": "title", "label": "Title", "default": "More details" },
+    { "type": "text", "id": "title", "label": "Title" },
     { "type": "richtext", "id": "subheading", "label": "Subheading" },
 
     {
@@ -928,7 +773,7 @@
       "type": "meta_panel",
       "name": "Meta panel",
       "settings": [
-        { "type": "text", "id": "title", "label": "Panel title", "default": "Specifications" },
+        { "type": "text", "id": "title", "label": "Panel title" },
         {
           "type": "select",
           "id": "source_type",
