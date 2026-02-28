@@ -1,0 +1,287 @@
+{%- comment -%}
+  PATCH: Fix FileSaveError
+  Shopify requires range settings to have at least 3 steps.
+  Your columns_mobile was min=1 max=2 step=1 (only 2 steps: 1,2).
+  Fix by making max=3 (still sane) OR min=0 (no).
+  We'll do max=3 to match your cross-sell pattern and keep step=1.
+{%- endcomment -%}
+
+{% comment %}
+  Quadratum — Product Recently Viewed
+  File: sections/product-recently-viewed.liquid
+{% endcomment %}
+
+{%- liquid
+  assign s = section.settings
+  assign current_handle = ''
+  if product != blank
+    assign current_handle = product.handle
+  endif
+
+  assign max_products = s.max_products | default: 8
+
+  assign cols_desktop = s.columns_desktop | default: 4
+  assign cols_tablet  = s.columns_tablet  | default: 2
+  assign cols_mobile  = s.columns_mobile  | default: 1
+
+  assign layout = s.layout | default: 'grid'
+
+  assign header_align = s.header_alignment | default: 'left'
+  assign title_size = s.title_size | default: 28
+  assign title_weight = s.title_weight | default: 700
+  assign sub_size = s.subheading_size | default: 16
+  assign sub_weight = s.subheading_weight | default: 400
+
+  assign enable_quick_add = s.enable_quick_add
+  if enable_quick_add == nil
+    assign enable_quick_add = true
+  endif
+
+  assign quick_add_mode = s.quick_add_mode | default: 'button'
+  assign quick_add_visibility = s.quick_add_visibility | default: 'desktop_only'
+
+  assign primary_cta_label = s.primary_cta_label | default: 'Add to cart'
+  assign label_select_options = s.label_select_options | default: 'Select options'
+  assign label_sold_out = s.label_sold_out | default: 'Sold out'
+
+  assign button_style = s.button_style | default: 'filled'
+  assign button_size = s.button_size | default: 'md'
+
+  assign items_class = 'product-recently-viewed__items'
+  if layout == 'carousel'
+    assign items_class = items_class | append: ' product-recently-viewed__items--carousel'
+  endif
+
+  assign section_aria = s.title
+  if section_aria == blank
+    assign section_aria = 'Recently viewed'
+  endif
+-%}
+
+{{ 'section-product-recently-viewed.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'section-product-recently-viewed.js' | asset_url }}" defer></script>
+
+<section
+  class="product-recently-viewed"
+  id="product-recently-viewed-{{ section.id }}"
+  data-section-id="{{ section.id }}"
+  data-design-mode="{% if request.design_mode %}true{% else %}false{% endif %}"
+  data-current-handle="{{ current_handle }}"
+  data-max-products="{{ max_products }}"
+  data-layout="{{ layout }}"
+  data-columns-desktop="{{ cols_desktop }}"
+  data-columns-tablet="{{ cols_tablet }}"
+  data-columns-mobile="{{ cols_mobile }}"
+  data-show-when-empty="{% if s.show_when_empty %}true{% else %}false{% endif %}"
+  data-empty-text="{{ s.empty_state_text | default: "You haven't viewed any products yet." | escape }}"
+  data-exclude-current="{% if s.exclude_current_product %}true{% else %}false{% endif %}"
+  data-dedupe="{% if s.dedupe %}true{% else %}false{% endif %}"
+  data-storage-key="{{ s.storage_key | default: 'q_recently_viewed' | escape }}"
+  data-storage-limit="{{ s.storage_limit | default: 20 }}"
+
+  data-enable-quick-add="{% if enable_quick_add %}true{% else %}false{% endif %}"
+  data-quick-add-mode="{{ quick_add_mode }}"
+  data-hover-actions-visibility="{{ quick_add_visibility }}"
+  data-primary-cta-label="{{ primary_cta_label | escape }}"
+  data-label-select-options="{{ label_select_options | escape }}"
+  data-label-sold-out="{{ label_sold_out | escape }}"
+  data-button-style="{{ button_style }}"
+  data-button-size="{{ button_size }}"
+
+  style="
+    --prv-cols-desktop: {{ cols_desktop }};
+    --prv-cols-tablet: {{ cols_tablet }};
+    --prv-cols-mobile: {{ cols_mobile }};
+
+    --prv-header-align: {{ header_align }};
+    --prv-title-color: {{ s.title_color }};
+    --prv-sub-color: {{ s.subheading_color }};
+    --prv-title-size: {{ title_size }}px;
+    --prv-title-weight: {{ title_weight }};
+    --prv-sub-size: {{ sub_size }}px;
+    --prv-sub-weight: {{ sub_weight }};
+
+    --q-btn-bg: {{ s.btn_bg }};
+    --q-btn-text: {{ s.btn_text }};
+    --q-btn-border: {{ s.btn_border }};
+    --q-btn-bg-hover: {{ s.btn_bg_hover }};
+    --q-btn-text-hover: {{ s.btn_text_hover }};
+  "
+  aria-label="{{ section_aria | strip_html | escape }}"
+>
+  <div class="product-recently-viewed__inner">
+    {%- if s.title != blank or s.subheading != blank -%}
+      <header class="product-recently-viewed__header">
+        {%- if s.title != blank -%}
+          <h2 class="product-recently-viewed__title">{{ s.title }}</h2>
+        {%- endif -%}
+        {%- if s.subheading != blank -%}
+          <div class="product-recently-viewed__subheading rte">{{ s.subheading }}</div>
+        {%- endif -%}
+      </header>
+    {%- endif -%}
+
+    {%- if layout == 'carousel' -%}
+      <div class="product-recently-viewed__controls">
+        <button
+          class="product-recently-viewed__nav product-recently-viewed__nav--prev"
+          type="button"
+          aria-label="Previous recently viewed products"
+          data-prv-prev
+        >‹</button>
+        <button
+          class="product-recently-viewed__nav product-recently-viewed__nav--next"
+          type="button"
+          aria-label="Next recently viewed products"
+          data-prv-next
+        >›</button>
+      </div>
+    {%- endif -%}
+
+    <div class="product-recently-viewed__body">
+      <div class="{{ items_class }}" data-prv-items aria-live="polite"></div>
+
+      <div class="product-recently-viewed__empty rte" data-prv-empty hidden>
+        {{ s.empty_state_text | default: "You haven't viewed any products yet." }}
+      </div>
+
+      {%- if request.design_mode -%}
+        <div class="product-recently-viewed__editor-hint rte">
+          <p><strong>Editor preview:</strong> Recently viewed products appear after you browse products on the live storefront.</p>
+        </div>
+
+        <div class="{{ items_class }} product-recently-viewed__items--placeholder" aria-hidden="true">
+          {%- for i in (1..4) -%}
+            <div class="product-recently-viewed__item product-recently-viewed__placeholder-card"></div>
+          {%- endfor -%}
+        </div>
+      {%- endif -%}
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Product recently viewed",
+  "tag": "section",
+  "class": "section product-recently-viewed-section",
+  "settings": [
+    { "type": "header", "content": "Content" },
+    { "type": "text", "id": "title", "label": "Title", "default": "Recently viewed" },
+    { "type": "richtext", "id": "subheading", "label": "Subheading" },
+
+    { "type": "header", "content": "Limits" },
+    { "type": "range", "id": "max_products", "label": "Max products", "min": 2, "max": 12, "step": 1, "default": 8 },
+
+    { "type": "header", "content": "Layout" },
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "grid",
+      "options": [
+        { "value": "grid", "label": "Grid" },
+        { "value": "carousel", "label": "Carousel" }
+      ]
+    },
+    { "type": "range", "id": "columns_desktop", "label": "Columns (desktop)", "min": 2, "max": 6, "step": 1, "default": 4 },
+    { "type": "range", "id": "columns_tablet", "label": "Columns (tablet)", "min": 1, "max": 4, "step": 1, "default": 2 },
+
+    { "type": "range", "id": "columns_mobile", "label": "Columns (mobile)", "min": 1, "max": 3, "step": 1, "default": 1 },
+
+    { "type": "header", "content": "Empty state" },
+    { "type": "checkbox", "id": "show_when_empty", "label": "Show when empty", "default": false },
+    { "type": "text", "id": "empty_state_text", "label": "Empty state text", "default": "You haven't viewed any products yet." },
+
+    { "type": "header", "content": "Storage" },
+    { "type": "text", "id": "storage_key", "label": "Storage key", "default": "q_recently_viewed" },
+    { "type": "range", "id": "storage_limit", "label": "Stored history limit", "min": 10, "max": 50, "step": 1, "default": 20 },
+
+    { "type": "header", "content": "Rules" },
+    { "type": "checkbox", "id": "exclude_current_product", "label": "Exclude current product", "default": true },
+    { "type": "checkbox", "id": "dedupe", "label": "Dedupe products", "default": true },
+
+    { "type": "header", "content": "Heading style" },
+    {
+      "type": "select",
+      "id": "header_alignment",
+      "label": "Header alignment",
+      "default": "left",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ]
+    },
+    { "type": "color", "id": "title_color", "label": "Title color" },
+    { "type": "range", "id": "title_size", "label": "Title size", "min": 14, "max": 48, "step": 1, "default": 28 },
+    { "type": "range", "id": "title_weight", "label": "Title weight", "min": 300, "max": 900, "step": 100, "default": 700 },
+
+    { "type": "header", "content": "Subheading style" },
+    { "type": "color", "id": "subheading_color", "label": "Subheading color" },
+    { "type": "range", "id": "subheading_size", "label": "Subheading size", "min": 12, "max": 28, "step": 1, "default": 16 },
+    { "type": "range", "id": "subheading_weight", "label": "Subheading weight", "min": 300, "max": 900, "step": 100, "default": 400 },
+
+    { "type": "header", "content": "Card actions (Quick add)" },
+    { "type": "checkbox", "id": "enable_quick_add", "label": "Enable Add to cart / Select options", "default": true },
+    {
+      "type": "select",
+      "id": "quick_add_visibility",
+      "label": "Hover actions visibility",
+      "default": "desktop_only",
+      "options": [
+        { "value": "desktop_only", "label": "Desktop hover only" },
+        { "value": "always", "label": "Always visible" },
+        { "value": "never", "label": "Never" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "quick_add_mode",
+      "label": "Quick add mode",
+      "default": "button",
+      "options": [
+        { "value": "button", "label": "Button" },
+        { "value": "sizes", "label": "Sizes (if Size option exists)" },
+        { "value": "dropdown", "label": "Variant dropdown" }
+      ]
+    },
+    { "type": "text", "id": "primary_cta_label", "label": "Add to cart label", "default": "Add to cart" },
+    { "type": "text", "id": "label_select_options", "label": "Select options label", "default": "Select options" },
+    { "type": "text", "id": "label_sold_out", "label": "Sold out label", "default": "Sold out" },
+
+    { "type": "header", "content": "Button styling (applies to product cards)" },
+    {
+      "type": "select",
+      "id": "button_style",
+      "label": "Button style (card preset)",
+      "default": "filled",
+      "options": [
+        { "value": "filled", "label": "Filled" },
+        { "value": "outline", "label": "Outline" },
+        { "value": "ghost", "label": "Ghost" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "button_size",
+      "label": "Button size (card preset)",
+      "default": "md",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
+
+    { "type": "color", "id": "btn_bg", "label": "Button background" },
+    { "type": "color", "id": "btn_text", "label": "Button text color" },
+    { "type": "color", "id": "btn_border", "label": "Button border color" },
+    { "type": "color", "id": "btn_bg_hover", "label": "Button background (hover)" },
+    { "type": "color", "id": "btn_text_hover", "label": "Button text color (hover)" }
+  ],
+  "presets": [
+    { "name": "Product recently viewed" }
+  ]
+}
+{% endschema %}
