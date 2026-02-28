@@ -1,0 +1,696 @@
+{%- comment -%}
+  Quadratum — Main Collection Classic
+  File: sections/main-collection-classic.liquid
+
+  Self-contained Classic MVP:
+  - Filters + Sorting + Pagination (no snippet dependencies)
+  - 3 layouts: grid, two_column_sidebar, top_controls
+  - Uses product-card snippet only (no bespoke card markup)
+  - Progressive enhancement via <details> drawers
+  - Theme-check safe (no parentheses in Liquid conditionals)
+{%- endcomment -%}
+
+{%- liquid
+  assign s = section.settings
+
+  assign layout = s.layout | default: 'grid'
+  assign filters_enabled = s.filters_enabled
+  assign sorting_enabled = s.sorting_enabled
+
+  assign has_filters = false
+  if collection.filters != blank and collection.filters.size > 0
+    assign has_filters = true
+  endif
+
+  assign show_title = s.show_title
+  assign show_description = s.show_description
+  assign description_position = s.description_position | default: 'above_grid'
+  assign description_collapse = s.description_collapse
+
+  assign content_width = s.content_width | default: 'page'
+  assign title_size = s.title_size | default: 'md'
+
+  assign pagination_type = s.pagination_type | default: 'numbers'
+  assign per_page = s.products_per_page | default: 24
+
+  comment
+    Clear-all URL: preserve sort_by if present.
+  endcomment
+  assign clear_all_url = collection.url
+  if collection.sort_by != blank
+    assign clear_all_url = clear_all_url | append: '?sort_by=' | append: collection.sort_by
+  endif
+
+  comment
+    Pass-through controls to product-card snippet (matching your existing pattern).
+  endcomment
+  assign pc_enable_quick_add = s.enable_quick_add
+  assign pc_enable_quick_view = s.enable_quick_view
+  assign pc_quick_add_mode = s.quick_add_mode
+  assign pc_quick_view_mode = s.quick_view_mode
+  assign pc_show_action_row = s.show_action_row
+  assign pc_show_secondary_row_cta = s.show_secondary_row_cta
+  assign pc_show_row_quick_view = s.show_row_quick_view
+  assign pc_quick_view_placement = s.quick_view_placement
+
+  assign pc_primary_cta_label = s.primary_cta_label
+  assign pc_secondary_cta_label = s.secondary_cta_label
+  assign pc_label_select_options = s.label_select_options
+  assign pc_label_sold_out = s.label_sold_out
+  assign pc_qv_label = s.qv_label
+
+  assign pc_button_style = s.button_style
+  assign pc_button_size = s.button_size
+  assign pc_button_full_width = s.button_full_width
+  assign pc_button_hover_strength = s.button_hover_strength
+
+  comment
+    Liquid-safe header flag (no parentheses in conditionals).
+  endcomment
+  assign show_header = false
+  if show_title
+    assign show_header = true
+  endif
+  if show_description and description_position == 'above_grid'
+    assign show_header = true
+  endif
+-%}
+
+{{ 'section-main-collection-classic.css' | asset_url | stylesheet_tag }}
+
+{%- capture filters_markup -%}
+  {%- if filters_enabled and has_filters -%}
+    <div class="main-collection-classic__filters" aria-label="Collection filters">
+      {%- for filter in collection.filters -%}
+        {%- liquid
+          assign filter_label_id = 'FilterLabel-' | append: section.id | append: '-' | append: forloop.index
+          assign filter_key = filter.label | handleize
+        -%}
+
+        <fieldset class="main-collection-classic__filter" aria-labelledby="{{ filter_label_id }}">
+          <legend id="{{ filter_label_id }}" class="main-collection-classic__filter-title">
+            {{ filter.label | escape }}
+          </legend>
+
+          {%- case filter.type -%}
+            {%- when 'list' -%}
+              <div class="main-collection-classic__filter-options">
+                {%- for value in filter.values -%}
+                  {%- liquid
+                    assign input_id = 'Filter-' | append: section.id | append: '-' | append: filter_key | append: '-' | append: forloop.index
+                  -%}
+                  <label class="main-collection-classic__filter-option" for="{{ input_id }}">
+                    <input
+                      id="{{ input_id }}"
+                      type="checkbox"
+                      name="{{ value.param_name }}"
+                      value="{{ value.value | escape }}"
+                      {% if value.active %}checked{% endif %}
+                      {% if value.count == 0 and value.active == false %}disabled{% endif %}
+                    >
+                    <span class="main-collection-classic__filter-option-text">
+                      {{ value.label | escape }}
+                      {%- if s.show_count and value.count != blank -%}
+                        <span class="main-collection-classic__filter-count" aria-hidden="true">({{ value.count }})</span>
+                      {%- endif -%}
+                    </span>
+                  </label>
+                {%- endfor -%}
+              </div>
+
+            {%- when 'boolean' -%}
+              {%- liquid
+                assign bool_id = 'Filter-' | append: section.id | append: '-' | append: filter_key
+              -%}
+              <label class="main-collection-classic__filter-option" for="{{ bool_id }}">
+                <input
+                  id="{{ bool_id }}"
+                  type="checkbox"
+                  name="{{ filter.param_name }}"
+                  value="1"
+                  {% if filter.active_values.size > 0 %}checked{% endif %}
+                >
+                <span class="main-collection-classic__filter-option-text">
+                  {{ s.boolean_filter_label | default: 'Enabled' | escape }}
+                </span>
+              </label>
+
+            {%- when 'price_range' -%}
+              <div class="main-collection-classic__price-range" role="group" aria-label="{{ filter.label | escape }}">
+                <div class="main-collection-classic__price-field">
+                  <label for="PriceMin-{{ section.id }}">{{ s.price_min_label | escape }}</label>
+                  <input
+                    id="PriceMin-{{ section.id }}"
+                    name="{{ filter.min_value.param_name }}"
+                    type="number"
+                    inputmode="numeric"
+                    placeholder="0"
+                    {% if filter.min_value.value != blank %}value="{{ filter.min_value.value }}"{% endif %}
+                  >
+                </div>
+                <div class="main-collection-classic__price-field">
+                  <label for="PriceMax-{{ section.id }}">{{ s.price_max_label | escape }}</label>
+                  <input
+                    id="PriceMax-{{ section.id }}"
+                    name="{{ filter.max_value.param_name }}"
+                    type="number"
+                    inputmode="numeric"
+                    placeholder=""
+                    {% if filter.max_value.value != blank %}value="{{ filter.max_value.value }}"{% endif %}
+                  >
+                </div>
+              </div>
+
+            {%- else -%}
+              <p class="main-collection-classic__filter-unsupported" role="note">
+                {{ s.unsupported_filter_label | escape }}
+              </p>
+          {%- endcase -%}
+        </fieldset>
+      {%- endfor -%}
+
+      <div class="main-collection-classic__filters-actions">
+        <button type="submit" class="main-collection-classic__filters-apply" aria-label="Apply filters">
+          {{ s.apply_filters_label | escape }}
+        </button>
+        <a class="main-collection-classic__filters-clear" href="{{ clear_all_url }}" aria-label="Clear all filters">
+          {{ s.clear_all_label | escape }}
+        </a>
+      </div>
+    </div>
+  {%- endif -%}
+{%- endcapture -%}
+
+{%- capture active_filters_markup -%}
+  {%- if s.show_active_filters and filters_enabled and has_filters -%}
+    {%- liquid
+      assign has_active = false
+      for filter in collection.filters
+        if filter.active_values != blank and filter.active_values.size > 0
+          assign has_active = true
+          break
+        endif
+        if filter.type == 'price_range'
+          if filter.min_value.value != blank or filter.max_value.value != blank
+            assign has_active = true
+            break
+          endif
+        endif
+      endfor
+    -%}
+
+    {%- if has_active -%}
+      <div class="main-collection-classic__active-filters-inner">
+        <span class="main-collection-classic__active-label">{{ s.active_filters_label | escape }}</span>
+
+        <div class="main-collection-classic__active-chips" role="list" aria-label="Active filters">
+          {%- for filter in collection.filters -%}
+            {%- if filter.type == 'price_range' -%}
+              {%- if filter.min_value.value != blank or filter.max_value.value != blank -%}
+                <a
+                  class="main-collection-classic__chip"
+                  href="{{ filter.url_to_remove }}"
+                  role="listitem"
+                  aria-label="Remove price filter"
+                >
+                  {{ filter.label | escape }}:
+                  {%- if filter.min_value.value != blank -%}{{ filter.min_value.value }}{%- else -%}0{%- endif -%}
+                  –
+                  {%- if filter.max_value.value != blank -%}{{ filter.max_value.value }}{%- else -%}∞{%- endif -%}
+                </a>
+              {%- endif -%}
+            {%- else -%}
+              {%- for av in filter.active_values -%}
+                <a
+                  class="main-collection-classic__chip"
+                  href="{{ av.url_to_remove }}"
+                  role="listitem"
+                  aria-label="Remove {{ av.label | escape }}"
+                >
+                  {{ filter.label | escape }}: {{ av.label | escape }}
+                </a>
+              {%- endfor -%}
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+
+        <a class="main-collection-classic__active-clear" href="{{ clear_all_url }}" aria-label="Clear all filters">
+          {{ s.clear_all_label | escape }}
+        </a>
+      </div>
+    {%- endif -%}
+  {%- endif -%}
+{%- endcapture -%}
+
+{%- capture pagination_markup -%}
+  {%- if paginate.pages > 1 -%}
+    <nav class="main-collection-classic__pagination" role="navigation" aria-label="Pagination">
+      {%- if pagination_type == 'load_more' -%}
+        {%- if paginate.next -%}
+          <a class="main-collection-classic__load-more" href="{{ paginate.next.url }}" rel="next" aria-label="Load more products">
+            {{ s.load_more_label | escape }}
+          </a>
+        {%- endif -%}
+      {%- else -%}
+        <div class="main-collection-classic__pager" role="list" aria-label="Page list">
+          {%- if paginate.previous -%}
+            <a class="main-collection-classic__page-link" href="{{ paginate.previous.url }}" rel="prev" aria-label="Previous page">
+              {{ s.prev_label | escape }}
+            </a>
+          {%- endif -%}
+
+          {%- for part in paginate.parts -%}
+            {%- if part.is_link -%}
+              <a class="main-collection-classic__page-link" href="{{ part.url }}" role="listitem" aria-label="Page {{ part.title | escape }}">
+                {{ part.title }}
+              </a>
+            {%- else -%}
+              {%- if part.title == '…' -%}
+                <span class="main-collection-classic__page-ellipsis" aria-hidden="true">…</span>
+              {%- else -%}
+                <span class="main-collection-classic__page-current" role="listitem" aria-current="page">
+                  {{ part.title }}
+                </span>
+              {%- endif -%}
+            {%- endif -%}
+          {%- endfor -%}
+
+          {%- if paginate.next -%}
+            <a class="main-collection-classic__page-link" href="{{ paginate.next.url }}" rel="next" aria-label="Next page">
+              {{ s.next_label | escape }}
+            </a>
+          {%- endif -%}
+        </div>
+      {%- endif -%}
+    </nav>
+  {%- endif -%}
+{%- endcapture -%}
+
+<section
+  class="main-collection-classic main-collection-classic--layout-{{ layout }} color-{{ s.color_scheme }}"
+  id="main-collection-classic"
+  data-section-id="{{ section.id }}"
+  style="
+    --mcc-pt: {{ s.padding_top }}px;
+    --mcc-pb: {{ s.padding_bottom }}px;
+    --mcc-gap: {{ s.grid_gap }}px;
+    --mcc-radius: {{ s.container_radius }}px;
+    --mcc-cols-mobile: {{ s.columns_mobile }};
+    --mcc-cols-tablet: {{ s.columns_tablet }};
+    --mcc-cols-desktop: {{ s.columns_desktop }};
+  "
+>
+  <div class="main-collection-classic__inner main-collection-classic__inner--{{ content_width }}">
+    {%- if show_header -%}
+      <header class="main-collection-classic__header">
+        {%- if show_title -%}
+          <h1 class="main-collection-classic__title main-collection-classic__title--{{ title_size }}">
+            {{ collection.title | escape }}
+          </h1>
+        {%- endif -%}
+
+        {%- if show_description and description_position == 'above_grid' and collection.description != blank -%}
+          <div class="main-collection-classic__description rte">
+            {%- if description_collapse -%}
+              <details class="main-collection-classic__desc-details">
+                <summary class="main-collection-classic__desc-summary" aria-label="Toggle collection description">
+                  {{ s.description_toggle_label | escape }}
+                </summary>
+                <div class="main-collection-classic__desc-content">
+                  {{ collection.description }}
+                </div>
+              </details>
+            {%- else -%}
+              {{ collection.description }}
+            {%- endif -%}
+          </div>
+        {%- endif -%}
+      </header>
+    {%- endif -%}
+
+    <form
+      class="main-collection-classic__form"
+      id="MainCollectionClassicForm"
+      method="get"
+      action="{{ collection.url }}"
+    >
+      {%- if layout == 'top_controls' -%}
+        <div class="main-collection-classic__controls main-collection-classic__controls--top" role="region" aria-label="Collection controls">
+          {%- if filters_enabled and has_filters -%}
+            <details class="main-collection-classic__drawer">
+              <summary class="main-collection-classic__drawer-toggle" aria-label="Open filters">
+                {{ s.filters_button_label | escape }}
+              </summary>
+              <div class="main-collection-classic__drawer-panel">
+                {{ filters_markup }}
+              </div>
+            </details>
+          {%- endif -%}
+
+          {%- if sorting_enabled -%}
+            <div class="main-collection-classic__sort" role="group" aria-label="Sort products">
+              <label class="main-collection-classic__sort-label" for="MainCollectionClassicSort">
+                {{ s.sort_label | escape }}
+              </label>
+              <select
+                id="MainCollectionClassicSort"
+                name="sort_by"
+                class="main-collection-classic__sort-select"
+                aria-label="Sort by"
+                onchange="this.form.submit()"
+              >
+                {%- for option in collection.sort_options -%}
+                  <option value="{{ option.value | escape }}" {% if option.value == collection.sort_by %}selected{% endif %}>
+                    {{ option.name | escape }}
+                  </option>
+                {%- endfor -%}
+              </select>
+            </div>
+          {%- endif -%}
+        </div>
+
+        {{ active_filters_markup }}
+      {%- endif -%}
+
+      <div class="main-collection-classic__layout">
+        {%- if layout == 'two_column_sidebar' and filters_enabled and has_filters -%}
+          <aside class="main-collection-classic__sidebar" aria-label="Filters">
+            {%- if s.filters_desktop_mode == 'sidebar' -%}
+              <div class="main-collection-classic__filters main-collection-classic__filters--sidebar">
+                {{ filters_markup }}
+              </div>
+            {%- else -%}
+              <details class="main-collection-classic__drawer main-collection-classic__drawer--desktop">
+                <summary class="main-collection-classic__drawer-toggle" aria-label="Open filters">
+                  {{ s.filters_button_label | escape }}
+                </summary>
+                <div class="main-collection-classic__drawer-panel">
+                  {{ filters_markup }}
+                </div>
+              </details>
+            {%- endif -%}
+          </aside>
+        {%- endif -%}
+
+        <div class="main-collection-classic__main" aria-label="Collection results">
+          {%- if layout != 'top_controls' -%}
+            <div class="main-collection-classic__controls" role="region" aria-label="Collection controls">
+              {%- if filters_enabled and has_filters -%}
+                <details class="main-collection-classic__drawer main-collection-classic__drawer--mobile">
+                  <summary class="main-collection-classic__drawer-toggle" aria-label="Open filters">
+                    {{ s.filters_button_label | escape }}
+                  </summary>
+                  <div class="main-collection-classic__drawer-panel">
+                    {{ filters_markup }}
+                  </div>
+                </details>
+              {%- endif -%}
+
+              {%- if sorting_enabled -%}
+                <div class="main-collection-classic__sort" role="group" aria-label="Sort products">
+                  <label class="main-collection-classic__sort-label" for="MainCollectionClassicSort2">
+                    {{ s.sort_label | escape }}
+                  </label>
+                  <select
+                    id="MainCollectionClassicSort2"
+                    name="sort_by"
+                    class="main-collection-classic__sort-select"
+                    aria-label="Sort by"
+                    onchange="this.form.submit()"
+                  >
+                    {%- for option in collection.sort_options -%}
+                      <option value="{{ option.value | escape }}" {% if option.value == collection.sort_by %}selected{% endif %}>
+                        {{ option.name | escape }}
+                      </option>
+                    {%- endfor -%}
+                  </select>
+                </div>
+              {%- endif -%}
+            </div>
+
+            {{ active_filters_markup }}
+          {%- endif -%}
+
+          {%- paginate collection.products by per_page -%}
+            {%- if collection.products_count == 0 -%}
+              <p class="main-collection-classic__empty" role="status">
+                {{ s.empty_label | escape }}
+              </p>
+            {%- else -%}
+              <div class="main-collection-classic__grid" role="list" aria-label="Product grid">
+                {%- for product in paginate.items -%}
+                  <div class="main-collection-classic__item" role="listitem">
+                    {% render 'product-card',
+                      product: product,
+                      enable_quick_add: pc_enable_quick_add,
+                      enable_quick_view: pc_enable_quick_view,
+                      quick_add_mode: pc_quick_add_mode,
+                      quick_view_mode: pc_quick_view_mode,
+                      show_action_row: pc_show_action_row,
+                      show_secondary_row_cta: pc_show_secondary_row_cta,
+                      show_row_quick_view: pc_show_row_quick_view,
+                      quick_view_placement: pc_quick_view_placement,
+                      primary_cta_label: pc_primary_cta_label,
+                      secondary_cta_label: pc_secondary_cta_label,
+                      label_select_options: pc_label_select_options,
+                      label_sold_out: pc_label_sold_out,
+                      qv_label: pc_qv_label,
+                      button_style: pc_button_style,
+                      button_size: pc_button_size,
+                      button_full_width: pc_button_full_width,
+                      button_hover_strength: pc_button_hover_strength
+                    %}
+                  </div>
+                {%- endfor -%}
+              </div>
+
+              {{ pagination_markup }}
+            {%- endif -%}
+          {%- endpaginate -%}
+
+          {%- if show_description and description_position == 'below_grid' and collection.description != blank -%}
+            <div class="main-collection-classic__description main-collection-classic__description--below rte">
+              {%- if description_collapse -%}
+                <details class="main-collection-classic__desc-details">
+                  <summary class="main-collection-classic__desc-summary" aria-label="Toggle collection description">
+                    {{ s.description_toggle_label | escape }}
+                  </summary>
+                  <div class="main-collection-classic__desc-content">
+                    {{ collection.description }}
+                  </div>
+                </details>
+              {%- else -%}
+                {{ collection.description }}
+              {%- endif -%}
+            </div>
+          {%- endif -%}
+        </div>
+      </div>
+    </form>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Main collection classic",
+  "tag": "section",
+  "class": "section main-collection-classic-section",
+  "settings": [
+    { "type": "color_scheme", "id": "color_scheme", "label": "Color scheme", "default": "scheme-1" },
+
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "grid",
+      "options": [
+        { "value": "grid", "label": "Grid" },
+        { "value": "two_column_sidebar", "label": "Two column (sidebar)" },
+        { "value": "top_controls", "label": "Top controls" }
+      ]
+    },
+
+    {
+      "type": "select",
+      "id": "content_width",
+      "label": "Content width",
+      "default": "page",
+      "options": [
+        { "value": "page", "label": "Page" },
+        { "value": "full", "label": "Full width" }
+      ]
+    },
+
+    { "type": "range", "id": "padding_top", "label": "Padding top (px)", "min": 0, "max": 96, "step": 1, "default": 32 },
+    { "type": "range", "id": "padding_bottom", "label": "Padding bottom (px)", "min": 0, "max": 96, "step": 1, "default": 32 },
+
+    { "type": "header", "content": "Header content" },
+    { "type": "checkbox", "id": "show_title", "label": "Show title", "default": true },
+    {
+      "type": "select",
+      "id": "title_size",
+      "label": "Title size",
+      "default": "md",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
+
+    { "type": "checkbox", "id": "show_description", "label": "Show description", "default": false },
+    {
+      "type": "select",
+      "id": "description_position",
+      "label": "Description position",
+      "default": "above_grid",
+      "options": [
+        { "value": "above_grid", "label": "Above grid" },
+        { "value": "below_grid", "label": "Below grid" }
+      ]
+    },
+    { "type": "checkbox", "id": "description_collapse", "label": "Collapse description (Read more)", "default": false },
+    { "type": "text", "id": "description_toggle_label", "label": "Description toggle label", "default": "Read more" },
+
+    { "type": "header", "content": "Filters" },
+    { "type": "checkbox", "id": "filters_enabled", "label": "Enable filters", "default": true },
+    {
+      "type": "select",
+      "id": "filters_desktop_mode",
+      "label": "Desktop filters mode",
+      "default": "sidebar",
+      "options": [
+        { "value": "sidebar", "label": "Sidebar" },
+        { "value": "drawer", "label": "Drawer" }
+      ]
+    },
+    { "type": "checkbox", "id": "show_active_filters", "label": "Show active filters", "default": true },
+    { "type": "checkbox", "id": "show_count", "label": "Show counts (if available)", "default": true },
+
+    { "type": "text", "id": "filters_button_label", "label": "Filters button label", "default": "Filters" },
+    { "type": "text", "id": "apply_filters_label", "label": "Apply filters label", "default": "Apply" },
+    { "type": "text", "id": "clear_all_label", "label": "Clear all label", "default": "Clear all" },
+    { "type": "text", "id": "active_filters_label", "label": "Active filters label", "default": "Active:" },
+
+    { "type": "text", "id": "price_min_label", "label": "Price min label", "default": "Min" },
+    { "type": "text", "id": "price_max_label", "label": "Price max label", "default": "Max" },
+    { "type": "text", "id": "boolean_filter_label", "label": "Boolean option label", "default": "Enabled" },
+    { "type": "text", "id": "unsupported_filter_label", "label": "Unsupported filter label", "default": "This filter type isn't supported in Classic yet." },
+
+    { "type": "header", "content": "Sorting" },
+    { "type": "checkbox", "id": "sorting_enabled", "label": "Enable sorting", "default": true },
+    { "type": "text", "id": "sort_label", "label": "Sort label", "default": "Sort" },
+
+    { "type": "header", "content": "Grid" },
+    { "type": "range", "id": "products_per_page", "label": "Products per page", "min": 8, "max": 60, "step": 1, "default": 24 },
+
+    { "type": "range", "id": "columns_desktop", "label": "Columns (desktop)", "min": 2, "max": 6, "step": 1, "default": 4 },
+    { "type": "range", "id": "columns_tablet", "label": "Columns (tablet)", "min": 1, "max": 4, "step": 1, "default": 3 },
+
+    {
+      "type": "range",
+      "id": "columns_mobile",
+      "label": "Columns (mobile)",
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "default": 2
+    },
+
+    { "type": "range", "id": "grid_gap", "label": "Grid gap (px)", "min": 0, "max": 48, "step": 1, "default": 16 },
+    { "type": "range", "id": "container_radius", "label": "Container radius (px)", "min": 0, "max": 24, "step": 1, "default": 12 },
+
+    { "type": "header", "content": "Pagination" },
+    {
+      "type": "select",
+      "id": "pagination_type",
+      "label": "Pagination type",
+      "default": "numbers",
+      "options": [
+        { "value": "numbers", "label": "Numbers" },
+        { "value": "load_more", "label": "Load more (MVP)" }
+      ]
+    },
+    { "type": "text", "id": "load_more_label", "label": "Load more label", "default": "Load more" },
+    { "type": "text", "id": "prev_label", "label": "Previous label", "default": "Prev" },
+    { "type": "text", "id": "next_label", "label": "Next label", "default": "Next" },
+    { "type": "text", "id": "empty_label", "label": "Empty results label", "default": "No products found." },
+
+    { "type": "header", "content": "Product card actions (pass-through)" },
+    { "type": "checkbox", "id": "enable_quick_add", "label": "Enable add to cart (quick add)", "default": true },
+    {
+      "type": "select",
+      "id": "quick_add_mode",
+      "label": "Quick add mode",
+      "default": "button",
+      "options": [
+        { "value": "button", "label": "Button" },
+        { "value": "dropdown", "label": "Variant dropdown" },
+        { "value": "sizes", "label": "Sizes (if Size option exists)" }
+      ]
+    },
+    { "type": "checkbox", "id": "enable_quick_view", "label": "Enable quick view", "default": false },
+    {
+      "type": "select",
+      "id": "quick_view_mode",
+      "label": "Quick view mode",
+      "default": "drawer",
+      "options": [
+        { "value": "drawer", "label": "Drawer" },
+        { "value": "modal", "label": "Modal" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "quick_view_placement",
+      "label": "Quick view placement",
+      "default": "overlay",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "overlay", "label": "Overlay" },
+        { "value": "below_content", "label": "Below content" },
+        { "value": "both", "label": "Both" }
+      ]
+    },
+    { "type": "checkbox", "id": "show_action_row", "label": "Show action row below card", "default": false },
+    { "type": "checkbox", "id": "show_secondary_row_cta", "label": "Show secondary row CTA", "default": true },
+    { "type": "checkbox", "id": "show_row_quick_view", "label": "Show quick view in row", "default": true },
+
+    { "type": "text", "id": "primary_cta_label", "label": "Add to cart label", "default": "Add to cart" },
+    { "type": "text", "id": "secondary_cta_label", "label": "Secondary CTA label", "default": "Learn more" },
+    { "type": "text", "id": "label_select_options", "label": "Select options label", "default": "Select options" },
+    { "type": "text", "id": "label_sold_out", "label": "Sold out label", "default": "Sold out" },
+    { "type": "text", "id": "qv_label", "label": "Quick view label", "default": "Quick view" },
+
+    { "type": "header", "content": "Card button style (pass-through)" },
+    {
+      "type": "select",
+      "id": "button_style",
+      "label": "Button style",
+      "default": "filled",
+      "options": [
+        { "value": "filled", "label": "Filled" },
+        { "value": "outline", "label": "Outline" },
+        { "value": "ghost", "label": "Ghost" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "button_size",
+      "label": "Button size",
+      "default": "md",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
+    { "type": "checkbox", "id": "button_full_width", "label": "Full width buttons", "default": false },
+    { "type": "range", "id": "button_hover_strength", "label": "Hover strength", "min": 0, "max": 100, "step": 1, "default": 40 }
+  ],
+  "presets": [
+    { "name": "Main collection classic" }
+  ],
+  "templates": ["collection"]
+}
+{% endschema %}
