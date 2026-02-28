@@ -1,23 +1,16 @@
 {%- comment -%}
   SECTION: product-story.liquid
 
-  Standalone PDP support section for brand/product narrative.
-
-  Sources:
-  - manual (blocks)
-  - metafield (product rich_text metafield)
-  - metaobject (single reference with content + optional media + optional timeline list)
-
-  Product resolution:
-  - closest.product
-  - product
-  - If none: placeholder only in Theme Editor; otherwise render nothing
-
-  Constraints handled:
-  - {% schema %} is TOP-LEVEL only
-  - No {{ }} output inside {% liquid %} blocks
-  - No parentheses in boolean conditions
-  - NO color schemes (custom colors only)
+  Fixes in this version:
+  - Manual story image/video are now "dynamic" in split: the FIRST media block becomes the split media column,
+    but OTHER media blocks still render inside the story content (no more “hidden on split” bug).
+  - Timeline: simplified + looks clean (vertical line + dots), better spacing, cards, responsive.
+  - Date field: Shopify sections do NOT support a true date-picker setting type. So this uses a text field.
+    It will "work" reliably and you can type: "Jan 2026", "2026-02-28", etc.
+  - Still supports 3 sources: manual, metafield (rich_text), metaobject reference.
+  - Still supports optional timeline (manual blocks OR metaobject list), disabled by default.
+  - NO color schemes — custom colors only.
+  - No blank defaults that trigger your schema validator.
 {%- endcomment -%}
 
 {%- liquid
@@ -40,14 +33,13 @@
             <h2 class="product-story__title">Product story</h2>
           </div>
           <div class="product-story__body rte">
-            <p>Add this section on a product page (or a Featured product section) to render the story.</p>
+            <p>Add this section on a product page (or inside a Featured product section) to render the story.</p>
           </div>
         </div>
       </div>
 
       <style>
         .product-story{padding:24px 0}
-        .product-story__outer{width:100%}
         .product-story__inner{
           max-width:var(--q-content-max,1100px);
           margin-inline:auto;
@@ -69,21 +61,19 @@
     assign mf = q_product.metafields[s.metafield_namespace][s.metafield_key]
     assign meta_story = s.metaobject_reference
 
-    comment
-      Media resolution targets
-      resolved_media_kind: image | video | blank
-    endcomment
     assign resolved_media_kind = ''
     assign resolved_image = nil
     assign resolved_video = nil
     assign resolved_caption = s.media_caption
 
-    comment
-      Timeline resolution
-    endcomment
+    assign featured_media_block_id = ''
+
     assign timeline_items = nil
     assign timeline_heading = s.timeline_heading
 
+    comment
+      METAOBJECT: content + media + timeline list (optional)
+    endcomment
     if s.source == 'metaobject' and meta_story
       if meta_story.heading != blank
         assign story_heading = meta_story.heading
@@ -118,22 +108,37 @@
       endif
     endif
 
+    comment
+      MANUAL: first story image/video becomes the split media column (if needed).
+      Keep its block.id so we can skip rendering THAT one in the content (others still render).
+    endcomment
     if s.source == 'manual'
       if s.show_media and s.layout == 'split'
         for block in section.blocks
-          if resolved_media_kind == blank and block.type == 'story_image' and block.settings.image != blank
-            assign resolved_media_kind = 'image'
-            assign resolved_image = block.settings.image
-            assign resolved_caption = block.settings.caption | default: s.media_caption
-          elsif resolved_media_kind == blank and block.type == 'story_video' and block.settings.video != blank
-            assign resolved_media_kind = 'video'
-            assign resolved_video = block.settings.video
-            assign resolved_caption = block.settings.caption | default: s.media_caption
+          if featured_media_block_id == blank
+            if block.type == 'story_image' and block.settings.image != blank
+              assign featured_media_block_id = block.id
+              assign resolved_media_kind = 'image'
+              assign resolved_image = block.settings.image
+              if block.settings.caption != blank
+                assign resolved_caption = block.settings.caption
+              endif
+            elsif block.type == 'story_video' and block.settings.video != blank
+              assign featured_media_block_id = block.id
+              assign resolved_media_kind = 'video'
+              assign resolved_video = block.settings.video
+              if block.settings.caption != blank
+                assign resolved_caption = block.settings.caption
+              endif
+            endif
           endif
         endfor
       endif
     endif
 
+    comment
+      FALLBACK: section media
+    endcomment
     if s.show_media and resolved_media_kind == blank
       if s.media_type == 'video' and s.video != blank
         assign resolved_media_kind = 'video'
@@ -147,10 +152,16 @@
       endif
     endif
 
+    comment
+      Timeline metaobject_list override
+    endcomment
     if s.show_timeline and s.timeline_source == 'metaobject_list' and s.timeline_metaobject_list != blank
       assign timeline_items = s.timeline_metaobject_list
     endif
 
+    comment
+      Effective layout: degrade split -> stack if no media
+    endcomment
     assign effective_layout = s.layout
     if effective_layout == 'split'
       if s.show_media == false
@@ -180,6 +191,25 @@
 
     assign pad_top = s.padding_top | default: 40
     assign pad_bottom = s.padding_bottom | default: 40
+
+    comment
+      Determine if timeline has content
+    endcomment
+    assign should_render_timeline = false
+    if s.show_timeline
+      if s.timeline_source == 'manual'
+        for b in section.blocks
+          if b.type == 'timeline_item'
+            assign should_render_timeline = true
+            break
+          endif
+        endfor
+      elsif s.timeline_source == 'metaobject_list'
+        if timeline_items != blank
+          assign should_render_timeline = true
+        endif
+      endif
+    endif
   -%}
 
   <section
@@ -195,6 +225,7 @@
       --ps-muted: {{ s.muted_text_color }};
       --ps-border: {{ s.border_color }};
       --ps-media-bg: {{ s.media_bg_color }};
+      --ps-dot: {{ s.timeline_dot_color }};
     "
     aria-label="{{ story_heading | strip_html | escape }}"
   >
@@ -226,8 +257,10 @@
                       {%- endif -%}
 
                     {%- when 'story_image' -%}
-                      {%- if effective_layout != 'split' or s.show_media == false -%}
-                        {%- if block.settings.image != blank -%}
+                      {%- if block.settings.image != blank -%}
+                        {%- if effective_layout == 'split' and s.show_media and block.id == featured_media_block_id -%}
+                          {%- comment -%}This one is already used as split media{%- endcomment -%}
+                        {%- else -%}
                           {%- liquid
                             assign b_ratio = block.settings.ratio | default: 'inherit'
                             assign ratio_override_class = ''
@@ -236,7 +269,7 @@
                             endif
                           -%}
                           <figure class="product-story__block product-story__block--image" {{ block.shopify_attributes }}>
-                            <div class="product-story__media product-story__media--image{{ ratio_override_class }}">
+                            <div class="product-story__media product-story__media--image{{ ratio_override_class }} product-story__media--{{ s.media_ratio }} {{ fit_class }}">
                               {{ block.settings.image | image_url: width: 1600 | image_tag:
                                 loading: 'lazy',
                                 alt: block.settings.image.alt | default: q_product.title
@@ -250,8 +283,10 @@
                       {%- endif -%}
 
                     {%- when 'story_video' -%}
-                      {%- if effective_layout != 'split' or s.show_media == false -%}
-                        {%- if block.settings.video != blank -%}
+                      {%- if block.settings.video != blank -%}
+                        {%- if effective_layout == 'split' and s.show_media and block.id == featured_media_block_id -%}
+                          {%- comment -%}This one is already used as split media{%- endcomment -%}
+                        {%- else -%}
                           <figure class="product-story__block product-story__block--video" {{ block.shopify_attributes }}>
                             <div class="product-story__media product-story__media--video product-story__media--{{ s.media_ratio }}">
                               {{ block.settings.video | video_tag:
@@ -274,9 +309,7 @@
 
             {%- elsif s.source == 'metaobject' -%}
               {%- if meta_story and meta_story.content != blank -%}
-                <div class="product-story__body rte">
-                  {{ meta_story.content }}
-                </div>
+                <div class="product-story__body rte">{{ meta_story.content }}</div>
               {%- elsif request.design_mode -%}
                 <div class="product-story__body rte"><p><em>No metaobject content found.</em></p></div>
               {%- endif -%}
@@ -331,88 +364,74 @@
           {%- endif -%}
         </div>
 
-        {%- if s.show_timeline -%}
-          {%- liquid
-            assign should_render_timeline = false
-            if s.timeline_source == 'manual'
-              for block in section.blocks
-                if block.type == 'timeline_item'
-                  assign should_render_timeline = true
-                  break
-                endif
-              endfor
-            elsif s.timeline_source == 'metaobject_list'
-              if timeline_items != blank
-                assign should_render_timeline = true
-              endif
-            endif
-          -%}
+        {%- if should_render_timeline -%}
+          <div class="product-story__timeline" role="region" aria-label="{{ timeline_heading | strip_html | escape }}">
+            {%- if timeline_heading != blank -%}
+              <h3 class="product-story__timeline-title">{{ timeline_heading }}</h3>
+            {%- endif -%}
 
-          {%- if should_render_timeline -%}
-            <div class="product-story__timeline" role="region" aria-label="{{ timeline_heading | strip_html | escape }}">
-              {%- if timeline_heading != blank -%}
-                <h3 class="product-story__timeline-title">{{ timeline_heading }}</h3>
-              {%- endif -%}
+            <ol class="product-story__timeline-list">
+              {%- if s.timeline_source == 'manual' -%}
+                {%- for block in section.blocks -%}
+                  {%- if block.type == 'timeline_item' -%}
+                    <li class="product-story__timeline-item" {{ block.shopify_attributes }}>
+                      <div class="product-story__timeline-dot" aria-hidden="true"></div>
 
-              <ol class="product-story__timeline-list">
-                {%- if s.timeline_source == 'manual' -%}
-                  {%- for block in section.blocks -%}
-                    {%- if block.type == 'timeline_item' -%}
-                      <li class="product-story__timeline-item" {{ block.shopify_attributes }}>
-                        <div class="product-story__timeline-card">
-                          {%- if block.settings.date != blank -%}
-                            <div class="product-story__timeline-date">{{ block.settings.date }}</div>
-                          {%- endif -%}
-                          {%- if block.settings.title != blank -%}
-                            <div class="product-story__timeline-heading">{{ block.settings.title }}</div>
-                          {%- endif -%}
-                          {%- if block.settings.text != blank -%}
-                            <div class="product-story__timeline-text rte">{{ block.settings.text }}</div>
-                          {%- endif -%}
-                          {%- if block.settings.media_image != blank -%}
-                            <div class="product-story__timeline-media">
-                              {{ block.settings.media_image | image_url: width: 1400 | image_tag:
-                                loading: 'lazy',
-                                alt: block.settings.media_image.alt | default: block.settings.title | default: q_product.title
-                              }}
-                            </div>
-                          {%- endif -%}
-                        </div>
-                      </li>
-                    {%- endif -%}
-                  {%- endfor -%}
-                {%- else -%}
-                  {%- for item in timeline_items -%}
-                    <li class="product-story__timeline-item">
                       <div class="product-story__timeline-card">
-                        {%- if item.date != blank -%}
-                          <div class="product-story__timeline-date">{{ item.date }}</div>
+                        {%- if block.settings.date != blank -%}
+                          <div class="product-story__timeline-date">{{ block.settings.date }}</div>
                         {%- endif -%}
-                        {%- if item.title != blank -%}
-                          <div class="product-story__timeline-heading">{{ item.title }}</div>
+                        {%- if block.settings.title != blank -%}
+                          <div class="product-story__timeline-heading">{{ block.settings.title }}</div>
                         {%- endif -%}
-                        {%- if item.text != blank -%}
-                          <div class="product-story__timeline-text rte">{{ item.text }}</div>
+                        {%- if block.settings.text != blank -%}
+                          <div class="product-story__timeline-text rte">{{ block.settings.text }}</div>
                         {%- endif -%}
-                        {%- if item.image != blank -%}
+                        {%- if block.settings.media_image != blank -%}
                           <div class="product-story__timeline-media">
-                            {{ item.image | image_url: width: 1400 | image_tag:
+                            {{ block.settings.media_image | image_url: width: 1400 | image_tag:
                               loading: 'lazy',
-                              alt: item.image.alt | default: item.title | default: q_product.title
+                              alt: block.settings.media_image.alt | default: block.settings.title | default: q_product.title
                             }}
                           </div>
                         {%- endif -%}
                       </div>
                     </li>
-                  {%- endfor -%}
-                {%- endif -%}
-              </ol>
-            </div>
-          {%- elsif request.design_mode -%}
-            <div class="product-story__timeline product-story__timeline--empty">
-              <p class="product-story__empty-note"><em>Timeline is enabled, but no items are available.</em></p>
-            </div>
-          {%- endif -%}
+                  {%- endif -%}
+                {%- endfor -%}
+              {%- else -%}
+                {%- for item in timeline_items -%}
+                  <li class="product-story__timeline-item">
+                    <div class="product-story__timeline-dot" aria-hidden="true"></div>
+
+                    <div class="product-story__timeline-card">
+                      {%- if item.date != blank -%}
+                        <div class="product-story__timeline-date">{{ item.date }}</div>
+                      {%- endif -%}
+                      {%- if item.title != blank -%}
+                        <div class="product-story__timeline-heading">{{ item.title }}</div>
+                      {%- endif -%}
+                      {%- if item.text != blank -%}
+                        <div class="product-story__timeline-text rte">{{ item.text }}</div>
+                      {%- endif -%}
+                      {%- if item.image != blank -%}
+                        <div class="product-story__timeline-media">
+                          {{ item.image | image_url: width: 1400 | image_tag:
+                            loading: 'lazy',
+                            alt: item.image.alt | default: item.title | default: q_product.title
+                          }}
+                        </div>
+                      {%- endif -%}
+                    </div>
+                  </li>
+                {%- endfor -%}
+              {%- endif -%}
+            </ol>
+          </div>
+        {%- elsif s.show_timeline and request.design_mode -%}
+          <div class="product-story__timeline product-story__timeline--empty">
+            <p class="product-story__empty-note"><em>Timeline is enabled, but no items are available.</em></p>
+          </div>
         {%- endif -%}
 
       </div>
@@ -429,6 +448,7 @@
       .product-story__outer{width:100%}
       .product-story--center .product-story__inner{max-width:var(--q-content-max,1100px);margin-inline:auto;padding-inline:var(--q-gutter,16px)}
       .product-story--full .product-story__inner{width:100%;padding-inline:var(--q-gutter,16px)}
+
       .product-story__header{margin-bottom:var(--q-space-6,24px)}
       .product-story__title{
         margin:0 0 var(--q-space-3,12px);
@@ -439,17 +459,21 @@
         color:var(--ps-heading);
       }
       .product-story__intro{color:var(--ps-muted)}
+
       .product-story--align-center .product-story__title,
       .product-story--align-center .product-story__intro,
       .product-story--align-center .product-story__content,
       .product-story--align-center .product-story__timeline{text-align:center}
 
       .product-story__grid{display:grid;gap:var(--q-space-7,28px);align-items:start}
-      .product-story--split .product-story__grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+      .product-story--split .product-story__grid{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr)}
       .product-story--media-left.product-story--split .product-story__content{order:2}
       .product-story--media-left.product-story--split .product-story__media-col{order:1}
 
       .product-story__body{overflow-wrap:anywhere}
+      .product-story__block{margin-bottom:var(--q-space-5,20px)}
+      .product-story__block:last-child{margin-bottom:0}
+
       .product-story__figure{margin:0}
       .product-story__caption{margin-top:var(--q-space-3,12px);font-size:.925rem;color:var(--ps-muted)}
 
@@ -459,7 +483,13 @@
         background:var(--ps-media-bg);
         border:1px solid var(--ps-border);
       }
-      .product-story__media--image img,.product-story__timeline-media img{width:100%;height:100%;display:block;object-fit:var(--ps-fit,cover)}
+      .product-story__media--image img,
+      .product-story__timeline-media img{
+        width:100%;
+        height:100%;
+        display:block;
+        object-fit:var(--ps-fit,cover);
+      }
       .product-story__media--fit-cover{--ps-fit:cover}
       .product-story__media--fit-contain{--ps-fit:contain}
       .product-story__media--adapt{aspect-ratio:auto}
@@ -468,6 +498,7 @@
       .product-story__media--portrait{aspect-ratio:4/5}
       .product-story__media--video video{width:100%;height:100%;display:block}
 
+      /* Timeline */
       .product-story__timeline{margin-top:var(--q-space-8,32px)}
       .product-story__timeline-title{
         margin:0 0 var(--q-space-4,16px);
@@ -476,22 +507,77 @@
         font-size:1.125rem;
         color:var(--ps-heading);
       }
-      .product-story__timeline-list{list-style:none;padding:0;margin:0;display:grid;gap:var(--q-space-5,20px)}
+
+      .product-story__timeline-list{
+        list-style:none;
+        padding:0;
+        margin:0;
+        position:relative;
+        display:grid;
+        gap:var(--q-space-5,20px);
+      }
+
+      /* vertical line */
+      .product-story__timeline-list:before{
+        content:"";
+        position:absolute;
+        left:10px;
+        top:4px;
+        bottom:4px;
+        width:2px;
+        background:var(--ps-border);
+      }
+
+      .product-story__timeline-item{
+        display:grid;
+        grid-template-columns:22px minmax(0,1fr);
+        gap:var(--q-space-4,16px);
+        align-items:start;
+        position:relative;
+      }
+
+      .product-story__timeline-dot{
+        width:12px;
+        height:12px;
+        border-radius:999px;
+        background:var(--ps-dot);
+        border:2px solid var(--ps-bg);
+        box-shadow:0 0 0 2px var(--ps-border);
+        margin-top:6px;
+        margin-left:4px;
+      }
+
       .product-story__timeline-card{
         border-radius:var(--q-radius-2xl,16px);
         padding:var(--q-space-5,20px);
         background:var(--ps-surface);
         border:1px solid var(--ps-border);
       }
-      .product-story__timeline-date{font-size:.9rem;color:var(--ps-muted);margin-bottom:var(--q-space-2,8px)}
-      .product-story__timeline-heading{font-weight:700;margin-bottom:var(--q-space-2,8px);color:var(--ps-heading)}
-      .product-story__timeline-media{margin-top:var(--q-space-4,16px);border-radius:var(--q-radius-xl,14px);overflow:hidden;border:1px solid var(--ps-border)}
+
+      .product-story__timeline-date{
+        font-size:.9rem;
+        color:var(--ps-muted);
+        margin-bottom:var(--q-space-2,8px);
+      }
+      .product-story__timeline-heading{
+        font-weight:700;
+        margin-bottom:var(--q-space-2,8px);
+        color:var(--ps-heading);
+      }
+      .product-story__timeline-media{
+        margin-top:var(--q-space-4,16px);
+        border-radius:var(--q-radius-xl,14px);
+        overflow:hidden;
+        border:1px solid var(--ps-border);
+      }
+
       .product-story__empty-note{color:var(--ps-muted)}
 
       @media (max-width:989px){
         .product-story--split .product-story__grid{grid-template-columns:1fr}
         .product-story--media-left.product-story--split .product-story__content,
         .product-story--media-left.product-story--split .product-story__media-col{order:initial}
+        .product-story__timeline-list:before{left:9px}
       }
     </style>
   </section>
@@ -529,7 +615,7 @@
       "label": "Story metaobject (when source = metaobject)",
       "metaobject_type": "product_story"
     },
-    { "type": "text", "id": "metaobject_expected_type", "label": "Expected metaobject type (safety hint)", "default": "product_story" },
+    { "type": "text", "id": "metaobject_expected_type", "label": "Expected metaobject type (hint)", "default": "product_story" },
 
     { "type": "header", "content": "Layout" },
     {
@@ -607,8 +693,8 @@
         { "value": "video", "label": "Video" }
       ]
     },
-    { "type": "image_picker", "id": "image", "label": "Fallback image (manual)" },
-    { "type": "video", "id": "video", "label": "Fallback video (manual)" },
+    { "type": "image_picker", "id": "image", "label": "Fallback image (if no media block / metaobject media)" },
+    { "type": "video", "id": "video", "label": "Fallback video (if no media block / metaobject media)" },
     { "type": "checkbox", "id": "video_autoplay", "label": "Autoplay video", "default": false },
     { "type": "checkbox", "id": "video_loop", "label": "Loop video", "default": true },
     { "type": "text", "id": "media_caption", "label": "Media caption (optional)" },
@@ -644,7 +730,8 @@
     { "type": "color", "id": "heading_color", "label": "Headings", "default": "#111111" },
     { "type": "color", "id": "muted_text_color", "label": "Muted text", "default": "#555555" },
     { "type": "color", "id": "border_color", "label": "Borders", "default": "#e5e5e5" },
-    { "type": "color", "id": "media_bg_color", "label": "Media background", "default": "#f2f2f2" }
+    { "type": "color", "id": "media_bg_color", "label": "Media background", "default": "#f2f2f2" },
+    { "type": "color", "id": "timeline_dot_color", "label": "Timeline dot", "default": "#111111" }
   ],
   "blocks": [
     {
@@ -666,7 +753,7 @@
           "label": "Ratio override",
           "default": "inherit",
           "options": [
-            { "value": "inherit", "label": "Inherit section setting" },
+            { "value": "inherit", "label": "Inherit" },
             { "value": "adapt", "label": "Adapt" },
             { "value": "square", "label": "Square" },
             { "value": "landscape", "label": "Landscape (16:9)" },
@@ -687,7 +774,7 @@
       "type": "timeline_item",
       "name": "Timeline item",
       "settings": [
-        { "type": "text", "id": "date", "label": "Date" },
+        { "type": "text", "id": "date", "label": "Date (text)", "info": "Shopify sections do not support a true date picker here. Use e.g. 2026-02-28 or Jan 2026." },
         { "type": "text", "id": "title", "label": "Title" },
         { "type": "richtext", "id": "text", "label": "Text" },
         { "type": "image_picker", "id": "media_image", "label": "Image (optional)" }
@@ -699,6 +786,7 @@
       "name": "Product story",
       "blocks": [
         { "type": "story_paragraph" },
+        { "type": "story_image" },
         { "type": "story_paragraph", "settings": { "content": "<p>Explain what makes this product different—process, sourcing, and real-world use.</p>" } },
         { "type": "story_paragraph", "settings": { "content": "<p>Close with how this product fits your brand values and what customers can expect.</p>" } }
       ]
