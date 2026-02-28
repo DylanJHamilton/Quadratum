@@ -2,25 +2,28 @@
   QUADRATUM — PRODUCT FAQ
   File: sections/product-faq.liquid
 
-  Fixes in this version:
-  - Removes invalid Liquid one-line "then" syntax (Shopify does not support it).
-  - Custom colors/typography (no color_scheme dependency).
-  - Media controls wired through product-faq-media snippet.
-  - Split media position works via data attribute + CSS.
-  - Inline media condensed with max width.
-  - No spacing-style dependency (padding settings).
+  Behaviors:
+  - Inline accordion toggles (JS required)
+  - Split accordion toggles + media stage updates per item (JS required)
+  - Manual + Metafields (JSON + Metaobject list) sources
+  - Custom colors/typography (no color_scheme)
+  - Section-only assets
+
+  Requires:
+  - assets/section-product-faq.css
+  - assets/section-product-faq.js
+  - snippets/product-faq-media.liquid
 {%- endcomment -%}
 
 {%- liquid
   assign s = section.settings
   assign product_obj = product | default: nil
 
-  assign layout = s.layout | default: 'accordion_inline'
   assign source = s.source | default: 'manual'
-
-  assign in_design_mode = false
-  if request.design_mode
-    assign in_design_mode = true
+  assign layout = s.layout | default: 'accordion_inline'
+  assign split_mode = false
+  if layout == 'accordion_split'
+    assign split_mode = true
   endif
 
   assign open_first = s.open_first_item
@@ -30,14 +33,6 @@
   if media_gate == 'none'
     assign media_enabled = false
   endif
-
-  assign split_mode = false
-  if layout == 'accordion_split'
-    assign split_mode = true
-  endif
-
-  assign has_items = false
-  assign item_count = 0
 
   assign widths = '360,540,720,900,1080,1440'
   assign sizes_inline = '(min-width: 990px) 520px, 100vw'
@@ -51,14 +46,16 @@
   assign pad_top = s.padding_top | default: 48
   assign pad_bottom = s.padding_bottom | default: 48
 
+  assign has_items = false
+  assign item_count = 0
   assign first_media_index = -1
+
+  assign accordion_items_markup = ''
+  assign stage_media_markup = ''
 -%}
 
 {{ 'section-product-faq.css' | asset_url | stylesheet_tag }}
-
-{%- if split_mode and media_enabled -%}
-  <script src="{{ 'section-product-faq.js' | asset_url }}" defer></script>
-{%- endif -%}
+<script src="{{ 'section-product-faq.js' | asset_url }}" defer></script>
 
 {%- capture header_markup -%}
   {%- if s.title != blank or s.subheading != blank -%}
@@ -74,9 +71,6 @@
     </header>
   {%- endif -%}
 {%- endcapture -%}
-
-{%- capture accordion_items_markup -%}{%- endcapture -%}
-{%- capture stage_media_markup -%}{%- endcapture -%}
 
 {%- comment -%} =========================
   SOURCE: MANUAL (BLOCKS)
@@ -129,9 +123,10 @@
         endcase
       endif
 
-      assign item_index0 = forloop.index0
+      assign idx0 = forloop.index0
+
       assign is_open = false
-      if open_first and item_index0 == 0
+      if open_first and idx0 == 0
         assign is_open = true
       endif
 
@@ -142,7 +137,7 @@
       assign item_count = item_count | plus: 1
 
       if item_has_media and first_media_index == -1
-        assign first_media_index = item_index0
+        assign first_media_index = idx0
       endif
     -%}
 
@@ -152,10 +147,10 @@
           <button
             class="q-pfaq__btn"
             type="button"
-            id="faq-button-{{ section.id }}-{{ item_index0 }}"
+            id="faq-button-{{ section.id }}-{{ idx0 }}"
             aria-expanded="{% if is_open %}true{% else %}false{% endif %}"
-            aria-controls="faq-panel-{{ section.id }}-{{ item_index0 }}"
-            data-faq-index="{{ item_index0 }}"
+            aria-controls="faq-panel-{{ section.id }}-{{ idx0 }}"
+            data-faq-index="{{ idx0 }}"
           >
             <span class="q-pfaq__qtext">{{ q | default: 'Question' | escape }}</span>
             <span class="q-pfaq__icon" aria-hidden="true"></span>
@@ -164,9 +159,9 @@
 
         <div
           class="q-pfaq__panel rte"
-          id="faq-panel-{{ section.id }}-{{ item_index0 }}"
+          id="faq-panel-{{ section.id }}-{{ idx0 }}"
           role="region"
-          aria-labelledby="faq-button-{{ section.id }}-{{ item_index0 }}"
+          aria-labelledby="faq-button-{{ section.id }}-{{ idx0 }}"
           {% unless is_open %}hidden{% endunless %}
           data-faq-panel
         >
@@ -195,16 +190,15 @@
       </div>
     {%- endcapture -%}
 
-    {%- capture accordion_items_markup -%}{{ accordion_items_markup }}{{ one_item }}{%- endcapture -%}
+    {%- assign accordion_items_markup = accordion_items_markup | append: one_item -%}
 
     {%- if split_mode and media_enabled -%}
       {%- capture stage_node -%}
         <div
           class="q-pfaq__stageNode"
           data-faq-stage-node
-          data-faq-index="{{ item_index0 }}"
-          {% if item_index0 != first_media_index and item_index0 != 0 %}hidden{% endif %}
-          {% unless item_has_media %}data-has-media="false"{% else %}data-has-media="true"{% endunless %}
+          data-faq-index="{{ idx0 }}"
+          data-has-media="{% if item_has_media %}true{% else %}false{% endif %}"
         >
           {%- if item_has_media -%}
             {%- render 'product-faq-media',
@@ -225,13 +219,14 @@
           {%- endif -%}
         </div>
       {%- endcapture -%}
-      {%- capture stage_media_markup -%}{{ stage_media_markup }}{{ stage_node }}{%- endcapture -%}
+
+      {%- assign stage_media_markup = stage_media_markup | append: stage_node -%}
     {%- endif -%}
   {%- endfor -%}
 {%- endif -%}
 
 {%- comment -%} =========================
-  SOURCE: METAFIELDS
+  SOURCE: METAFIELDS (JSON OR METAOBJECT LIST)
 ========================= {%- endcomment -%}
 {%- if source == 'metafields' and product_obj != nil -%}
   {%- liquid
@@ -285,7 +280,6 @@
           endif
 
           assign item_has_media = false
-
           if media_enabled == false or m_type == 'none'
             assign item_has_media = false
           else
@@ -317,9 +311,10 @@
             endcase
           endif
 
-          assign item_index0 = forloop.index0
+          assign idx0 = forloop.index0
+
           assign is_open = false
-          if open_first and item_index0 == 0
+          if open_first and idx0 == 0
             assign is_open = true
           endif
 
@@ -329,7 +324,7 @@
 
           assign item_count = item_count | plus: 1
           if item_has_media and first_media_index == -1
-            assign first_media_index = item_index0
+            assign first_media_index = idx0
           endif
         -%}
 
@@ -339,10 +334,10 @@
               <button
                 class="q-pfaq__btn"
                 type="button"
-                id="faq-button-{{ section.id }}-{{ item_index0 }}"
+                id="faq-button-{{ section.id }}-{{ idx0 }}"
                 aria-expanded="{% if is_open %}true{% else %}false{% endif %}"
-                aria-controls="faq-panel-{{ section.id }}-{{ item_index0 }}"
-                data-faq-index="{{ item_index0 }}"
+                aria-controls="faq-panel-{{ section.id }}-{{ idx0 }}"
+                data-faq-index="{{ idx0 }}"
               >
                 <span class="q-pfaq__qtext">{{ q | default: 'Question' | escape }}</span>
                 <span class="q-pfaq__icon" aria-hidden="true"></span>
@@ -351,9 +346,9 @@
 
             <div
               class="q-pfaq__panel rte"
-              id="faq-panel-{{ section.id }}-{{ item_index0 }}"
+              id="faq-panel-{{ section.id }}-{{ idx0 }}"
               role="region"
-              aria-labelledby="faq-button-{{ section.id }}-{{ item_index0 }}"
+              aria-labelledby="faq-button-{{ section.id }}-{{ idx0 }}"
               {% unless is_open %}hidden{% endunless %}
               data-faq-panel
             >
@@ -376,16 +371,15 @@
           </div>
         {%- endcapture -%}
 
-        {%- capture accordion_items_markup -%}{{ accordion_items_markup }}{{ one_item }}{%- endcapture -%}
+        {%- assign accordion_items_markup = accordion_items_markup | append: one_item -%}
 
         {%- if split_mode and media_enabled -%}
           {%- capture stage_node -%}
             <div
               class="q-pfaq__stageNode"
               data-faq-stage-node
-              data-faq-index="{{ item_index0 }}"
-              {% if item_index0 != first_media_index and item_index0 != 0 %}hidden{% endif %}
-              {% unless item_has_media %}data-has-media="false"{% else %}data-has-media="true"{% endunless %}
+              data-faq-index="{{ idx0 }}"
+              data-has-media="{% if item_has_media %}true{% else %}false{% endif %}"
             >
               {%- if item_has_media -%}
                 {%- render 'product-faq-media',
@@ -402,7 +396,7 @@
               {%- endif -%}
             </div>
           {%- endcapture -%}
-          {%- capture stage_media_markup -%}{{ stage_media_markup }}{{ stage_node }}{%- endcapture -%}
+          {%- assign stage_media_markup = stage_media_markup | append: stage_node -%}
         {%- endif -%}
       {%- endfor -%}
     {%- endif -%}
@@ -459,7 +453,6 @@
         endif
 
         assign item_has_media = false
-
         if media_enabled == false or m_type == 'none'
           assign item_has_media = false
         else
@@ -491,9 +484,10 @@
           endcase
         endif
 
-        assign item_index0 = forloop.index0
+        assign idx0 = forloop.index0
+
         assign is_open = false
-        if open_first and item_index0 == 0
+        if open_first and idx0 == 0
           assign is_open = true
         endif
 
@@ -503,7 +497,7 @@
 
         assign item_count = item_count | plus: 1
         if item_has_media and first_media_index == -1
-          assign first_media_index = item_index0
+          assign first_media_index = idx0
         endif
       -%}
 
@@ -513,10 +507,10 @@
             <button
               class="q-pfaq__btn"
               type="button"
-              id="faq-button-{{ section.id }}-{{ item_index0 }}"
+              id="faq-button-{{ section.id }}-{{ idx0 }}"
               aria-expanded="{% if is_open %}true{% else %}false{% endif %}"
-              aria-controls="faq-panel-{{ section.id }}-{{ item_index0 }}"
-              data-faq-index="{{ item_index0 }}"
+              aria-controls="faq-panel-{{ section.id }}-{{ idx0 }}"
+              data-faq-index="{{ idx0 }}"
             >
               <span class="q-pfaq__qtext">{{ q | default: 'Question' | escape }}</span>
               <span class="q-pfaq__icon" aria-hidden="true"></span>
@@ -525,9 +519,9 @@
 
           <div
             class="q-pfaq__panel rte"
-            id="faq-panel-{{ section.id }}-{{ item_index0 }}"
+            id="faq-panel-{{ section.id }}-{{ idx0 }}"
             role="region"
-            aria-labelledby="faq-button-{{ section.id }}-{{ item_index0 }}"
+            aria-labelledby="faq-button-{{ section.id }}-{{ idx0 }}"
             {% unless is_open %}hidden{% endunless %}
             data-faq-panel
           >
@@ -553,16 +547,15 @@
         </div>
       {%- endcapture -%}
 
-      {%- capture accordion_items_markup -%}{{ accordion_items_markup }}{{ one_item }}{%- endcapture -%}
+      {%- assign accordion_items_markup = accordion_items_markup | append: one_item -%}
 
       {%- if split_mode and media_enabled -%}
         {%- capture stage_node -%}
           <div
             class="q-pfaq__stageNode"
             data-faq-stage-node
-            data-faq-index="{{ item_index0 }}"
-            {% if item_index0 != first_media_index and item_index0 != 0 %}hidden{% endif %}
-            {% unless item_has_media %}data-has-media="false"{% else %}data-has-media="true"{% endunless %}
+            data-faq-index="{{ idx0 }}"
+            data-has-media="{% if item_has_media %}true{% else %}false{% endif %}"
           >
             {%- if item_has_media -%}
               {%- render 'product-faq-media',
@@ -582,16 +575,19 @@
             {%- endif -%}
           </div>
         {%- endcapture -%}
-        {%- capture stage_media_markup -%}{{ stage_media_markup }}{{ stage_node }}{%- endcapture -%}
+        {%- assign stage_media_markup = stage_media_markup | append: stage_node -%}
       {%- endif -%}
     {%- endfor -%}
   {%- endif -%}
 {%- endif -%}
 
-{%- comment -%} EMPTY STATE — placeholders in Theme Editor only {%- endcomment -%}
+{%- comment -%} EMPTY STATE (theme editor only) {%- endcomment -%}
 {%- if has_items == false and request.design_mode -%}
   {%- assign has_items = true -%}
-  {%- capture accordion_items_markup -%}
+  {%- assign accordion_items_markup = '' -%}
+  {%- assign stage_media_markup = '' -%}
+
+  {%- capture p0 -%}
     <div class="q-pfaq__item">
       <h3 class="q-pfaq__q">
         <button class="q-pfaq__btn" type="button" id="faq-button-{{ section.id }}-0" aria-expanded="true" aria-controls="faq-panel-{{ section.id }}-0" data-faq-index="0">
@@ -602,10 +598,13 @@
         <p>Yes — we ship to most locations. Shipping times vary by region and product availability.</p>
       </div>
     </div>
+  {%- endcapture -%}
+
+  {%- capture p1 -%}
     <div class="q-pfaq__item">
       <h3 class="q-pfaq__q">
         <button class="q-pfaq__btn" type="button" id="faq-button-{{ section.id }}-1" aria-expanded="false" aria-controls="faq-panel-{{ section.id }}-1" data-faq-index="1">
-          <span class="q-pfaq__qtext">Can I return this item?</span><span class="q-pfaq__icon" aria-hidden="true"></span>
+          <span class="q-pfaq__qtext">What’s the return policy?</span><span class="q-pfaq__icon" aria-hidden="true"></span>
         </button>
       </h3>
       <div class="q-pfaq__panel rte" id="faq-panel-{{ section.id }}-1" role="region" aria-labelledby="faq-button-{{ section.id }}-1" hidden data-faq-panel>
@@ -613,6 +612,33 @@
       </div>
     </div>
   {%- endcapture -%}
+
+  {%- assign accordion_items_markup = accordion_items_markup | append: p0 | append: p1 -%}
+
+  {%- if split_mode and media_enabled -%}
+    {%- capture st -%}
+      <div class="q-pfaq__stageNode" data-faq-stage-node data-faq-index="0" data-has-media="false">
+        <div class="q-pfaq__stageEmpty" aria-hidden="true"></div>
+      </div>
+    {%- endcapture -%}
+    {%- assign stage_media_markup = stage_media_markup | append: st -%}
+  {%- endif -%}
+{%- endif -%}
+
+{%- comment -%} Determine default stage index AFTER we know first_media_index {%- endcomment -%}
+{%- liquid
+  assign stage_default_index = 0
+  if first_media_index != -1
+    assign stage_default_index = first_media_index
+  endif
+-%}
+
+{%- if split_mode and media_enabled and stage_media_markup != blank -%}
+  {%- comment -%}
+    Normalize stage node visibility: only default is visible.
+    We can’t easily rewrite existing markup, so we wrap with CSS/JS logic:
+    JS will show correct node on init; CSS will allow hidden attr to control.
+  {%- endcomment -%}
 {%- endif -%}
 
 {%- if has_items -%}
@@ -624,22 +650,27 @@
     data-open-first="{{ open_first | json }}"
     data-media-enabled="{{ media_enabled | json }}"
     data-first-media-index="{{ first_media_index }}"
+    data-stage-default-index="{{ stage_default_index }}"
     data-media-position="{{ s.split_media_position | default: 'right' }}"
     style="
       padding-top: {{ pad_top }}px;
       padding-bottom: {{ pad_bottom }}px;
+
       --q-pfaq-bg: {{ s.section_bg }};
       --q-pfaq-title-color: {{ s.title_color }};
       --q-pfaq-title-size: {{ s.title_size }}px;
       --q-pfaq-title-weight: {{ s.title_weight }};
+
       --q-pfaq-tab-bg: {{ s.tab_bg }};
       --q-pfaq-tab-color: {{ s.tab_color }};
       --q-pfaq-tab-size: {{ s.tab_size }}px;
       --q-pfaq-tab-weight: {{ s.tab_weight }};
+
       --q-pfaq-content-bg: {{ s.content_bg }};
       --q-pfaq-content-color: {{ s.content_color }};
       --q-pfaq-content-size: {{ s.content_size }}px;
       --q-pfaq-content-line: {{ s.content_line_height }};
+
       --q-pfaq-media-radius: {{ s.media_radius }}px;
       --q-pfaq-inline-max: {{ s.inline_media_max_width }}px;
       --q-pfaq-stage-max: {{ s.stage_media_max_height }}px;
@@ -658,6 +689,12 @@
         {%- if split_mode and media_enabled -%}
           <div class="q-pfaq__col q-pfaq__col--stage {% if s.split_media_sticky %}q-pfaq__col--sticky{% endif %}">
             <div class="q-pfaq__stage" aria-label="{{ s.title | default: 'Frequently asked questions' | escape }}">
+              {%- comment -%}
+                We render all stage nodes. JS will:
+                - hide all
+                - show default node (stage_default_index or first media)
+                - swap on click
+              {%- endcomment -%}
               {{ stage_media_markup }}
             </div>
           </div>
