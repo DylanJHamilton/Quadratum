@@ -7,16 +7,12 @@
   - Modes: manual, collection, dynamic (v1 safe fallback)
   - Cards: MUST render via {% render 'product-card', product: product %}
 
-  Add-to-cart / CTA:
+  Add-to-cart / CTA customization:
   - Uses existing product-card snippet capabilities (no new markup).
-  - Merchant can:
-    - Enable/disable Quick Add
-    - Choose Quick Add mode (button / sizes / dropdown)
-    - Control CTA labels:
-      - Add to cart label
-      - Select options label (for products requiring variant selection)
-      - Sold out label
-    - Control Quick Add visibility (Desktop hover only vs Always)
+  - Adds section-level controls for the card button CSS vars used by product-card:
+    --q-btn-bg / --q-btn-text / --q-btn-border
+    --q-btn-bg-hover / --q-btn-text-hover
+  - Adds section-level controls for button size + full width via product-card params.
 {% endcomment %}
 
 {%- liquid
@@ -117,12 +113,19 @@
   endif
 
   assign quick_add_mode = s.quick_add_mode | default: 'button'
-
   assign quick_add_visibility = s.quick_add_visibility | default: 'desktop_only'
 
   assign primary_cta_label = s.primary_cta_label | default: 'Add to cart'
   assign label_select_options = s.label_select_options | default: 'Select options'
   assign label_sold_out = s.label_sold_out | default: 'Sold out'
+
+  assign button_style = s.button_style | default: 'filled'
+  assign button_size = s.button_size | default: 'md'
+  assign button_full_width = s.button_full_width
+
+  if button_full_width == nil
+    assign button_full_width = false
+  endif
 -%}
 
 {% stylesheet %}
@@ -194,6 +197,7 @@
     --pcs-cols-desktop: {{ cols_desktop }};
     --pcs-cols-tablet: {{ cols_tablet }};
     --pcs-cols-mobile: {{ cols_mobile }};
+
     --pcs-header-align: {{ header_align }};
     --pcs-title-color: {{ s.title_color }};
     --pcs-sub-color: {{ s.subheading_color }};
@@ -201,6 +205,12 @@
     --pcs-title-weight: {{ title_weight }};
     --pcs-sub-size: {{ sub_size }}px;
     --pcs-sub-weight: {{ sub_weight }};
+
+    --q-btn-bg: {{ s.btn_bg }};
+    --q-btn-text: {{ s.btn_text }};
+    --q-btn-border: {{ s.btn_border }};
+    --q-btn-bg-hover: {{ s.btn_bg_hover }};
+    --q-btn-text-hover: {{ s.btn_text_hover }};
   "
   aria-label="{% if s.title != blank %}{{ s.title | strip_html | escape }}{% else %}You may also like{% endif %}"
 >
@@ -231,7 +241,10 @@
             hover_actions_visibility: quick_add_visibility,
             primary_cta_label: primary_cta_label,
             label_select_options: label_select_options,
-            label_sold_out: label_sold_out
+            label_sold_out: label_sold_out,
+            button_style: button_style,
+            button_size: button_size,
+            button_full_width: button_full_width
           %}
         </div>
       {%- endfor -%}
@@ -307,13 +320,8 @@
     { "type": "range", "id": "subheading_size", "label": "Subheading size", "min": 12, "max": 28, "step": 1, "default": 16 },
     { "type": "range", "id": "subheading_weight", "label": "Subheading weight", "min": 300, "max": 900, "step": 100, "default": 400 },
 
-    { "type": "header", "content": "Card actions (Quick add)" },
-    {
-      "type": "checkbox",
-      "id": "enable_quick_add",
-      "label": "Enable Add to cart / Select options",
-      "default": true
-    },
+    { "type": "header", "content": "Card actions" },
+    { "type": "checkbox", "id": "enable_quick_add", "label": "Enable Add to cart / Select options", "default": true },
     {
       "type": "select",
       "id": "quick_add_visibility",
@@ -321,7 +329,7 @@
       "default": "desktop_only",
       "options": [
         { "value": "desktop_only", "label": "Desktop hover only" },
-        { "value": "always", "label": "Always visible (recommended for mobile)" }
+        { "value": "always", "label": "Always visible" }
       ]
     },
     {
@@ -335,24 +343,40 @@
         { "value": "dropdown", "label": "Variant dropdown" }
       ]
     },
+    { "type": "text", "id": "primary_cta_label", "label": "Add to cart label", "default": "Add to cart" },
+    { "type": "text", "id": "label_select_options", "label": "Select options label", "default": "Select options" },
+    { "type": "text", "id": "label_sold_out", "label": "Sold out label", "default": "Sold out" },
+
+    { "type": "header", "content": "Button styling (applies to product cards)" },
     {
-      "type": "text",
-      "id": "primary_cta_label",
-      "label": "Add to cart label",
-      "default": "Add to cart"
+      "type": "select",
+      "id": "button_style",
+      "label": "Button style (card preset)",
+      "default": "filled",
+      "options": [
+        { "value": "filled", "label": "Filled" },
+        { "value": "outline", "label": "Outline" },
+        { "value": "ghost", "label": "Ghost" }
+      ]
     },
     {
-      "type": "text",
-      "id": "label_select_options",
-      "label": "Select options label",
-      "default": "Select options"
+      "type": "select",
+      "id": "button_size",
+      "label": "Button size (card preset)",
+      "default": "md",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
     },
-    {
-      "type": "text",
-      "id": "label_sold_out",
-      "label": "Sold out label",
-      "default": "Sold out"
-    }
+    { "type": "checkbox", "id": "button_full_width", "label": "Full width buttons", "default": false },
+
+    { "type": "color", "id": "btn_bg", "label": "Button background" },
+    { "type": "color", "id": "btn_text", "label": "Button text color" },
+    { "type": "color", "id": "btn_border", "label": "Button border color" },
+    { "type": "color", "id": "btn_bg_hover", "label": "Button background (hover)" },
+    { "type": "color", "id": "btn_text_hover", "label": "Button text color (hover)" }
   ],
   "blocks": [
     {
