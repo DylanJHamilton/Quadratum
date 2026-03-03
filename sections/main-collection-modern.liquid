@@ -1,0 +1,493 @@
+{%- comment -%}
+  Quadratum — Collection Modern (Max Capability)
+  File: sections/collection-modern.liquid
+
+  Self-contained:
+  - assets/section-collection-modern.css
+  - assets/section-collection-modern.js
+  - snippets/collection-modern-*.liquid
+
+  Notes:
+  - HTML-first (Liquid paginate works without JS)
+  - JS only enhances load_more / infinite_scroll / drawer / horizon rows (if enabled)
+  - Supports collection template and can be reused on search template later
+{%- endcomment -%}
+
+{{ 'section-collection-modern.css' | asset_url | stylesheet_tag }}
+
+{%- liquid
+  assign s = section.settings
+
+  assign is_search_context = false
+  if request.page_type == 'search' and search != blank
+    assign is_search_context = true
+  endif
+
+  assign use_alt = false
+  if s.use_alt_collection and s.alt_collection != blank
+    assign use_alt = true
+  endif
+
+  assign results_title = ''
+  assign results_url = ''
+  assign results_description = ''
+
+  assign products = nil
+  assign filters = nil
+  assign sort_options = nil
+  assign sort_by = ''
+  assign default_sort_by = ''
+
+  assign terms_q = ''
+  if is_search_context
+    assign terms_q = search.terms | default: ''
+  endif
+
+  if use_alt
+    assign c = s.alt_collection
+    assign products = c.products
+    assign filters = c.filters
+    assign sort_options = c.sort_options
+    assign sort_by = c.sort_by
+    assign default_sort_by = c.default_sort_by
+    assign results_title = c.title
+    assign results_url = c.url
+    assign results_description = c.description
+  elsif is_search_context
+    assign products = search.results
+    assign filters = search.filters
+    assign sort_options = search.sort_options
+    assign sort_by = search.sort_by
+    assign default_sort_by = search.default_sort_by
+    assign results_title = 'Search results'
+    assign results_url = routes.search_url
+    assign results_description = ''
+  else
+    assign c = collection
+    assign products = c.products
+    assign filters = c.filters
+    assign sort_options = c.sort_options
+    assign sort_by = c.sort_by
+    assign default_sort_by = c.default_sort_by
+    assign results_title = c.title
+    assign results_url = c.url
+    assign results_description = c.description
+  endif
+
+  assign layout = s.layout_preset | default: 'modern_grid'
+  assign filter_mode = s.filter_presentation | default: 'sidebar'
+  assign sort_style = s.sort_style | default: 'dropdown'
+  assign pagination_style = s.pagination_style | default: 'numbered'
+
+  assign scope_id = section.id
+  assign root_id = 'QtmCollectionModern-' | append: scope_id
+
+  assign grid_cols_desktop = s.columns_desktop | default: 4
+  assign grid_cols_tablet  = s.columns_tablet  | default: 3
+  assign grid_cols_mobile  = s.columns_mobile  | default: 2
+
+  assign desc_truncate = false
+  if s.show_description and s.description_style == 'truncated'
+    assign desc_truncate = true
+  endif
+
+  assign has_filters = false
+  if s.show_filters and filters != blank and filters.size > 0
+    assign has_filters = true
+  endif
+
+  assign has_products = false
+  if products != blank and products.size > 0
+    assign has_products = true
+  endif
+
+  assign per_page = s.products_per_page | default: 24
+
+  assign sticky_toolbar = false
+  if s.show_filters and filter_mode == 'bar' and s.sticky_filter_bar
+    assign sticky_toolbar = true
+  endif
+
+  comment
+    IMPORTANT: Liquid cannot output boolean logic via {{ ... }}.
+    Convert to string flags for data attributes.
+  endcomment
+
+  assign enable_drawer = false
+  if s.show_filters and filter_mode == 'drawer'
+    assign enable_drawer = true
+  endif
+
+  assign enable_horizon = false
+  if layout == 'horizon_rows'
+    assign enable_horizon = true
+  endif
+
+  assign enable_drawer_str = 'false'
+  if enable_drawer
+    assign enable_drawer_str = 'true'
+  endif
+
+  assign enable_horizon_str = 'false'
+  if enable_horizon
+    assign enable_horizon_str = 'true'
+  endif
+-%}
+
+<section
+  id="{{ root_id }}"
+  class="q-collection-modern qcm layout-{{ layout }} cardstyle-{{ s.card_style }} density-{{ s.card_density }} hover-{{ s.hover_effects }} reveal-{{ s.reveal_animation }} scheme-{{ s.color_scheme }}"
+  data-section-id="{{ scope_id }}"
+  data-layout="{{ layout }}"
+  data-pagination-style="{{ pagination_style }}"
+  data-filter-mode="{{ filter_mode }}"
+  data-enable-drawer="{{ enable_drawer_str }}"
+  data-enable-horizon="{{ enable_horizon_str }}"
+>
+  <style>
+    #{{ root_id }}{
+      --qcm-maxw: {{ s.max_width }};
+      --qcm-gap: {{ s.gap }}px;
+      --qcm-radius: {{ s.border_radius }}px;
+
+      --qcm-cols-d: {{ grid_cols_desktop }};
+      --qcm-cols-t: {{ grid_cols_tablet }};
+      --qcm-cols-m: {{ grid_cols_mobile }};
+
+      --qcm-truncate-lines: {{ s.truncated_lines }};
+    }
+  </style>
+
+  <div class="qcm__container {% if s.max_width_toggle == 'contained' %}qcm__container--contained{% endif %}">
+    {% render 'collection-modern-toolbar',
+      section: section,
+      s: s,
+      is_search_context: is_search_context,
+      results_title: results_title,
+      results_url: results_url,
+      results_description: results_description,
+      terms_q: terms_q,
+      has_filters: has_filters,
+      filters: filters,
+      sort_options: sort_options,
+      sort_by: sort_by,
+      default_sort_by: default_sort_by,
+      sticky_toolbar: sticky_toolbar
+    %}
+
+    <div class="qcm__body qcm__body--mode-{{ filter_mode }}">
+      {%- if has_filters and filter_mode == 'sidebar' -%}
+        <aside class="qcm__sidebar" aria-label="Filters">
+          {% render 'collection-modern-facets',
+            section: section,
+            s: s,
+            is_search_context: is_search_context,
+            results_url: results_url,
+            terms_q: terms_q,
+            filters: filters,
+            sort_options: sort_options,
+            sort_by: sort_by,
+            default_sort_by: default_sort_by,
+            placement: 'sidebar'
+          %}
+        </aside>
+      {%- endif -%}
+
+      <div class="qcm__main">
+        {%- if has_filters and filter_mode == 'drawer' -%}
+          <div class="qcm__drawer" data-qcm-drawer hidden>
+            {% render 'collection-modern-facets',
+              section: section,
+              s: s,
+              is_search_context: is_search_context,
+              results_url: results_url,
+              terms_q: terms_q,
+              filters: filters,
+              sort_options: sort_options,
+              sort_by: sort_by,
+              default_sort_by: default_sort_by,
+              placement: 'drawer'
+            %}
+          </div>
+
+          <noscript>
+            <details class="qcm__drawer-noscript">
+              <summary class="qcm__btn">Filters</summary>
+              {% render 'collection-modern-facets',
+                section: section,
+                s: s,
+                is_search_context: is_search_context,
+                results_url: results_url,
+                terms_q: terms_q,
+                filters: filters,
+                sort_options: sort_options,
+                sort_by: sort_by,
+                default_sort_by: default_sort_by,
+                placement: 'drawer'
+              %}
+            </details>
+          </noscript>
+        {%- endif -%}
+
+        {%- paginate products by per_page -%}
+          {%- if has_products -%}
+            <div class="qcm__gridWrap">
+              <div
+                class="qcm__grid"
+                data-qcm-grid
+                aria-live="{% if pagination_style == 'infinite_scroll' %}polite{% else %}off{% endif %}"
+              >
+                {%- for item in paginate.items -%}
+                  {%- liquid
+                    assign p = item
+                    if is_search_context
+                      if item.object_type != 'product'
+                        continue
+                      endif
+                      assign p = item
+                    endif
+                  -%}
+
+                  <div class="qcm__item" data-qcm-item>
+                    {%- if s.card_engine == 'modern_card' -%}
+                      {% render 'collection-modern-product-card', product: p, s: s, section: section %}
+                    {%- else -%}
+                      {% render 'product-card', product: p %}
+                    {%- endif -%}
+                  </div>
+                {%- endfor -%}
+              </div>
+            </div>
+
+            {%- if s.show_pagination -%}
+              {% render 'collection-modern-pagination',
+                section: section,
+                s: s,
+                paginate: paginate,
+                pagination_style: pagination_style
+              %}
+            {%- endif -%}
+          {%- else -%}
+            <div class="qcm__empty" role="status">
+              <p class="qcm__emptyTitle">No products found.</p>
+              {%- if s.show_clear_all -%}
+                <a class="qcm__btn qcm__btn--link" href="{{ results_url }}">Clear all filters</a>
+              {%- endif -%}
+            </div>
+          {%- endif -%}
+        {%- endpaginate -%}
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ 'section-collection-modern.js' | asset_url }}" defer></script>
+</section>
+
+{% schema %}
+{
+  "name": "Collection Modern",
+  "tag": "section",
+  "class": "section",
+  "settings": [
+    { "type": "header", "content": "Content" },
+    { "type": "checkbox", "id": "show_title", "label": "Show title", "default": true },
+    { "type": "checkbox", "id": "show_description", "label": "Show description", "default": false },
+    {
+      "type": "select",
+      "id": "description_style",
+      "label": "Description style",
+      "default": "truncated",
+      "options": [
+        { "value": "full", "label": "Full" },
+        { "value": "truncated", "label": "Truncated" }
+      ]
+    },
+    { "type": "range", "id": "truncated_lines", "label": "Truncated lines", "min": 2, "max": 8, "step": 1, "default": 4 },
+
+    { "type": "header", "content": "Data" },
+    { "type": "checkbox", "id": "use_alt_collection", "label": "Use alternate collection", "default": false },
+    { "type": "collection", "id": "alt_collection", "label": "Alternate collection" },
+
+    { "type": "header", "content": "Layout" },
+    {
+      "type": "select",
+      "id": "layout_preset",
+      "label": "Layout preset",
+      "default": "modern_grid",
+      "options": [
+        { "value": "modern_grid", "label": "Modern grid" },
+        { "value": "editorial_grid", "label": "Editorial grid" },
+        { "value": "split_feature", "label": "Split feature" },
+        { "value": "minimal_grid", "label": "Minimal grid" },
+        { "value": "cardless_list", "label": "Cardless list" },
+        { "value": "horizon_rows", "label": "Horizon rows (horizontal scroll)" },
+        { "value": "masonry_lite", "label": "Masonry lite (CSS columns)" }
+      ]
+    },
+    { "type": "range", "id": "columns_desktop", "label": "Columns (desktop)", "min": 2, "max": 6, "step": 1, "default": 4 },
+    { "type": "range", "id": "columns_tablet", "label": "Columns (tablet)", "min": 1, "max": 4, "step": 1, "default": 3 },
+    { "type": "range", "id": "columns_mobile", "label": "Columns (mobile)", "min": 1, "max": 3, "step": 1, "default": 2 },
+
+    {
+      "type": "select",
+      "id": "image_ratio",
+      "label": "Image ratio",
+      "default": "adapt",
+      "options": [
+        { "value": "adapt", "label": "Adapt" },
+        { "value": "square", "label": "Square" },
+        { "value": "portrait", "label": "Portrait" },
+        { "value": "landscape", "label": "Landscape" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "card_engine",
+      "label": "Card engine",
+      "default": "default_theme_card",
+      "options": [
+        { "value": "default_theme_card", "label": "Default theme card" },
+        { "value": "modern_card", "label": "Modern (collection-modern-product-card)" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "card_density",
+      "label": "Card density",
+      "default": "normal",
+      "options": [
+        { "value": "roomy", "label": "Roomy" },
+        { "value": "normal", "label": "Normal" },
+        { "value": "compact", "label": "Compact" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "card_style",
+      "label": "Card style",
+      "default": "glass",
+      "options": [
+        { "value": "glass", "label": "Glass" },
+        { "value": "solid", "label": "Solid" },
+        { "value": "outline", "label": "Outline" },
+        { "value": "none", "label": "None" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "hover_effects",
+      "label": "Hover effects",
+      "default": "lift",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "lift", "label": "Lift" },
+        { "value": "glow", "label": "Glow" },
+        { "value": "tilt_lite", "label": "Tilt-lite" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "reveal_animation",
+      "label": "Reveal animation",
+      "default": "off",
+      "options": [
+        { "value": "off", "label": "Off" },
+        { "value": "fade", "label": "Fade" },
+        { "value": "slide", "label": "Slide" }
+      ]
+    },
+
+    { "type": "header", "content": "Discovery" },
+    { "type": "checkbox", "id": "show_filters", "label": "Show filters", "default": true },
+    {
+      "type": "select",
+      "id": "filter_presentation",
+      "label": "Filter presentation",
+      "default": "sidebar",
+      "options": [
+        { "value": "sidebar", "label": "Sidebar" },
+        { "value": "drawer", "label": "Drawer" },
+        { "value": "bar", "label": "Bar (toolbar)" }
+      ]
+    },
+    { "type": "checkbox", "id": "sticky_filter_bar", "label": "Sticky filter bar (bar only)", "default": false },
+
+    { "type": "checkbox", "id": "show_sort", "label": "Show sort", "default": true },
+    {
+      "type": "select",
+      "id": "sort_style",
+      "label": "Sort style",
+      "default": "dropdown",
+      "options": [
+        { "value": "dropdown", "label": "Dropdown" },
+        { "value": "pills", "label": "Pills" }
+      ]
+    },
+    { "type": "checkbox", "id": "show_result_count", "label": "Show result count", "default": true },
+    { "type": "checkbox", "id": "show_active_filters", "label": "Show active filters chips", "default": true },
+    { "type": "checkbox", "id": "show_clear_all", "label": "Show clear all", "default": true },
+
+    { "type": "header", "content": "Product card toggles" },
+    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor (modern card)", "default": false },
+    { "type": "checkbox", "id": "show_price", "label": "Show price (modern card)", "default": true },
+    { "type": "checkbox", "id": "show_badges", "label": "Show badges (modern card)", "default": true },
+    { "type": "checkbox", "id": "show_rating", "label": "Show rating placeholder (modern card)", "default": false },
+    { "type": "checkbox", "id": "show_quick_add", "label": "Show quick add (modern card)", "default": false },
+    { "type": "checkbox", "id": "show_second_image", "label": "Second image on hover (modern card)", "default": true },
+
+    { "type": "header", "content": "Pagination" },
+    { "type": "range", "id": "products_per_page", "label": "Products per page", "min": 8, "max": 48, "step": 1, "default": 24 },
+    { "type": "checkbox", "id": "show_pagination", "label": "Show pagination", "default": true },
+    {
+      "type": "select",
+      "id": "pagination_style",
+      "label": "Pagination style",
+      "default": "numbered",
+      "options": [
+        { "value": "numbered", "label": "Numbered" },
+        { "value": "load_more", "label": "Load more (JS)" },
+        { "value": "infinite_scroll", "label": "Infinite scroll (JS)" }
+      ]
+    },
+
+    { "type": "header", "content": "Design tokens + spacing" },
+    {
+      "type": "select",
+      "id": "color_scheme",
+      "label": "Color scheme",
+      "default": "inherit",
+      "options": [
+        { "value": "inherit", "label": "Inherit" },
+        { "value": "surface", "label": "Surface" },
+        { "value": "contrast", "label": "Contrast" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "max_width_toggle",
+      "label": "Max width",
+      "default": "contained",
+      "options": [
+        { "value": "contained", "label": "Contained" },
+        { "value": "full", "label": "Full width" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "max_width",
+      "label": "Contained max width token",
+      "default": "var(--qtm-page-maxw, 1200px)",
+      "options": [
+        { "value": "var(--qtm-page-maxw, 1200px)", "label": "Page max" },
+        { "value": "var(--qtm-page-maxw-wide, 1440px)", "label": "Wide" },
+        { "value": "var(--qtm-page-maxw-narrow, 960px)", "label": "Narrow" }
+      ]
+    },
+    { "type": "range", "id": "gap", "label": "Grid gap (px)", "min": 0, "max": 40, "step": 1, "default": 18 },
+    { "type": "range", "id": "border_radius", "label": "Border radius (px)", "min": 0, "max": 32, "step": 1, "default": 16 }
+  ],
+  "presets": [
+    { "name": "Collection Modern" }
+  ]
+}
+{% endschema %}
