@@ -56,6 +56,78 @@
   if s.enable_card_swatches and swatch_index > 0
     assign has_swatches = true
   endif
+
+  comment
+    ADD: Ratings resolution (no app dependency)
+    - Supports Shopify native reviews metafields (common: reviews.rating / reviews.rating_count)
+    - Supports arbitrary app metafields via settings (namespace.key)
+    - Renders only when rating_count > 0 and rating_value > 0
+  endcomment
+
+  assign rating_value = 0
+  assign rating_count = 0
+
+  assign rating_src = s.rating_source | default: 'auto'
+
+  assign native_rating = blank
+  assign native_count = blank
+
+  if p.metafields.reviews.rating != blank
+    assign native_rating = p.metafields.reviews.rating.value
+  endif
+  if p.metafields.reviews.rating_count != blank
+    if p.metafields.reviews.rating_count.value != blank
+      assign native_count = p.metafields.reviews.rating_count.value
+    else
+      assign native_count = p.metafields.reviews.rating_count
+    endif
+  endif
+
+  assign mf_rating = blank
+  assign mf_count = blank
+
+  assign mf_r = s.rating_metafield | default: ''
+  assign mf_c = s.rating_count_metafield | default: ''
+
+  if mf_r contains '.'
+    assign r_parts = mf_r | split: '.'
+    assign r_ns = r_parts[0]
+    assign r_key = r_parts[1]
+    if p.metafields[r_ns] != blank and p.metafields[r_ns][r_key] != blank
+      assign mf_rating = p.metafields[r_ns][r_key]
+      if mf_rating.value != blank
+        assign mf_rating = mf_rating.value
+      endif
+    endif
+  endif
+
+  if mf_c contains '.'
+    assign c_parts = mf_c | split: '.'
+    assign c_ns = c_parts[0]
+    assign c_key = c_parts[1]
+    if p.metafields[c_ns] != blank and p.metafields[c_ns][c_key] != blank
+      assign mf_count = p.metafields[c_ns][c_key]
+      if mf_count.value != blank
+        assign mf_count = mf_count.value
+      endif
+    endif
+  endif
+
+  if rating_src == 'shopify'
+    assign rating_value = native_rating | default: 0
+    assign rating_count = native_count | default: 0
+  elsif rating_src == 'metafields'
+    assign rating_value = mf_rating | default: 0
+    assign rating_count = mf_count | default: 0
+  else
+    assign rating_value = native_rating | default: mf_rating | default: 0
+    assign rating_count = native_count | default: mf_count | default: 0
+  endif
+
+  assign rating_value = rating_value | plus: 0
+  assign rating_count = rating_count | plus: 0
+
+  assign rating_fill = rating_value | times: 20
 -%}
 
 <style>
@@ -186,6 +258,41 @@
     outline: 2px solid rgba(0,0,0,.2);
     outline-offset: 2px;
   }
+
+  /* ADD: Ratings UI (colors controlled by section variables) */
+  .q-collection-modern .qcmRating{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size: .92em;
+    opacity: .9;
+  }
+  .q-collection-modern .qcmRating__count{
+    color: var(--qcm-rating-text-color, currentColor);
+    opacity: .75;
+  }
+  .q-collection-modern .qcmRating__stars{
+    position:relative;
+    display:inline-block;
+    width: 92px;
+    height: 16px;
+    line-height: 16px;
+  }
+  .q-collection-modern .qcmRating__stars::before{
+    content:"★★★★★";
+    position:absolute;
+    inset:0;
+    opacity:.25;
+    color: var(--qcm-rating-star-color, currentColor);
+  }
+  .q-collection-modern .qcmRating__stars::after{
+    content:"★★★★★";
+    position:absolute;
+    inset:0;
+    width: var(--fill, 0%);
+    overflow:hidden;
+    color: var(--qcm-rating-star-color, currentColor);
+  }
 </style>
 
 <article class="qcmCard qcmCard--{{ card_style }}" data-qcm-card>
@@ -240,8 +347,12 @@
       </div>
     {%- endif -%}
 
-    {%- if show_rating -%}
-      <div style="opacity:.7; font-size: .92em;">★★★★★ <span style="opacity:.6">(rating)</span></div>
+    {%- comment -%} ADD: Real ratings (replaces placeholder). Only renders with real data. {%- endcomment -%}
+    {%- if show_rating and rating_count > 0 and rating_value > 0 -%}
+      <div class="qcmRating" aria-label="{{ rating_value }} out of 5 stars">
+        <span class="qcmRating__stars" style="--fill: {{ rating_fill }}%;"></span>
+        <span class="qcmRating__count">({{ rating_count }})</span>
+      </div>
     {%- endif -%}
 
     {%- if has_swatches -%}
