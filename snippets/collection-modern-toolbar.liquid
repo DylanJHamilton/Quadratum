@@ -1,77 +1,214 @@
 {%- comment -%}
-  Collection Modern — Toolbar
+  Quadratum — Collection Modern Toolbar
   File: snippets/collection-modern-toolbar.liquid
+
+  Inputs:
+  - section, s, root_id
+  - is_search_context, results_title, results_url, results_description, terms_q
+  - has_filters, filters
+  - sort_options, sort_by, default_sort_by
+  - sticky_toolbar, filter_mode
 {%- endcomment -%}
 
 {%- liquid
-  assign toolbar_sticky = false
+  assign s = s
+  assign is_search_context = is_search_context
+
+  assign show_title = s.show_title
+  assign show_desc = s.show_description
+  assign desc_style = s.description_style | default: 'truncated'
+
+  assign show_sort = s.show_sort
+  assign sort_style = s.sort_style | default: 'dropdown'
+
+  assign show_count = s.show_result_count
+  assign show_chips = s.show_active_filters
+  assign show_clear = s.show_clear_all
+
+  assign count_val = blank
+  if show_count
+    if s.use_alt_collection and s.alt_collection != blank
+      assign count_val = s.alt_collection.products_count
+    elsif is_search_context
+      assign count_val = search.results_count
+    elsif collection != blank
+      assign count_val = collection.products_count
+    endif
+  endif
+
+  assign sticky = false
   if sticky_toolbar
-    assign toolbar_sticky = true
+    assign sticky = true
+  endif
+
+  assign qs = request.query_string | default: ''
+  assign qs_parts = qs | split: '&'
+
+  assign qs_no_sort = ''
+  for part in qs_parts
+    if part == blank
+      continue
+    endif
+    assign key = part | split: '=' | first
+    if key == 'sort_by'
+      continue
+    endif
+    if qs_no_sort == blank
+      assign qs_no_sort = part
+    else
+      assign qs_no_sort = qs_no_sort | append: '&' | append: part
+    endif
+  endfor
+
+  assign base_url = request.path
+  assign base_q = qs_no_sort
+
+  assign clear_url = results_url
+  if is_search_context and terms_q != blank
+    assign clear_url = clear_url | append: '?q=' | append: terms_q | url_encode
+  endif
+  if sort_by != blank
+    if clear_url contains '?'
+      assign clear_url = clear_url | append: '&sort_by=' | append: sort_by | url_encode
+    else
+      assign clear_url = clear_url | append: '?sort_by=' | append: sort_by | url_encode
+    endif
+  endif
+
+  assign active_count = 0
+  if filters != blank
+    for f in filters
+      if f.active_values != blank
+        assign active_count = active_count | plus: f.active_values.size
+      endif
+    endfor
   endif
 -%}
 
-<div class="qcm__toolbar {% if toolbar_sticky %}is-sticky{% endif %}" data-qcm-toolbar>
-  <div class="qcm__toolbarTop">
-    <div class="qcm__titleWrap">
-      {%- if s.show_title -%}
-        <h1 class="qcm__title">{{ results_title }}</h1>
-      {%- endif -%}
+<div class="qcm__toolbar{% if sticky %} is-sticky{% endif %}">
+  <div class="qcm__toolbarLeft">
+    {%- if show_title -%}
+      <h1 class="qcm__title">{{ results_title }}</h1>
+    {%- endif -%}
 
-      {%- if s.show_description and results_description != blank -%}
-        <div class="qcm__descWrap">
-          <div
-            class="qcm__desc {% if s.description_style == 'full' %}is-full{% endif %}"
-            data-qcm-desc
-          >
-            {{ results_description }}
-          </div>
+    {%- if show_desc and results_description != blank -%}
+      <p class="qcm__desc{% if desc_style == 'full' %} is-full{% endif %}">
+        {{ results_description | strip_html }}
+      </p>
+    {%- endif -%}
 
-          {%- if s.description_style == 'truncated' -%}
-            <button class="qcm__btn qcm__btn--ghost" type="button" data-qcm-desc-toggle aria-expanded="false">
-              Toggle description
-            </button>
-          {%- endif -%}
-        </div>
-      {%- endif -%}
-    </div>
-
-    <div class="qcm__toolbarActions">
-      {%- if s.show_result_count -%}
-        <div class="qcm__count" aria-label="Results count">
-          {%- if is_search_context -%}
-            {{ search.results_count }} results
-          {%- else -%}
-            {{ collection.products_count }} products
-          {%- endif -%}
-        </div>
-      {%- endif -%}
-
-      {%- if s.show_sort -%}
-        {% render 'collection-modern-sort',
-          section: section,
-          s: s,
-          sort_options: sort_options,
-          sort_by: sort_by,
-          default_sort_by: default_sort_by
-        %}
-      {%- endif -%}
-
-      {%- if has_filters and filter_mode == 'drawer' -%}
-        <button class="qcm__btn qcm__btn--ghost" type="button" data-qcm-open-drawer>
-          Filters
-        </button>
-      {%- endif -%}
-    </div>
+    {%- if show_count and count_val != blank -%}
+      <div class="qcm__count">{{ count_val }} results</div>
+    {%- endif -%}
   </div>
 
-  {%- if s.show_active_filters and has_filters -%}
-    {% render 'collection-modern-active-filters',
-      section: section,
-      s: s,
-      filters: filters,
-      results_url: results_url,
-      is_search_context: is_search_context,
-      terms_q: terms_q
-    %}
+  <div class="qcm__toolbarRight">
+    {%- if has_filters and filter_mode == 'drawer' -%}
+      <button class="qcm__btn qcm__btn--ghost" type="button" data-qcm-open-drawer>
+        Filters{% if active_count > 0 %} ({{ active_count }}){% endif %}
+      </button>
+    {%- endif -%}
+
+    {%- if s.enable_layout_controls -%}
+      <div class="qcm__view" data-qcm-view>
+        <button class="qcm__pill" type="button" data-qcm-view-mode="grid" aria-pressed="false">Grid</button>
+        <button class="qcm__pill" type="button" data-qcm-view-mode="list" aria-pressed="false">List</button>
+        <button class="qcm__pill" type="button" data-qcm-view-mode="compact" aria-pressed="false">Compact</button>
+
+        <div class="qcm__cols" data-qcm-cols>
+          <button class="qcm__pill" type="button" data-qcm-cols-step="-1" aria-label="Fewer columns">−</button>
+          <span class="qcm__colsVal" data-qcm-cols-val></span>
+          <button class="qcm__pill" type="button" data-qcm-cols-step="1" aria-label="More columns">+</button>
+        </div>
+      </div>
+    {%- endif -%}
+
+    {%- if is_search_context and s.enable_search_tools -%}
+      <div class="qcm__searchWithin">
+        <input class="qcm__input" type="search" placeholder="{{ s.search_within_label }}" data-qcm-searchwithin>
+      </div>
+    {%- endif -%}
+
+    {%- if show_sort and sort_options != blank and sort_options.size > 0 -%}
+      <div class="qcm__sort">
+        {%- if sort_style == 'dropdown' -%}
+          <form method="get" action="{{ results_url }}">
+            {%- if is_search_context and terms_q != blank -%}
+              <input type="hidden" name="q" value="{{ terms_q | escape }}">
+            {%- endif -%}
+            {%- if qs_no_sort != blank -%}
+              {%- assign preserved = qs_no_sort | split: '&' -%}
+              {%- for kv in preserved -%}
+                {%- assign k = kv | split: '=' | first -%}
+                {%- assign v = kv | split: '=' | last -%}
+                {%- if k != blank and k != 'q' -%}
+                  <input type="hidden" name="{{ k | escape }}" value="{{ v | escape }}">
+                {%- endif -%}
+              {%- endfor -%}
+            {%- endif -%}
+
+            <label class="visually-hidden" for="QcmSort-{{ section.id }}">Sort</label>
+            <select id="QcmSort-{{ section.id }}" name="sort_by" onchange="this.form.submit()">
+              {%- for opt in sort_options -%}
+                <option value="{{ opt.value }}" {% if opt.value == sort_by %}selected{% endif %}>{{ opt.name }}</option>
+              {%- endfor -%}
+            </select>
+          </form>
+        {%- else -%}
+          <div class="qcm__sortPills" role="list">
+            {%- for opt in sort_options -%}
+              {%- liquid
+                assign pill_url = base_url
+                if base_q != blank
+                  assign pill_url = pill_url | append: '?' | append: base_q | append: '&sort_by=' | append: opt.value | url_encode
+                else
+                  assign pill_url = pill_url | append: '?sort_by=' | append: opt.value | url_encode
+                endif
+              -%}
+              <a class="qcm__pill{% if opt.value == sort_by %} is-active{% endif %}" href="{{ pill_url }}" {% if opt.value == sort_by %}aria-current="true"{% endif %}>
+                {{ opt.name }}
+              </a>
+            {%- endfor -%}
+          </div>
+        {%- endif -%}
+      </div>
+    {%- endif -%}
+
+    <a class="qcm__btn qcm__btn--ghost qcm__undo" href="#" hidden data-qcm-undo>Undo</a>
+  </div>
+
+  {%- if show_chips and filters != blank -%}
+    {%- assign any_active = false -%}
+    {%- for f in filters -%}
+      {%- if f.active_values != blank and f.active_values.size > 0 -%}
+        {%- assign any_active = true -%}
+        {%- break -%}
+      {%- endif -%}
+    {%- endfor -%}
+
+    {%- if any_active -%}
+      <div class="qcm__chips" aria-label="Active filters">
+        {%- for f in filters -%}
+          {%- if f.active_values != blank -%}
+            {%- for v in f.active_values -%}
+              <a class="qcm__chip" href="{{ v.url_to_remove }}">
+                {{ f.label }}: {{ v.label }} <span aria-hidden="true">×</span>
+              </a>
+            {%- endfor -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+        {%- if show_clear -%}
+          <a class="qcm__btn qcm__btn--link" href="{{ clear_url }}">Clear all</a>
+        {%- endif -%}
+      </div>
+    {%- endif -%}
   {%- endif -%}
 </div>
+
+{% render 'collection-modern-quick-filters',
+  section: section,
+  s: s,
+  filters: filters,
+  root_id: root_id
+%}
