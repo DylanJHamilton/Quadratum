@@ -1,75 +1,109 @@
 {%- comment -%}
-  Quadratum — Collection Modern — Quick Filters
+  Quadratum — Collection Modern Quick Filters (Sort Pills)
   File: snippets/collection-modern-quick-filters.liquid
+
+  Purpose:
+  - Render sort options as "pills"
+  - Preserve existing query params (filters/search q/etc) while swapping sort_by
+  - Provide "Undo" to revert to default_sort_by
+
+  Inputs expected (passed from toolbar):
+  - section, s
+  - is_search_context
+  - results_url
+  - sort_options
+  - sort_by
+  - default_sort_by
 {%- endcomment -%}
 
 {%- liquid
-  assign root_id = root_id
-  assign s = s
-  assign filters = filters
-  assign show = false
-  if s.enable_quick_filters and section.blocks.size > 0 and filters != blank
-    assign show = true
+  if sort_options == blank or sort_options.size == 0
+    break
   endif
+
+  assign base_url = results_url
+
+  # Preserve current query params EXCEPT sort_by + page
+  assign qs = request.query_string | default: ''
+  assign kept = ''
+
+  if qs != blank
+    assign parts = qs | split: '&'
+    for part in parts
+      assign p0 = part | split: '=' | first | default: ''
+      if p0 == 'sort_by' or p0 == 'page'
+        continue
+      endif
+      if kept == ''
+        assign kept = part
+      else
+        assign kept = kept | append: '&' | append: part
+      endif
+    endfor
+  endif
+
+  assign current_sort = sort_by | default: ''
+  assign default_sort = default_sort_by | default: ''
+
+  # Determine whether we are "default" (so Undo can just remove sort_by)
+  assign is_default_sort = false
+  if current_sort == blank and default_sort == blank
+    assign is_default_sort = true
+  elsif current_sort == default_sort
+    assign is_default_sort = true
+  endif
+
+  # Helper: builds URL with kept params + sort_by
+  # We do this inline per option to avoid Liquid function limitations.
 -%}
 
-{%- if show -%}
-  <div class="qcm__quickFilters" data-qcm-quickfilters>
-    <div class="qcm__quickFiltersInner">
-      {%- for block in section.blocks -%}
-        {%- if block.type != 'quick_filter' -%}{% continue %}{%- endif -%}
+<nav class="qcm__sortPills" aria-label="Sort options">
+  {%- for opt in sort_options -%}
+    {%- liquid
+      assign opt_value = opt.value | default: ''
+      assign opt_name  = opt.name  | default: opt_value
 
-        {%- liquid
-          assign target_filter = nil
-          assign target_value = nil
+      # active?
+      assign is_active = false
+      if current_sort == opt_value
+        assign is_active = true
+      elsif current_sort == blank and default_sort != blank and default_sort == opt_value
+        assign is_active = true
+      elsif current_sort == blank and default_sort == blank and forloop.first
+        # if nothing is set anywhere, consider first option "active"
+        assign is_active = true
+      endif
 
-          assign want_f = block.settings.filter_label | downcase | strip
-          assign want_v = block.settings.value_label | downcase | strip
+      # Build URL: base + kept + sort_by=opt_value
+      assign url = base_url
+      assign glue = '?'
+      if kept != blank
+        assign url = url | append: '?' | append: kept
+        assign glue = '&'
+      endif
 
-          for f in filters
-            if f.label != blank and f.label | downcase | strip == want_f
-              assign target_filter = f
-              break
-            endif
-          endfor
+      if opt_value != blank
+        assign url = url | append: glue | append: 'sort_by=' | append: opt_value
+      endif
+    -%}
 
-          if target_filter != nil
-            for v in target_filter.values
-              if v.label != blank and v.label | downcase | strip == want_v
-                assign target_value = v
-                break
-              endif
-            endfor
-          endif
+    <a
+      class="qcm__pill{% if is_active %} is-active{% endif %}"
+      href="{{ url }}"
+      {% if is_active %}aria-current="true"{% endif %}
+    >
+      {{ opt_name }}
+    </a>
+  {%- endfor -%}
 
-          assign is_active = false
-          assign href = ''
-          if target_value != nil
-            if target_value.active
-              assign is_active = true
-              assign href = target_value.url_to_remove
-            else
-              assign href = target_value.url_to_add
-            endif
-          endif
-        -%}
-
-        {%- if target_value == nil or href == blank -%}
-          {%- continue -%}
-        {%- endif -%}
-
-        <a
-          class="qcm__qf qcm__qf--{{ block.settings.chip_style }}{% if is_active %} is-active{% endif %}"
-          href="{{ href }}"
-          {% if is_active %}aria-current="true"{% endif %}
-          {{ block.shopify_attributes }}
-        >
-          <span class="qcm__qfLabel">{{ target_value.label }}</span>
-          {%- if is_active -%}
-            <span class="qcm__qfX" aria-hidden="true">×</span>
-          {%- endif -%}
-        </a>
-      {%- endfor -%}
-    </div>
-  </div>
-{%- endif -%}
+  {%- comment -%} Undo pill: revert to default by removing sort_by (and page) {%- endcomment -%}
+  {%- if is_default_sort == false -%}
+    {%- liquid
+      assign undo_url = base_url
+      if kept != blank
+        assign undo_url = undo_url | append: '?' | append: kept
+      endif
+    -%}
+    <a class="qcm__pill" href="{{ undo_url }}">Undo</a>
+  {%- endif -%}
+</nav>
