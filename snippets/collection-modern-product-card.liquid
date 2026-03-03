@@ -3,7 +3,7 @@
   File: snippets/collection-modern-product-card.liquid
 
   GOALS (per your requirements):
-  - No Liquid boolean-expression errors (no "and ( ... )" inside Liquid tags)
+  - No Liquid boolean-expression errors
   - Modern card styling hooks (matches your .qcmc* CSS)
   - Badges (sale / sold out) + toggle
   - Rating (Shopify native or metafields) + toggle
@@ -12,8 +12,7 @@
       2) slider (arrows-only small gallery; JS can hook via data-qcmc-slider)
   - Buttons:
       - Quick add / choose options (optional)
-      - Buy Now (single-variant only) uses Shopify payment button and
-        MUST hide other buttons when enabled
+      - Buy Now (single-variant only) MUST hide other buttons when enabled
   - Optional quick view / compare hooks via data attributes (no hard JS dependency)
 
   Inputs:
@@ -43,8 +42,7 @@
   assign compare_lbl     = s.compare_label | default: 'Compare'
 
   assign image_ratio     = s.image_ratio | default: 'adapt'
-
-  assign media_mode = s.media_mode | default: 'hover'
+  assign media_mode      = s.media_mode | default: 'hover'
 
   assign has_one_variant = false
   if p.variants.size == 1
@@ -66,6 +64,11 @@
   assign featured = p.featured_media
   if featured == blank
     assign featured = p.featured_image
+  endif
+
+  assign featured_url = ''
+  if featured != blank
+    assign featured_url = featured | image_url: width: 900
   endif
 
   assign second_image = blank
@@ -193,10 +196,56 @@
   if show_buy_now and has_one_variant and p.available
     assign disable_other_ctas = true
   endif
+
+  comment
+    Build images JSON for your existing slider arrow JS.
+    Your JS expects: <script type="application/json" data-qcmc-images>["url1","url2"]</script>
+  endcomment
+  assign images_json = ''
+  if media_mode == 'slider'
+    assign slide_limit = s.slider_image_limit | default: 5
+    assign urls = ''
+    assign count = 0
+    if p.media != blank
+      for m in p.media
+        if m.media_type == 'image'
+          assign count = count | plus: 1
+          assign u = m | image_url: width: 900
+          if urls == ''
+            assign urls = u
+          else
+            assign urls = urls | append: '||' | append: u
+          endif
+          if count >= slide_limit
+            break
+          endif
+        endif
+      endfor
+    endif
+    if urls != ''
+      assign arr = urls | split: '||'
+      capture images_json
+        echo '['
+        for u2 in arr
+          echo '"'
+          echo u2 | replace: '"', '\"'
+          echo '"'
+          unless forloop.last
+            echo ','
+          endunless
+        endfor
+        echo ']'
+      endcapture
+    endif
+  endif
 -%}
 
 <article class="qcmc"
+  data-qcmc
   data-product-handle="{{ p.handle }}"
+  data-product-url="{{ p.url }}"
+  data-product-title="{{ p.title | escape }}"
+  data-product-featured="{{ featured_url }}"
   data-product-id="{{ p.id }}"
   data-media-mode="{{ media_mode }}"
 >
@@ -215,8 +264,11 @@
     {%- endif -%}
 
     {%- if media_mode == 'slider' -%}
-      {%- comment -%} Arrows-only slider: JS can bind to data-qcmc-slider, data-qcmc-prev/next, data-qcmc-track {%- endcomment -%}
       <div class="qcmc__slider" data-qcmc-slider>
+        {%- if images_json != '' -%}
+          <script type="application/json" data-qcmc-images>{{ images_json }}</script>
+        {%- endif -%}
+
         <a class="qcmc__mediaLink" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
           <div class="qcmc__track" data-qcmc-track>
             {%- assign slide_limit = s.slider_image_limit | default: 5 -%}
@@ -313,10 +365,6 @@
     {%- endif -%}
 
     <div class="qcmc__actions">
-      {%- comment -%}
-        Buy Now (single-variant only) should remove other CTAs when enabled.
-      {%- endcomment -%}
-
       {%- if disable_other_ctas -%}
         <div class="qcmc__buyNow">
           {%- form 'product', p, class: 'qcmc__form' -%}
@@ -338,12 +386,13 @@
         {%- endif -%}
 
         {%- if s.enable_quick_view -%}
-           <button type="button"
+          <button
+            type="button"
             class="qcmc__btn qcmc__btn--ghost"
-            data-qcm-quick-view
-            data-handle="{{ product.handle }}"
+            data-qcm-qv
+            data-handle="{{ p.handle }}"
           >
-            {{ s.quick_view_label | default: 'Quick view' }}
+            {{ quick_view_lbl }}
           </button>
         {%- endif -%}
 
@@ -351,11 +400,11 @@
           <button
             class="qcmc__btn qcmc__btn--ghost"
             type="button"
-            data-qcm-compare
-            data-product-id="{{ p.id }}"
-            aria-label="{{ compare_lbl }}: {{ p.title | escape }}"
+            data-qcm-compare-toggle
+            data-label-select="Select"
+            data-label-selected="Selected"
           >
-            {{ compare_lbl }}
+            Select
           </button>
         {%- endif -%}
       {%- endif -%}
