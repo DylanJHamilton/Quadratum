@@ -44,33 +44,69 @@
     document.querySelectorAll('.q-collection-simple[data-section-id]').forEach(init);
   });
 
-function initReveal(root){
-  if (!root) return;
-
-  // enable reveal mode safely
-  if (!root.classList.contains('reveal-off')) {
-    root.classList.add('is-reveal-ready');
+function revealAll(root) {
+    root.querySelectorAll('.qcm__item').forEach(el => el.classList.add('is-revealed'));
   }
 
-  const items = root.querySelectorAll('.qcm__item');
-  if (!items.length) return;
+  function initReveal(root) {
+    if (!root) return;
 
-  if (root.classList.contains('reveal-off') || !('IntersectionObserver' in window)) {
-    items.forEach(el => el.classList.add('is-revealed'));
-    return;
+    const isOff = root.classList.contains('reveal-off');
+    const isFade = root.classList.contains('reveal-fade');
+    const isSlide = root.classList.contains('reveal-slide');
+
+    // Nothing selected in UI? Do nothing (don’t hide products).
+    if (!isOff && !isFade && !isSlide) return;
+
+    // Always safe: never hide unless we enable ready mode.
+    if (!isOff) root.classList.add('is-reveal-ready');
+
+    const items = root.querySelectorAll('.qcm__item');
+    if (!items.length) return;
+
+    // Off = show everything
+    if (isOff) {
+      revealAll(root);
+      return;
+    }
+
+    // No IO? show everything
+    if (!('IntersectionObserver' in window)) {
+      revealAll(root);
+      return;
+    }
+
+    // If items are already visible, still mark revealed to avoid “no change”
+    // (and to prevent other CSS from keeping them hidden)
+    // Then observe for staggered / future loads.
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-revealed');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12 });
+
+    items.forEach(el => io.observe(el));
   }
 
-  const io = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-      if (e.isIntersecting) {
-        e.target.classList.add('is-revealed');
-        io.unobserve(e.target);
-      }
-    });
-  }, { threshold: 0.12 });
+  function boot() {
+    // Any section using qcm + reveal-* should work
+    document.querySelectorAll('.qcm.reveal-off, .qcm.reveal-fade, .qcm.reveal-slide').forEach(initReveal);
+  }
 
-  items.forEach(el => io.observe(el));
-}
+  // Initial page load
+  document.addEventListener('DOMContentLoaded', boot);
+
+  // Theme editor / dynamic section reload (important)
+  document.addEventListener('shopify:section:load', (e) => {
+    const root = e.target?.querySelector('.qcm.reveal-off, .qcm.reveal-fade, .qcm.reveal-slide');
+    if (root) initReveal(root);
+  });
+
+  // If your AJAX replaces grid HTML without section reload, call this after:
+  window.QCM_RevealBoot = boot;
 
   // If your AJAX re-renders grid, call initReveal(sectionEl) after update.
 
