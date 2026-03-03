@@ -1,151 +1,150 @@
-/* Quadratum — Collection Modern (scoped JS) */
-(function () {
-  function qs(root, sel) { return root.querySelector(sel); }
-  function qsa(root, sel) { return Array.prototype.slice.call(root.querySelectorAll(sel)); }
+(() => {
+  const qs = (root, sel) => root.querySelector(sel);
+  const qsa = (root, sel) => Array.from(root.querySelectorAll(sel));
 
-  function prefersReducedMotion() {
-    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  }
+  function trapFocus(container){
+    const focusable = () => qsa(container, 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])')
+      .filter(el => el.offsetParent !== null);
 
-  function trapFocus(container) {
-    const focusable = qsa(container, 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
-    if (!focusable.length) return () => {};
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-
-    function onKeyDown(e) {
+    function onKeydown(e){
       if (e.key !== 'Tab') return;
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault(); last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault(); first.focus();
+      const items = focusable();
+      if (!items.length) return;
+
+      const first = items[0];
+      const last = items[items.length - 1];
+
+      if (e.shiftKey && document.activeElement === first){
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last){
+        e.preventDefault();
+        first.focus();
       }
     }
-    container.addEventListener('keydown', onKeyDown);
-    return () => container.removeEventListener('keydown', onKeyDown);
+
+    container.addEventListener('keydown', onKeydown);
+    return () => container.removeEventListener('keydown', onKeydown);
   }
 
-  function initSection(root) {
-    const sectionId = root.getAttribute('data-section-id');
-    const paginationStyle = root.getAttribute('data-pagination-style');
-    const filterMode = root.getAttribute('data-filter-mode');
-    const enableDrawer = root.getAttribute('data-enable-drawer') === 'true';
+  async function fetchNext(url){
+    const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    if (!res.ok) throw new Error('Fetch failed');
+    return await res.text();
+  }
 
-    const grid = qs(root, '[data-qcm-grid]');
-    if (!grid) return;
+  function parseHTML(html){
+    const doc = document.implementation.createHTMLDocument('');
+    doc.documentElement.innerHTML = html;
+    return doc;
+  }
 
-    // Drawer (optional)
+  function initSection(root){
+    const sectionId = root.dataset.sectionId;
+    const paginationStyle = root.dataset.paginationStyle || 'numbered';
+    const filterMode = root.dataset.filterMode || 'sidebar';
+    const enableDrawer = root.dataset.enableDrawer === 'true';
+
+    // Drawer
     if (enableDrawer && filterMode === 'drawer') {
-      const drawerWrap = qs(root, '[data-qcm-drawer]');
+      const drawer = qs(root, '[data-qcm-drawer]');
       const openBtn = qs(root, '[data-qcm-open-drawer]');
       const closeBtn = qs(root, '[data-qcm-close-drawer]');
-      if (drawerWrap && openBtn && closeBtn) {
-        let untrap = null;
-        const previouslyFocused = { el: null };
 
-        function open() {
-          previouslyFocused.el = document.activeElement;
-          drawerWrap.hidden = false;
-          drawerWrap.setAttribute('aria-hidden', 'false');
-          drawerWrap.classList.add('is-open');
-          untrap = trapFocus(drawerWrap);
-          const focusTarget = qs(drawerWrap, 'button, [href], input, select, textarea') || drawerWrap;
-          focusTarget.focus && focusTarget.focus();
+      if (drawer && openBtn && closeBtn) {
+        let untrap = null;
+        let previouslyFocused = null;
+
+        function onEsc(e){ if (e.key === 'Escape') close(); }
+
+        function open(){
+          previouslyFocused = document.activeElement;
+          drawer.hidden = false;
+          drawer.setAttribute('aria-hidden', 'false');
+
+          untrap = trapFocus(drawer);
+          const focusTarget = drawer.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+          if (focusTarget && focusTarget.focus) focusTarget.focus();
+
           document.addEventListener('keydown', onEsc);
         }
-        function close() {
-          drawerWrap.classList.remove('is-open');
-          drawerWrap.hidden = true;
-          drawerWrap.setAttribute('aria-hidden', 'true');
+
+        function close(){
+          drawer.hidden = true;
+          drawer.setAttribute('aria-hidden', 'true');
           if (untrap) untrap();
           document.removeEventListener('keydown', onEsc);
-          if (previouslyFocused.el && previouslyFocused.el.focus) previouslyFocused.el.focus();
-        }
-        function onEsc(e) {
-          if (e.key === 'Escape') close();
+          if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus();
         }
 
         openBtn.addEventListener('click', open);
         closeBtn.addEventListener('click', close);
 
-        // click outside panel (simple)
-        drawerWrap.addEventListener('click', (e) => {
+        drawer.addEventListener('click', (e) => {
           if (e.target && e.target.matches('[data-qcm-drawer-overlay]')) close();
         });
       }
     }
 
-    // Pagination enhancements
-    if (paginationStyle === 'load_more' || paginationStyle === 'infinite_scroll') {
-      const loadMoreBtn = qs(root, '[data-qcm-load-more]');
-      const nextLink = () => qs(root, '[data-qcm-next-link]');
-      const status = qs(root, '[data-qcm-status]');
+    // Load More / Infinite Scroll
+    if (paginationStyle !== 'load_more' && paginationStyle !== 'infinite_scroll') return;
 
-      async function fetchNext() {
-        const nl = nextLink();
-        if (!nl) return;
+    const grid = qs(root, '[data-qcm-grid]');
+    const pager = qs(root, '[data-qcm-pager]');
+    const btn = qs(root, '[data-qcm-load-more]');
+    const sentinel = qs(root, '[data-qcm-sentinel]');
 
-        const url = nl.getAttribute('href');
-        if (!url) return;
+    if (!grid || !pager) return;
 
-        // UI state
-        if (loadMoreBtn) loadMoreBtn.disabled = true;
-        if (status) status.textContent = 'Loading more…';
+    let loading = false;
 
-        try {
-          const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-          if (!res.ok) throw new Error('Bad response');
-          const html = await res.text();
+    async function loadNext(){
+      if (loading) return;
+      const nextUrl = pager.getAttribute('data-next-url');
+      if (!nextUrl) return;
 
-          const doc = new DOMParser().parseFromString(html, 'text/html');
-          const incomingRoot = doc.querySelector('.q-collection-modern[data-section-id="' + CSS.escape(sectionId) + '"]');
-          if (!incomingRoot) throw new Error('Section not found in response');
+      loading = true;
+      if (btn) btn.disabled = true;
 
-          const incomingItems = incomingRoot.querySelectorAll('[data-qcm-item]');
-          incomingItems.forEach((node) => {
-            const wrapper = document.createElement('div');
-            wrapper.className = node.className;
-            wrapper.setAttribute('data-qcm-item', '');
-            wrapper.innerHTML = node.innerHTML;
-            grid.appendChild(wrapper);
-          });
+      try{
+        const html = await fetchNext(nextUrl);
+        const doc = parseHTML(html);
 
-          // swap next link href (or remove)
-          const newNext = incomingRoot.querySelector('[data-qcm-next-link]');
-          const currentNext = nextLink();
-          if (newNext && currentNext) {
-            currentNext.setAttribute('href', newNext.getAttribute('href'));
-          } else if (currentNext) {
-            currentNext.remove();
-          }
+        const nextRoot = doc.getElementById(root.id);
+        if (!nextRoot) throw new Error('Section root not found in next page');
 
-          // done
-          if (status) status.textContent = '';
-        } catch (err) {
-          if (status) status.textContent = 'Could not load more products.';
-        } finally {
-          if (loadMoreBtn) loadMoreBtn.disabled = false;
+        const newItems = nextRoot.querySelectorAll('[data-qcm-item]');
+        newItems.forEach(item => grid.appendChild(item));
+
+        const nextPager = nextRoot.querySelector('[data-qcm-pager]');
+        const newNextUrl = nextPager ? nextPager.getAttribute('data-next-url') : '';
+        pager.setAttribute('data-next-url', newNextUrl || '');
+
+        if (!newNextUrl) {
+          if (btn) btn.remove();
+          if (sentinel) sentinel.remove();
         }
+      } catch(e){
+        // Fallback: if anything fails, keep normal link visible (noscript already exists)
+        console.warn('[Collection Modern] loadNext error', e);
+      } finally{
+        loading = false;
+        if (btn) btn.disabled = false;
       }
+    }
 
-      if (loadMoreBtn) {
-        loadMoreBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          fetchNext();
+    if (btn) {
+      btn.addEventListener('click', loadNext);
+    }
+
+    if (paginationStyle === 'infinite_scroll' && sentinel) {
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) loadNext();
         });
-      }
+      }, { rootMargin: '600px 0px' });
 
-      if (paginationStyle === 'infinite_scroll' && !prefersReducedMotion()) {
-        const sentinel = qs(root, '[data-qcm-sentinel]');
-        if (sentinel && 'IntersectionObserver' in window) {
-          const io = new IntersectionObserver((entries) => {
-            entries.forEach((entry) => {
-              if (entry.isIntersecting) fetchNext();
-            });
-          }, { rootMargin: '600px 0px' });
-          io.observe(sentinel);
-        }
-      }
+      io.observe(sentinel);
     }
   }
 
