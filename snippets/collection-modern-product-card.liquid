@@ -1,8 +1,14 @@
-{%- comment -%}
+{% comment %}
   Quadratum — Collection Modern Product Card
   File: snippets/collection-modern-product-card.liquid
-  Scoped classes: qcmc*
-{%- endcomment -%}
+
+  Goals:
+  - No invalid boolean expressions
+  - Optional: hover 2nd image OR slider arrows (JS-enhanced)
+  - Optional badges, vendor, price, rating
+  - Optional quick view trigger + select/compare trigger
+  - Button styles come from section vars set in section inline <style>
+{% endcomment %}
 
 {%- liquid
   assign p = product
@@ -10,13 +16,18 @@
     break
   endif
 
-  assign u = p.url
+  assign show_vendor = s.show_vendor
+  assign show_price  = s.show_price
+  assign show_badges = s.show_badges
+  assign show_rating = s.show_rating
+  assign show_second_image = s.show_second_image
+  assign show_quick_add = s.show_quick_add
 
-  assign featured = p.featured_media
-  assign has_media = false
-  if featured != blank
-    assign has_media = true
-  endif
+  assign card_style = s.card_style | default: 'glass'
+  assign density = s.card_density | default: 'normal'
+
+  assign image_ratio = s.image_ratio | default: 'adapt'
+  assign media_mode = s.media_mode | default: 'hover'  # 'hover' or 'slider'
 
   assign sold_out = false
   if p.available == false
@@ -28,87 +39,160 @@
     assign on_sale = true
   endif
 
-  assign show_badges = false
-  if s.show_badges
-    assign show_badges = true
+  assign show_badge_block = false
+  if show_badges
+    if on_sale or sold_out
+      assign show_badge_block = true
+    endif
   endif
 
-  assign show_vendor = false
-  if s.show_vendor
-    assign show_vendor = true
+  assign featured = p.featured_media
+  assign img1 = p.featured_image
+  assign img2 = nil
+  if show_second_image and p.images.size > 1
+    assign img2 = p.images[1]
   endif
 
-  assign show_price = false
-  if s.show_price
-    assign show_price = true
-  endif
-
-  assign show_second = false
-  if s.show_second_image and p.media.size > 1
-    assign show_second = true
-  endif
-
-  assign can_quick_add = false
-  if s.show_quick_add and p.available and p.variants.size == 1
-    assign can_quick_add = true
-  endif
-
-  assign needs_options = false
+  assign v = p.selected_or_first_available_variant
+  assign has_multi_variants = false
   if p.variants.size > 1
-    assign needs_options = true
+    assign has_multi_variants = true
   endif
 
-  assign enable_qv = false
-  if s.enable_quick_view
-    assign enable_qv = true
+  assign money_price = v.price | money
+  assign money_compare = v.compare_at_price | money
+  assign compare_exists = false
+  if v.compare_at_price and v.compare_at_price > v.price
+    assign compare_exists = true
   endif
 
-  assign enable_compare = false
-  if s.enable_compare
-    assign enable_compare = true
+  assign quick_view_enabled = s.enable_quick_view
+  assign compare_enabled = s.enable_compare
+
+  assign qv_btn_label = s.quick_view_label | default: 'Quick view'
+  assign select_label = s.compare_select_label | default: 'Select'
+
+  assign card_link = p.url
+
+  assign show_action_row = false
+  if quick_view_enabled or compare_enabled
+    assign show_action_row = true
   endif
 
-  assign variant_id = p.selected_or_first_available_variant.id
+  comment
+    Rating support (Shopify native meta OR metafields mapping)
+    We'll compute a rating_value (0..5) and rating_count.
+  endcomment
+
+  assign rating_value = nil
+  assign rating_count = nil
+
+  if show_rating
+    assign rating_source = s.rating_source | default: 'auto'
+
+    if rating_source == 'shopify' or rating_source == 'auto'
+      if p.metafields.reviews and p.metafields.reviews.rating
+        assign rating_value = p.metafields.reviews.rating.value
+      endif
+      if p.metafields.reviews and p.metafields.reviews.rating_count
+        assign rating_count = p.metafields.reviews.rating_count.value
+      endif
+    endif
+
+    if rating_value == blank and (rating_source == 'metafields' or rating_source == 'auto')
+      assign mf_rating = s.rating_metafield | default: 'reviews.rating'
+      assign mf_count  = s.rating_count_metafield | default: 'reviews.rating_count'
+      assign ns_r = mf_rating | split: '.'
+      assign ns_c = mf_count  | split: '.'
+
+      if ns_r.size == 2
+        assign ns = ns_r[0]
+        assign key = ns_r[1]
+        assign rating_value = p.metafields[ns][key].value
+      endif
+
+      if ns_c.size == 2
+        assign ns2 = ns_c[0]
+        assign key2 = ns_c[1]
+        assign rating_count = p.metafields[ns2][key2].value
+      endif
+    endif
+  endif
+
+  assign has_rating = false
+  if rating_value != blank
+    assign has_rating = true
+  endif
+
+  assign rating_num = 0.0
+  if has_rating
+    assign rating_num = rating_value | plus: 0.0
+  endif
+
+  assign stars_full = 0
+  if has_rating
+    assign stars_full = rating_num | floor
+  endif
 -%}
 
-<div class="qcmc" data-qcmc data-handle="{{ p.handle }}" data-variant-id="{{ variant_id }}">
+<article
+  class="qcmc qcmc--{{ card_style }} qcmc--density-{{ density }}"
+  data-qcmc
+  data-product-handle="{{ p.handle }}"
+  data-product-url="{{ p.url }}"
+  data-product-title="{{ p.title | escape }}"
+  data-product-featured="{{ p.featured_image | image_url: width: 800 }}"
+  data-media-mode="{{ media_mode }}"
+>
   <div class="qcmc__media">
-
-    {%- if show_badges -%}
-      {%- if on_sale or sold_out -%}
-        <div class="qcmc__badges">
-          {%- if sold_out -%}
-            <span class="qcmc__badge qcmc__badge--soldout">Sold out</span>
-          {%- elsif on_sale -%}
-            <span class="qcmc__badge qcmc__badge--sale">Sale</span>
-          {%- endif -%}
-        </div>
-      {%- endif -%}
-    {%- endif -%}
-
-    <a class="qcmc__mediaLink" href="{{ u }}">
-      {%- if has_media -%}
-        {{ featured | image_url: width: 900 | image_tag: class: 'qcmc__img qcmc__img--primary', loading: 'lazy' }}
-        {%- if show_second -%}
-          {%- assign second_media = p.media[1] -%}
-          {{ second_media | image_url: width: 900 | image_tag: class: 'qcmc__img qcmc__img--second', loading: 'lazy' }}
+    {%- if show_badge_block -%}
+      <div class="qcmc__badges" aria-label="Badges">
+        {%- if sold_out -%}
+          <span class="qcmc__badge qcmc__badge--soldout">Sold out</span>
         {%- endif -%}
-      {%- else -%}
-        <div class="qcmc__img--placeholder" aria-hidden="true"></div>
-      {%- endif -%}
-    </a>
-
-    {%- if enable_qv or enable_compare -%}
-      <div class="qcmc__overlay">
-        {%- if enable_qv -%}
-          <button class="qcmc__overlayBtn" type="button" data-qcm-quickview>{{ s.quick_view_label }}</button>
-        {%- endif -%}
-        {%- if enable_compare -%}
-          <button class="qcmc__overlayBtn" type="button" data-qcm-compare-toggle aria-pressed="false">Select</button>
+        {%- if on_sale -%}
+          <span class="qcmc__badge qcmc__badge--sale">Sale</span>
         {%- endif -%}
       </div>
     {%- endif -%}
 
+    <a class="qcmc__mediaLink" href="{{ card_link }}" aria-label="{{ p.title | escape }}">
+      {%- if img1 != blank -%}
+        {%- assign img1_url = img1 | image_url: width: 900 -%}
+        <img
+          class="qcmc__img qcmc__img--primary"
+          src="{{ img1_url }}"
+          alt="{{ img1.alt | escape }}"
+          loading="lazy"
+        >
+      {%- else -%}
+        <div class="qcmc__img qcmc__img--placeholder" aria-hidden="true"></div>
+      {%- endif -%}
+
+      {%- if img2 != blank and media_mode == 'hover' -%}
+        <img
+          class="qcmc__img qcmc__img--second"
+          src="{{ img2 | image_url: width: 900 }}"
+          alt=""
+          loading="lazy"
+        >
+      {%- endif -%}
+    </a>
+
+    {%- if media_mode == 'slider' -%}
+      <div class="qcmc__sliderCtrls" aria-label="Image slider controls">
+        <button class="qcmc__arrow qcmc__arrow--prev" type="button" data-qcmc-prev aria-label="Previous image">‹</button>
+        <button class="qcmc__arrow qcmc__arrow--next" type="button" data-qcmc-next aria-label="Next image">›</button>
+      </div>
+      <script type="application/json" data-qcmc-images>
+        [
+          {%- for im in p.images limit: 8 -%}
+            {%- assign u = im | image_url: width: 900 -%}
+            "{{ u }}"{% unless forloop.last %},{% endunless %}
+          {%- endfor -%}
+        ]
+      </script>
+    {%- endif -%}
   </div>
 
   <div class="qcmc__body">
@@ -117,34 +201,47 @@
     {%- endif -%}
 
     <h3 class="qcmc__title">
-      <a href="{{ u }}" data-qcm-title>{{ p.title }}</a>
+      <a href="{{ card_link }}">{{ p.title }}</a>
     </h3>
 
     {%- if show_price -%}
-      <div class="qcmc__price" data-qcm-price>
-        {%- if on_sale -%}
-          <span class="qcmc__priceNow">{{ p.price | money }}</span>
-          <s class="qcmc__priceWas">{{ p.compare_at_price | money }}</s>
-        {%- else -%}
-          <span class="qcmc__priceNow">{{ p.price | money }}</span>
+      <div class="qcmc__price" aria-label="Price">
+        <span class="qcmc__priceNow">{{ money_price }}</span>
+        {%- if compare_exists -%}
+          <span class="qcmc__priceWas"><s>{{ money_compare }}</s></span>
         {%- endif -%}
       </div>
     {%- endif -%}
 
-    <div class="qcmc__actions">
-      {%- if can_quick_add -%}
-        <button class="qcmc__btn" type="button" data-qcm-quickadd>
-          {{ s.add_to_cart_label }}
-        </button>
-      {%- else -%}
-        <a class="qcmc__btn qcmc__btn--ghost" href="{{ u }}">
-          {%- if needs_options -%}
-            {{ s.choose_options_label }}
-          {%- else -%}
-            View product
-          {%- endif -%}
-        </a>
-      {%- endif -%}
-    </div>
+    {%- if show_rating and has_rating -%}
+      <div class="qcmc__rating" aria-label="Rating">
+        <span class="qcmc__stars" aria-hidden="true">
+          {%- for i in (1..5) -%}
+            {%- assign on = false -%}
+            {%- if i <= stars_full -%}{%- assign on = true -%}{%- endif -%}
+            <span class="qcmc__star{% if on %} is-on{% endif %}">★</span>
+          {%- endfor -%}
+        </span>
+        {%- if rating_count != blank -%}
+          <span class="qcmc__count">({{ rating_count }})</span>
+        {%- endif -%}
+      </div>
+    {%- endif -%}
+
+    {%- if show_action_row -%}
+      <div class="qcmc__actions">
+        {%- if quick_view_enabled -%}
+          <button class="qcmc__btn qcmc__btn--ghost" type="button" data-qcm-qv>
+            {{ qv_btn_label }}
+          </button>
+        {%- endif -%}
+
+        {%- if compare_enabled -%}
+          <button class="qcmc__btn qcmc__btn--ghost" type="button" data-qcm-compare-toggle>
+            {{ select_label }}
+          </button>
+        {%- endif -%}
+      </div>
+    {%- endif -%}
   </div>
-</div>
+</article>
