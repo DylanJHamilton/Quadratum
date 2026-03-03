@@ -6,26 +6,41 @@
   function init(root) {
     if (!root) return;
 
-    // Sort dropdown: option value is a URL, navigate to it
+    // Sort dropdown: option value is a URL
     const sortSelect = root.querySelector('[data-qcm-sort]');
-    if (sortSelect) {
+    if (sortSelect && !sortSelect.__qcmBound) {
+      sortSelect.__qcmBound = true;
       sortSelect.addEventListener('change', (e) => {
         const url = e.target.value;
         if (url) window.location.href = url;
       });
     }
 
-    // Drawer open hook (only if you built drawer JS elsewhere)
+    // Drawer open/close
     const openBtn = root.querySelector('[data-qcm-drawer-open]');
-    if (openBtn) {
+    const drawer = root.querySelector('[data-qcm-drawer]');
+    if (openBtn && drawer && !openBtn.__qcmBound) {
+      openBtn.__qcmBound = true;
       openBtn.addEventListener('click', () => {
-        const drawer = root.querySelector('[data-qcm-drawer]');
-        if (drawer) drawer.hidden = false;
+        drawer.hidden = false;
+        drawer.setAttribute('aria-hidden', 'false');
       });
     }
+
+    root.querySelectorAll('[data-qcm-drawer-close]').forEach((btn) => {
+      if (btn.__qcmBound) return;
+      btn.__qcmBound = true;
+      btn.addEventListener('click', () => {
+        const d = root.querySelector('[data-qcm-drawer]');
+        if (d) {
+          d.hidden = true;
+          d.setAttribute('aria-hidden', 'true');
+        }
+      });
+    });
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.q-collection-modern[data-section-id]').forEach(init);
+    document.querySelectorAll('.q-collection-simple[data-section-id]').forEach(init);
   });
 })();
