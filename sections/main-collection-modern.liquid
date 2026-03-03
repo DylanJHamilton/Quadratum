@@ -9,7 +9,7 @@
 
   Notes:
   - HTML-first (Liquid paginate works without JS)
-  - JS only enhances load_more / infinite_scroll / drawer / horizon rows (if enabled)
+  - JS only enhances load_more / infinite_scroll / drawer
   - Supports collection template and can be reused on search template later
 {%- endcomment -%}
 
@@ -76,8 +76,8 @@
 
   assign layout = s.layout_preset | default: 'modern_grid'
   assign filter_mode = s.filter_presentation | default: 'sidebar'
-  assign sort_style = s.sort_style | default: 'dropdown'
   assign pagination_style = s.pagination_style | default: 'numbered'
+  assign per_page = s.products_per_page | default: 24
 
   assign scope_id = section.id
   assign root_id = 'QtmCollectionModern-' | append: scope_id
@@ -86,11 +86,9 @@
   assign grid_cols_tablet  = s.columns_tablet  | default: 3
   assign grid_cols_mobile  = s.columns_mobile  | default: 2
 
-  assign per_page = s.products_per_page | default: 24
-
-  assign sticky_toolbar = false
-  if s.show_filters and filter_mode == 'bar' and s.sticky_filter_bar
-    assign sticky_toolbar = true
+  assign desc_truncate = false
+  if s.show_description and s.description_style == 'truncated'
+    assign desc_truncate = true
   endif
 
   assign has_filters = false
@@ -98,19 +96,14 @@
     assign has_filters = true
   endif
 
-  comment
-    IMPORTANT: Liquid cannot output boolean logic via {{ ... }}.
-    Convert to string flags for data attributes.
-  endcomment
+  assign sticky_toolbar = false
+  if s.show_filters and filter_mode == 'bar' and s.sticky_filter_bar
+    assign sticky_toolbar = true
+  endif
 
   assign enable_drawer = false
   if s.show_filters and filter_mode == 'drawer'
     assign enable_drawer = true
-  endif
-
-  assign enable_horizon = false
-  if layout == 'horizon_rows'
-    assign enable_horizon = true
   endif
 
   assign enable_drawer_str = 'false'
@@ -118,10 +111,12 @@
     assign enable_drawer_str = 'true'
   endif
 
-  assign enable_horizon_str = 'false'
-  if enable_horizon
-    assign enable_horizon_str = 'true'
+  assign effective_mode = filter_mode
+  if has_filters == false
+    assign effective_mode = 'none'
   endif
+
+  assign card_engine = s.card_engine | default: 'default_theme_card'
 -%}
 
 <section
@@ -132,7 +127,6 @@
   data-pagination-style="{{ pagination_style }}"
   data-filter-mode="{{ filter_mode }}"
   data-enable-drawer="{{ enable_drawer_str }}"
-  data-enable-horizon="{{ enable_horizon_str }}"
 >
   <style>
     #{{ root_id }}{
@@ -145,6 +139,27 @@
       --qcm-cols-m: {{ grid_cols_mobile }};
 
       --qcm-truncate-lines: {{ s.truncated_lines }};
+
+      /* Modern card typography + color controls */
+      --qcm-vendor-color: {{ s.vendor_color }};
+      --qcm-title-color: {{ s.title_color }};
+      --qcm-price-color: {{ s.price_color }};
+
+      --qcm-vendor-size-set: {{ s.vendor_font_size }}px;
+      --qcm-title-size-set: {{ s.title_font_size }}px;
+      --qcm-price-size-set: {{ s.price_font_size }}px;
+
+      /* Card styling controls */
+      --qcm-card-bg: {{ s.card_bg }};
+      --qcm-card-border: {{ s.card_border }};
+      --qcm-card-border-style: {{ s.card_border_style }};
+
+      /* Button styling controls */
+      --qcm-btn-bg: {{ s.button_bg }};
+      --qcm-btn-text: {{ s.button_text }};
+      --qcm-btn-bg-hover: {{ s.button_bg_hover }};
+      --qcm-btn-text-hover: {{ s.button_text_hover }};
+      --qcm-btn-border: {{ s.button_border }};
     }
   </style>
 
@@ -162,10 +177,11 @@
       sort_options: sort_options,
       sort_by: sort_by,
       default_sort_by: default_sort_by,
-      sticky_toolbar: sticky_toolbar
+      sticky_toolbar: sticky_toolbar,
+      filter_mode: filter_mode
     %}
 
-    <div class="qcm__body qcm__body--mode-{{ filter_mode }}">
+    <div class="qcm__body qcm__body--mode-{{ effective_mode }}">
       {%- if has_filters and filter_mode == 'sidebar' -%}
         <aside class="qcm__sidebar" aria-label="Filters">
           {% render 'collection-modern-facets',
@@ -185,20 +201,19 @@
 
       <div class="qcm__main">
         {%- if has_filters and filter_mode == 'drawer' -%}
-          <div class="qcm__drawer" data-qcm-drawer hidden>
-            {% render 'collection-modern-facets',
-              section: section,
-              s: s,
-              is_search_context: is_search_context,
-              results_url: results_url,
-              terms_q: terms_q,
-              filters: filters,
-              sort_options: sort_options,
-              sort_by: sort_by,
-              default_sort_by: default_sort_by,
-              placement: 'drawer'
-            %}
-          </div>
+          {%- comment -%} Drawer content is rendered here; JS toggles [data-qcm-drawer] inside snippet {%- endcomment -%}
+          {% render 'collection-modern-facets',
+            section: section,
+            s: s,
+            is_search_context: is_search_context,
+            results_url: results_url,
+            terms_q: terms_q,
+            filters: filters,
+            sort_options: sort_options,
+            sort_by: sort_by,
+            default_sort_by: default_sort_by,
+            placement: 'drawer'
+          %}
 
           <noscript>
             <details class="qcm__drawer-noscript">
@@ -213,7 +228,7 @@
                 sort_options: sort_options,
                 sort_by: sort_by,
                 default_sort_by: default_sort_by,
-                placement: 'drawer'
+                placement: 'drawer_noscript'
               %}
             </details>
           </noscript>
@@ -233,12 +248,14 @@
                 aria-live="{% if pagination_style == 'infinite_scroll' %}polite{% else %}off{% endif %}"
               >
                 {%- comment -%}
-                  FIX: Do NOT iterate paginate.items (not reliable).
-                  Iterate the paginated collection variable itself.
+                  IMPORTANT: Loop the paginated collection variable itself (products),
+                  NOT paginate.items (unreliable across contexts).
                 {%- endcomment -%}
+
                 {%- for item in products -%}
                   {%- liquid
                     assign p = item
+
                     if is_search_context
                       if item.object_type != 'product'
                         continue
@@ -248,7 +265,7 @@
                   -%}
 
                   <div class="qcm__item" data-qcm-item>
-                    {%- if s.card_engine == 'modern_card' -%}
+                    {%- if card_engine == 'modern_card' -%}
                       {% render 'collection-modern-product-card', product: p, s: s, section: section %}
                     {%- else -%}
                       {% render 'product-card', product: p %}
@@ -319,7 +336,6 @@
         { "value": "split_feature", "label": "Split feature" },
         { "value": "minimal_grid", "label": "Minimal grid" },
         { "value": "cardless_list", "label": "Cardless list" },
-        { "value": "horizon_rows", "label": "Horizon rows (horizontal scroll)" },
         { "value": "masonry_lite", "label": "Masonry lite (CSS columns)" }
       ]
     },
@@ -330,7 +346,7 @@
     {
       "type": "select",
       "id": "image_ratio",
-      "label": "Image ratio",
+      "label": "Image ratio (modern card)",
       "default": "adapt",
       "options": [
         { "value": "adapt", "label": "Adapt" },
@@ -426,13 +442,57 @@
     { "type": "checkbox", "id": "show_active_filters", "label": "Show active filters chips", "default": true },
     { "type": "checkbox", "id": "show_clear_all", "label": "Show clear all", "default": true },
 
-    { "type": "header", "content": "Product card toggles" },
-    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor (modern card)", "default": false },
-    { "type": "checkbox", "id": "show_price", "label": "Show price (modern card)", "default": true },
-    { "type": "checkbox", "id": "show_badges", "label": "Show badges (modern card)", "default": true },
-    { "type": "checkbox", "id": "show_rating", "label": "Show rating placeholder (modern card)", "default": false },
-    { "type": "checkbox", "id": "show_quick_add", "label": "Show quick add (modern card)", "default": false },
-    { "type": "checkbox", "id": "show_second_image", "label": "Second image on hover (modern card)", "default": true },
+    { "type": "header", "content": "Product card toggles (modern card)" },
+    { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": false },
+    { "type": "checkbox", "id": "show_price", "label": "Show price", "default": true },
+    { "type": "checkbox", "id": "show_badges", "label": "Show badges (sale/sold out)", "default": true },
+    { "type": "checkbox", "id": "show_rating", "label": "Show rating placeholder", "default": false },
+    { "type": "checkbox", "id": "show_quick_add", "label": "Show quick add", "default": false },
+    { "type": "checkbox", "id": "show_second_image", "label": "Second image on hover", "default": true },
+
+    { "type": "header", "content": "Modern card styles" },
+    { "type": "color", "id": "vendor_color", "label": "Vendor color", "default": "#000000" },
+    { "type": "color", "id": "title_color", "label": "Title color", "default": "#000000" },
+    { "type": "color", "id": "price_color", "label": "Price color", "default": "#000000" },
+    { "type": "range", "id": "vendor_font_size", "label": "Vendor font size (px)", "min": 10, "max": 18, "step": 1, "default": 12 },
+    { "type": "range", "id": "title_font_size", "label": "Title font size (px)", "min": 12, "max": 26, "step": 1, "default": 16 },
+    { "type": "range", "id": "price_font_size", "label": "Price font size (px)", "min": 12, "max": 24, "step": 1, "default": 16 },
+
+    { "type": "color", "id": "card_bg", "label": "Card background", "default": "#FFFFFF" },
+    { "type": "color", "id": "card_border", "label": "Card border color", "default": "#00000026" },
+    {
+      "type": "select",
+      "id": "card_border_style",
+      "label": "Card border style",
+      "default": "solid",
+      "options": [
+        { "value": "solid", "label": "Solid" },
+        { "value": "dashed", "label": "Dashed" },
+        { "value": "dotted", "label": "Dotted" }
+      ]
+    },
+
+    { "type": "color", "id": "button_bg", "label": "Button background", "default": "#10B981" },
+    { "type": "color", "id": "button_text", "label": "Button text", "default": "#FFFFFF" },
+    { "type": "color", "id": "button_bg_hover", "label": "Button background (hover)", "default": "#000000" },
+    { "type": "color", "id": "button_text_hover", "label": "Button text (hover)", "default": "#FFFFFF" },
+    { "type": "color", "id": "button_border", "label": "Button border", "default": "#00000026" },
+
+    {
+      "type": "select",
+      "id": "button_size",
+      "label": "Button size (modern card)",
+      "default": "md",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
+    { "type": "text", "id": "add_to_cart_label", "label": "Add to cart label", "default": "Add to cart" },
+    { "type": "text", "id": "choose_options_label", "label": "Choose options label", "default": "Choose options" },
+    { "type": "checkbox", "id": "show_buy_now", "label": "Show Buy now (single-variant only)", "default": false },
+    { "type": "text", "id": "buy_now_label", "label": "Buy now label", "default": "Buy now" },
 
     { "type": "header", "content": "Pagination" },
     { "type": "range", "id": "products_per_page", "label": "Products per page", "min": 8, "max": 48, "step": 1, "default": 24 },
