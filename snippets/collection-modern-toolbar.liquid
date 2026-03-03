@@ -1,0 +1,179 @@
+{%- comment -%}
+  Collection Modern — Toolbar
+  File: snippets/collection-modern-toolbar.liquid
+
+  Inputs:
+  - section, s
+  - is_search_context
+  - results_title, results_url, results_description, terms_q
+  - has_filters, filters
+  - sort_options, sort_by, default_sort_by
+  - sticky_toolbar
+
+  Behavior:
+  - Filter bar mode renders facets inline in toolbar (HTML-first)
+  - Drawer mode renders open button (JS enhances drawer)
+  - Sort dropdown posts query params (?sort_by=) via GET
+{%- endcomment -%}
+
+{%- liquid
+  assign show_title = s.show_title
+  assign show_desc = s.show_description
+  assign desc_truncate = false
+  if show_desc and s.description_style == 'truncated'
+    assign desc_truncate = true
+  endif
+
+  assign filter_mode = s.filter_presentation | default: 'sidebar'
+  assign show_sort = s.show_sort
+  assign sort_style = s.sort_style | default: 'dropdown'
+  assign show_count = s.show_result_count
+  assign show_active = s.show_active_filters
+  assign show_clear = s.show_clear_all
+
+  assign active_filters_count = 0
+  if filters != blank
+    for f in filters
+      if f.type == 'price_range'
+        if f.min_value.value != blank or f.max_value.value != blank
+          assign active_filters_count = active_filters_count | plus: 1
+        endif
+      else
+        if f.active_values != blank and f.active_values.size > 0
+          assign active_filters_count = active_filters_count | plus: f.active_values.size
+        endif
+      endif
+    endfor
+  endif
+-%}
+
+<div class="qcm__toolbar {% if sticky_toolbar %}qcm__toolbar--sticky{% endif %}">
+  <div class="qcm__titleRow">
+    <div class="qcm__titleBlock">
+      {%- if show_title -%}
+        <h1 class="qcm__title">
+          {%- if is_search_context -%}
+            Search: {{ terms_q | escape }}
+          {%- else -%}
+            {{ results_title }}
+          {%- endif -%}
+        </h1>
+      {%- endif -%}
+
+      {%- if show_desc and results_description != blank and is_search_context == false -%}
+        <p class="qcm__desc {% if desc_truncate %}qcm__desc--truncated{% endif %}">
+          {{ results_description | strip_html }}
+        </p>
+      {%- endif -%}
+    </div>
+
+    {%- if show_count -%}
+      <div class="qcm__count" aria-label="Result count">
+        {%- if is_search_context -%}
+          {{ search.results_count }} results
+        {%- else -%}
+          {{ collection.products_count }} products
+        {%- endif -%}
+      </div>
+    {%- endif -%}
+  </div>
+
+  <div class="qcm__controlsRow">
+    <div class="qcm__controlsLeft">
+      {%- if s.show_filters and filter_mode == 'drawer' -%}
+        <button type="button" class="qcm__btn" data-qcm-open-drawer aria-label="Open filters">
+          Filters
+        </button>
+      {%- endif -%}
+
+      {%- if show_active and active_filters_count > 0 -%}
+        <div class="qcm__activeChips" aria-label="Active filters">
+          {%- for f in filters -%}
+            {%- if f.type == 'price_range' -%}
+              {%- if f.min_value.value != blank or f.max_value.value != blank -%}
+                <span class="qcm__chip">
+                  <span>{{ f.label }}</span>
+                  <a href="{{ f.url_to_remove }}" class="qcm__chipBtn" aria-label="Remove {{ f.label }}">×</a>
+                </span>
+              {%- endif -%}
+            {%- else -%}
+              {%- if f.active_values != blank -%}
+                {%- for av in f.active_values -%}
+                  <span class="qcm__chip">
+                    <span>{{ av.label }}</span>
+                    <a href="{{ av.url_to_remove }}" class="qcm__chipBtn" aria-label="Remove {{ av.label }}">×</a>
+                  </span>
+                {%- endfor -%}
+              {%- endif -%}
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+      {%- endif -%}
+
+      {%- if show_clear and active_filters_count > 0 -%}
+        <a class="qcm__btn qcm__btn--link" href="{{ results_url }}">
+          Clear all
+        </a>
+      {%- endif -%}
+    </div>
+
+    <div class="qcm__controlsRight">
+      {%- if s.show_filters and filter_mode == 'bar' and has_filters -%}
+        <div class="qcm__barFacets" aria-label="Filters">
+          {% render 'collection-modern-facets',
+            section: section,
+            s: s,
+            is_search_context: is_search_context,
+            results_url: results_url,
+            terms_q: terms_q,
+            filters: filters,
+            sort_options: sort_options,
+            sort_by: sort_by,
+            default_sort_by: default_sort_by,
+            placement: 'bar'
+          %}
+        </div>
+      {%- endif -%}
+
+      {%- if show_sort and sort_options != blank and sort_options.size > 0 -%}
+        {%- if sort_style == 'dropdown' -%}
+          <form method="get" action="{{ results_url }}" class="qcm__sortForm" aria-label="Sort">
+            {%- if is_search_context and terms_q != blank -%}
+              <input type="hidden" name="q" value="{{ terms_q | escape }}">
+              <input type="hidden" name="options[prefix]" value="last">
+              <input type="hidden" name="type" value="product">
+            {%- endif -%}
+            <label class="visually-hidden" for="qcmSort-{{ section.id }}">Sort by</label>
+            <select
+              id="qcmSort-{{ section.id }}"
+              name="sort_by"
+              class="qcm__sortSelect"
+              onchange="this.form.submit()"
+            >
+              {%- assign current = sort_by | default: default_sort_by -%}
+              {%- for opt in sort_options -%}
+                <option value="{{ opt.value }}" {% if opt.value == current %}selected{% endif %}>
+                  {{ opt.name }}
+                </option>
+              {%- endfor -%}
+            </select>
+          </form>
+        {%- else -%}
+          <nav class="qcm__sortPills" aria-label="Sort options">
+            {%- assign current = sort_by | default: default_sort_by -%}
+            {%- for opt in sort_options -%}
+              {%- if is_search_context -%}
+                {%- assign pill_url = results_url | append: '?q=' | append: terms_q | append: '&options[prefix]=last&type=product&sort_by=' | append: opt.value -%}
+              {%- else -%}
+                {%- assign pill_url = results_url | append: '?sort_by=' | append: opt.value -%}
+              {%- endif -%}
+              <a class="qcm__pill" href="{{ pill_url }}" {% if opt.value == current %}aria-current="true"{% endif %}>
+                {{ opt.name }}
+              </a>
+            {%- endfor -%}
+          </nav>
+        {%- endif -%}
+      {%- endif -%}
+    </div>
+  </div>
+</div>
