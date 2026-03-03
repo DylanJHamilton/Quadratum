@@ -1,83 +1,73 @@
+{%- comment -%}
+  Minimal facets renderer for Collection Modern Simple
+  File: snippets/collection-modern-simple-facets.liquid
+
+  Uses Shopify collection.filters.
+  HTML-first, GET form, works without JS.
+{%- endcomment -%}
+
 {%- liquid
-  assign s = s
-  assign placement = placement | default: 'sidebar'
-  assign autosubmit = 'true'
-  if s.enable_ajax == false
-    assign autosubmit = 'false'
+  assign c = target_collection
+  if c == blank
+    assign c = collection
   endif
 -%}
 
-{%- if placement == 'drawer' -%}
-  <div class="qcmDrawer" data-qcm-drawer hidden aria-hidden="true">
-    <div class="qcmDrawer__overlay" data-qcm-drawer-close></div>
-    <div class="qcmDrawer__panel" data-qcm-drawer-panel tabindex="-1">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-        <strong>Filters</strong>
-        <button type="button" class="qcm__btn" data-qcm-drawer-close aria-label="Close filters">Close</button>
-      </div>
-      <div style="margin-top:14px;">
-        {% render 'collection-modern-facets',
-          section: section,
-          s: s,
-          is_search: is_search,
-          results_url: results_url,
-          terms_q: terms_q,
-          filters: filters,
-          placement: 'sidebar'
-        %}
-      </div>
-    </div>
-  </div>
-{%- endif -%}
+<form method="get" action="{{ c.url }}" class="qcmFacets">
+  {%- for qp in request.query_params -%}
+    {%- assign k = qp[0] -%}
+    {%- assign v = qp[1] -%}
+    {%- unless k == 'page' -%}
+      {%- if v != blank -%}
+        <input type="hidden" name="{{ k | escape }}" value="{{ v | escape }}">
+      {%- endif -%}
+    {%- endunless -%}
+  {%- endfor -%}
 
-<div class="qcmFacet">
-  <form
-    method="get"
-    action="{{ results_url }}"
-    data-qcm-facets-form
-    data-qcm-autosubmit="{{ autosubmit }}"
-  >
-    {%- if is_search and terms_q != blank -%}
-      <input type="hidden" name="q" value="{{ terms_q | escape }}">
-    {%- endif -%}
+  {%- for filter in c.filters -%}
+    <details class="qcmFacet" {% if filter.active_values.size > 0 %}open{% endif %}>
+      <summary class="qcmFacet__summary">
+        <span>{{ filter.label }}</span>
+        {%- if filter.active_values.size > 0 -%}
+          <span class="qcmFacet__count">{{ filter.active_values.size }}</span>
+        {%- endif -%}
+      </summary>
 
-    {%- for f in filters -%}
-      <details {% if f.active_values.size > 0 %}open{% endif %}>
-        <summary>{{ f.label }}</summary>
-
-        {%- if f.type == 'price_range' -%}
-          <div class="qcmFacet__price">
-            <input name="{{ f.min_value.param_name }}" type="number" inputmode="numeric" placeholder="Min" value="{{ f.min_value.value }}">
-            <input name="{{ f.max_value.param_name }}" type="number" inputmode="numeric" placeholder="Max" value="{{ f.max_value.value }}">
-            <button type="submit" class="qcm__btn">Apply</button>
-          </div>
-          {%- if f.min_value.value != blank or f.max_value.value != blank -%}
-            <div style="margin-top:10px;">
-              <a class="qcm__btn qcm__btn--link" href="{{ f.url_to_remove }}" data-qcm-ajax-link>Clear</a>
-            </div>
-          {%- endif -%}
-        {%- else -%}
-          <div class="qcmFacet__list">
-            {%- for v in f.values -%}
-              <label class="qcmFacet__row">
-                <input
-                  type="checkbox"
-                  name="{{ v.param_name }}"
-                  value="{{ v.value }}"
-                  {% if v.active %}checked{% endif %}
-                  {% if v.count == 0 and v.active == false %}disabled{% endif %}
-                >
-                <span>{{ v.label }}</span>
-                <span style="opacity:.65;">({{ v.count }})</span>
-              </label>
+      <div class="qcmFacet__body">
+        {%- if filter.type == 'list' -%}
+          <ul class="qcmFacet__list" role="list">
+            {%- for v in filter.values -%}
+              <li class="qcmFacet__item">
+                <label class="qcmCheck">
+                  <input type="checkbox"
+                    name="{{ v.param_name }}"
+                    value="{{ v.value }}"
+                    {% if v.active %}checked{% endif %}
+                    {% if v.count == 0 and v.active == false %}disabled{% endif %}>
+                  <span>{{ v.label }}</span>
+                  <small class="qcmMuted">{{ v.count }}</small>
+                </label>
+              </li>
             {%- endfor -%}
+          </ul>
+        {%- elsif filter.type == 'price_range' -%}
+          <div class="qcmPriceRange">
+            <label class="qcmField">
+              <span class="qcmMuted">Min</span>
+              <input type="number" name="{{ filter.min_value.param_name }}" value="{{ filter.min_value.value }}" inputmode="numeric">
+            </label>
+            <label class="qcmField">
+              <span class="qcmMuted">Max</span>
+              <input type="number" name="{{ filter.max_value.param_name }}" value="{{ filter.max_value.value }}" inputmode="numeric">
+            </label>
           </div>
         {%- endif -%}
-      </details>
-    {%- endfor -%}
+      </div>
+    </details>
+  {%- endfor -%}
 
-    <noscript>
-      <button type="submit" class="qcm__btn" style="margin-top:12px;">Apply filters</button>
-    </noscript>
-  </form>
-</div>
+  <div class="qcmFacet__actions">
+    <button type="submit" class="qcmBtn">Apply</button>
+    <a class="qcmBtn qcmBtn--ghost" href="{{ c.url }}">Reset</a>
+  </div>
+</form>
