@@ -1,35 +1,26 @@
-{%- comment -%}
-  Collection Modern — Facets (minimal, local)
-  File: snippets/collection-modern-facets.liquid
-
-  Inputs:
-  - section, s
-  - is_search_context
-  - results_url, terms_q
-  - filters
-  - placement: 'sidebar' | 'drawer' | 'bar'
-
-  Notes:
-  - HTML-first GET form
-  - Relies on Shopify filter URLs (url_to_add/remove) where possible
-  - For v1: basic list + price range
-{%- endcomment -%}
-
 {%- liquid
+  assign s = s
   assign placement = placement | default: 'sidebar'
-  assign show_clear = s.show_clear_all
+  assign has_filters = false
+  if filters != blank and filters.size > 0
+    assign has_filters = true
+  endif
 -%}
 
+{%- if has_filters == false -%}
+  {%- break -%}
+{%- endif -%}
+
 {%- if placement == 'drawer' -%}
-  <div class="qcmDrawer" role="dialog" aria-modal="true" aria-label="Filters">
+  <div class="qcmDrawer" data-qcm-drawer hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="Filters">
     <div class="qcmDrawer__overlay" data-qcm-drawer-overlay></div>
     <div class="qcmDrawer__panel">
-      <div class="qcmDrawer__header">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;">
         <strong>Filters</strong>
-        <button type="button" class="qcm__btn" data-qcm-close-drawer aria-label="Close filters">Close</button>
+        <button class="qcm__btn" type="button" data-qcm-close-drawer aria-label="Close filters">Close</button>
       </div>
 
-      <div class="qcmDrawer__body">
+      <div class="qcmFacet">
         {% render 'collection-modern-facets',
           section: section,
           s: s,
@@ -46,121 +37,81 @@
     </div>
   </div>
 
-  <style>
-    .q-collection-modern .qcmDrawer{ position:fixed; inset:0; z-index:9999; display:block; }
-    .q-collection-modern .qcmDrawer[hidden]{ display:none; }
-    .q-collection-modern .qcmDrawer__overlay{
-      position:absolute; inset:0;
-      background: rgba(0,0,0,.35);
-    }
-    .q-collection-modern .qcmDrawer__panel{
-      position:absolute; right:0; top:0; height:100%;
-      width: min(420px, 92vw);
-      background: var(--qcm-bg);
-      border-left: 1px solid var(--qcm-border);
-      padding: 14px;
-      display:grid;
-      grid-template-rows: auto 1fr;
-      gap: 12px;
-    }
-    .q-collection-modern .qcmDrawer__header{
-      display:flex; align-items:center; justify-content:space-between; gap:12px;
-    }
-  </style>
+{%- elsif placement == 'drawer_noscript' -%}
+  <div class="qcmFacet">
+    {% render 'collection-modern-facets',
+      section: section,
+      s: s,
+      is_search_context: is_search_context,
+      results_url: results_url,
+      terms_q: terms_q,
+      filters: filters,
+      sort_options: sort_options,
+      sort_by: sort_by,
+      default_sort_by: default_sort_by,
+      placement: 'sidebar'
+    %}
+  </div>
 
 {%- else -%}
-
-  <form method="get" action="{{ results_url }}" class="qcmFacets qcmFacets--{{ placement }}">
-    {%- if is_search_context and terms_q != blank -%}
+  <form class="qcmFacet" method="get" action="{% if is_search_context %}{{ routes.search_url }}{% else %}{{ results_url }}{% endif %}">
+    {%- if is_search_context -%}
       <input type="hidden" name="q" value="{{ terms_q | escape }}">
-      <input type="hidden" name="options[prefix]" value="last">
-      <input type="hidden" name="type" value="product">
     {%- endif -%}
 
-    <div class="qcmFacets__groups">
-      {%- for filter in filters -%}
-        <fieldset class="qcmFacet" data-qcm-facet>
-          <legend class="qcmFacet__legend">{{ filter.label }}</legend>
+    {%- if sort_by != blank -%}
+      <input type="hidden" name="sort_by" value="{{ sort_by | escape }}">
+    {%- endif -%}
 
-          {%- case filter.type -%}
-            {%- when 'price_range' -%}
-              <div class="qcmFacet__price">
-                <label>
-                  <span class="visually-hidden">Min</span>
-                  <input name="{{ filter.min_value.param_name }}" type="number" inputmode="numeric" placeholder="Min" value="{{ filter.min_value.value }}">
-                </label>
-                <label>
-                  <span class="visually-hidden">Max</span>
-                  <input name="{{ filter.max_value.param_name }}" type="number" inputmode="numeric" placeholder="Max" value="{{ filter.max_value.value }}">
-                </label>
-                <button type="submit" class="qcm__btn" aria-label="Apply price filter">Apply</button>
-              </div>
+    {%- for filter in filters -%}
+      <details open>
+        <summary>{{ filter.label }}</summary>
 
-            {%- else -%}
-              <div class="qcmFacet__list">
-                {%- for value in filter.values -%}
-                  <label class="qcmFacet__option">
-                    <input
-                      type="checkbox"
-                      name="{{ value.param_name }}"
-                      value="{{ value.value }}"
-                      {% if value.active %}checked{% endif %}
-                      {% if value.count == 0 and value.active == false %}disabled{% endif %}
-                      onchange="this.form.submit()"
-                    >
-                    <span>{{ value.label }}</span>
-                    <span class="qcmFacet__count">{{ value.count }}</span>
-                  </label>
-                {%- endfor -%}
-              </div>
-          {%- endcase -%}
-        </fieldset>
-      {%- endfor -%}
+        {%- if filter.type == 'list' or filter.type == 'boolean' -%}
+          <div class="qcmFacet__list">
+            {%- for value in filter.values -%}
+              <label class="qcmFacet__row">
+                <input
+                  type="checkbox"
+                  name="{{ value.param_name }}"
+                  value="{{ value.value }}"
+                  {% if value.active %}checked{% endif %}
+                >
+                <span>{{ value.label }}</span>
+              </label>
+            {%- endfor -%}
+          </div>
+
+        {%- elsif filter.type == 'price_range' -%}
+          <div class="qcmFacet__price">
+            <input
+              type="number"
+              inputmode="numeric"
+              name="{{ filter.min_value.param_name }}"
+              value="{% if filter.min_value.value != blank %}{{ filter.min_value.value }}{% endif %}"
+              placeholder="Min"
+            >
+            <input
+              type="number"
+              inputmode="numeric"
+              name="{{ filter.max_value.param_name }}"
+              value="{% if filter.max_value.value != blank %}{{ filter.max_value.value }}{% endif %}"
+              placeholder="Max"
+            >
+            <button class="qcm__btn" type="submit">Apply</button>
+          </div>
+        {%- endif -%}
+      </details>
+    {%- endfor -%}
+
+    <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
+      <button class="qcm__btn" type="submit">Apply filters</button>
+
+      {%- if s.show_clear_all -%}
+        <a class="qcm__btn qcm__btn--link" href="{% if is_search_context %}{{ routes.search_url }}?q={{ terms_q | url_encode }}{% else %}{{ results_url }}{% endif %}">
+          Clear all
+        </a>
+      {%- endif -%}
     </div>
-
-    {%- if show_clear -%}
-      <div class="qcmFacets__footer">
-        <a class="qcm__btn qcm__btn--link" href="{{ results_url }}">Clear all</a>
-      </div>
-    {%- endif -%}
   </form>
-
-  <style>
-    .q-collection-modern .qcmFacets{ display:block; }
-    .q-collection-modern .qcmFacets--bar .qcmFacets__groups{
-      display:flex; gap: var(--qcm-gap); flex-wrap:wrap; align-items:flex-end;
-    }
-    .q-collection-modern .qcmFacet{
-      border: 1px solid var(--qcm-border);
-      border-radius: calc(var(--qcm-radius) * 0.75);
-      padding: 10px;
-      min-width: 180px;
-      background: color-mix(in srgb, var(--qcm-bg) 80%, transparent);
-    }
-    .q-collection-modern .qcmFacet__legend{ font-weight: 600; margin-bottom: 8px; }
-    .q-collection-modern .qcmFacet__list{ display:grid; gap: 8px; }
-    .q-collection-modern .qcmFacet__option{
-      display:grid;
-      grid-template-columns: auto 1fr auto;
-      gap: 8px;
-      align-items:center;
-    }
-    .q-collection-modern .qcmFacet__count{ opacity:.7; font-size:.9em; }
-    .q-collection-modern .qcmFacet__price{
-      display:grid;
-      grid-template-columns: 1fr 1fr auto;
-      gap: 8px;
-      align-items:center;
-    }
-    .q-collection-modern .qcmFacet__price input{
-      width:100%;
-      border: 1px solid var(--qcm-border);
-      border-radius: calc(var(--qcm-radius) * 0.75);
-      padding: 10px 12px;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-    }
-  </style>
-
 {%- endif -%}
