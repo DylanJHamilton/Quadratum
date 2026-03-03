@@ -1,180 +1,137 @@
-/* Quadratum — Collection Modern JS (scoped)
+/* Quadratum — Collection Modern (Max Capability)
    File: assets/section-collection-modern.js
-   Progressive enhancement only. No global side effects.
+   HARD RULE: never attach globally; only inside #QtmCollectionModern-* roots.
 */
 
-(function () {
-  function qs(root, sel) { return root ? root.querySelector(sel) : null; }
-  function qsa(root, sel) { return root ? Array.prototype.slice.call(root.querySelectorAll(sel)) : []; }
+(function(){
+  const roots = document.querySelectorAll('[id^="QtmCollectionModern-"]');
+  if (!roots || !roots.length) return;
 
-  async function fetchDoc(url) {
-    const res = await fetch(url, { credentials: 'same-origin' });
-    if (!res.ok) throw new Error('Bad response: ' + res.status);
-    const html = await res.text();
-    return new DOMParser().parseFromString(html, 'text/html');
-  }
+  roots.forEach((root) => {
+    try { initModernCollection(root); } catch(e) { /* no-op */ }
+  });
 
-  function getNextUrlFromDoc(doc, rootId) {
-    const nextRoot = doc.getElementById(rootId);
-    if (!nextRoot) return null;
-    const next = qs(nextRoot, '[data-qcm-next-url]');
-    return next ? next.getAttribute('data-qcm-next-url') : null;
-  }
+  function initModernCollection(root){
+    const paginationStyle = root.getAttribute('data-pagination-style') || 'numbered';
 
-  function appendGridFromDoc(doc, rootId, liveRoot) {
-    const nextRoot = doc.getElementById(rootId);
-    if (!nextRoot) return { appended: 0 };
+    // Sticky toolbar class toggle (CSS handles sticky; class just enables styling if needed)
+    const stickyEnabled = String(root.getAttribute('data-sticky-toolbar')) === 'true';
+    const toolbar = root.querySelector('.qcm__toolbar');
+    if (stickyEnabled && toolbar) toolbar.classList.add('is-sticky');
 
-    const nextGrid = qs(nextRoot, '[data-qcm-grid]');
-    const curGrid = qs(liveRoot, '[data-qcm-grid]');
-    if (!nextGrid || !curGrid) return { appended: 0 };
+    // Drawer support (optional; details fallback exists)
+    // If your facets snippet uses a <dialog> or a drawer wrapper, this remains safe/no-op.
+    const drawer = root.querySelector('[data-qcm-drawer]');
+    const openBtn = root.querySelector('[data-qcm-open-filters]');
+    const closeBtn = root.querySelector('[data-qcm-close-filters]');
 
-    const nextItems = qsa(nextGrid, '[data-qcm-item]');
-    const curHandles = new Set(
-      qsa(curGrid, '[data-qcm-item] [data-qcm-handle]').map(n => n.getAttribute('data-qcm-handle'))
-    );
-
-    let appended = 0;
-    nextItems.forEach((item) => {
-      // If card provides a handle marker, avoid duplicates.
-      const handleNode = qs(item, '[data-qcm-handle]');
-      const handle = handleNode ? handleNode.getAttribute('data-qcm-handle') : null;
-
-      if (handle && curHandles.has(handle)) return;
-
-      curGrid.appendChild(item);
-      if (handle) curHandles.add(handle);
-      appended += 1;
-    });
-
-    return { appended };
-  }
-
-  function initDrawer(root) {
-    const btn = qs(root, '[data-qcm-open-drawer]');
-    const drawer = qs(root, '[data-qcm-drawer]');
-    if (!btn || !drawer) return;
-
-    const closeBtn = qs(drawer, '[data-qcm-close-drawer]');
-    const backdrop = qs(drawer, '[data-qcm-drawer-backdrop]');
-
-    function open() {
-      drawer.setAttribute('aria-hidden', 'false');
-      drawer.dataset.open = 'true';
-      // basic focus
-      const focusTarget = closeBtn || qs(drawer, 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-      if (focusTarget) focusTarget.focus();
-    }
-    function close() {
-      drawer.setAttribute('aria-hidden', 'true');
-      drawer.dataset.open = 'false';
-      btn.focus();
-    }
-
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      open();
-    });
-
-    if (closeBtn) closeBtn.addEventListener('click', (e) => { e.preventDefault(); close(); });
-    if (backdrop) backdrop.addEventListener('click', close);
-
-    document.addEventListener('keydown', (e) => {
-      if (drawer.getAttribute('aria-hidden') === 'false' && e.key === 'Escape') close();
-    });
-  }
-
-  function initLoadMoreOrInfinite(root) {
-    const style = root.getAttribute('data-pagination-style');
-    if (style !== 'load_more' && style !== 'infinite_scroll') return;
-
-    const pager = qs(root, '[data-qcm-pagination]');
-    if (!pager) return;
-
-    const grid = qs(root, '[data-qcm-grid]');
-    if (!grid) return;
-
-    let isLoading = false;
-    let nextUrl = (qs(root, '[data-qcm-next-url]') || {}).getAttribute?.('data-qcm-next-url') || null;
-
-    const btn = qs(root, '[data-qcm-load-more]');
-    const sentinel = qs(root, '[data-qcm-sentinel]');
-
-    async function loadNext() {
-      if (!nextUrl || isLoading) return;
-      isLoading = true;
-
-      if (btn) {
-        btn.setAttribute('aria-busy', 'true');
-        btn.disabled = true;
-      }
-
-      try {
-        const doc = await fetchDoc(nextUrl);
-        appendGridFromDoc(doc, root.id, root);
-
-        nextUrl = getNextUrlFromDoc(doc, root.id);
-
-        // update data attribute so future loads are correct
-        const nextHolder = qs(root, '[data-qcm-next-url]');
-        if (nextHolder) {
-          if (nextUrl) nextHolder.setAttribute('data-qcm-next-url', nextUrl);
-          else nextHolder.removeAttribute('data-qcm-next-url');
-        }
-
-        // hide controls if done
-        if (!nextUrl) {
-          if (btn) btn.style.display = 'none';
-          if (sentinel) sentinel.style.display = 'none';
-        }
-      } catch (err) {
-        // Fail soft: re-enable button
-        console.error('[QCM] pagination fetch error', err);
-      } finally {
-        isLoading = false;
-        if (btn) {
-          btn.setAttribute('aria-busy', 'false');
-          btn.disabled = false;
-        }
-      }
-    }
-
-    if (style === 'load_more' && btn) {
-      btn.addEventListener('click', (e) => {
+    if (drawer && openBtn){
+      openBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        loadNext();
+        if (typeof drawer.showModal === 'function') drawer.showModal();
+        drawer.classList.add('is-open');
+      });
+    }
+    if (drawer && closeBtn){
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (typeof drawer.close === 'function') drawer.close();
+        drawer.classList.remove('is-open');
       });
     }
 
-    if (style === 'infinite_scroll' && sentinel) {
-      const io = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) loadNext();
-        });
-      }, { rootMargin: '400px 0px' });
-
-      io.observe(sentinel);
+    // Progressive pagination enhancements
+    if (paginationStyle === 'load_more') {
+      wireLoadMore(root);
+    } else if (paginationStyle === 'infinite_scroll') {
+      wireInfinite(root);
     }
   }
 
-  function initDescriptionToggle(root) {
-    const btn = qs(root, '[data-qcm-desc-toggle]');
-    const desc = qs(root, '[data-qcm-desc]');
-    if (!btn || !desc) return;
+  function wireLoadMore(root){
+    const btn = root.querySelector('[data-qcm-load-more]');
+    if (!btn) return;
 
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', async (e) => {
       e.preventDefault();
-      const isFull = desc.classList.toggle('is-full');
-      btn.setAttribute('aria-expanded', isFull ? 'true' : 'false');
+      if (btn.disabled) return;
+
+      const nextUrl = btn.getAttribute('href') || btn.dataset.nextUrl;
+      if (!nextUrl) return;
+
+      btn.disabled = true;
+      btn.setAttribute('aria-busy', 'true');
+
+      try {
+        await fetchAndAppend(root, nextUrl);
+      } finally {
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+      }
     });
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    const roots = document.querySelectorAll('section.qcm[id^="QtmCollectionModern-"]');
-    roots.forEach((root) => {
-      initDrawer(root);
-      initLoadMoreOrInfinite(root);
-      initDescriptionToggle(root);
-    });
-  });
+  function wireInfinite(root){
+    const sentinel = root.querySelector('[data-qcm-sentinel]');
+    if (!sentinel) return;
+
+    let busy = false;
+    const io = new IntersectionObserver(async (entries) => {
+      const entry = entries[0];
+      if (!entry || !entry.isIntersecting) return;
+      if (busy) return;
+
+      const nextLink = root.querySelector('[data-qcm-next-page]');
+      const nextUrl = nextLink ? (nextLink.getAttribute('href') || nextLink.dataset.nextUrl) : null;
+      if (!nextUrl) {
+        io.disconnect();
+        return;
+      }
+
+      busy = true;
+      try {
+        await fetchAndAppend(root, nextUrl);
+      } finally {
+        busy = false;
+      }
+    }, { rootMargin: '800px 0px' });
+
+    io.observe(sentinel);
+  }
+
+  async function fetchAndAppend(root, url){
+    const res = await fetch(url, { credentials: 'same-origin' });
+    if (!res.ok) return;
+
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    // Find the matching section by ID in the response
+    const incomingRoot = doc.getElementById(root.id);
+    if (!incomingRoot) return;
+
+    const currentGrid = root.querySelector('[data-qcm-grid]');
+    const incomingGrid = incomingRoot.querySelector('[data-qcm-grid]');
+    if (!currentGrid || !incomingGrid) return;
+
+    const incomingItems = Array.from(incomingGrid.querySelectorAll('[data-qcm-item]'));
+    if (!incomingItems.length) return;
+
+    // Append new items
+    incomingItems.forEach((it) => currentGrid.appendChild(it));
+
+    // Replace pagination block (keeps next URL, numbered links, etc.)
+    const currentPagination = root.querySelector('[data-qcm-pagination]');
+    const incomingPagination = incomingRoot.querySelector('[data-qcm-pagination]');
+    if (currentPagination && incomingPagination) {
+      currentPagination.innerHTML = incomingPagination.innerHTML;
+    }
+
+    // If no next page exists, hide load more (if present) and stop infinite sentinel logic naturally
+    const next = root.querySelector('[data-qcm-next-page]');
+    const loadMoreBtn = root.querySelector('[data-qcm-load-more]');
+    if (!next && loadMoreBtn) {
+      loadMoreBtn.style.display = 'none';
+    }
+  }
 })();
