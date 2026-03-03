@@ -1,52 +1,87 @@
-{%- comment -%}
-  Quick filter chips: uses blocks (filter_label + value_label)
-  Finds matching Shopify filter + value, then uses value.url_to_add / url_to_remove
-{%- endcomment -%}
+{% comment %}
+  Quadratum — Collection Modern Quick Filters
+  File: snippets/collection-modern-quick-filters.liquid
 
-{%- if section.blocks.size == 0 -%}{% break %}{%- endif -%}
+  Expects:
+  - sort_options, sort_by, default_sort_by
+  - results_url, is_search_context, terms_q
+  - section settings: quick_filters_enable, quick_filters_labels (newline list)
+{% endcomment %}
+
+{%- liquid
+  assign enabled = s.quick_filters_enable
+  if enabled != true
+    break
+  endif
+
+  assign labels_raw = s.quick_filters_labels | default: ''
+  assign labels_lines = labels_raw | newline_to_br | split: '<br />'
+  assign labels = '' | split: '||'
+  for ln in labels_lines
+    assign cleaned = ln | strip
+    if cleaned != blank
+      assign labels = labels | push: cleaned
+    endif
+  endfor
+
+  if labels.size == 0
+    break
+  endif
+
+  assign current = sort_by | default: default_sort_by | default: ''
+-%}
 
 <div class="qcm__quickFilters" data-qcm-quick-filters>
-  {%- for block in section.blocks -%}
-    {%- if block.type != 'quick_filter' -%}{% continue %}{%- endif -%}
+  {%- for opt in sort_options -%}
     {%- liquid
-      assign want_f = block.settings.filter_label | default: '' | downcase | strip
-      assign want_v = block.settings.value_label  | default: '' | downcase | strip
-      assign chip_url = blank
-      assign chip_active = false
+      assign opt_label = opt.name | default: opt.value
+      assign opt_label_norm = opt_label | downcase | strip
 
-      if want_f != blank and want_v != blank
-        for f in filters
-          assign f_label_norm = f.label | default: '' | downcase | strip
-          if f_label_norm == want_f
-            for v in f.values
-              assign v_label_norm = v.label | default: '' | downcase | strip
-              if v_label_norm == want_v
-                if v.active
-                  assign chip_active = true
-                  assign chip_url = v.url_to_remove
-                else
-                  assign chip_url = v.url_to_add
-                endif
-                break
-              endif
-            endfor
-          endif
-          if chip_url != blank
-            break
-          endif
-        endfor
+      assign want = false
+      for w in labels
+        assign w_norm = w | downcase | strip
+        if opt_label_norm == w_norm
+          assign want = true
+          break
+        endif
+      endfor
+
+      if want == false
+        continue
       endif
+
+      assign is_active = false
+      if current == opt.value
+        assign is_active = true
+      endif
+
+      capture href
+        if is_search_context
+          if terms_q != blank
+            echo routes.search_url
+            echo '?q='
+            echo terms_q | url_encode
+            echo '&type=product&options[prefix]=last&sort_by='
+            echo opt.value | url_encode
+          else
+            echo routes.search_url
+            echo '?type=product&options[prefix]=last&sort_by='
+            echo opt.value | url_encode
+          endif
+        else
+          echo results_url
+          echo '?sort_by='
+          echo opt.value | url_encode
+        endif
+      endcapture
     -%}
 
-    {%- if chip_url != blank -%}
-      <a
-        class="qcm__pill {% if chip_active %}is-active{% endif %}"
-        href="{{ chip_url }}"
-        aria-current="{% if chip_active %}true{% else %}false{% endif %}"
-        {{ block.shopify_attributes }}
-      >
-        {{ block.settings.value_label | default: block.settings.filter_label }}
-      </a>
-    {%- endif -%}
+    <a
+      class="qcm__pill{% if is_active %} is-active{% endif %}"
+      href="{{ href | strip }}"
+      aria-current="{% if is_active %}true{% else %}false{% endif %}"
+    >
+      {{ opt_label }}
+    </a>
   {%- endfor -%}
 </div>
