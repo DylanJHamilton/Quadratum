@@ -1,194 +1,267 @@
+{%- comment -%}
+  Quadratum — Collection Modern Toolbar
+  File: snippets/collection-modern-toolbar.liquid
+
+  Notes:
+  - Pure Liquid (no JS required).
+  - Safe parsing: NEVER use filters (| strip etc) inside boolean expressions.
+  - Supports:
+    - Title/description (optional)
+    - Result count (optional)
+    - Sort controls: dropdown or pills (optional)
+    - Filter button (optional, for drawer)
+    - Active filter chips + clear all (optional)
+  - Hide/Rename sort values via textarea settings:
+    - sort_hide_values: one opt.value per line
+    - sort_rename_values: lines like "value|Label"
+    - "_" is treated as blank placeholder (Shopify schema default safe)
+{%- endcomment -%}
+
 {%- liquid
-  assign s = s
-  assign filter_mode = filter_mode | default: 'none'
+  assign s = section.settings
 
-  assign show_title = s.show_title
-  assign show_desc = s.show_description
-  assign desc_style = s.description_style | default: 'truncated'
-  assign show_sort = s.show_sort
-  assign sort_style = s.sort_style | default: 'dropdown'
-  assign show_count = s.show_result_count
-  assign show_chips = s.show_active_filters
-  assign show_clear = s.show_clear_all
+  assign mode = mode | default: 'collection'  # 'collection' or 'search'
+  assign filter_mode = filter_mode | default: 'sidebar' # sidebar/drawer/bar
 
-  assign sticky = false
-  if sticky_toolbar
-    assign sticky = true
+  assign has_filters = false
+  if s.show_filters
+    assign has_filters = true
   endif
 
-  assign overrides = s.sort_label_overrides | default: ''
-  assign override_lines = overrides | newline_to_br | split: '<br />'
-
-  assign hide_vals = s.sort_hide_values | default: ''
-  assign hide_lines = hide_vals | newline_to_br | split: '<br />'
-
-  assign current_sort = sort_by
-  if current_sort == blank
-    assign current_sort = default_sort_by
+  assign show_sort = false
+  if s.show_sort
+    assign show_sort = true
   endif
 
-  assign drawer_mode = false
-  if has_filters and filter_mode == 'drawer'
-    assign drawer_mode = true
+  assign show_count = false
+  if s.show_result_count
+    assign show_count = true
   endif
 
-  assign bar_mode = false
-  if has_filters and filter_mode == 'bar'
-    assign bar_mode = true
+  assign show_active = false
+  if s.show_active_filters
+    assign show_active = true
   endif
 
-  assign active_count = 0
-  if filters != blank
-    for f in filters
-      if f.type == 'price_range'
-        if f.min_value.value != blank or f.max_value.value != blank
-          assign active_count = active_count | plus: 1
-        endif
-      else
-        assign active_count = active_count | plus: f.active_values.size
-      endif
-    endfor
+  assign show_clear = false
+  if s.show_clear_all
+    assign show_clear = true
+  endif
+
+  assign sort_style = s.sort_style | default: 'dropdown' # dropdown/pills
+
+  assign title_text = ''
+  assign desc_html = ''
+  assign results_count_text = ''
+
+  if mode == 'search'
+    assign title_text = search.terms | default: 'Search'
+    if search.terms != blank
+      assign title_text = 'Search: ' | append: search.terms
+    endif
+    assign desc_html = ''
+    assign results_count_text = search.results_count | append: ' results'
+  else
+    assign title_text = collection.title
+    assign desc_html = collection.description
+    assign results_count_text = collection.products_count | append: ' products'
+  endif
+
+  assign hide_raw = s.sort_hide_values | default: ''
+  assign rename_raw = s.sort_rename_values | default: ''
+  assign hide_lines = hide_raw | newline_to_br | split: '<br />'
+  assign rename_lines = rename_raw | newline_to_br | split: '<br />'
+
+  assign sort_by_value = ''
+  assign sort_default = ''
+  if mode == 'search'
+    assign sort_by_value = search.sort_by
+    assign sort_default = search.default_sort_by
+  else
+    assign sort_by_value = collection.sort_by
+    assign sort_default = collection.default_sort_by
+  endif
+  if sort_by_value == blank
+    assign sort_by_value = sort_default
   endif
 -%}
 
-<div class="qcmToolbar {% if sticky %}qcmToolbar--sticky{% endif %}" data-qcm-toolbar>
+<div class="qcmToolbar" data-qcm-toolbar>
   <div class="qcmToolbar__top">
-    <div>
-      {%- if show_title and results_title != blank -%}
-        <h1 class="qcmToolbar__title">{{ results_title }}</h1>
+    <div class="qcmToolbar__heading">
+      {%- if s.show_title -%}
+        <h1 class="qcmTitle">{{ title_text }}</h1>
       {%- endif -%}
 
-      {%- if show_desc and results_description != blank -%}
-        <p class="qcmToolbar__desc {% if desc_style == 'truncated' %}qcmToolbar__desc--trunc{% endif %}">
-          {{ results_description }}
-        </p>
+      {%- if s.show_description and desc_html != blank -%}
+        {%- if s.description_style == 'truncated' -%}
+          <div class="qcmDesc qcmDesc--truncated" style="--qcm-desc-lines: {{ s.truncated_lines | default: 3 }};">
+            {{ desc_html }}
+          </div>
+        {%- else -%}
+          <div class="qcmDesc">
+            {{ desc_html }}
+          </div>
+        {%- endif -%}
+      {%- endif -%}
+
+      {%- if show_count -%}
+        <div class="qcmCount" aria-live="polite">{{ results_count_text }}</div>
       {%- endif -%}
     </div>
 
     <div class="qcmToolbar__controls">
-      {%- if show_count -%}
-        <span style="opacity:.8;">{{ active_count }} filters</span>
+      {%- if has_filters and filter_mode == 'drawer' -%}
+        <button
+          type="button"
+          class="qcmBtn qcmBtn--ghost"
+          data-qcm-drawer-open
+          aria-label="Open filters"
+          aria-controls="qcmFacetsDrawer-{{ section.id }}"
+          aria-expanded="false">
+          Filters
+        </button>
       {%- endif -%}
 
-      {%- if drawer_mode -%}
-        <button type="button" class="qcm__btn" data-qcm-drawer-open aria-label="Open filters">Filters</button>
-      {%- endif -%}
+      {%- if show_sort -%}
+        {%- if sort_style == 'pills' -%}
+          <div class="qcmSortPills" role="list" aria-label="Sort options">
+            {%- assign sort_options = collection.sort_options -%}
+            {%- if mode == 'search' -%}
+              {%- assign sort_options = search.sort_options -%}
+            {%- endif -%}
 
-      {%- if show_sort and sort_options != blank and sort_options.size > 0 -%}
-        {%- if sort_style == 'dropdown' -%}
-          <label style="display:flex; gap:8px; align-items:center;">
-            <span style="opacity:.85;">Sort</span>
-            <select data-qcm-sort>
+            {%- for opt in sort_options -%}
+              {%- comment -%} determine hidden + label override safely {%- endcomment -%}
+              {%- assign hidden = false -%}
+              {%- assign label_override = blank -%}
+
+              {%- for h in hide_lines -%}
+                {%- assign hv = h | strip -%}
+                {%- if hv == blank or hv == '_' -%}{%- continue -%}{%- endif -%}
+                {%- if hv == opt.value -%}
+                  {%- assign hidden = true -%}
+                {%- endif -%}
+              {%- endfor -%}
+
+              {%- for r in rename_lines -%}
+                {%- assign rv = r | strip -%}
+                {%- if rv == blank or rv == '_' -%}{%- continue -%}{%- endif -%}
+
+                {%- assign parts = rv | split: '|' -%}
+                {%- if parts.size >= 2 -%}
+                  {%- assign key = parts[0] | strip -%}
+                  {%- assign val = parts[1] | strip -%}
+                  {%- if key == opt.value and val != blank -%}
+                    {%- assign label_override = val -%}
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endfor -%}
+
+              {%- unless hidden -%}
+                {%- assign opt_label = opt.name -%}
+                {%- if label_override != blank -%}
+                  {%- assign opt_label = label_override -%}
+                {%- endif -%}
+
+                {%- assign is_active = false -%}
+                {%- if sort_by_value == opt.value -%}
+                  {%- assign is_active = true -%}
+                {%- endif -%}
+
+                {%- capture sort_url -%}
+                  {%- if mode == 'search' -%}
+                    {{ request.path }}?q={{ search.terms | url_encode }}&sort_by={{ opt.value }}
+                  {%- else -%}
+                    {{ collection.url }}?sort_by={{ opt.value }}
+                  {%- endif -%}
+                {%- endcapture -%}
+
+                <a
+                  role="listitem"
+                  class="qcmPill{% if is_active %} is-active{% endif %}"
+                  href="{{ sort_url | strip }}"
+                  aria-label="Sort by {{ opt_label | escape }}">
+                  {{ opt_label }}
+                </a>
+              {%- endunless -%}
+            {%- endfor -%}
+          </div>
+        {%- else -%}
+          <div class="qcmSort">
+            <label class="qcmVisuallyHidden" for="qcmSortSelect-{{ section.id }}">Sort</label>
+
+            <select
+              id="qcmSortSelect-{{ section.id }}"
+              class="qcmSelect"
+              name="sort_by"
+              data-qcm-sort-select>
+              {%- assign sort_options = collection.sort_options -%}
+              {%- if mode == 'search' -%}
+                {%- assign sort_options = search.sort_options -%}
+              {%- endif -%}
+
               {%- for opt in sort_options -%}
-                {%- liquid
-                  assign hidden = false
-                  for h in hide_lines
-                    assign hv = h | strip
-                    if hv != blank and hv == opt.value
-                      assign hidden = true
-                    endif
-                  endfor
-                  if hidden
-                    continue
-                  endif
+                {%- assign hidden = false -%}
+                {%- assign label_override = blank -%}
 
-                  assign label = opt.name
-                  for ol in override_lines
-                    assign row = ol | strip
-                    if row == blank
-                      continue
-                    endif
-                    assign parts = row | split: '|'
-                    if parts.size >= 2 and parts[0] | strip == opt.value
-                      assign label = parts[1] | strip
-                    endif
-                  endfor
+                {%- for h in hide_lines -%}
+                  {%- assign hv = h | strip -%}
+                  {%- if hv == blank or hv == '_' -%}{%- continue -%}{%- endif -%}
+                  {%- if hv == opt.value -%}
+                    {%- assign hidden = true -%}
+                  {%- endif -%}
+                {%- endfor -%}
 
-                  assign href = results_url
-                  assign glue = '?'
-                  if href contains '?'
-                    assign glue = '&'
-                  endif
-                  if is_search and terms_q != blank
-                    assign href = routes.search_url | append: '?q=' | append: terms_q | url_encode
-                    assign glue = '&'
-                  endif
-                  assign href = href | append: glue | append: 'sort_by=' | append: opt.value
-                -%}
-                <option value="{{ href }}" {% if opt.value == current_sort %}selected{% endif %}>{{ label }}</option>
+                {%- for r in rename_lines -%}
+                  {%- assign rv = r | strip -%}
+                  {%- if rv == blank or rv == '_' -%}{%- continue -%}{%- endif -%}
+
+                  {%- assign parts = rv | split: '|' -%}
+                  {%- if parts.size >= 2 -%}
+                    {%- assign key = parts[0] | strip -%}
+                    {%- assign val = parts[1] | strip -%}
+                    {%- if key == opt.value and val != blank -%}
+                      {%- assign label_override = val -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                {%- endfor -%}
+
+                {%- unless hidden -%}
+                  {%- assign opt_label = opt.name -%}
+                  {%- if label_override != blank -%}
+                    {%- assign opt_label = label_override -%}
+                  {%- endif -%}
+
+                  <option value="{{ opt.value }}" {% if sort_by_value == opt.value %}selected{% endif %}>
+                    {{ opt_label }}
+                  </option>
+                {%- endunless -%}
               {%- endfor -%}
             </select>
-          </label>
-        {%- else -%}
-          <div class="qcmSortPills" role="list">
-            {%- for opt in sort_options -%}
-              {%- liquid
-                assign hidden = false
-                for h in hide_lines
-                  assign hv = h | strip
-                  if hv != blank and hv == opt.value
-                    assign hidden = true
-                  endif
-                endfor
-                if hidden
-                  continue
-                endif
-
-                assign label = opt.name
-                for ol in override_lines
-                  assign row = ol | strip
-                  if row == blank
-                    continue
-                  endif
-                  assign parts = row | split: '|'
-                  if parts.size >= 2 and parts[0] | strip == opt.value
-                    assign label = parts[1] | strip
-                  endif
-                endfor
-
-                assign href = results_url
-                assign glue = '?'
-                if href contains '?'
-                  assign glue = '&'
-                endif
-                if is_search and terms_q != blank
-                  assign href = routes.search_url | append: '?q=' | append: terms_q | url_encode
-                  assign glue = '&'
-                endif
-                assign href = href | append: glue | append: 'sort_by=' | append: opt.value
-              -%}
-              <a class="qcm__btn qcmSortPill" href="{{ href }}" data-qcm-ajax-link role="listitem" aria-current="{% if opt.value == current_sort %}true{% else %}false{% endif %}">
-                {{ label }}
-              </a>
-            {%- endfor -%}
           </div>
         {%- endif -%}
       {%- endif -%}
     </div>
   </div>
 
-  {%- if show_chips and filters != blank and active_count > 0 -%}
-    <div class="qcmChips" aria-label="Active filters">
-      {%- for f in filters -%}
-        {%- if f.type == 'price_range' -%}
-          {%- if f.min_value.value != blank or f.max_value.value != blank -%}
-            <a class="qcmChip" href="{{ f.url_to_remove }}" data-qcm-ajax-link aria-label="Remove price filter">
-              Price
-              <span class="qcmChip__x" aria-hidden="true">×</span>
-            </a>
-          {%- endif -%}
-        {%- else -%}
-          {%- for av in f.active_values -%}
-            <a class="qcmChip" href="{{ av.url_to_remove }}" data-qcm-ajax-link aria-label="Remove {{ av.label | escape }}">
-              {{ av.label }}
-              <span class="qcmChip__x" aria-hidden="true">×</span>
-            </a>
-          {%- endfor -%}
-        {%- endif -%}
-      {%- endfor -%}
+  {%- if show_active -%}
+    <div class="qcmToolbar__active" data-qcm-active>
+      {%- comment -%} Active filters chips are rendered in facets snippet or theme facets.
+        If you want pure Liquid chips here later, we can add it; for now keep placeholder wrapper.
+      {%- endcomment -%}
+      <div class="qcmActiveChips" data-qcm-active-chips></div>
 
       {%- if show_clear -%}
-        <a class="qcm__btn qcm__btn--link" href="{{ results_url }}" data-qcm-ajax-link>{{ s.clear_all_label | default: 'Clear all' }}</a>
+        {%- comment -%}
+          Clear all link: with no JS, link to collection/search base URL.
+          With JS, you can intercept and clear.
+        {%- endcomment -%}
+        {%- if mode == 'search' -%}
+          <a class="qcmBtn qcmBtn--ghost" href="{{ routes.search_url }}?q={{ search.terms | url_encode }}">Clear all</a>
+        {%- else -%}
+          <a class="qcmBtn qcmBtn--ghost" href="{{ collection.url }}">Clear all</a>
+        {%- endif -%}
       {%- endif -%}
     </div>
   {%- endif -%}
