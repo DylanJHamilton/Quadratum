@@ -102,6 +102,31 @@
   endif
 
   assign card_engine = s.card_engine | default: 'default_theme_card'
+
+  assign qv_enabled = false
+  if s.enable_quick_view and card_engine == 'modern_card'
+    assign qv_enabled = true
+  endif
+
+  assign qv_enabled_str = 'false'
+  if qv_enabled
+    assign qv_enabled_str = 'true'
+  endif
+
+  assign qv_show_add = 'true'
+  if s.qv_show_add_to_cart == false
+    assign qv_show_add = 'false'
+  endif
+
+  assign qv_show_view = 'true'
+  if s.qv_show_view_product == false
+    assign qv_show_view = 'false'
+  endif
+
+  assign qv_show_buy = 'false'
+  if s.show_buy_now
+    assign qv_show_buy = 'true'
+  endif
 -%}
 
 <section
@@ -114,9 +139,14 @@
   data-enable-drawer="{{ enable_drawer_str }}"
   data-sticky-toolbar="{{ sticky_toolbar }}"
   data-sticky-offset="{{ s.sticky_toolbar_offset | default: 0 }}"
-  data-cols-min="{{ s.columns_desktop_min | default: 2 }}"
-  data-cols-max="{{ s.columns_desktop_max | default: 6 }}"
-  data-default-view="{{ s.default_view_mode | default: 'grid' }}"
+  data-qcm-qv-enabled="{{ qv_enabled_str }}"
+  data-qcm-qv-show-add="{{ qv_show_add }}"
+  data-qcm-qv-show-view="{{ qv_show_view }}"
+  data-qcm-qv-show-buy="{{ qv_show_buy }}"
+  data-qcm-add-label="{{ s.add_to_cart_label | default: 'Add to cart' | escape }}"
+  data-qcm-opts-label="{{ s.choose_options_label | default: 'Choose options' | escape }}"
+  data-qcm-buy-label="{{ s.buy_now_label | default: 'Buy now' | escape }}"
+  data-qcm-view-label="{{ s.qv_view_product_label | default: 'View product' | escape }}"
 >
   <style>
     #{{ root_id }}{
@@ -158,7 +188,6 @@
     {% render 'collection-modern-toolbar',
       section: section,
       s: s,
-      root_id: root_id,
       is_search_context: is_search_context,
       results_title: results_title,
       results_url: results_url,
@@ -278,19 +307,424 @@
     </div>
   </div>
 
-  {% render 'collection-modern-compare-tray', s: s %}
+  {%- comment -%} QUICK VIEW HOST (required for Quick View to work) {%- endcomment -%}
+  <div class="qcm__qv" data-qcm-qv hidden aria-hidden="true">
+    <div class="qcm__qvOverlay" data-qcm-qv-close tabindex="-1"></div>
+    <div class="qcm__qvDialog" role="dialog" aria-modal="true" aria-label="Quick view">
+      <button type="button" class="qcm__qvClose" data-qcm-qv-close aria-label="Close">×</button>
+      <div class="qcm__qvInner" data-qcm-qv-inner></div>
+    </div>
+  </div>
 
   <script src="{{ 'section-collection-modern.js' | asset_url }}" defer></script>
-
-  <div class="qcm__modal" data-qcm-modal hidden>
-  <div class="qcm__modalOverlay" data-qcm-modal-close></div>
-  <div class="qcm__modalDialog" role="dialog" aria-modal="true" aria-label="Quick view">
-    <button class="qcm__modalClose" type="button" data-qcm-modal-close aria-label="Close">✕</button>
-    <div class="qcm__modalBody" data-qcm-modal-body></div>
-  </div>
-</div>
 </section>
 
+<style>
+  <style>
+/* Quadratum — Collection Modern (Max Capability)
+   File: assets/section-collection-modern.css
+   RULE: scoped to .q-collection-modern
+*/
+/* ===========================
+   MODERN UX PATCHES
+   =========================== */
+
+.q-collection-modern .qcm__count{
+  opacity: .75;
+  font-size: 13px;
+}
+
+/* Layout prefs */
+.q-collection-modern .qcm__layout{
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.q-collection-modern .qcm__colsReadout{
+  font-size: 13px;
+  opacity: .75;
+  padding-inline: 4px;
+}
+
+/* List view */
+.q-collection-modern.is-list .qcm__grid{
+  grid-template-columns: 1fr !important;
+}
+
+.q-collection-modern.is-list .qcmc{
+  grid-template-columns: minmax(140px, 220px) 1fr;
+  align-items: stretch;
+}
+
+.q-collection-modern.is-list .qcmc__media{
+  height: 100%;
+}
+
+.q-collection-modern.is-list .qcmc__img--primary{
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Card style variants */
+.q-collection-modern .qcmc--glass{
+  background: rgba(255,255,255,.75);
+  backdrop-filter: blur(10px);
+}
+.q-collection-modern .qcmc--solid{ background: var(--qcm-card-bg, #fff); }
+.q-collection-modern .qcmc--outline{ background: transparent; }
+.q-collection-modern .qcmc--none{ border-color: transparent; background: transparent; }
+
+/* Slider arrows */
+.q-collection-modern .qcmc__sliderCtrls{
+  position: absolute;
+  inset: auto 10px 10px 10px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.q-collection-modern .qcmc__arrow{
+  pointer-events: auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--qcm-card-border, #00000026);
+  background: rgba(255,255,255,.9);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+}
+
+/* Compare tray */
+.q-collection-modern .qcm__compareBar{
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--qcm-card-border, #00000026);
+  background: var(--qcm-card-bg, #fff);
+  border-radius: 16px;
+  margin-top: 16px;
+}
+.q-collection-modern .qcm__compareBar.is-active{
+  display: flex;
+}
+
+/* Quick View modal */
+.q-collection-modern .qcm__modal{
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+.q-collection-modern .qcm__modal.is-open{
+  display: block;
+}
+
+.q-collection-modern .qcm__modalBackdrop{
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+}
+
+.q-collection-modern .qcm__modalPanel{
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(980px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  transform: translate(-50%, -50%);
+  overflow: auto;
+  border-radius: 18px;
+  border: 1px solid var(--qcm-card-border, #00000026);
+  background: var(--qcm-card-bg, #fff);
+}
+
+.q-collection-modern .qcm__modalClose{
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--qcm-card-border, #00000026);
+  background: rgba(255,255,255,.9);
+  cursor: pointer;
+  z-index: 2;
+}
+
+.q-collection-modern .qcm__modalGrid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 16px;
+}
+
+@media (max-width: 860px){
+  .q-collection-modern .qcm__modalGrid{
+    grid-template-columns: 1fr;
+  }
+}
+
+.q-collection-modern .qcm__modalMedia{
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--qcm-card-border, #00000026);
+}
+
+.q-collection-modern .qcm__modalImg{
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.q-collection-modern .qcm__modalArrows{
+  position: absolute;
+  inset: auto 10px 10px 10px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.q-collection-modern .qcm__modalArrow{
+  pointer-events: auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--qcm-card-border, #00000026);
+  background: rgba(255,255,255,.9);
+  cursor: pointer;
+}
+
+.q-collection-modern .qcm__modalTitle{
+  margin: 0 0 10px;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.q-collection-modern .qcm__modalPrice{
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+
+.q-collection-modern .qcm__priceWas{
+  opacity: .6;
+}
+
+.q-collection-modern .qcm__modalDesc{
+  opacity: .85;
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+
+.q-collection-modern .qcm__variantSelect{
+  width: 100%;
+  border: 1px solid var(--qcm-card-border, #00000026);
+  border-radius: 999px;
+  padding: 10px 12px;
+  background: #fff;
+  margin-bottom: 12px;
+}
+
+.q-collection-modern .qcm__modalActions{
+  display: grid;
+  gap: 10px;
+}
+
+.q-collection-modern .qcm__modalStatus{
+  margin-top: 10px;
+  font-size: 13px;
+  opacity: .75;
+}
+
+/* =========================================================
+   HARD PATCH — Modern Card styles must NOT require
+   .q-collection-modern ancestor to work.
+   (Fixes blue links + default HTML buttons)
+   ========================================================= */
+
+/* Link reset only inside modern card */
+.qcmc a{
+  color: inherit;
+  text-decoration: none;
+}
+.qcmc a:hover{
+  text-decoration: underline;
+}
+.qcmc a:focus-visible,
+.qcmc button:focus-visible{
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+/* Card base */
+.qcmc{
+  display: grid;
+  gap: 10px;
+  border-radius: var(--qcm-radius, 16px);
+  border: 1px solid var(--qcm-card-border, #00000026);
+  background: var(--qcm-card-bg, #fff);
+  overflow: hidden;
+}
+
+/* Media */
+.qcmc__media{ position: relative; }
+.qcmc__mediaLink{ display:block; position:relative; }
+.qcmc__img{ display:block; width:100%; height:auto; }
+.qcmc__img--placeholder{ width:100%; aspect-ratio:1/1; background: rgba(0,0,0,.06); }
+
+/* Second image hover */
+.qcmc__img--second{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  opacity:0;
+  transition: opacity .22s ease;
+}
+.qcmc__mediaLink:hover .qcmc__img--second{ opacity:1; }
+
+/* Badges */
+.qcmc__badges{
+  position:absolute;
+  top:10px;
+  left:10px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  z-index:2;
+}
+.qcmc__badge{
+  display:inline-flex;
+  align-items:center;
+  padding:7px 10px;
+  border-radius:999px;
+  font-size:12px;
+  line-height:1;
+  border:1px solid var(--qcm-card-border, #00000026);
+  background: rgba(255,255,255,.9);
+  backdrop-filter: blur(10px);
+}
+.qcmc__badge--sale{
+  background: var(--qcm-btn-bg, #10B981);
+  color: var(--qcm-btn-text, #fff);
+  border-color: transparent;
+}
+.qcmc__badge--soldout{
+  background: rgba(0,0,0,.75);
+  color:#fff;
+  border-color: transparent;
+}
+
+/* Body */
+.qcmc__body{
+  padding: 12px 12px 14px;
+  display:grid;
+  gap:8px;
+}
+.qcmc__vendor{
+  color: var(--qcm-vendor-color, currentColor);
+  font-size: var(--qcm-vendor-size-set, 12px);
+  opacity:.8;
+  line-height:1.2;
+}
+.qcmc__title{
+  margin:0;
+  line-height:1.15;
+  font-size: var(--qcm-title-size-set, 16px);
+  color: var(--qcm-title-color, currentColor);
+}
+.qcmc__price{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:baseline;
+  color: var(--qcm-price-color, currentColor);
+  font-size: var(--qcm-price-size-set, 16px);
+}
+.qcmc__priceWas{
+  opacity:.6;
+  font-size: calc(var(--qcm-price-size-set, 16px) * .9);
+}
+
+/* Buttons */
+.qcmc__actions{ margin-top: 4px; }
+.qcmc__btn{
+  width:100%;
+  appearance:none;
+  border:1px solid var(--qcm-btn-border, #00000026);
+  background: var(--qcm-btn-bg, #10B981);
+  color: var(--qcm-btn-text, #fff);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+}
+.qcmc__btn:hover{
+  background: var(--qcm-btn-bg-hover, #000);
+  color: var(--qcm-btn-text-hover, #fff);
+}
+.qcmc__btn--ghost{
+  background: transparent;
+  color: currentColor;
+}
+
+/* Density */
+.density-compact .qcmc__body{ padding:10px 10px 12px; }
+.density-roomy  .qcmc__body{ padding:14px 14px 16px; }
+
+/* =========================================================
+   Card Style Engine (driven by section class cardstyle-*)
+   ========================================================= */
+
+.qcm.cardstyle-glass{
+  --qcm-card-bg: rgba(255,255,255,.72);
+  --qcm-toolbar-bg: rgba(255,255,255,.72);
+  backdrop-filter: blur(12px);
+}
+
+.qcm.cardstyle-solid{
+  --qcm-card-bg: var(--qcm-card-bg, #fff);
+  --qcm-toolbar-bg: var(--qcm-toolbar-bg, #fff);
+}
+
+.qcm.cardstyle-outline{
+  --qcm-card-bg: transparent;
+  --qcm-toolbar-bg: transparent;
+  --qcm-card-border-style: solid;
+}
+
+.qcm.cardstyle-none{
+  --qcm-card-bg: transparent;
+  --qcm-toolbar-bg: transparent;
+  --qcm-card-border: transparent;
+  --qcm-card-border-style: none;
+}
+
+/* Apply border style variable everywhere borders are used */
+.qcm .qcmc,
+.qcm .qcm__toolbar.is-sticky,
+.qcm .qcm__empty,
+.qcm .qcm__page,
+.qcm .qcm__pill,
+.qcm .qcm__chip,
+.qcm .qcm__sort select{
+  border-style: var(--qcm-card-border-style, solid);
+}
+</style>
+</style>
 
 {% schema %}
 {
@@ -300,7 +734,6 @@
   "settings": [
     { "type": "header", "content": "Content" },
     { "type": "checkbox", "id": "show_title", "label": "Show title", "default": true },
-    { "type": "text", "id": "custom_title", "label": "Custom title (optional)", },
     { "type": "checkbox", "id": "show_description", "label": "Show description", "default": false },
     {
       "type": "select",
@@ -363,7 +796,6 @@
         { "value": "modern_card", "label": "Modern (collection-modern-product-card)" }
       ]
     },
-
     {
       "type": "select",
       "id": "card_density",
@@ -413,8 +845,6 @@
         { "value": "bar", "label": "Bar (toolbar)" }
       ]
     },
-    { "type": "checkbox", "id": "sticky_filter_bar", "label": "Sticky filter bar (bar only)", "default": false },
-
     { "type": "checkbox", "id": "show_sort", "label": "Show sort", "default": true },
     {
       "type": "select",
@@ -430,40 +860,6 @@
     { "type": "checkbox", "id": "show_active_filters", "label": "Show active filters chips", "default": true },
     { "type": "checkbox", "id": "show_clear_all", "label": "Show clear all", "default": true },
 
-    { "type": "header", "content": "Quick filters (sort shortcuts)" },
-    { "type": "checkbox", "id": "quick_filters_enable", "label": "Enable quick filter bar", "default": true },
-    {
-      "type": "textarea",
-      "id": "quick_filters_labels",
-      "label": "Quick filter labels (one per line)",
-      "default": "Featured\nBest selling\nAlphabetically, A-Z\nPrice, low to high\nPrice, high to low"
-    },
-
-    { "type": "header", "content": "Modern — Flagship Features" },
-    { "type": "checkbox", "id": "enable_layout_controls", "label": "Enable layout controls (view + columns)", "default": true },
-    { "type": "checkbox", "id": "enable_compare", "label": "Enable compare tray (modern card only)", "default": true },
-    { "type": "checkbox", "id": "enable_quick_view", "label": "Enable quick view (modern card only)", "default": true },
-    { "type": "checkbox", "id": "enable_search_tools", "label": "Enable search intelligence (search page only)", "default": true },
-
-    {
-      "type": "select",
-      "id": "default_view_mode",
-      "label": "Default view mode",
-      "default": "grid",
-      "options": [
-        { "value": "grid", "label": "Grid" },
-        { "value": "list", "label": "List" },
-        { "value": "compact", "label": "Compact" }
-      ]
-    },
-    { "type": "range", "id": "columns_desktop_min", "label": "Columns toggle min (desktop)", "min": 2, "max": 6, "step": 1, "default": 2 },
-    { "type": "range", "id": "columns_desktop_max", "label": "Columns toggle max (desktop)", "min": 2, "max": 6, "step": 1, "default": 5 },
-
-    { "type": "text", "id": "compare_label", "label": "Compare label", "default": "Compare" },
-    { "type": "text", "id": "compare_select_label", "label": "Select label", "default": "Select" },
-    { "type": "text", "id": "quick_view_label", "label": "Quick view label", "default": "Quick view" },
-    { "type": "text", "id": "search_within_label", "label": "Search within results label", "default": "Search within results…" },
-
     { "type": "header", "content": "Product card toggles (modern card)" },
     { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": false },
     { "type": "checkbox", "id": "show_price", "label": "Show price", "default": true },
@@ -472,67 +868,22 @@
     { "type": "checkbox", "id": "show_quick_add", "label": "Show quick add", "default": false },
     { "type": "checkbox", "id": "show_second_image", "label": "Second image on hover", "default": true },
 
-    { "type": "header", "content": "Ratings" },
-    {
-      "type": "select",
-      "id": "rating_source",
-      "label": "Rating source",
-      "default": "auto",
-      "options": [
-        { "value": "auto", "label": "Auto (Shopify native → metafields)" },
-        { "value": "shopify", "label": "Shopify native" },
-        { "value": "metafields", "label": "Metafields" }
-      ]
-    },
-    { "type": "text", "id": "rating_metafield", "label": "Rating metafield (namespace.key)", "default": "reviews.rating" },
-    { "type": "text", "id": "rating_count_metafield", "label": "Rating count metafield (namespace.key)", "default": "reviews.rating_count" },
-    { "type": "color", "id": "rating_star_color", "label": "Star color", "default": "#111111" },
-    { "type": "color", "id": "rating_text_color", "label": "Review count color", "default": "#111111" },
-
-    { "type": "header", "content": "Modern card styles" },
-    { "type": "color", "id": "vendor_color", "label": "Vendor color", "default": "#000000" },
-    { "type": "color", "id": "title_color", "label": "Title color", "default": "#000000" },
-    { "type": "color", "id": "price_color", "label": "Price color", "default": "#000000" },
-    { "type": "range", "id": "vendor_font_size", "label": "Vendor font size (px)", "min": 10, "max": 18, "step": 1, "default": 12 },
-    { "type": "range", "id": "title_font_size", "label": "Title font size (px)", "min": 12, "max": 26, "step": 1, "default": 16 },
-    { "type": "range", "id": "price_font_size", "label": "Price font size (px)", "min": 12, "max": 24, "step": 1, "default": 16 },
-
-    { "type": "color", "id": "card_bg", "label": "Card background", "default": "#FFFFFF" },
-    { "type": "color", "id": "card_border", "label": "Card border color", "default": "#00000026" },
-    {
-      "type": "select",
-      "id": "card_border_style",
-      "label": "Card border style",
-      "default": "solid",
-      "options": [
-        { "value": "none", "label": "None" },
-        { "value": "solid", "label": "Solid" },
-        { "value": "dashed", "label": "Dashed" },
-        { "value": "dotted", "label": "Dotted" }
-      ]
-    },
-
+    { "type": "header", "content": "Buttons" },
     { "type": "color", "id": "button_bg", "label": "Button background", "default": "#10B981" },
     { "type": "color", "id": "button_text", "label": "Button text", "default": "#FFFFFF" },
     { "type": "color", "id": "button_bg_hover", "label": "Button background (hover)", "default": "#000000" },
     { "type": "color", "id": "button_text_hover", "label": "Button text (hover)", "default": "#FFFFFF" },
     { "type": "color", "id": "button_border", "label": "Button border", "default": "#00000026" },
-
-    {
-      "type": "select",
-      "id": "button_size",
-      "label": "Button size (modern card)",
-      "default": "md",
-      "options": [
-        { "value": "sm", "label": "Small" },
-        { "value": "md", "label": "Medium" },
-        { "value": "lg", "label": "Large" }
-      ]
-    },
     { "type": "text", "id": "add_to_cart_label", "label": "Add to cart label", "default": "Add to cart" },
     { "type": "text", "id": "choose_options_label", "label": "Choose options label", "default": "Choose options" },
     { "type": "checkbox", "id": "show_buy_now", "label": "Show Buy now (single-variant only)", "default": false },
     { "type": "text", "id": "buy_now_label", "label": "Buy now label", "default": "Buy now" },
+
+    { "type": "header", "content": "Quick view" },
+    { "type": "checkbox", "id": "enable_quick_view", "label": "Enable quick view (modern card only)", "default": true },
+    { "type": "checkbox", "id": "qv_show_add_to_cart", "label": "Quick view: show Add to cart", "default": true },
+    { "type": "checkbox", "id": "qv_show_view_product", "label": "Quick view: show View product", "default": true },
+    { "type": "text", "id": "qv_view_product_label", "label": "Quick view: view product label", "default": "View product" },
 
     { "type": "header", "content": "Pagination" },
     { "type": "range", "id": "products_per_page", "label": "Products per page", "min": 8, "max": 48, "step": 1, "default": 24 },
@@ -572,27 +923,33 @@
       ]
     },
     { "type": "range", "id": "gap", "label": "Grid gap (px)", "min": 0, "max": 40, "step": 1, "default": 18 },
-    { "type": "range", "id": "border_radius", "label": "Border radius (px)", "min": 0, "max": 32, "step": 1, "default": 16 }
-  ],
-  "blocks": [
+    { "type": "range", "id": "border_radius", "label": "Border radius (px)", "min": 0, "max": 32, "step": 1, "default": 16 },
+
+    { "type": "header", "content": "Modern card styles" },
+    { "type": "color", "id": "vendor_color", "label": "Vendor color", "default": "#000000" },
+    { "type": "color", "id": "title_color", "label": "Title color", "default": "#000000" },
+    { "type": "color", "id": "price_color", "label": "Price color", "default": "#000000" },
+    { "type": "range", "id": "vendor_font_size", "label": "Vendor font size (px)", "min": 10, "max": 18, "step": 1, "default": 12 },
+    { "type": "range", "id": "title_font_size", "label": "Title font size (px)", "min": 12, "max": 26, "step": 1, "default": 16 },
+    { "type": "range", "id": "price_font_size", "label": "Price font size (px)", "min": 12, "max": 24, "step": 1, "default": 16 },
+    { "type": "color", "id": "card_bg", "label": "Card background", "default": "#FFFFFF" },
+    { "type": "color", "id": "card_border", "label": "Card border color", "default": "#00000026" },
     {
-      "type": "quick_filter",
-      "name": "Quick filter chip",
-      "settings": [
-        { "type": "text", "id": "filter_label", "label": "Filter label (must match Shopify filter label)", "default": "Color" },
-        { "type": "text", "id": "value_label", "label": "Value label (must match value label)", "default": "Black" },
-        {
-          "type": "select",
-          "id": "chip_style",
-          "label": "Chip style",
-          "default": "pill",
-          "options": [
-            { "value": "pill", "label": "Pill" },
-            { "value": "swatch", "label": "Swatch (uses value label text)" }
-          ]
-        }
+      "type": "select",
+      "id": "card_border_style",
+      "label": "Card border style",
+      "default": "solid",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "solid", "label": "Solid" },
+        { "value": "dashed", "label": "Dashed" },
+        { "value": "dotted", "label": "Dotted" }
       ]
-    }
+    },
+
+    { "type": "header", "content": "Ratings" },
+    { "type": "color", "id": "rating_star_color", "label": "Star color", "default": "#111111" },
+    { "type": "color", "id": "rating_text_color", "label": "Review count color", "default": "#111111" }
   ],
   "presets": [
     { "name": "Main Collection Modern" }
