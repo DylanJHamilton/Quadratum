@@ -43,10 +43,8 @@
   document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.q-collection-simple[data-section-id]').forEach(init);
   });
-})();
 
-(function () {
-  function initReveal(root) {
+function initReveal(root) {
     if (!root) return;
 
     // If reveal is off, reveal everything immediately
@@ -82,4 +80,6 @@
   });
 
   // If your AJAX re-renders grid, call initReveal(sectionEl) after update.
+
 })();
+
