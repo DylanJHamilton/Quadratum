@@ -1,6 +1,7 @@
 {%- comment -%}
-  Collection Modern — Product Card (optional engine)
+  Quadratum — Collection Modern Product Card (isolated)
   File: snippets/collection-modern-product-card.liquid
+  Inputs: product, s, section
 {%- endcomment -%}
 
 {%- liquid
@@ -9,219 +10,190 @@
     break
   endif
 
-  assign img_ratio = s.image_ratio | default: 'adapt'
   assign show_vendor = s.show_vendor
-  assign show_price = s.show_price
+  assign show_price  = s.show_price
   assign show_badges = s.show_badges
   assign show_rating = s.show_rating
-  assign show_quick_add = s.show_quick_add
+  assign show_quick  = s.show_quick_add
   assign show_second = s.show_second_image
 
-  assign add_label = s.add_to_cart_label | default: 'Add to cart'
-  assign choose_label = s.choose_options_label | default: 'Choose options'
-  assign buy_now_label = s.buy_now_label | default: 'Buy now'
+  assign ratio = s.image_ratio | default: 'adapt'
 
-  assign has_multi_variant = false
-  if p.variants.size > 1
-    assign has_multi_variant = true
+  assign featured_media = p.featured_media
+  assign has_media = false
+  if featured_media != blank
+    assign has_media = true
   endif
 
-  assign first_avail = p.selected_or_first_available_variant
-  assign can_quick_add = false
-  if show_quick_add and has_multi_variant == false and first_avail != blank and first_avail.available
-    assign can_quick_add = true
-  endif
-
-  assign card_url = p.url
-
-  assign badge_sale = false
-  if p.compare_at_price > p.price
-    assign badge_sale = true
-  endif
-  assign badge_soldout = false
-  unless p.available
-    assign badge_soldout = true
-  endunless
-
-  assign primary_media = p.featured_media
-  assign secondary_media = blank
+  assign second_media = nil
   if show_second and p.media != blank and p.media.size > 1
-    assign secondary_media = p.media[1]
+    assign second_media = p.media[1]
   endif
+
+  assign on_sale = false
+  if p.compare_at_price > p.price
+    assign on_sale = true
+  endif
+
+  assign sold_out = false
+  if p.available == false
+    assign sold_out = true
+  endif
+
+  assign single_variant = false
+  if p.variants.size == 1 and p.variants.first.title == 'Default Title'
+    assign single_variant = true
+  endif
+
+  assign first_variant = p.selected_or_first_available_variant
 
   assign rating_value = blank
   assign rating_count = blank
 
+  assign use_shopify = false
+  if s.rating_source == 'shopify'
+    assign use_shopify = true
+  endif
+
+  assign use_meta = false
+  if s.rating_source == 'metafields' or s.rating_source == 'auto'
+    assign use_meta = true
+  endif
+
   if show_rating
-    if s.rating_source == 'shopify' or s.rating_source == 'auto'
-      if p.metafields.reviews.rating.value != blank
-        assign rating_value = p.metafields.reviews.rating.value
+    if use_shopify
+      if p.metafields.reviews.rating != blank
+        assign rating_value = p.metafields.reviews.rating.value | default: p.metafields.reviews.rating
       endif
-      if p.metafields.reviews.rating_count.value != blank
-        assign rating_count = p.metafields.reviews.rating_count.value
+      if p.metafields.reviews.rating_count != blank
+        assign rating_count = p.metafields.reviews.rating_count.value | default: p.metafields.reviews.rating_count
       endif
     endif
 
-    if rating_value == blank and (s.rating_source == 'metafields' or s.rating_source == 'auto')
-      assign key = s.rating_metafield | default: 'reviews.rating'
-      assign ckey = s.rating_count_metafield | default: 'reviews.rating_count'
-      assign ns = key | split: '.' | first
-      assign k = key | split: '.' | last
-      assign cns = ckey | split: '.' | first
-      assign ck = ckey | split: '.' | last
+    if rating_value == blank and use_meta
+      assign r_key = s.rating_metafield | default: 'reviews.rating'
+      assign c_key = s.rating_count_metafield | default: 'reviews.rating_count'
 
-      if p.metafields[ns][k].value != blank
-        assign rating_value = p.metafields[ns][k].value
+      assign r_parts = r_key | split: '.'
+      assign c_parts = c_key | split: '.'
+
+      if r_parts.size == 2
+        assign r_ns = r_parts[0] | strip
+        assign r_k  = r_parts[1] | strip
+        assign r_obj = p.metafields[r_ns][r_k]
+        if r_obj != blank
+          assign rating_value = r_obj.value | default: r_obj
+        endif
       endif
-      if p.metafields[cns][ck].value != blank
-        assign rating_count = p.metafields[cns][ck].value
+
+      if c_parts.size == 2
+        assign c_ns = c_parts[0] | strip
+        assign c_k  = c_parts[1] | strip
+        assign c_obj = p.metafields[c_ns][c_k]
+        if c_obj != blank
+          assign rating_count = c_obj.value | default: c_obj
+        endif
       endif
     endif
   endif
 
   assign rating_num = rating_value | plus: 0
-  assign rating_pct = rating_num | times: 20
+  assign count_num = rating_count | plus: 0
+
+  assign show_rating_ui = false
+  if show_rating and rating_value != blank and rating_num > 0
+    assign show_rating_ui = true
+  endif
 -%}
 
-<article class="qcmCard" data-qcm-card>
-  <a class="qcmCard__media" href="{{ card_url }}" aria-label="{{ p.title | escape }}">
-    {%- if primary_media != blank -%}
-      <div class="qcmCard__img qcmCard__img--ratio-{{ img_ratio }}">
-        {{ primary_media | image_url: width: 900 | image_tag: loading: 'lazy', class: 'qcmCard__img1', alt: primary_media.alt | escape }}
-        {%- if secondary_media != blank -%}
-          {{ secondary_media | image_url: width: 900 | image_tag: loading: 'lazy', class: 'qcmCard__img2', alt: secondary_media.alt | escape }}
+<article class="qcmc" data-qcm-card>
+  <div class="qcmc__media">
+    <a class="qcmc__mediaLink" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
+      {%- if has_media -%}
+        {%- capture sizes -%} (min-width: 990px) 25vw, (min-width: 750px) 33vw, 50vw {%- endcapture -%}
+        {{ featured_media | image_url: width: 900 | image_tag:
+          loading: 'lazy',
+          sizes: sizes,
+          class: 'qcmc__img qcmc__img--primary'
+        }}
+        {%- if second_media != blank -%}
+          {{ second_media | image_url: width: 900 | image_tag:
+            loading: 'lazy',
+            sizes: sizes,
+            class: 'qcmc__img qcmc__img--second'
+          }}
         {%- endif -%}
-      </div>
-    {%- else -%}
-      <div class="qcmCard__img qcmCard__img--ratio-{{ img_ratio }}"></div>
-    {%- endif -%}
+      {%- else -%}
+        <div class="qcmc__img qcmc__img--placeholder" aria-hidden="true"></div>
+      {%- endif -%}
 
-    {%- if show_badges and (badge_sale or badge_soldout) -%}
-      <div class="qcmCard__badges" aria-hidden="true">
-        {%- if badge_soldout -%}<span class="qcmCard__badge">Sold out</span>{%- endif -%}
-        {%- if badge_sale -%}<span class="qcmCard__badge qcmCard__badge--sale">Sale</span>{%- endif -%}
-      </div>
-    {%- endif -%}
-  </a>
-
-  <div class="qcmCard__body">
-    {%- if show_vendor and p.vendor != blank -%}
-      <div class="qcmCard__vendor">{{ p.vendor }}</div>
-    {%- endif -%}
-
-    <a class="qcmCard__title" href="{{ card_url }}" data-qcm-handle="{{ p.handle }}">
-      {{ p.title }}
+      {%- if show_badges and (on_sale or sold_out) -%}
+        <div class="qcmc__badges" aria-hidden="true">
+          {%- if sold_out -%}
+            <span class="qcmc__badge qcmc__badge--soldout">Sold out</span>
+          {%- elsif on_sale -%}
+            <span class="qcmc__badge qcmc__badge--sale">Sale</span>
+          {%- endif -%}
+        </div>
+      {%- endif -%}
     </a>
+  </div>
 
-    {%- if show_rating and rating_value != blank -%}
-      <div class="qcmCard__rating" aria-label="Rating {{ rating_num }} out of 5">
-        <span class="qcmCard__stars" style="--qcm-stars: {{ rating_pct }}%;"></span>
-        {%- if rating_count != blank -%}
-          <span class="qcmCard__ratingCount">({{ rating_count }})</span>
+  <div class="qcmc__body">
+    {%- if show_vendor and p.vendor != blank -%}
+      <div class="qcmc__vendor">{{ p.vendor }}</div>
+    {%- endif -%}
+
+    <h3 class="qcmc__title">
+      <a href="{{ p.url }}">{{ p.title }}</a>
+    </h3>
+
+    {%- if show_rating_ui -%}
+      <div class="qcmc__rating" aria-label="Rated {{ rating_num }} out of 5">
+        <span class="qcmc__stars" aria-hidden="true">
+          {%- for i in (1..5) -%}
+            {%- if rating_num >= i -%}
+              <span class="qcmc__star is-on">★</span>
+            {%- else -%}
+              <span class="qcmc__star">★</span>
+            {%- endif -%}
+          {%- endfor -%}
+        </span>
+        {%- if count_num > 0 -%}
+          <span class="qcmc__count">({{ count_num }})</span>
         {%- endif -%}
       </div>
     {%- endif -%}
 
     {%- if show_price -%}
-      <div class="qcmCard__price">
-        {%- if badge_sale -%}
-          <span class="qcmCard__priceNow">{{ p.price | money }}</span>
-          <span class="qcmCard__priceWas">{{ p.compare_at_price | money }}</span>
+      <div class="qcmc__price">
+        {%- if on_sale -%}
+          <span class="qcmc__priceNow">{{ p.price | money }}</span>
+          <s class="qcmc__priceWas">{{ p.compare_at_price | money }}</s>
         {%- else -%}
-          <span class="qcmCard__priceNow">{{ p.price | money }}</span>
+          <span class="qcmc__priceNow">{{ p.price | money }}</span>
         {%- endif -%}
       </div>
     {%- endif -%}
 
-    <div class="qcmCard__actions">
-      {%- if can_quick_add -%}
-        <form method="post" action="/cart/add" class="qcmCard__form">
-          <input type="hidden" name="id" value="{{ first_avail.id }}">
-          <button class="qcm__btn qcmCard__btn qcmCard__btn--{{ s.button_size | default: 'md' }}" type="submit">
-            {{ add_label }}
-          </button>
-
-          {%- if s.show_buy_now -%}
-            <button class="qcm__btn qcmCard__btn qcmCard__btn--{{ s.button_size | default: 'md' }}" type="submit" name="checkout">
-              {{ buy_now_label }}
-            </button>
-          {%- endif -%}
-        </form>
-      {%- elsif show_quick_add -%}
-        <a class="qcm__btn qcmCard__btn qcmCard__btn--{{ s.button_size | default: 'md' }}" href="{{ card_url }}">
-          {{ choose_label }}
-        </a>
-      {%- endif -%}
-    </div>
+    {%- if show_quick -%}
+      <div class="qcmc__actions">
+        {%- if sold_out -%}
+          <button class="qcmc__btn" type="button" disabled>Sold out</button>
+        {%- elsif single_variant -%}
+          <form method="post" action="/cart/add" class="qcmc__form">
+            <input type="hidden" name="id" value="{{ first_variant.id }}">
+            <button class="qcmc__btn" type="submit">{{ s.add_to_cart_label | default: 'Add to cart' }}</button>
+            {%- if s.show_buy_now -%}
+              <button class="qcmc__btn qcmc__btn--ghost" type="submit" name="checkout">
+                {{ s.buy_now_label | default: 'Buy now' }}
+              </button>
+            {%- endif -%}
+          </form>
+        {%- else -%}
+          <a class="qcmc__btn" href="{{ p.url }}">{{ s.choose_options_label | default: 'Choose options' }}</a>
+        {%- endif -%}
+      </div>
+    {%- endif -%}
   </div>
 </article>
-
-<style>
-  /* Card scoped by section root automatically via .qcm container */
-  .qcm .qcmCard{
-    border: 1px solid var(--qcm-card-border);
-    border-style: var(--qcm-card-border-style);
-    border-radius: var(--qcm-radius);
-    background: var(--qcm-card-bg);
-    overflow: hidden;
-    display: grid;
-    grid-template-rows: auto 1fr;
-  }
-
-  .qcm .qcmCard__media{ position: relative; display:block; text-decoration:none; color: inherit; }
-  .qcm .qcmCard__img{ width: 100%; position: relative; overflow:hidden; background: rgba(0,0,0,.03); }
-  .qcm .qcmCard__img--ratio-square{ aspect-ratio: 1/1; }
-  .qcm .qcmCard__img--ratio-portrait{ aspect-ratio: 4/5; }
-  .qcm .qcmCard__img--ratio-landscape{ aspect-ratio: 5/4; }
-  .qcm .qcmCard__img--ratio-adapt{ aspect-ratio: auto; min-height: 220px; }
-
-  .qcm .qcmCard__img1,
-  .qcm .qcmCard__img2{ width:100%; height:100%; object-fit: cover; display:block; }
-
-  .qcm .qcmCard__img2{
-    position:absolute; inset:0;
-    opacity:0; transition: opacity .22s ease;
-  }
-  .qcm .qcmCard__media:hover .qcmCard__img2{ opacity:1; }
-
-  .qcm .qcmCard__badges{
-    position:absolute; left:10px; top:10px;
-    display:flex; gap:8px; flex-wrap:wrap;
-  }
-  .qcm .qcmCard__badge{
-    font-size:12px; padding:6px 8px; border-radius:999px;
-    border:1px solid var(--qcm-card-border);
-    background: rgba(255,255,255,.9);
-  }
-  .qcm .qcmCard__badge--sale{ font-weight:700; }
-
-  .qcm .qcmCard__body{ padding: 12px; display:grid; gap: 8px; }
-  .qcm .qcmCard__vendor{ color: var(--qcm-vendor-color); font-size: var(--qcm-vendor-size-set); opacity:.85; }
-  .qcm .qcmCard__title{
-    color: var(--qcm-title-color);
-    font-size: var(--qcm-title-size-set);
-    text-decoration:none;
-    display: -webkit-box;
-    -webkit-line-clamp: var(--qcm-truncate-lines);
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .qcm .qcmCard__price{ color: var(--qcm-price-color); font-size: var(--qcm-price-size-set); display:flex; gap:10px; align-items:baseline; }
-  .qcm .qcmCard__priceWas{ text-decoration: line-through; opacity:.6; font-size: calc(var(--qcm-price-size-set) - 2px); }
-
-  .qcm .qcmCard__rating{ display:flex; align-items:center; gap:8px; }
-  .qcm .qcmCard__stars{
-    width: 88px; height: 16px; display:inline-block; position:relative;
-    background: linear-gradient(90deg, var(--qcm-rating-star-color) var(--qcm-stars), rgba(0,0,0,.18) var(--qcm-stars));
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 110 20'%3E%3Cpath fill='white' d='M10 0l3 6 7 .9-5 4.8 1.2 7.3L10 16l-6.2 3 1.2-7.3-5-4.8L7 6zM32 0l3 6 7 .9-5 4.8 1.2 7.3L32 16l-6.2 3 1.2-7.3-5-4.8L29 6zM54 0l3 6 7 .9-5 4.8 1.2 7.3L54 16l-6.2 3 1.2-7.3-5-4.8L51 6zM76 0l3 6 7 .9-5 4.8 1.2 7.3L76 16l-6.2 3 1.2-7.3-5-4.8L73 6zM98 0l3 6 7 .9-5 4.8 1.2 7.3L98 16l-6.2 3 1.2-7.3-5-4.8L95 6z'/%3E%3C/svg%3E") center/contain no-repeat;
-            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 110 20'%3E%3Cpath fill='white' d='M10 0l3 6 7 .9-5 4.8 1.2 7.3L10 16l-6.2 3 1.2-7.3-5-4.8L7 6zM32 0l3 6 7 .9-5 4.8 1.2 7.3L32 16l-6.2 3 1.2-7.3-5-4.8L29 6zM54 0l3 6 7 .9-5 4.8 1.2 7.3L54 16l-6.2 3 1.2-7.3-5-4.8L51 6zM76 0l3 6 7 .9-5 4.8 1.2 7.3L76 16l-6.2 3 1.2-7.3-5-4.8L73 6zM98 0l3 6 7 .9-5 4.8 1.2 7.3L98 16l-6.2 3 1.2-7.3-5-4.8L95 6z'/%3E%3C/svg%3E") center/contain no-repeat;
-  }
-  .qcm .qcmCard__ratingCount{ color: var(--qcm-rating-text-color); font-size: 12px; opacity: .85; }
-
-  .qcm .qcmCard__actions{ margin-top: 6px; }
-  .qcm .qcmCard__form{ display:flex; gap:10px; flex-wrap:wrap; }
-
-  .qcm .qcmCard__btn--sm{ padding: 8px 10px; font-size: 13px; }
-  .qcm .qcmCard__btn--md{ padding: 10px 12px; font-size: 14px; }
-  .qcm .qcmCard__btn--lg{ padding: 12px 14px; font-size: 15px; }
-</style>
