@@ -1,11 +1,6 @@
 {%- comment -%}
-  Quadratum — Collection Modern Simple
+  Quadratum — Collection Modern (Max Capability)
   File: sections/collection-modern.liquid
-
-  NOTE:
-  - This is the SIMPLE variant.
-  - Scoped root class includes: .q-collection-modern-simple
-  - Active filter chips + Clear all are FORCED OFF in this simple variant.
 {%- endcomment -%}
 
 {{ 'section-collection-modern.css' | asset_url | stylesheet_tag }}
@@ -75,7 +70,7 @@
   assign per_page = s.products_per_page | default: 24
 
   assign scope_id = section.id
-  assign root_id = 'QtmCollectionModernSimple-' | append: scope_id
+  assign root_id = 'QtmCollectionModern-' | append: scope_id
 
   assign grid_cols_desktop = s.columns_desktop | default: 4
   assign grid_cols_tablet  = s.columns_tablet  | default: 3
@@ -96,6 +91,11 @@
     assign enable_drawer = true
   endif
 
+  assign enable_drawer_str = 'false'
+  if enable_drawer
+    assign enable_drawer_str = 'true'
+  endif
+
   assign effective_mode = filter_mode
   if has_filters == false
     assign effective_mode = 'none'
@@ -103,21 +103,16 @@
 
   assign card_engine = s.card_engine | default: 'default_theme_card'
 
-  comment
-    SIMPLE: Force hide active chips + clear all (do not show anywhere)
-  endcomment
-  assign force_hide_active = true
-  assign force_hide_clear = true
 -%}
 
 <section
   id="{{ root_id }}"
-  class="q-collection-modern q-collection-modern-simple qcm layout-{{ layout }} cardstyle-{{ s.card_style }} density-{{ s.card_density }} hover-{{ s.hover_effects }} reveal-{{ s.reveal_animation }} scheme-{{ s.color_scheme }}"
+  class="q-collection-modern qcm layout-{{ layout }} cardstyle-{{ s.card_style }} density-{{ s.card_density }} hover-{{ s.hover_effects }} reveal-{{ s.reveal_animation }} scheme-{{ s.color_scheme }}"
   data-section-id="{{ scope_id }}"
   data-layout="{{ layout }}"
   data-pagination-style="{{ pagination_style }}"
   data-filter-mode="{{ filter_mode }}"
-  data-enable-drawer="{% if enable_drawer %}true{% else %}false{% endif %}"
+  data-enable-drawer="{{ enable_drawer_str }}"
 >
   <style>
     #{{ root_id }}{
@@ -154,7 +149,7 @@
     }
   </style>
 
-  <div class="qcmWrap {% if s.max_width_toggle == 'contained' %}qcmWrap--contained{% endif %}">
+  <div class="qcm__container {% if s.max_width_toggle == 'contained' %}qcm__container--contained{% endif %}">
     {% render 'collection-modern-toolbar',
       section: section,
       s: s,
@@ -164,18 +159,17 @@
       results_description: results_description,
       terms_q: terms_q,
       has_filters: has_filters,
+      filters: filters,
       sort_options: sort_options,
       sort_by: sort_by,
       default_sort_by: default_sort_by,
       sticky_toolbar: sticky_toolbar,
-      filter_mode: filter_mode,
-      force_hide_active: force_hide_active,
-      force_hide_clear: force_hide_clear
+      filter_mode: filter_mode
     %}
 
-    <div class="qcmLayout {% if has_filters and filter_mode == 'sidebar' %}qcmLayout--sidebar{% endif %}">
+    <div class="qcm__body qcm__body--mode-{{ effective_mode }}">
       {%- if has_filters and filter_mode == 'sidebar' -%}
-        <aside class="qcmSidebar" aria-label="Filters">
+        <aside class="qcm__sidebar" aria-label="Filters">
           {% render 'collection-modern-facets',
             section: section,
             s: s,
@@ -183,25 +177,15 @@
             results_url: results_url,
             terms_q: terms_q,
             filters: filters,
+            sort_options: sort_options,
+            sort_by: sort_by,
+            default_sort_by: default_sort_by,
             placement: 'sidebar'
           %}
         </aside>
       {%- endif -%}
 
-      <div class="qcmMain">
-        {%- comment -%} ✅ FIX: BAR mode now renders facets (previously blank) {%- endcomment -%}
-        {%- if has_filters and filter_mode == 'bar' -%}
-          {% render 'collection-modern-facets',
-            section: section,
-            s: s,
-            is_search_context: is_search_context,
-            results_url: results_url,
-            terms_q: terms_q,
-            filters: filters,
-            placement: 'bar'
-          %}
-        {%- endif -%}
-
+      <div class="qcm__main">
         {%- if has_filters and filter_mode == 'drawer' -%}
           {% render 'collection-modern-facets',
             section: section,
@@ -210,12 +194,15 @@
             results_url: results_url,
             terms_q: terms_q,
             filters: filters,
+            sort_options: sort_options,
+            sort_by: sort_by,
+            default_sort_by: default_sort_by,
             placement: 'drawer'
           %}
 
           <noscript>
-            <details class="qcmDrawerNoJS">
-              <summary class="qcmBtn">Filters</summary>
+            <details class="qcm__drawer-noscript">
+              <summary class="qcm__btn">Filters</summary>
               {% render 'collection-modern-facets',
                 section: section,
                 s: s,
@@ -223,6 +210,9 @@
                 results_url: results_url,
                 terms_q: terms_q,
                 filters: filters,
+                sort_options: sort_options,
+                sort_by: sort_by,
+                default_sort_by: default_sort_by,
                 placement: 'drawer_noscript'
               %}
             </details>
@@ -236,26 +226,32 @@
           {%- endif -%}
 
           {%- if page_has_products -%}
-            <div class="qcmGrid qcmGrid--cols" data-qcm-grid>
-              {%- for item in products -%}
-                {%- liquid
-                  assign p = item
-                  if is_search_context
-                    if item.object_type != 'product'
-                      continue
-                    endif
+            <div class="qcm__gridWrap">
+              <div
+                class="qcm__grid"
+                data-qcm-grid
+                aria-live="{% if pagination_style == 'infinite_scroll' %}polite{% else %}off{% endif %}"
+              >
+                {%- for item in products -%}
+                  {%- liquid
                     assign p = item
-                  endif
-                -%}
+                    if is_search_context
+                      if item.object_type != 'product'
+                        continue
+                      endif
+                      assign p = item
+                    endif
+                  -%}
 
-                <div class="qcmItem" data-qcm-item>
-                  {%- if card_engine == 'modern_card' -%}
-                    {% render 'collection-modern-product-card', product: p, s: s, section: section %}
-                  {%- else -%}
-                    {% render 'product-card', product: p %}
-                  {%- endif -%}
-                </div>
-              {%- endfor -%}
+                  <div class="qcm__item" data-qcm-item>
+                    {%- if card_engine == 'modern_card' -%}
+                      {% render 'collection-modern-product-card', product: p, s: s, section: section %}
+                    {%- else -%}
+                      {% render 'product-card', product: p %}
+                    {%- endif -%}
+                  </div>
+                {%- endfor -%}
+              </div>
             </div>
 
             {%- if s.show_pagination -%}
@@ -267,9 +263,11 @@
               %}
             {%- endif -%}
           {%- else -%}
-            <div class="qcmEmpty" role="status">
-              <p class="qcmEmpty__title">No products found.</p>
-              {%- comment -%} SIMPLE forces clear all OFF {%- endcomment -%}
+            <div class="qcm__empty" role="status">
+              <p class="qcm__emptyTitle">No products found.</p>
+              {%- if s.show_clear_all -%}
+                <a class="qcm__btn qcm__btn--link" href="{{ results_url }}">Clear all filters</a>
+              {%- endif -%}
             </div>
           {%- endif -%}
         {%- endpaginate -%}
