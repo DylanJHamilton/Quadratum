@@ -6,62 +6,87 @@
   function qs(root, sel) { return root.querySelector(sel); }
   function qsa(root, sel) { return Array.from(root.querySelectorAll(sel)); }
 
-  function moneyFormatFromShopify(cents) {
-    // basic fallback; your theme may have a formatter later
-    const n = (cents / 100).toFixed(2);
-    return `$${n}`;
+  function closest(el, sel) {
+    if (!el) return null;
+    return el.closest(sel);
   }
 
-  function buildModal(root) {
-    let modal = qs(root, '[data-qcm-qv-modal]');
-    if (modal) return modal;
-
-    modal = document.createElement('div');
-    modal.className = 'qcm__modal';
-    modal.setAttribute('data-qcm-qv-modal', 'true');
-    modal.innerHTML = `
-      <div class="qcm__modalBackdrop" data-qcm-qv-close></div>
-      <div class="qcm__modalPanel" role="dialog" aria-modal="true" aria-label="Quick view">
-        <button class="qcm__modalClose" type="button" data-qcm-qv-close aria-label="Close">×</button>
-        <div class="qcm__modalGrid">
-          <div class="qcm__modalMedia">
-            <div class="qcm__modalGallery" data-qcm-qv-gallery>
-              <img class="qcm__modalImg" data-qcm-qv-img alt="">
-            </div>
-            <div class="qcm__modalArrows">
-              <button type="button" class="qcm__modalArrow" data-qcm-qv-prev aria-label="Previous">‹</button>
-              <button type="button" class="qcm__modalArrow" data-qcm-qv-next aria-label="Next">›</button>
-            </div>
-          </div>
-          <div class="qcm__modalInfo">
-            <h3 class="qcm__modalTitle" data-qcm-qv-title></h3>
-            <div class="qcm__modalPrice" data-qcm-qv-price></div>
-            <div class="qcm__modalDesc" data-qcm-qv-desc></div>
-
-            <div class="qcm__modalVariants" data-qcm-qv-variants></div>
-
-            <div class="qcm__modalActions" data-qcm-qv-actions>
-              <button type="button" class="qcm__btn" data-qcm-qv-atc>Add to cart</button>
-              <a class="qcm__btn qcm__btn--ghost" data-qcm-qv-view href="#">View product</a>
-              <button type="button" class="qcm__btn" data-qcm-qv-buynow>Buy now</button>
-            </div>
-
-            <div class="qcm__modalStatus" aria-live="polite" data-qcm-qv-status></div>
-          </div>
-        </div>
-      </div>
-    `;
-    root.appendChild(modal);
-    return modal;
+  function setHtml(el, html) {
+    if (!el) return;
+    el.innerHTML = html;
   }
 
-  async function fetchProductJSON(handle) {
-    const res = await fetch(`/products/${handle}.js`, { credentials: 'same-origin' });
-    if (!res.ok) throw new Error('Product fetch failed');
-    return await res.json();
+  function lockBodyScroll(lock) {
+    document.documentElement.classList.toggle('qcm-scroll-lock', !!lock);
+  }
+
+  function openQuickView(root, html) {
+    const host = qs(root, '[data-qcm-qv]');
+    const inner = qs(root, '[data-qcm-qv-inner]');
+    if (!host || !inner) return;
+
+    setHtml(inner, html);
+
+    host.hidden = false;
+    host.setAttribute('aria-hidden', 'false');
+
+    lockBodyScroll(true);
+
+    // focus close button for accessibility
+    const closeBtn = qs(host, '[data-qcm-qv-close]');
+    if (closeBtn) closeBtn.focus();
+  }
+
+  function closeQuickView(root) {
+    const host = qs(root, '[data-qcm-qv]');
+    const inner = qs(root, '[data-qcm-qv-inner]');
+    if (!host || !inner) return;
+
+    host.hidden = true;
+    host.setAttribute('aria-hidden', 'true');
+    inner.innerHTML = '';
+
+    lockBodyScroll(false);
+  }
+
+  async function fetchSectionFragment(handle) {
+    const url = `/products/${encodeURIComponent(handle)}?section_id=collection-modern-quick-view`;
+    const res = await fetch(url, { credentials: 'same-origin' });
+    if (!res.ok) throw new Error('Quick view fetch failed');
+    return await res.text();
+  }
+
+  function getNextUrl(root) {
+    const holder = qs(root, '[data-qcm-next-url]');
+    if (!holder) return '';
+    return holder.getAttribute('data-qcm-next-url') || '';
+  }
+
+  function setNextUrl(root, nextUrl) {
+    const holder = qs(root, '[data-qcm-next-url]');
+    if (!holder) return;
+    if (nextUrl) holder.setAttribute('data-qcm-next-url', nextUrl);
+    else holder.removeAttribute('data-qcm-next-url');
+  }
+
+  function extractFromHTML(html, rootId) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const nextRoot = doc.getElementById(rootId);
+    if (!nextRoot) return { items: [], nextUrl: '' };
+
+    const nextGrid = nextRoot.querySelector('[data-qcm-grid]');
+    const items = nextGrid ? Array.from(nextGrid.querySelectorAll('[data-qcm-item]')) : [];
+
+    const nextHolder = nextRoot.querySelector('[data-qcm-next-url]');
+    const nextUrl = nextHolder ? (nextHolder.getAttribute('data-qcm-next-url') || '') : '';
+
+    return { items, nextUrl };
   }
 
   function initSection(root) {
+    if (root.__qcmInit) return;
+    root.__qcmInit = true;
+
     // Sort dropdown navigation
     const sortSelect = qs(root, '[data-qcm-sort-select]');
     if (sortSelect) {
@@ -73,22 +98,25 @@
       });
     }
 
-    // Drawer open (your facets snippet should include drawer panel with [data-qcm-drawer])
-    const openFilters = qs(root, '[data-qcm-open-filters]');
-    if (openFilters) {
-      openFilters.addEventListener('click', () => {
+    // Drawer open/close (contract: open button + drawer + close attrs)
+    root.addEventListener('click', (e) => {
+      const openBtn = e.target.closest('[data-qcm-open-filters]');
+      if (openBtn) {
         const drawer = qs(root, '[data-qcm-drawer]');
         if (drawer) drawer.classList.add('is-open');
-      });
-    }
-    qsa(root, '[data-qcm-close-filters]').forEach(btn => {
-      btn.addEventListener('click', () => {
+        return;
+      }
+
+      const closeBtn = e.target.closest('[data-qcm-close-filters]');
+      const backdropClose = e.target.closest('[data-qcm-drawer-backdrop]');
+      if (closeBtn || backdropClose) {
         const drawer = qs(root, '[data-qcm-drawer]');
         if (drawer) drawer.classList.remove('is-open');
-      });
+        return;
+      }
     });
 
-    // Layout controls
+    // Layout controls (unchanged)
     const layout = qs(root, '[data-qcm-layout]');
     const colsReadout = qs(root, '[data-qcm-cols-readout]');
     const storageKey = `qcm:${root.id}:prefs`;
@@ -100,7 +128,6 @@
     function setPrefs(next) {
       try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch (e) {}
     }
-
     function applyPrefs(p) {
       if (p.view === 'list') root.classList.add('is-list'); else root.classList.remove('is-list');
       if (p.density === 'compact') root.classList.add('density-compact'); else root.classList.remove('density-compact');
@@ -121,58 +148,48 @@
         if (!b) return;
 
         const p = getPrefs();
+        if (b.hasAttribute('data-qcm-view')) p.view = b.getAttribute('data-qcm-view');
+        if (b.hasAttribute('data-qcm-density')) p.density = b.getAttribute('data-qcm-density');
 
-        if (b.hasAttribute('data-qcm-view')) {
-          p.view = b.getAttribute('data-qcm-view');
-        }
-        if (b.hasAttribute('data-qcm-density')) {
-          p.density = b.getAttribute('data-qcm-density');
-        }
-        if (b.hasAttribute('data-qcm-cols-plus')) {
-          p.cols = (p.cols || parseInt(getComputedStyle(root).getPropertyValue('--qcm-cols-d')) || 4) + 1;
-        }
-        if (b.hasAttribute('data-qcm-cols-minus')) {
-          p.cols = (p.cols || parseInt(getComputedStyle(root).getPropertyValue('--qcm-cols-d')) || 4) - 1;
-        }
+        const currentCols = parseInt(getComputedStyle(root).getPropertyValue('--qcm-cols-d')) || 4;
+
+        if (b.hasAttribute('data-qcm-cols-plus')) p.cols = (p.cols || currentCols) + 1;
+        if (b.hasAttribute('data-qcm-cols-minus')) p.cols = (p.cols || currentCols) - 1;
 
         setPrefs(p);
         applyPrefs(p);
       });
     }
 
-    // Product card mini slider arrows
-    qsa(root, '[data-qcmc]').forEach(card => {
-      const mode = card.getAttribute('data-media-mode');
-      if (mode !== 'slider') return;
+    // Slider arrows (delegation; no per-card init)
+    root.addEventListener('click', (e) => {
+      const prevBtn = e.target.closest('[data-qcmc-prev]');
+      const nextBtn = e.target.closest('[data-qcmc-next]');
+      if (!prevBtn && !nextBtn) return;
 
-      const imagesScript = qs(card, '[data-qcmc-images]');
-      if (!imagesScript) return;
+      const slider = e.target.closest('[data-qcmc-slider]');
+      if (!slider) return;
 
-      let images = [];
-      try { images = JSON.parse(imagesScript.textContent || '[]'); } catch (e) { images = []; }
-      if (!images.length) return;
+      const track = slider.querySelector('[data-qcmc-track]');
+      if (!track) return;
 
-      const img = qs(card, '.qcmc__img--primary');
-      if (!img) return;
+      const slides = Array.from(track.querySelectorAll('img'));
+      if (!slides.length) return;
 
-      let idx = 0;
-      const prev = qs(card, '[data-qcmc-prev]');
-      const next = qs(card, '[data-qcmc-next]');
+      let idx = parseInt(slider.getAttribute('data-qcmc-index') || '0', 10);
+      idx = Number.isFinite(idx) ? idx : 0;
 
-      function show(i) {
-        idx = (i + images.length) % images.length;
-        img.src = images[idx];
-      }
+      if (prevBtn) idx = (idx - 1 + slides.length) % slides.length;
+      if (nextBtn) idx = (idx + 1) % slides.length;
 
-      if (prev) prev.addEventListener('click', (e) => { e.preventDefault(); show(idx - 1); });
-      if (next) next.addEventListener('click', (e) => { e.preventDefault(); show(idx + 1); });
+      slider.setAttribute('data-qcmc-index', String(idx));
+      track.style.transform = `translateX(-${idx * 100}%)`;
+      e.preventDefault();
     });
 
-    // Compare / Select
-    const compare = {
-      enabled: root.getAttribute('data-enable-compare') === 'true',
-      items: new Map()
-    };
+    // Compare / Select (contract: [data-qcm-compare-toggle] + [data-qcmc] datasets)
+    const compareEnabled = root.getAttribute('data-qcm-enable-compare') === 'true';
+    const compare = { items: new Map() };
 
     function ensureCompareBar() {
       let bar = qs(root, '[data-qcm-comparebar]');
@@ -195,38 +212,46 @@
     function updateCompareUI() {
       const bar = ensureCompareBar();
       const count = compare.items.size;
-      qs(bar, '[data-qcm-comparecount]').textContent = String(count);
+      const countEl = qs(bar, '[data-qcm-comparecount]');
+      if (countEl) countEl.textContent = String(count);
       bar.classList.toggle('is-active', count > 0);
     }
 
-    if (compare.enabled) {
+    if (compareEnabled) {
       ensureCompareBar();
       updateCompareUI();
 
       root.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-qcm-compare-toggle]');
-        if (!btn) return;
-        const card = e.target.closest('[data-qcmc]');
-        if (!card) return;
+        if (btn) {
+          const card = closest(btn, '[data-qcmc]');
+          if (!card) return;
 
-        const handle = card.getAttribute('data-product-handle');
-        const url = card.getAttribute('data-product-url');
-        const title = card.getAttribute('data-product-title');
+          const handle = card.getAttribute('data-product-handle') || '';
+          const url = card.getAttribute('data-product-url') || '';
+          const title = card.getAttribute('data-product-title') || '';
 
-        if (compare.items.has(handle)) {
-          compare.items.delete(handle);
-          btn.textContent = btn.getAttribute('data-label-select') || 'Select';
-          btn.classList.remove('is-selected');
-        } else {
-          compare.items.set(handle, { handle, url, title });
-          btn.textContent = btn.getAttribute('data-label-selected') || 'Selected';
-          btn.classList.add('is-selected');
+          if (!handle || !url) return;
+
+          const labelSelect = btn.getAttribute('data-label-select') || 'Select';
+          const labelSelected = btn.getAttribute('data-label-selected') || 'Selected';
+
+          if (compare.items.has(handle)) {
+            compare.items.delete(handle);
+            btn.textContent = labelSelect;
+            btn.classList.remove('is-selected');
+          } else {
+            compare.items.set(handle, { handle, url, title });
+            btn.textContent = labelSelected;
+            btn.classList.add('is-selected');
+          }
+          updateCompareUI();
+          return;
         }
-        updateCompareUI();
-      });
 
-      const bar = ensureCompareBar();
-      bar.addEventListener('click', (e) => {
+        const bar = qs(root, '[data-qcm-comparebar]');
+        if (!bar) return;
+
         if (e.target.closest('[data-qcm-compareclear]')) {
           compare.items.clear();
           qsa(root, '[data-qcm-compare-toggle]').forEach(b => {
@@ -234,156 +259,120 @@
             b.textContent = b.getAttribute('data-label-select') || 'Select';
           });
           updateCompareUI();
+          return;
         }
 
         if (e.target.closest('[data-qcm-comparego]')) {
-          // Minimal v1: open a compare page if you have one; otherwise open first 2 products.
           const arr = Array.from(compare.items.values()).slice(0, 2);
           if (arr.length) window.location.href = arr[0].url;
+          return;
         }
       });
     }
 
-    // Quick View
-    const qvEnabled = root.getAttribute('data-enable-quickview') === 'true';
+    // Quick View (ONE system: section-render fragment)
+    const qvEnabled = root.getAttribute('data-qcm-qv-enabled') === 'true';
     if (qvEnabled) {
-      const modal = buildModal(root);
-      const closeEls = qsa(modal, '[data-qcm-qv-close]');
-      closeEls.forEach(el => el.addEventListener('click', () => modal.classList.remove('is-open')));
-
-      let gallery = [];
-      let gIndex = 0;
-
-      function setGalleryIndex(i) {
-        if (!gallery.length) return;
-        gIndex = (i + gallery.length) % gallery.length;
-        const img = qs(modal, '[data-qcm-qv-img]');
-        img.src = gallery[gIndex];
-      }
-
-      qs(modal, '[data-qcm-qv-prev]').addEventListener('click', () => setGalleryIndex(gIndex - 1));
-      qs(modal, '[data-qcm-qv-next]').addEventListener('click', () => setGalleryIndex(gIndex + 1));
-
       root.addEventListener('click', async (e) => {
-        const btn = e.target.closest('[data-qcm-qv]');
+        const btn = e.target.closest('[data-qcm-quick-view]');
         if (!btn) return;
 
-        const card = e.target.closest('[data-qcmc]');
+        e.preventDefault();
+
+        const card = closest(btn, '[data-qcmc]');
         if (!card) return;
 
         const handle = card.getAttribute('data-product-handle');
+        if (!handle) return;
 
-        modal.classList.add('is-open');
-        qs(modal, '[data-qcm-qv-status]').textContent = 'Loading…';
+        // open shell immediately
+        openQuickView(root, '<div style="padding:16px;">Loading…</div>');
 
         try {
-          const data = await fetchProductJSON(handle);
-
-          // Title
-          qs(modal, '[data-qcm-qv-title]').textContent = data.title;
-
-          // Price
-          const priceEl = qs(modal, '[data-qcm-qv-price]');
-          if (data.compare_at_price && data.compare_at_price > data.price) {
-            priceEl.innerHTML = `<span class="qcm__priceNow">${moneyFormatFromShopify(data.price)}</span> <span class="qcm__priceWas"><s>${moneyFormatFromShopify(data.compare_at_price)}</s></span>`;
-          } else {
-            priceEl.innerHTML = `<span class="qcm__priceNow">${moneyFormatFromShopify(data.price)}</span>`;
-          }
-
-          // Description (small)
-          const desc = (data.description || '').replace(/<[^>]*>?/gm, '').trim();
-          qs(modal, '[data-qcm-qv-desc]').textContent = desc ? desc.slice(0, 180) + (desc.length > 180 ? '…' : '') : '';
-
-          // Gallery
-          gallery = (data.images || []).slice(0, 10);
-          if (!gallery.length) gallery = [card.getAttribute('data-product-featured')].filter(Boolean);
-          setGalleryIndex(0);
-
-          // Variants
-          const vWrap = qs(modal, '[data-qcm-qv-variants]');
-          vWrap.innerHTML = '';
-          const needsVariant = (data.variants || []).length > 1;
-
-          let activeVariantId = (data.variants && data.variants[0]) ? data.variants[0].id : null;
-
-          if (needsVariant) {
-            const sel = document.createElement('select');
-            sel.className = 'qcm__variantSelect';
-            sel.setAttribute('data-qcm-qv-variant', 'true');
-
-            data.variants.forEach(v => {
-              const opt = document.createElement('option');
-              opt.value = String(v.id);
-              opt.textContent = v.public_title || v.title;
-              if (v.available === false) opt.disabled = true;
-              sel.appendChild(opt);
-            });
-            vWrap.appendChild(sel);
-
-            sel.addEventListener('change', () => {
-              activeVariantId = parseInt(sel.value, 10);
-            });
-          } else if ((data.variants || []).length === 1) {
-            activeVariantId = data.variants[0].id;
-          }
-
-          // Actions: optional logic
-          const actions = qs(modal, '[data-qcm-qv-actions]');
-          const atcBtn = qs(actions, '[data-qcm-qv-atc]');
-          const viewLink = qs(actions, '[data-qcm-qv-view]');
-          const buyNowBtn = qs(actions, '[data-qcm-qv-buynow]');
-
-          // These are controlled by data attributes from section if you want later,
-          // for now default ON:
-          const enableATC = root.getAttribute('data-qcm-qv-atc') !== 'false';
-          const enableView = root.getAttribute('data-qcm-qv-view') !== 'false';
-          const enableBuyNow = root.getAttribute('data-qcm-qv-buynow') === 'true';
-
-          // If Buy Now enabled => remove ATC + View product (per your rule)
-          atcBtn.style.display = enableATC && !enableBuyNow ? '' : 'none';
-          viewLink.style.display = enableView && !enableBuyNow ? '' : 'none';
-          buyNowBtn.style.display = enableBuyNow ? '' : 'none';
-
-          viewLink.href = data.url;
-
-          // ATC
-          atcBtn.onclick = async () => {
-            qs(modal, '[data-qcm-qv-status]').textContent = 'Adding…';
-            const body = { id: activeVariantId, quantity: 1 };
-            const r = await fetch('/cart/add.js', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'same-origin',
-              body: JSON.stringify(body)
-            });
-            if (!r.ok) throw new Error('ATC failed');
-            qs(modal, '[data-qcm-qv-status]').textContent = 'Added to cart';
-          };
-
-          // BUY NOW = one-step checkout
-          buyNowBtn.onclick = async () => {
-            qs(modal, '[data-qcm-qv-status]').textContent = 'Processing…';
-            const body = { id: activeVariantId, quantity: 1 };
-            const r = await fetch('/cart/add.js', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'same-origin',
-              body: JSON.stringify(body)
-            });
-            if (!r.ok) throw new Error('Buy Now add failed');
-            window.location.href = '/checkout';
-          };
-
-          qs(modal, '[data-qcm-qv-status]').textContent = '';
+          const html = await fetchSectionFragment(handle);
+          openQuickView(root, html);
         } catch (err) {
-          qs(modal, '[data-qcm-qv-status]').textContent = 'Could not load product.';
+          openQuickView(root, '<div style="padding:16px;">Could not load product.</div>');
         }
       });
+
+      root.addEventListener('click', (e) => {
+        if (e.target.closest('[data-qcm-qv-close]')) {
+          closeQuickView(root);
+        }
+      });
+
+      document.addEventListener('keydown', (e) => {
+        const host = qs(root, '[data-qcm-qv]');
+        if (!host || host.hidden) return;
+        if (e.key === 'Escape') closeQuickView(root);
+      });
+    }
+
+    // Load more / Infinite scroll (AJAX pagination)
+    const paginationStyle = root.getAttribute('data-pagination-style') || 'numbered';
+    const grid = qs(root, '[data-qcm-grid]');
+
+    async function loadNextPage() {
+      const nextUrl = getNextUrl(root);
+      if (!nextUrl || !grid) return false;
+
+      const res = await fetch(nextUrl, { credentials: 'same-origin' });
+      if (!res.ok) return false;
+
+      const html = await res.text();
+      const { items, nextUrl: newNext } = extractFromHTML(html, root.id);
+
+      if (items.length) {
+        items.forEach(it => grid.appendChild(it));
+      }
+
+      setNextUrl(root, newNext || '');
+      return items.length > 0;
+    }
+
+    // Load more button
+    root.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-qcm-load-more]');
+      if (!btn) return;
+
+      const nextUrl = getNextUrl(root);
+      if (!nextUrl) return;
+
+      btn.setAttribute('aria-busy', 'true');
+      try {
+        const ok = await loadNextPage();
+        if (!ok) btn.style.display = 'none';
+        if (!getNextUrl(root)) btn.style.display = 'none';
+      } finally {
+        btn.setAttribute('aria-busy', 'false');
+      }
+    });
+
+    // Infinite scroll sentinel
+    if (paginationStyle === 'infinite_scroll') {
+      const sentinel = qs(root, '[data-qcm-sentinel]');
+      if (sentinel && 'IntersectionObserver' in window) {
+        const io = new IntersectionObserver(async (entries) => {
+          const hit = entries.some(en => en.isIntersecting);
+          if (!hit) return;
+          if (!getNextUrl(root)) return;
+
+          // prevent rapid-fire
+          io.unobserve(sentinel);
+          await loadNextPage();
+          if (getNextUrl(root)) io.observe(sentinel);
+        }, { rootMargin: '600px 0px' });
+
+        io.observe(sentinel);
+      }
     }
   }
 
   function boot() {
-    document.querySelectorAll('.q-collection-modern[id^="QtmCollectionModern-"]').forEach(initSection);
+    document
+      .querySelectorAll('.q-collection-modern[id^="QtmCollectionModern-"]')
+      .forEach(initSection);
   }
 
   if (document.readyState === 'loading') {
@@ -391,44 +380,4 @@
   } else {
     boot();
   }
-
-  (function(){
-  const sections = document.querySelectorAll('.q-collection-modern[data-section-id]');
-  sections.forEach((root) => {
-    const modal = root.querySelector('[data-qcm-modal]');
-    const modalBody = root.querySelector('[data-qcm-modal-body]');
-    const closeEls = root.querySelectorAll('[data-qcm-modal-close]');
-
-    function openModal(html){
-      if(!modal || !modalBody) return;
-      modalBody.innerHTML = html;
-      modal.hidden = false;
-      document.documentElement.classList.add('qcm-modal-open');
-    }
-    function closeModal(){
-      if(!modal || !modalBody) return;
-      modal.hidden = true;
-      modalBody.innerHTML = '';
-      document.documentElement.classList.remove('qcm-modal-open');
-    }
-    closeEls.forEach(el => el.addEventListener('click', closeModal));
-    document.addEventListener('keydown', (e) => {
-      if(e.key === 'Escape' && modal && !modal.hidden) closeModal();
-    });
-
-    root.addEventListener('click', async (e) => {
-      const btn = e.target.closest('[data-qcm-quick-view]');
-      if(!btn) return;
-      e.preventDefault();
-      const handle = btn.getAttribute('data-handle');
-      if(!handle) return;
-
-      // fetch product section fragment
-      const url = `/products/${handle}?section_id=collection-modern-quick-view`;
-      const res = await fetch(url, { credentials: 'same-origin' });
-      const html = await res.text();
-      openModal(html);
-    });
-  });
-})();
 })();
