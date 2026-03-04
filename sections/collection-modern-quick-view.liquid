@@ -1,0 +1,261 @@
+{%- comment -%}
+  Quadratum — Collection Modern Quick View (Section Render Fragment)
+  File: sections/collection-modern-quick-view.liquid
+
+  Purpose:
+  - Render a lightweight quick view "body" for a product page request:
+    /products/<handle>?section_id=collection-modern-quick-view
+
+  Rules:
+  - No Liquid boolean parentheses
+  - No filters inside boolean expressions
+  - Inline CSS only (scoped)
+
+  Output:
+  - Fragment markup intended to be injected into an existing modal container.
+{%- endcomment -%}
+
+{%- liquid
+  assign p = product
+
+  if p == blank
+    break
+  endif
+
+  assign v = p.selected_or_first_available_variant
+  assign has_variants = false
+  if p.variants != blank and p.variants.size > 1
+    assign has_variants = true
+  endif
+
+  assign is_available = true
+  if p.available == false
+    assign is_available = false
+  endif
+
+  assign on_sale = false
+  if v != blank
+    if v.compare_at_price > v.price
+      if is_available
+        assign on_sale = true
+      endif
+    endif
+  endif
+
+  assign featured = p.featured_media
+  if featured == blank
+    assign featured = p.featured_image
+  endif
+
+  assign desc_plain = p.description | strip_html | strip
+  assign desc_short = desc_plain
+  if desc_plain != blank
+    if desc_plain.size > 220
+      assign desc_short = desc_plain | slice: 0, 220 | append: '…'
+    endif
+  endif
+
+  assign first_variant_id = ''
+  if v != blank
+    assign first_variant_id = v.id
+  endif
+
+  assign money_price = ''
+  assign money_compare = ''
+  if v != blank
+    assign money_price = v.price | money
+    assign money_compare = v.compare_at_price | money
+  endif
+-%}
+
+<style>
+  /* Scoped quick view fragment styles */
+  .qcmQvFrag{
+    width: 100%;
+  }
+
+  .qcmQvFrag__grid{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 860px){
+    .qcmQvFrag__grid{
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .qcmQvFrag__media{
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,.15);
+    background: rgba(0,0,0,.03);
+  }
+
+  .qcmQvFrag__img{
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .qcmQvFrag__info{
+    min-width: 0;
+  }
+
+  .qcmQvFrag__title{
+    margin: 0 0 10px;
+    font-size: 22px;
+    line-height: 1.1;
+  }
+
+  .qcmQvFrag__price{
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    margin-bottom: 10px;
+  }
+
+  .qcmQvFrag__was{
+    opacity: .6;
+  }
+
+  .qcmQvFrag__desc{
+    opacity: .85;
+    line-height: 1.45;
+    margin: 0 0 12px;
+  }
+
+  .qcmQvFrag__select{
+    width: 100%;
+    border: 1px solid rgba(0,0,0,.15);
+    border-radius: 999px;
+    padding: 10px 12px;
+    background: #fff;
+    margin-bottom: 12px;
+  }
+
+  .qcmQvFrag__actions{
+    display: grid;
+    gap: 10px;
+  }
+
+  .qcmQvFrag__btn{
+    width: 100%;
+    appearance: none;
+    border: 1px solid rgba(0,0,0,.15);
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    background: #10B981;
+    color: #fff;
+  }
+
+  .qcmQvFrag__btn:hover{
+    background: #000;
+    color: #fff;
+  }
+
+  .qcmQvFrag__btn--ghost{
+    background: transparent;
+    color: currentColor;
+  }
+
+  .qcmQvFrag__status{
+    margin-top: 10px;
+    font-size: 13px;
+    opacity: .75;
+  }
+</style>
+
+<div class="qcmQvFrag" data-qcm-qv-fragment data-product-handle="{{ p.handle }}" data-product-id="{{ p.id }}">
+  <div class="qcmQvFrag__grid">
+    <div class="qcmQvFrag__media">
+      {%- if featured != blank -%}
+        <img
+          class="qcmQvFrag__img"
+          src="{{ featured | image_url: width: 1200 }}"
+          alt="{{ featured.alt | default: p.title | escape }}"
+          loading="lazy"
+        >
+      {%- endif -%}
+    </div>
+
+    <div class="qcmQvFrag__info">
+      <h3 class="qcmQvFrag__title">{{ p.title }}</h3>
+
+      {%- if v != blank -%}
+        <div class="qcmQvFrag__price">
+          <span class="qcmQvFrag__now">{{ money_price }}</span>
+          {%- if on_sale -%}
+            <span class="qcmQvFrag__was"><s>{{ money_compare }}</s></span>
+          {%- endif -%}
+        </div>
+      {%- endif -%}
+
+      {%- if desc_short != blank -%}
+        <p class="qcmQvFrag__desc">{{ desc_short }}</p>
+      {%- endif -%}
+
+      {%- form 'product', p, class: 'qcmQvFrag__form' -%}
+        <input type="hidden" name="quantity" value="1">
+
+        {%- if has_variants -%}
+          <label class="visually-hidden" for="QcmQvVariant-{{ section.id }}">Variant</label>
+          <select id="QcmQvVariant-{{ section.id }}" class="qcmQvFrag__select" name="id">
+            {%- for var in p.variants -%}
+              <option
+                value="{{ var.id }}"
+                {% if var.id == first_variant_id %}selected{% endif %}
+                {% if var.available == false %}disabled{% endif %}
+              >
+                {{ var.title }}
+              </option>
+            {%- endfor -%}
+          </select>
+        {%- else -%}
+          {%- if first_variant_id != '' -%}
+            <input type="hidden" name="id" value="{{ first_variant_id }}">
+          {%- endif -%}
+        {%- endif -%}
+
+        <div class="qcmQvFrag__actions">
+          <button class="qcmQvFrag__btn" type="submit" name="add" {% unless is_available %}disabled{% endunless %}>
+            {%- if is_available -%}Add to cart{%- else -%}Sold out{%- endif -%}
+          </button>
+
+          <a class="qcmQvFrag__btn qcmQvFrag__btn--ghost" href="{{ p.url }}">
+            View product
+          </a>
+
+          {%- if is_available -%}
+            <button class="qcmQvFrag__btn" type="submit" name="checkout">
+              Buy now
+            </button>
+          {%- endif -%}
+        </div>
+
+        <div class="qcmQvFrag__status" aria-live="polite"></div>
+      {%- endform -%}
+    </div>
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Collection Quick View",
+  "tag": "section",
+  "class": "section",
+  "settings": [],
+  "presets": [
+    { "name": "Collection Modern Quick View" }
+  ]
+}
+{% endschema %}
