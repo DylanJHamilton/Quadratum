@@ -83,9 +83,13 @@
     return { items, nextUrl };
   }
 
-  // ✅ ADD: unified slider mover (works for card sliders + quick view sliders)
+  /* ==========================
+     ADD: slider mover helper
+     (works for card + quick view)
+     ========================== */
   function moveSlider(slider, dir) {
     if (!slider) return;
+
     const track =
       slider.querySelector('[data-qcmc-track]') ||
       slider.querySelector('[data-qcm-qv-track]');
@@ -104,7 +108,12 @@
     track.style.transform = `translateX(-${idx * 100}%)`;
   }
 
-  // ✅ ADD: after injecting QV, wire variant dropdown -> hidden input
+  /* ==========================
+     ADD: quick view enhancements
+     - sync variant select -> hidden variant id input
+     - set gallery mode from collection section settings
+     - init slider index to 0
+     ========================== */
   function enhanceQuickView(root) {
     const host = qs(root, '[data-qcm-qv]');
     if (!host) return;
@@ -112,15 +121,21 @@
     const frag = qs(host, '[data-qcm-qv-fragment]');
     if (!frag) return;
 
+    // push mode from collection section into the fragment
+    const mode = root.getAttribute('data-qcm-qv-gallery-mode') || 'slider';
+    frag.setAttribute('data-qcm-qv-mode', mode);
+
     const select = qs(frag, '[data-qcm-qv-variant]');
     const idInput = qs(frag, '[data-qcm-qv-id]');
-
     if (select && idInput) {
+      // ensure initial alignment (important when markup defaults change)
+      idInput.value = select.value;
       select.addEventListener('change', () => {
         idInput.value = select.value;
       });
     }
 
+    // init qv slider
     const qvSlider = qs(frag, '[data-qcm-qv-slider]');
     if (qvSlider) {
       qvSlider.setAttribute('data-qcmc-index', '0');
@@ -207,7 +222,10 @@
       });
     }
 
-    // ✅ PATCH: Slider arrows (delegation; supports card + quick view)
+    /* ==========================
+       PATCH: Slider arrows
+       - supports card + quick view
+       ========================== */
     root.addEventListener('click', (e) => {
       const prevBtn = e.target.closest('[data-qcmc-prev], [data-qcm-qv-prev]');
       const nextBtn = e.target.closest('[data-qcmc-next], [data-qcm-qv-next]');
@@ -216,7 +234,6 @@
       const slider =
         e.target.closest('[data-qcmc-slider]') ||
         e.target.closest('[data-qcm-qv-slider]');
-
       if (!slider) return;
 
       if (prevBtn) moveSlider(slider, 'prev');
