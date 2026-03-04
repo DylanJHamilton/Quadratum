@@ -1,12 +1,6 @@
 /* Quadratum — Collection Modern JS
    File: assets/section-collection-modern.js
    Scoped to each section root only.
-
-   PATCH ONLY (no refactors):
-   - Keep existing features exactly
-   - Add missing Quick View fragment gallery wiring (slideshow arrows)
-   - Broaden drawer close selectors to match both facet implementations
-   - Broaden compare enable attribute to support alt legacy attr
 */
 (function () {
   function qs(root, sel) { return root.querySelector(sel); }
@@ -26,9 +20,6 @@
     document.documentElement.classList.toggle('qcm-scroll-lock', !!lock);
   }
 
-  /* -----------------------------
-     Quick View host open/close
-     ----------------------------- */
   function openQuickView(root, html) {
     const host = qs(root, '[data-qcm-qv]');
     const inner = qs(root, '[data-qcm-qv-inner]');
@@ -65,65 +56,6 @@
     return await res.text();
   }
 
-  /* -----------------------------
-     Quick View fragment enhancer
-     (adds slideshow arrows support)
-     ----------------------------- */
-  function initQuickViewFragment(root) {
-    const host = qs(root, '[data-qcm-qv]');
-    const inner = host ? qs(host, '[data-qcm-qv-inner]') : null;
-    if (!host || !inner) return;
-
-    // The fragment you render should include:
-    // - [data-qcm-qv-fragment]
-    // - [data-qcm-qv-images] <script type="application/json">
-    // - [data-qcm-qv-slide] <img>
-    // - [data-qcm-qv-prev], [data-qcm-qv-next] buttons (optional)
-    const frag = qs(inner, '[data-qcm-qv-fragment]');
-    if (!frag) return;
-
-    const mode = frag.getAttribute('data-qcm-qv-gallery-mode') || 'static';
-    if (mode !== 'slideshow') return;
-
-    const jsonEl = qs(frag, '[data-qcm-qv-images]');
-    const imgEl = qs(frag, '[data-qcm-qv-slide]');
-    if (!jsonEl || !imgEl) return;
-
-    let images = [];
-    try { images = JSON.parse(jsonEl.textContent || '[]'); } catch (e) { images = []; }
-    images = (images || []).filter(Boolean);
-
-    if (images.length < 2) return;
-
-    let idx = 0;
-    const prevBtn = qs(frag, '[data-qcm-qv-prev]');
-    const nextBtn = qs(frag, '[data-qcm-qv-next]');
-
-    function show(i) {
-      idx = (i + images.length) % images.length;
-      imgEl.src = images[idx];
-    }
-
-    if (prevBtn) {
-      prevBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        show(idx - 1);
-      });
-    }
-    if (nextBtn) {
-      nextBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        show(idx + 1);
-      });
-    }
-
-    // If the fragment’s first image is empty/placeholder, ensure we set it.
-    show(0);
-  }
-
-  /* -----------------------------
-     Pagination helpers
-     ----------------------------- */
   function getNextUrl(root) {
     const holder = qs(root, '[data-qcm-next-url]');
     if (!holder) return '';
@@ -151,6 +83,52 @@
     return { items, nextUrl };
   }
 
+  // ✅ ADD: unified slider mover (works for card sliders + quick view sliders)
+  function moveSlider(slider, dir) {
+    if (!slider) return;
+    const track =
+      slider.querySelector('[data-qcmc-track]') ||
+      slider.querySelector('[data-qcm-qv-track]');
+    if (!track) return;
+
+    const slides = Array.from(track.querySelectorAll('img'));
+    if (!slides.length) return;
+
+    let idx = parseInt(slider.getAttribute('data-qcmc-index') || '0', 10);
+    idx = Number.isFinite(idx) ? idx : 0;
+
+    if (dir === 'prev') idx = (idx - 1 + slides.length) % slides.length;
+    if (dir === 'next') idx = (idx + 1) % slides.length;
+
+    slider.setAttribute('data-qcmc-index', String(idx));
+    track.style.transform = `translateX(-${idx * 100}%)`;
+  }
+
+  // ✅ ADD: after injecting QV, wire variant dropdown -> hidden input
+  function enhanceQuickView(root) {
+    const host = qs(root, '[data-qcm-qv]');
+    if (!host) return;
+
+    const frag = qs(host, '[data-qcm-qv-fragment]');
+    if (!frag) return;
+
+    const select = qs(frag, '[data-qcm-qv-variant]');
+    const idInput = qs(frag, '[data-qcm-qv-id]');
+
+    if (select && idInput) {
+      select.addEventListener('change', () => {
+        idInput.value = select.value;
+      });
+    }
+
+    const qvSlider = qs(frag, '[data-qcm-qv-slider]');
+    if (qvSlider) {
+      qvSlider.setAttribute('data-qcmc-index', '0');
+      const track = qs(qvSlider, '[data-qcm-qv-track]');
+      if (track) track.style.transform = 'translateX(0%)';
+    }
+  }
+
   function initSection(root) {
     if (root.__qcmInit) return;
     root.__qcmInit = true;
@@ -166,7 +144,7 @@
       });
     }
 
-    // Drawer open/close (support both facet implementations)
+    // Drawer open/close (contract: open button + drawer + close attrs)
     root.addEventListener('click', (e) => {
       const openBtn = e.target.closest('[data-qcm-open-filters]');
       if (openBtn) {
@@ -175,15 +153,9 @@
         return;
       }
 
-      // Close selectors (support multiple variants without breaking existing)
-      const closeBtnA = e.target.closest('[data-qcm-close-filters]');
-      const closeBtnB = e.target.closest('[data-qcm-close-drawer]');
-      const closeBtnC = e.target.closest('[data-qcm-drawer-close]');
-      const backdropCloseA = e.target.closest('[data-qcm-drawer-backdrop]');
-      const backdropCloseB = e.target.closest('[data-qcm-drawer-backdrop]');
-      const backdropCloseC = e.target.closest('[data-qcm-drawer-close]');
-
-      if (closeBtnA || closeBtnB || closeBtnC || backdropCloseA || backdropCloseB || backdropCloseC) {
+      const closeBtn = e.target.closest('[data-qcm-close-filters]');
+      const backdropClose = e.target.closest('[data-qcm-drawer-backdrop]');
+      if (closeBtn || backdropClose) {
         const drawer = qs(root, '[data-qcm-drawer]');
         if (drawer) drawer.classList.remove('is-open');
         return;
@@ -235,37 +207,26 @@
       });
     }
 
-    // Slider arrows (delegation; no per-card init)
+    // ✅ PATCH: Slider arrows (delegation; supports card + quick view)
     root.addEventListener('click', (e) => {
-      const prevBtn = e.target.closest('[data-qcmc-prev]');
-      const nextBtn = e.target.closest('[data-qcmc-next]');
+      const prevBtn = e.target.closest('[data-qcmc-prev], [data-qcm-qv-prev]');
+      const nextBtn = e.target.closest('[data-qcmc-next], [data-qcm-qv-next]');
       if (!prevBtn && !nextBtn) return;
 
-      const slider = e.target.closest('[data-qcmc-slider]');
+      const slider =
+        e.target.closest('[data-qcmc-slider]') ||
+        e.target.closest('[data-qcm-qv-slider]');
+
       if (!slider) return;
 
-      const track = slider.querySelector('[data-qcmc-track]');
-      if (!track) return;
+      if (prevBtn) moveSlider(slider, 'prev');
+      if (nextBtn) moveSlider(slider, 'next');
 
-      const slides = Array.from(track.querySelectorAll('img'));
-      if (!slides.length) return;
-
-      let idx = parseInt(slider.getAttribute('data-qcmc-index') || '0', 10);
-      idx = Number.isFinite(idx) ? idx : 0;
-
-      if (prevBtn) idx = (idx - 1 + slides.length) % slides.length;
-      if (nextBtn) idx = (idx + 1) % slides.length;
-
-      slider.setAttribute('data-qcmc-index', String(idx));
-      track.style.transform = `translateX(-${idx * 100}%)`;
       e.preventDefault();
     });
 
     // Compare / Select (contract: [data-qcm-compare-toggle] + [data-qcmc] datasets)
-    const compareEnabled =
-      root.getAttribute('data-qcm-enable-compare') === 'true' ||
-      root.getAttribute('data-enable-compare') === 'true';
-
+    const compareEnabled = root.getAttribute('data-qcm-enable-compare') === 'true';
     const compare = { items: new Map() };
 
     function ensureCompareBar() {
@@ -357,9 +318,11 @@
         e.preventDefault();
 
         const card = closest(btn, '[data-qcmc]');
-        if (!card) return;
+        const handle =
+          (card && card.getAttribute('data-product-handle')) ||
+          btn.getAttribute('data-handle') ||
+          '';
 
-        const handle = card.getAttribute('data-product-handle');
         if (!handle) return;
 
         // open shell immediately
@@ -368,9 +331,7 @@
         try {
           const html = await fetchSectionFragment(handle);
           openQuickView(root, html);
-
-          // PATCH: enhance the injected fragment (slideshow arrows, etc.)
-          initQuickViewFragment(root);
+          enhanceQuickView(root);
         } catch (err) {
           openQuickView(root, '<div style="padding:16px;">Could not load product.</div>');
         }
@@ -401,9 +362,7 @@
       if (!res.ok) return false;
 
       const html = await res.text();
-      const parsed = extractFromHTML(html, root.id);
-      const items = parsed.items || [];
-      const newNext = parsed.nextUrl || '';
+      const { items, nextUrl: newNext } = extractFromHTML(html, root.id);
 
       if (items.length) {
         items.forEach(it => grid.appendChild(it));
