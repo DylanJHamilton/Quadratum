@@ -2,35 +2,32 @@
   Quadratum — Collection Modern Quick View (Section Render Fragment)
   File: sections/collection-modern-quick-view.liquid
 
-  Purpose:
-  - Render a lightweight quick view "body" for a product page request:
-    /products/<handle>?section_id=collection-modern-quick-view
+  Fetch pattern:
+  /products/<handle>?section_id=collection-modern-quick-view
 
-  Rules:
-  - No Liquid boolean parentheses
-  - No filters inside boolean expressions
-  - Inline CSS only (scoped)
-
-  Output:
-  - Fragment markup intended to be injected into an existing modal container.
+  NOTE:
+  - This renders a fragment intended to be injected into a modal body.
+  - Any JS inside this fragment will NOT run when injected via innerHTML.
+  - Gallery behavior is initialized by the parent collection JS after injection.
 {%- endcomment -%}
 
 {%- liquid
+  assign s = section.settings
   assign p = product
-
   if p == blank
     break
   endif
 
   assign v = p.selected_or_first_available_variant
-  assign has_variants = false
-  if p.variants != blank and p.variants.size > 1
-    assign has_variants = true
-  endif
 
   assign is_available = true
   if p.available == false
     assign is_available = false
+  endif
+
+  assign has_variants = false
+  if p.variants != blank and p.variants.size > 1
+    assign has_variants = true
   endif
 
   assign on_sale = false
@@ -47,11 +44,20 @@
     assign featured = p.featured_image
   endif
 
+  assign second_image = blank
+  if p.media != blank and p.media.size > 1
+    assign m2 = p.media[1]
+    if m2.media_type == 'image'
+      assign second_image = m2
+    endif
+  endif
+
   assign desc_plain = p.description | strip_html | strip
   assign desc_short = desc_plain
   if desc_plain != blank
-    if desc_plain.size > 220
-      assign desc_short = desc_plain | slice: 0, 220 | append: '…'
+    assign max_chars = s.desc_max_chars | default: 220
+    if desc_plain.size > max_chars
+      assign desc_short = desc_plain | slice: 0, max_chars | append: '…'
     endif
   endif
 
@@ -66,20 +72,73 @@
     assign money_price = v.price | money
     assign money_compare = v.compare_at_price | money
   endif
+
+  assign gallery_mode = s.gallery_mode | default: 'slideshow'
+  assign show_buy_now = s.show_buy_now
+
+  assign btn_size = s.button_size | default: 'md'
+  assign btn_fs = 14
+  assign btn_py = 10
+  assign btn_px = 14
+  if btn_size == 'sm'
+    assign btn_fs = 13
+    assign btn_py = 9
+    assign btn_px = 12
+  elsif btn_size == 'lg'
+    assign btn_fs = 15
+    assign btn_py = 12
+    assign btn_px = 16
+  endif
+
+  assign panel_pad = 14
+  if s.density == 'compact'
+    assign panel_pad = 12
+  elsif s.density == 'roomy'
+    assign panel_pad = 18
+  endif
+
+  assign title_fs = s.title_size | default: 20
+  assign price_fs = s.price_size | default: 16
+  assign desc_fs  = s.desc_size  | default: 14
+
+  assign media_radius = s.media_radius | default: 16
+  assign card_radius  = s.panel_radius | default: 18
+
+  assign media_ratio = s.media_ratio | default: '4/5'
 -%}
 
 <style>
-  /* Scoped quick view fragment styles */
   .qcmQvFrag{
-    width: 100%;
+    --qv-bg: {{ s.panel_bg }};
+    --qv-border: {{ s.panel_border }};
+    --qv-title: {{ s.title_color }};
+    --qv-text: {{ s.text_color }};
+    --qv-btn-bg: {{ s.button_bg }};
+    --qv-btn-text: {{ s.button_text }};
+    --qv-btn-bg-hover: {{ s.button_bg_hover }};
+    --qv-btn-text-hover: {{ s.button_text_hover }};
+    --qv-btn-border: {{ s.button_border }};
+    --qv-pad: {{ panel_pad }}px;
+    --qv-radius: {{ card_radius }}px;
+    --qv-media-radius: {{ media_radius }}px;
+    --qv-title-fs: {{ title_fs }}px;
+    --qv-price-fs: {{ price_fs }}px;
+    --qv-desc-fs: {{ desc_fs }}px;
+    --qv-btn-fs: {{ btn_fs }}px;
+    --qv-btn-py: {{ btn_py }}px;
+    --qv-btn-px: {{ btn_px }}px;
+  }
+
+  .qcmQvFrag{
+    color: var(--qv-text, currentColor);
   }
 
   .qcmQvFrag__grid{
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    gap: 14px;
+    align-items: start;
   }
-
   @media (max-width: 860px){
     .qcmQvFrag__grid{
       grid-template-columns: 1fr;
@@ -88,162 +147,256 @@
 
   .qcmQvFrag__media{
     position: relative;
-    border-radius: 16px;
+    border-radius: var(--qv-media-radius, 16px);
     overflow: hidden;
-    border: 1px solid rgba(0,0,0,.15);
+    border: 1px solid var(--qv-border, rgba(0,0,0,.15));
     background: rgba(0,0,0,.03);
+    aspect-ratio: {{ media_ratio }};
   }
 
   .qcmQvFrag__img{
+    position: absolute;
+    inset: 0;
     width: 100%;
-    height: auto;
+    height: 100%;
+    object-fit: contain;
     display: block;
+    background: #fff;
+  }
+
+  .qcmQvFrag__img--second{
+    opacity: 0;
+    transition: opacity .2s ease;
+  }
+  .qcmQvFrag__media.is-hoverSwap:hover .qcmQvFrag__img--second{
+    opacity: 1;
+  }
+
+  .qcmQvFrag__arrowRow{
+    position: absolute;
+    inset: auto 10px 10px 10px;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+  .qcmQvFrag__arrow{
+    pointer-events: auto;
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    border: 1px solid var(--qv-border, rgba(0,0,0,.15));
+    background: rgba(255,255,255,.92);
+    cursor: pointer;
   }
 
   .qcmQvFrag__info{
     min-width: 0;
+    display: grid;
+    gap: 10px;
   }
 
   .qcmQvFrag__title{
-    margin: 0 0 10px;
-    font-size: 22px;
+    margin: 0;
+    font-size: var(--qv-title-fs, 20px);
     line-height: 1.1;
+    color: var(--qv-title, currentColor);
   }
 
   .qcmQvFrag__price{
     display: flex;
     gap: 10px;
     align-items: baseline;
-    margin-bottom: 10px;
+    font-size: var(--qv-price-fs, 16px);
   }
-
-  .qcmQvFrag__was{
-    opacity: .6;
-  }
+  .qcmQvFrag__was{ opacity: .6; }
 
   .qcmQvFrag__desc{
-    opacity: .85;
+    margin: 0;
+    opacity: .9;
     line-height: 1.45;
-    margin: 0 0 12px;
+    font-size: var(--qv-desc-fs, 14px);
+  }
+
+  /* The fix for "View product goes off screen":
+     - Make the content region scrollable
+     - Keep actions sticky at bottom of the right column */
+  .qcmQvFrag__scroll{
+    max-height: min(52vh, 520px);
+    overflow: auto;
+    padding-right: 4px;
+  }
+  @media (max-width: 860px){
+    .qcmQvFrag__scroll{
+      max-height: min(36vh, 360px);
+    }
   }
 
   .qcmQvFrag__select{
     width: 100%;
-    border: 1px solid rgba(0,0,0,.15);
+    border: 1px solid var(--qv-border, rgba(0,0,0,.15));
     border-radius: 999px;
     padding: 10px 12px;
     background: #fff;
-    margin-bottom: 12px;
   }
 
   .qcmQvFrag__actions{
     display: grid;
     gap: 10px;
+    position: sticky;
+    bottom: 0;
+    padding-top: 10px;
+    background: linear-gradient(to bottom, rgba(255,255,255,0), var(--qv-bg, #fff) 26%);
   }
 
   .qcmQvFrag__btn{
     width: 100%;
     appearance: none;
-    border: 1px solid rgba(0,0,0,.15);
+    border: 1px solid var(--qv-btn-border, rgba(0,0,0,.15));
     border-radius: 999px;
-    padding: 10px 14px;
-    font-size: 14px;
+    padding: var(--qv-btn-py, 10px) var(--qv-btn-px, 14px);
+    font-size: var(--qv-btn-fs, 14px);
     line-height: 1;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     text-decoration: none;
-    background: #10B981;
-    color: #fff;
+    background: var(--qv-btn-bg, #10B981);
+    color: var(--qv-btn-text, #fff);
   }
-
   .qcmQvFrag__btn:hover{
-    background: #000;
-    color: #fff;
+    background: var(--qv-btn-bg-hover, #000);
+    color: var(--qv-btn-text-hover, #fff);
   }
-
   .qcmQvFrag__btn--ghost{
     background: transparent;
     color: currentColor;
   }
 
   .qcmQvFrag__status{
-    margin-top: 10px;
     font-size: 13px;
     opacity: .75;
+    min-height: 18px;
   }
 </style>
 
-<div class="qcmQvFrag" data-qcm-qv-fragment data-product-handle="{{ p.handle }}" data-product-id="{{ p.id }}">
+{%- assign media_class = '' -%}
+{%- if gallery_mode == 'hover' and second_image != blank -%}
+  {%- assign media_class = 'is-hoverSwap' -%}
+{%- endif -%}
+
+<div
+  class="qcmQvFrag"
+  data-qcm-qv-fragment
+  data-qv-gallery-mode="{{ gallery_mode }}"
+  data-product-handle="{{ p.handle }}"
+  data-product-url="{{ p.url }}"
+  data-product-title="{{ p.title | escape }}"
+  data-product-id="{{ p.id }}"
+>
   <div class="qcmQvFrag__grid">
-    <div class="qcmQvFrag__media">
+    <div class="qcmQvFrag__media {{ media_class }}" data-qv-media>
       {%- if featured != blank -%}
         <img
           class="qcmQvFrag__img"
           src="{{ featured | image_url: width: 1200 }}"
           alt="{{ featured.alt | default: p.title | escape }}"
           loading="lazy"
+          data-qv-slide
+          data-qv-active="true"
         >
+      {%- endif -%}
+
+      {%- if gallery_mode == 'hover' and second_image != blank -%}
+        <img
+          class="qcmQvFrag__img qcmQvFrag__img--second"
+          src="{{ second_image | image_url: width: 1200 }}"
+          alt="{{ second_image.alt | default: p.title | escape }}"
+          loading="lazy"
+        >
+      {%- endif -%}
+
+      {%- if gallery_mode == 'slideshow' -%}
+        <script type="application/json" data-qv-images>
+          [
+            {%- assign first = true -%}
+            {%- if p.media != blank -%}
+              {%- for m in p.media -%}
+                {%- if m.media_type == 'image' -%}
+                  {%- unless first -%},{%- endunless -%}
+                  "{{ m | image_url: width: 1200 }}"
+                  {%- assign first = false -%}
+                {%- endif -%}
+              {%- endfor -%}
+            {%- endif -%}
+          ]
+        </script>
+
+        <div class="qcmQvFrag__arrowRow" aria-hidden="false">
+          <button type="button" class="qcmQvFrag__arrow" data-qv-prev aria-label="Previous image">‹</button>
+          <button type="button" class="qcmQvFrag__arrow" data-qv-next aria-label="Next image">›</button>
+        </div>
       {%- endif -%}
     </div>
 
     <div class="qcmQvFrag__info">
-      <h3 class="qcmQvFrag__title">{{ p.title }}</h3>
+      <div class="qcmQvFrag__scroll">
+        <h3 class="qcmQvFrag__title">{{ p.title }}</h3>
 
-      {%- if v != blank -%}
-        <div class="qcmQvFrag__price">
-          <span class="qcmQvFrag__now">{{ money_price }}</span>
-          {%- if on_sale -%}
-            <span class="qcmQvFrag__was"><s>{{ money_compare }}</s></span>
-          {%- endif -%}
-        </div>
-      {%- endif -%}
-
-      {%- if desc_short != blank -%}
-        <p class="qcmQvFrag__desc">{{ desc_short }}</p>
-      {%- endif -%}
-
-      {%- form 'product', p, class: 'qcmQvFrag__form' -%}
-        <input type="hidden" name="quantity" value="1">
-
-        {%- if has_variants -%}
-          <label class="visually-hidden" for="QcmQvVariant-{{ section.id }}">Variant</label>
-          <select id="QcmQvVariant-{{ section.id }}" class="qcmQvFrag__select" name="id">
-            {%- for var in p.variants -%}
-              <option
-                value="{{ var.id }}"
-                {% if var.id == first_variant_id %}selected{% endif %}
-                {% if var.available == false %}disabled{% endif %}
-              >
-                {{ var.title }}
-              </option>
-            {%- endfor -%}
-          </select>
-        {%- else -%}
-          {%- if first_variant_id != '' -%}
-            <input type="hidden" name="id" value="{{ first_variant_id }}">
-          {%- endif -%}
+        {%- if v != blank -%}
+          <div class="qcmQvFrag__price">
+            <span>{{ money_price }}</span>
+            {%- if on_sale -%}
+              <span class="qcmQvFrag__was"><s>{{ money_compare }}</s></span>
+            {%- endif -%}
+          </div>
         {%- endif -%}
 
-        <div class="qcmQvFrag__actions">
-          <button class="qcmQvFrag__btn" type="submit" name="add" {% unless is_available %}disabled{% endunless %}>
-            {%- if is_available -%}Add to cart{%- else -%}Sold out{%- endif -%}
-          </button>
+        {%- if desc_short != blank -%}
+          <p class="qcmQvFrag__desc">{{ desc_short }}</p>
+        {%- endif -%}
 
-          <a class="qcmQvFrag__btn qcmQvFrag__btn--ghost" href="{{ p.url }}">
-            View product
-          </a>
+        {%- form 'product', p, class: 'qcmQvFrag__form' -%}
+          <input type="hidden" name="quantity" value="1">
 
-          {%- if is_available -%}
-            <button class="qcmQvFrag__btn" type="submit" name="checkout">
-              Buy now
-            </button>
+          {%- if has_variants -%}
+            <label class="visually-hidden" for="QcmQvVariant-{{ section.id }}">Variant</label>
+            <select id="QcmQvVariant-{{ section.id }}" class="qcmQvFrag__select" name="id">
+              {%- for var in p.variants -%}
+                <option
+                  value="{{ var.id }}"
+                  {% if var.id == first_variant_id %}selected{% endif %}
+                  {% if var.available == false %}disabled{% endif %}
+                >
+                  {{ var.title }}
+                </option>
+              {%- endfor -%}
+            </select>
+          {%- else -%}
+            {%- if first_variant_id != '' -%}
+              <input type="hidden" name="id" value="{{ first_variant_id }}">
+            {%- endif -%}
           {%- endif -%}
-        </div>
 
-        <div class="qcmQvFrag__status" aria-live="polite"></div>
-      {%- endform -%}
+          <div class="qcmQvFrag__actions">
+            <button class="qcmQvFrag__btn" type="submit" name="add" {% unless is_available %}disabled{% endunless %}>
+              {%- if is_available -%}{{ s.add_label }}{%- else -%}Sold out{%- endif -%}
+            </button>
+
+            <a class="qcmQvFrag__btn qcmQvFrag__btn--ghost" href="{{ p.url }}">
+              {{ s.view_label }}
+            </a>
+
+            {%- if show_buy_now and is_available -%}
+              <button class="qcmQvFrag__btn" type="submit" name="checkout">
+                {{ s.buy_label }}
+              </button>
+            {%- endif -%}
+          </div>
+
+          <div class="qcmQvFrag__status" aria-live="polite" data-qv-status></div>
+        {%- endform -%}
+      </div>
     </div>
   </div>
 </div>
@@ -253,7 +406,81 @@
   "name": "Collection Quick View",
   "tag": "section",
   "class": "section",
-  "settings": [],
+  "settings": [
+    { "type": "header", "content": "Layout" },
+    {
+      "type": "select",
+      "id": "density",
+      "label": "Density",
+      "default": "normal",
+      "options": [
+        { "value": "compact", "label": "Compact" },
+        { "value": "normal", "label": "Normal" },
+        { "value": "roomy", "label": "Roomy" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "media_ratio",
+      "label": "Media ratio",
+      "default": "4/5",
+      "options": [
+        { "value": "1/1", "label": "Square (1:1)" },
+        { "value": "4/5", "label": "Portrait (4:5)" },
+        { "value": "3/2", "label": "Landscape (3:2)" }
+      ]
+    },
+    { "type": "range", "id": "panel_radius", "label": "Panel radius (px)", "min": 0, "max": 32, "step": 1, "default": 18 },
+    { "type": "range", "id": "media_radius", "label": "Media radius (px)", "min": 0, "max": 32, "step": 1, "default": 16 },
+
+    { "type": "header", "content": "Gallery" },
+    {
+      "type": "select",
+      "id": "gallery_mode",
+      "label": "Gallery mode",
+      "default": "slideshow",
+      "options": [
+        { "value": "static", "label": "Static" },
+        { "value": "hover", "label": "Hover swap (2nd image)" },
+        { "value": "slideshow", "label": "Slideshow (arrows)" }
+      ]
+    },
+
+    { "type": "header", "content": "Typography" },
+    { "type": "range", "id": "title_size", "label": "Title size (px)", "min": 16, "max": 30, "step": 1, "default": 22 },
+    { "type": "range", "id": "price_size", "label": "Price size (px)", "min": 12, "max": 24, "step": 1, "default": 16 },
+    { "type": "range", "id": "desc_size", "label": "Description size (px)", "min": 12, "max": 18, "step": 1, "default": 14 },
+    { "type": "range", "id": "desc_max_chars", "label": "Description max characters", "min": 120, "max": 520, "step": 20, "default": 220 },
+
+    { "type": "header", "content": "Buttons" },
+    {
+      "type": "select",
+      "id": "button_size",
+      "label": "Button size",
+      "default": "md",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "md", "label": "Medium" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
+    { "type": "text", "id": "add_label", "label": "Add to cart label", "default": "Add to cart" },
+    { "type": "text", "id": "view_label", "label": "View product label", "default": "View product" },
+    { "type": "checkbox", "id": "show_buy_now", "label": "Show Buy now", "default": true },
+    { "type": "text", "id": "buy_label", "label": "Buy now label", "default": "Buy now" },
+
+    { "type": "header", "content": "Colors" },
+    { "type": "color", "id": "panel_bg", "label": "Panel background", "default": "#FFFFFF" },
+    { "type": "color", "id": "panel_border", "label": "Panel border", "default": "#00000026" },
+    { "type": "color", "id": "title_color", "label": "Title color", "default": "#000000" },
+    { "type": "color", "id": "text_color", "label": "Text color", "default": "#000000" },
+
+    { "type": "color", "id": "button_bg", "label": "Button background", "default": "#10B981" },
+    { "type": "color", "id": "button_text", "label": "Button text", "default": "#FFFFFF" },
+    { "type": "color", "id": "button_bg_hover", "label": "Button background (hover)", "default": "#000000" },
+    { "type": "color", "id": "button_text_hover", "label": "Button text (hover)", "default": "#FFFFFF" },
+    { "type": "color", "id": "button_border", "label": "Button border", "default": "#00000026" }
+  ],
   "presets": [
     { "name": "Collection Modern Quick View" }
   ]
