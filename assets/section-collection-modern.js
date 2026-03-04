@@ -1,6 +1,12 @@
 /* Quadratum — Collection Modern JS
    File: assets/section-collection-modern.js
    Scoped to each section root only.
+
+   PATCH ONLY (no refactors):
+   - Keep existing features exactly
+   - Add missing Quick View fragment gallery wiring (slideshow arrows)
+   - Broaden drawer close selectors to match both facet implementations
+   - Broaden compare enable attribute to support alt legacy attr
 */
 (function () {
   function qs(root, sel) { return root.querySelector(sel); }
@@ -20,6 +26,9 @@
     document.documentElement.classList.toggle('qcm-scroll-lock', !!lock);
   }
 
+  /* -----------------------------
+     Quick View host open/close
+     ----------------------------- */
   function openQuickView(root, html) {
     const host = qs(root, '[data-qcm-qv]');
     const inner = qs(root, '[data-qcm-qv-inner]');
@@ -56,6 +65,65 @@
     return await res.text();
   }
 
+  /* -----------------------------
+     Quick View fragment enhancer
+     (adds slideshow arrows support)
+     ----------------------------- */
+  function initQuickViewFragment(root) {
+    const host = qs(root, '[data-qcm-qv]');
+    const inner = host ? qs(host, '[data-qcm-qv-inner]') : null;
+    if (!host || !inner) return;
+
+    // The fragment you render should include:
+    // - [data-qcm-qv-fragment]
+    // - [data-qcm-qv-images] <script type="application/json">
+    // - [data-qcm-qv-slide] <img>
+    // - [data-qcm-qv-prev], [data-qcm-qv-next] buttons (optional)
+    const frag = qs(inner, '[data-qcm-qv-fragment]');
+    if (!frag) return;
+
+    const mode = frag.getAttribute('data-qcm-qv-gallery-mode') || 'static';
+    if (mode !== 'slideshow') return;
+
+    const jsonEl = qs(frag, '[data-qcm-qv-images]');
+    const imgEl = qs(frag, '[data-qcm-qv-slide]');
+    if (!jsonEl || !imgEl) return;
+
+    let images = [];
+    try { images = JSON.parse(jsonEl.textContent || '[]'); } catch (e) { images = []; }
+    images = (images || []).filter(Boolean);
+
+    if (images.length < 2) return;
+
+    let idx = 0;
+    const prevBtn = qs(frag, '[data-qcm-qv-prev]');
+    const nextBtn = qs(frag, '[data-qcm-qv-next]');
+
+    function show(i) {
+      idx = (i + images.length) % images.length;
+      imgEl.src = images[idx];
+    }
+
+    if (prevBtn) {
+      prevBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        show(idx - 1);
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        show(idx + 1);
+      });
+    }
+
+    // If the fragment’s first image is empty/placeholder, ensure we set it.
+    show(0);
+  }
+
+  /* -----------------------------
+     Pagination helpers
+     ----------------------------- */
   function getNextUrl(root) {
     const holder = qs(root, '[data-qcm-next-url]');
     if (!holder) return '';
@@ -98,7 +166,7 @@
       });
     }
 
-    // Drawer open/close (contract: open button + drawer + close attrs)
+    // Drawer open/close (support both facet implementations)
     root.addEventListener('click', (e) => {
       const openBtn = e.target.closest('[data-qcm-open-filters]');
       if (openBtn) {
@@ -107,9 +175,15 @@
         return;
       }
 
-      const closeBtn = e.target.closest('[data-qcm-close-filters]');
-      const backdropClose = e.target.closest('[data-qcm-drawer-backdrop]');
-      if (closeBtn || backdropClose) {
+      // Close selectors (support multiple variants without breaking existing)
+      const closeBtnA = e.target.closest('[data-qcm-close-filters]');
+      const closeBtnB = e.target.closest('[data-qcm-close-drawer]');
+      const closeBtnC = e.target.closest('[data-qcm-drawer-close]');
+      const backdropCloseA = e.target.closest('[data-qcm-drawer-backdrop]');
+      const backdropCloseB = e.target.closest('[data-qcm-drawer-backdrop]');
+      const backdropCloseC = e.target.closest('[data-qcm-drawer-close]');
+
+      if (closeBtnA || closeBtnB || closeBtnC || backdropCloseA || backdropCloseB || backdropCloseC) {
         const drawer = qs(root, '[data-qcm-drawer]');
         if (drawer) drawer.classList.remove('is-open');
         return;
@@ -188,7 +262,10 @@
     });
 
     // Compare / Select (contract: [data-qcm-compare-toggle] + [data-qcmc] datasets)
-    const compareEnabled = root.getAttribute('data-qcm-enable-compare') === 'true';
+    const compareEnabled =
+      root.getAttribute('data-qcm-enable-compare') === 'true' ||
+      root.getAttribute('data-enable-compare') === 'true';
+
     const compare = { items: new Map() };
 
     function ensureCompareBar() {
@@ -291,6 +368,9 @@
         try {
           const html = await fetchSectionFragment(handle);
           openQuickView(root, html);
+
+          // PATCH: enhance the injected fragment (slideshow arrows, etc.)
+          initQuickViewFragment(root);
         } catch (err) {
           openQuickView(root, '<div style="padding:16px;">Could not load product.</div>');
         }
@@ -321,7 +401,9 @@
       if (!res.ok) return false;
 
       const html = await res.text();
-      const { items, nextUrl: newNext } = extractFromHTML(html, root.id);
+      const parsed = extractFromHTML(html, root.id);
+      const items = parsed.items || [];
+      const newNext = parsed.nextUrl || '';
 
       if (items.length) {
         items.forEach(it => grid.appendChild(it));
