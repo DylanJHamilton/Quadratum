@@ -4,6 +4,7 @@
   assign page_layout = section.settings.page_layout | default: 'full_width'
   assign posts_layout = section.settings.posts_layout | default: 'grid'
   assign sidebar_width = section.settings.sidebar_width | default: 'medium'
+  assign auxiliary_content_position = section.settings.auxiliary_content_position | default: 'below_posts'
 
   assign columns_desktop = section.settings.columns_desktop | default: 3
   assign columns_tablet = section.settings.columns_tablet | default: 2
@@ -22,15 +23,143 @@
 
   assign read_more_label = section.settings.read_more_label | default: 'Read more'
 
-  assign has_sidebar = false
+  assign has_sidebar_layout = false
   if page_layout == 'sidebar'
-    assign has_sidebar = true
+    assign has_sidebar_layout = true
+  endif
+
+  assign render_blocks_in_sidebar = false
+  assign render_blocks_above_posts = false
+  assign render_blocks_below_posts = false
+
+  if auxiliary_content_position == 'above_posts'
+    assign render_blocks_above_posts = true
+  elsif auxiliary_content_position == 'below_posts'
+    assign render_blocks_below_posts = true
+  elsif auxiliary_content_position == 'sidebar' and has_sidebar_layout
+    assign render_blocks_in_sidebar = true
+  elsif auxiliary_content_position == 'sidebar' and has_sidebar_layout == false
+    assign render_blocks_below_posts = true
   endif
 -%}
 
+{%- capture qtm_sidebar_blocks -%}
+  {%- if section.blocks.size > 0 -%}
+    <div class="qBlogSidebar__inner">
+      {%- for block in section.blocks -%}
+        <div class="qBlogSidebar__block qBlogSidebar__block--{{ block.type }}" {{ block.shopify_attributes }}>
+          {%- case block.type -%}
+            {%- when 'tags' -%}
+              {%- if block.settings.heading != blank -%}
+                <h2 class="qBlogSidebar__heading">{{ block.settings.heading }}</h2>
+              {%- endif -%}
+
+              {%- if blog.all_tags.size > 0 -%}
+                <ul class="qBlogSidebar__tag-list" role="list">
+                  {%- for tag in blog.all_tags -%}
+                    <li class="qBlogSidebar__tag-item">
+                      <a class="qBlogSidebar__tag-link" href="{{ blog.url }}/tagged/{{ tag | handleize }}">
+                        {{ tag }}
+                      </a>
+                    </li>
+                  {%- endfor -%}
+                </ul>
+              {%- endif -%}
+
+            {%- when 'promo_banner' -%}
+              <div class="qBlogSidebar__promo{% if block.settings.overlay %} qBlogSidebar__promo--overlay{% endif %}">
+                {%- if block.settings.image != blank -%}
+                  <div class="qBlogSidebar__promo-media">
+                    {{
+                      block.settings.image
+                      | image_url: width: 1200
+                      | image_tag:
+                        loading: 'lazy',
+                        widths: '320, 480, 720, 960, 1200',
+                        sizes: '(min-width: 990px) 320px, 100vw',
+                        class: 'qBlogSidebar__promo-image'
+                    }}
+                  </div>
+                {%- endif -%}
+
+                <div class="qBlogSidebar__promo-content">
+                  {%- if block.settings.heading != blank -%}
+                    <h2 class="qBlogSidebar__heading">{{ block.settings.heading }}</h2>
+                  {%- endif -%}
+
+                  {%- if block.settings.text != blank -%}
+                    <div class="qBlogSidebar__text rte">{{ block.settings.text }}</div>
+                  {%- endif -%}
+
+                  {%- if block.settings.button_label != blank and block.settings.button_url != blank -%}
+                    <a class="qBlogSidebar__button" href="{{ block.settings.button_url }}">
+                      {{ block.settings.button_label }}
+                    </a>
+                  {%- endif -%}
+                </div>
+              </div>
+
+            {%- when 'custom_code' -%}
+              {%- if block.settings.heading != blank -%}
+                <h2 class="qBlogSidebar__heading">{{ block.settings.heading }}</h2>
+              {%- endif -%}
+
+              {%- if block.settings.custom_liquid != blank -%}
+                <div class="qBlogSidebar__text">
+                  {{ block.settings.custom_liquid }}
+                </div>
+              {%- endif -%}
+
+            {%- when 'rich_text' -%}
+              {%- if block.settings.heading != blank -%}
+                <h2 class="qBlogSidebar__heading">{{ block.settings.heading }}</h2>
+              {%- endif -%}
+
+              {%- if block.settings.body != blank -%}
+                <div class="qBlogSidebar__text rte">{{ block.settings.body }}</div>
+              {%- endif -%}
+
+            {%- when 'recent_posts' -%}
+              {%- if block.settings.heading != blank -%}
+                <h2 class="qBlogSidebar__heading">{{ block.settings.heading }}</h2>
+              {%- endif -%}
+
+              <ul class="qBlogSidebar__recent-list" role="list">
+                {%- for recent_article in blog.articles limit: block.settings.max_posts -%}
+                  <li class="qBlogSidebar__recent-item">
+                    <a class="qBlogSidebar__recent-link" href="{{ recent_article.url }}">
+                      {{ recent_article.title }}
+                    </a>
+                  </li>
+                {%- endfor -%}
+              </ul>
+
+            {%- when 'menu' -%}
+              {%- if block.settings.heading != blank -%}
+                <h2 class="qBlogSidebar__heading">{{ block.settings.heading }}</h2>
+              {%- endif -%}
+
+              {%- if block.settings.menu != blank -%}
+                <ul class="qBlogSidebar__menu" role="list">
+                  {%- for link in block.settings.menu.links -%}
+                    <li class="qBlogSidebar__menu-item">
+                      <a class="qBlogSidebar__menu-link" href="{{ link.url }}">
+                        {{ link.title }}
+                      </a>
+                    </li>
+                  {%- endfor -%}
+                </ul>
+              {%- endif -%}
+          {%- endcase -%}
+        </div>
+      {%- endfor -%}
+    </div>
+  {%- endif -%}
+{%- endcapture -%}
+
 <section
   id="QtmMainBlogCollection-{{ section.id }}"
-  class="qtm-main-blog-collection qtm-main-blog-collection--{{ posts_layout }}{% if has_sidebar %} qtm-main-blog-collection--has-sidebar{% else %} qtm-main-blog-collection--full{% endif %} qtm-main-blog-collection--sidebar-{{ sidebar_width }}"
+  class="qtm-main-blog-collection qtm-main-blog-collection--{{ posts_layout }}{% if has_sidebar_layout %} qtm-main-blog-collection--has-sidebar{% else %} qtm-main-blog-collection--full{% endif %} qtm-main-blog-collection--sidebar-{{ sidebar_width }}"
   data-hide-read-more="{% if show_read_more %}false{% else %}true{% endif %}"
   style="
     --qtm-mbc-gap: {{ section.settings.gap | default: 24 }}px;
@@ -61,7 +190,7 @@
     --qtm-mbc-button-border-color: {{ section.settings.button_border_color | default: '#111111' }};
     --qtm-mbc-button-border-width: {{ section.settings.button_border_width | default: 1 }}px;
     --qtm-mbc-button-border-style: {{ section.settings.button_border_style | default: 'solid' }};
-    --qtm-mbc-button-radius: {{ section.settings.button_radius | default: 999 }}px;
+    --qtm-mbc-button-radius: {{ section.settings.button_radius | default: 100 }}px;
     --qtm-mbc-button-font-size: {{ section.settings.button_font_size | default: 14 }}px;
     --qtm-mbc-button-padding-x: {{ section.settings.button_padding_x | default: 16 }}px;
     --qtm-mbc-button-padding-y: {{ section.settings.button_padding_y | default: 10 }}px;
@@ -105,6 +234,12 @@
         </div>
       {%- endif -%}
     </header>
+
+    {%- if render_blocks_above_posts and qtm_sidebar_blocks != blank -%}
+      <div class="qtm-main-blog-collection__auxiliary qtm-main-blog-collection__auxiliary--above">
+        {{ qtm_sidebar_blocks }}
+      </div>
+    {%- endif -%}
 
     <div class="qtm-main-blog-collection__layout">
       <div class="qtm-main-blog-collection__main">
@@ -177,120 +312,18 @@
         {% endpaginate %}
       </div>
 
-      {%- if has_sidebar -%}
+      {%- if render_blocks_in_sidebar and qtm_sidebar_blocks != blank -%}
         <aside class="qBlogSidebar" aria-label="Blog sidebar">
-          <div class="qBlogSidebar__inner">
-            {%- for block in section.blocks -%}
-              <div class="qBlogSidebar__block qBlogSidebar__block--{{ block.type }}" {{ block.shopify_attributes }}>
-                {%- case block.type -%}
-                  {%- when 'tags' -%}
-                    {%- if block.settings.heading != blank -%}
-                      <h2 class="qBlogSidebar__heading">{{ block.settings.heading }}</h2>
-                    {%- endif -%}
-
-                    {%- if blog.all_tags.size > 0 -%}
-                      <ul class="qBlogSidebar__tag-list" role="list">
-                        {%- for tag in blog.all_tags -%}
-                          <li class="qBlogSidebar__tag-item">
-                            <a class="qBlogSidebar__tag-link" href="{{ blog.url }}/tagged/{{ tag | handleize }}">
-                              {{ tag }}
-                            </a>
-                          </li>
-                        {%- endfor -%}
-                      </ul>
-                    {%- endif -%}
-
-                  {%- when 'promo_banner' -%}
-                    <div class="qBlogSidebar__promo{% if block.settings.overlay %} qBlogSidebar__promo--overlay{% endif %}">
-                      {%- if block.settings.image != blank -%}
-                        <div class="qBlogSidebar__promo-media">
-                          {{
-                            block.settings.image
-                            | image_url: width: 1200
-                            | image_tag:
-                              loading: 'lazy',
-                              widths: '320, 480, 720, 960, 1200',
-                              sizes: '(min-width: 990px) 320px, 100vw',
-                              class: 'qBlogSidebar__promo-image'
-                          }}
-                        </div>
-                      {%- endif -%}
-
-                      <div class="qBlogSidebar__promo-content">
-                        {%- if block.settings.heading != blank -%}
-                          <h2 class="qBlogSidebar__heading">{{ block.settings.heading }}</h2>
-                        {%- endif -%}
-
-                        {%- if block.settings.text != blank -%}
-                          <div class="qBlogSidebar__text rte">{{ block.settings.text }}</div>
-                        {%- endif -%}
-
-                        {%- if block.settings.button_label != blank and block.settings.button_url != blank -%}
-                          <a class="qBlogSidebar__button" href="{{ block.settings.button_url }}">
-                            {{ block.settings.button_label }}
-                          </a>
-                        {%- endif -%}
-                      </div>
-                    </div>
-
-                  {%- when 'custom_code' -%}
-                    {%- if block.settings.heading != blank -%}
-                      <h2 class="qBlogSidebar__heading">{{ block.settings.heading }}</h2>
-                    {%- endif -%}
-
-                    {%- if block.settings.custom_liquid != blank -%}
-                      <div class="qBlogSidebar__text">
-                        {{ block.settings.custom_liquid }}
-                      </div>
-                    {%- endif -%}
-
-                  {%- when 'rich_text' -%}
-                    {%- if block.settings.heading != blank -%}
-                      <h2 class="qBlogSidebar__heading">{{ block.settings.heading }}</h2>
-                    {%- endif -%}
-
-                    {%- if block.settings.body != blank -%}
-                      <div class="qBlogSidebar__text rte">{{ block.settings.body }}</div>
-                    {%- endif -%}
-
-                  {%- when 'recent_posts' -%}
-                    {%- if block.settings.heading != blank -%}
-                      <h2 class="qBlogSidebar__heading">{{ block.settings.heading }}</h2>
-                    {%- endif -%}
-
-                    <ul class="qBlogSidebar__recent-list" role="list">
-                      {%- for recent_article in blog.articles limit: block.settings.max_posts -%}
-                        <li class="qBlogSidebar__recent-item">
-                          <a class="qBlogSidebar__recent-link" href="{{ recent_article.url }}">
-                            {{ recent_article.title }}
-                          </a>
-                        </li>
-                      {%- endfor -%}
-                    </ul>
-
-                  {%- when 'menu' -%}
-                    {%- if block.settings.heading != blank -%}
-                      <h2 class="qBlogSidebar__heading">{{ block.settings.heading }}</h2>
-                    {%- endif -%}
-
-                    {%- if block.settings.menu != blank -%}
-                      <ul class="qBlogSidebar__menu" role="list">
-                        {%- for link in block.settings.menu.links -%}
-                          <li class="qBlogSidebar__menu-item">
-                            <a class="qBlogSidebar__menu-link" href="{{ link.url }}">
-                              {{ link.title }}
-                            </a>
-                          </li>
-                        {%- endfor -%}
-                      </ul>
-                    {%- endif -%}
-                {%- endcase -%}
-              </div>
-            {%- endfor -%}
-          </div>
+          {{ qtm_sidebar_blocks }}
         </aside>
       {%- endif -%}
     </div>
+
+    {%- if render_blocks_below_posts and qtm_sidebar_blocks != blank -%}
+      <div class="qtm-main-blog-collection__auxiliary qtm-main-blog-collection__auxiliary--below">
+        {{ qtm_sidebar_blocks }}
+      </div>
+    {%- endif -%}
   </div>
 </section>
 
@@ -399,6 +432,18 @@
         { "value": "small", "label": "Small" },
         { "value": "medium", "label": "Medium" },
         { "value": "large", "label": "Large" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "auxiliary_content_position",
+      "label": "Auxiliary content position",
+      "default": "below_posts",
+      "options": [
+        { "value": "hidden", "label": "Hidden" },
+        { "value": "sidebar", "label": "Sidebar" },
+        { "value": "above_posts", "label": "Above posts" },
+        { "value": "below_posts", "label": "Below posts" }
       ]
     },
     {
@@ -627,14 +672,14 @@
         { "value": "double", "label": "Double" }
       ]
     },
-   {
-    "type": "range",
-    "id": "button_radius",
-    "label": "Button radius",
-    "min": 0,
-    "max": 100,
-    "step": 1,
-    "default": 5
+    {
+      "type": "range",
+      "id": "button_radius",
+      "label": "Button radius",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "default": 100
     },
     {
       "type": "range",
