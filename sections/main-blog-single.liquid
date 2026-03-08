@@ -1,0 +1,751 @@
+{% comment %}
+  Quadratum — Main Blog Single
+  File: sections/main-blog-single.liquid
+
+  Notes:
+  - Reuses snippets/blog-card.liquid for related articles
+  - No JS required
+  - Sidebar blocks only render when layout_style == 'sidebar'
+{% endcomment %}
+
+{{ 'section-main-blog-single.css' | asset_url | stylesheet_tag }}
+
+{%- liquid
+  assign layout_style = section.settings.layout_style
+  assign content_max_width = section.settings.content_max_width | append: 'px'
+  assign author_name = section.settings.author_name_override | strip
+  if author_name == blank
+    assign author_name = article.author
+  endif
+
+  assign article_absolute_url = request.origin | append: article.url
+  assign share_title = article.title | url_encode
+  assign share_url = article_absolute_url | url_encode
+
+  assign article_image_share = ''
+  if article.image != blank
+    assign article_image_share = article.image | image_url: width: 1200 | prepend: 'https:' | url_encode
+  endif
+
+  assign facebook_share_url = 'https://www.facebook.com/sharer/sharer.php?u=' | append: share_url
+  assign x_share_url = 'https://twitter.com/intent/tweet?url=' | append: share_url | append: '&text=' | append: share_title
+  assign linkedin_share_url = 'https://www.linkedin.com/sharing/share-offsite/?url=' | append: share_url
+  assign pinterest_share_url = 'https://pinterest.com/pin/create/button/?url=' | append: share_url | append: '&description=' | append: share_title
+  if article_image_share != blank
+    assign pinterest_share_url = pinterest_share_url | append: '&media=' | append: article_image_share
+  endif
+
+  assign has_article_navigation = false
+  if section.settings.show_prev_next_navigation
+    if article.previous != blank or article.next != blank
+      assign has_article_navigation = true
+    endif
+  endif
+-%}
+
+<section
+  id="QtmMainBlogSingle-{{ section.id }}"
+  class="qtm-main-blog-single qtm-main-blog-single--{{ layout_style }}"
+  aria-labelledby="QtmMainBlogSingleTitle-{{ section.id }}"
+  style="
+    --qblog-title-size: {{ section.settings.title_font_size }}px;
+    --qblog-title-color: {{ section.settings.title_color }};
+    --qblog-meta-color: {{ section.settings.meta_color }};
+    --qblog-content-size: {{ section.settings.content_font_size }}px;
+    --qblog-line-height: {{ section.settings.content_line_height }};
+    --qblog-content-width: {{ content_max_width }};
+    --qblog-spacing: {{ section.settings.content_spacing }}px;
+    --qblog-padding-top: {{ section.settings.section_padding_top }}px;
+    --qblog-padding-bottom: {{ section.settings.section_padding_bottom }}px;
+  "
+>
+  <div class="qtm-main-blog-single__inner">
+    <div class="qtm-main-blog-single__layout">
+      <div class="qtm-main-blog-single__main">
+        <header class="qtm-main-blog-single__header">
+          {%- if section.settings.show_featured_image and article.image != blank -%}
+            <div class="qtm-main-blog-single__featured-media">
+              {{
+                article.image
+                | image_url: width: 1800
+                | image_tag:
+                  widths: '480, 720, 960, 1200, 1500, 1800',
+                  sizes: '(min-width: 1200px) 1100px, (min-width: 750px) calc(100vw - 80px), 100vw',
+                  loading: 'eager',
+                  class: 'qtm-main-blog-single__featured-image',
+                  alt: article.image.alt | default: article.title | escape
+              }}
+            </div>
+          {%- endif -%}
+
+          {%- if section.settings.show_title -%}
+            <h1 id="QtmMainBlogSingleTitle-{{ section.id }}" class="qtm-main-blog-single__title">
+              {{ article.title }}
+            </h1>
+          {%- endif -%}
+
+          {%- if section.settings.show_date or section.settings.show_author or section.settings.show_tags -%}
+            <div class="qtm-main-blog-single__meta" aria-label="Article meta information">
+              {%- if section.settings.show_date -%}
+                <span class="qtm-main-blog-single__meta-item">
+                  <time datetime="{{ article.published_at | date: '%Y-%m-%d' }}">
+                    {{ article.published_at | date: format: 'abbreviated_date' }}
+                  </time>
+                </span>
+              {%- endif -%}
+
+              {%- if section.settings.show_author and article.author != blank -%}
+                <span class="qtm-main-blog-single__meta-item">
+                  {{ article.author }}
+                </span>
+              {%- endif -%}
+
+              {%- if section.settings.show_tags and article.tags != blank -%}
+                <span class="qtm-main-blog-single__meta-item qtm-main-blog-single__meta-tags">
+                  {%- for tag in article.tags -%}
+                    <a href="{{ blog.url }}/tagged/{{ tag | handleize }}" class="qtm-main-blog-single__tag-link">
+                      {{ tag }}
+                    </a>
+                  {%- endfor -%}
+                </span>
+              {%- endif -%}
+            </div>
+          {%- endif -%}
+        </header>
+
+        <article class="qtm-main-blog-single__article rte" itemscope itemtype="https://schema.org/BlogPosting">
+          <meta itemprop="headline" content="{{ article.title | escape }}">
+          <meta itemprop="author" content="{{ article.author | escape }}">
+          <meta itemprop="datePublished" content="{{ article.published_at | date: '%Y-%m-%d' }}">
+          {%- if article.image != blank -%}
+            <meta itemprop="image" content="{{ article.image | image_url: width: 1800 | prepend: 'https:' }}">
+          {%- endif -%}
+          <div itemprop="articleBody">
+            {{ article.content }}
+          </div>
+        </article>
+
+        {%- if section.settings.show_author_box -%}
+          <div class="qtm-main-blog-single__author-box">
+            <div class="qtm-main-blog-single__author-box-inner">
+              {%- if section.settings.author_image != blank -%}
+                <div class="qtm-main-blog-single__author-image-wrap">
+                  {{
+                    section.settings.author_image
+                    | image_url: width: 240
+                    | image_tag:
+                      widths: '80, 120, 160, 240',
+                      sizes: '96px',
+                      loading: 'lazy',
+                      class: 'qtm-main-blog-single__author-image',
+                      alt: author_name | escape
+                  }}
+                </div>
+              {%- endif -%}
+
+              <div class="qtm-main-blog-single__author-content">
+                {%- if author_name != blank -%}
+                  <h2 class="qtm-main-blog-single__author-name">{{ author_name }}</h2>
+                {%- endif -%}
+
+                {%- if section.settings.author_bio != blank -%}
+                  <div class="qtm-main-blog-single__author-bio rte">
+                    {{ section.settings.author_bio }}
+                  </div>
+                {%- endif -%}
+              </div>
+            </div>
+          </div>
+        {%- endif -%}
+
+        {%- if section.settings.show_share_links -%}
+          <div class="qtm-main-blog-single__share">
+            <h2 class="qtm-main-blog-single__subheading">Share this article</h2>
+            <div class="qtm-main-blog-single__share-links">
+              {%- if section.settings.share_facebook -%}
+                <a
+                  class="qtm-main-blog-single__share-link"
+                  href="{{ facebook_share_url }}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Share {{ article.title | escape }} on Facebook"
+                >
+                  Facebook
+                </a>
+              {%- endif -%}
+
+              {%- if section.settings.share_x -%}
+                <a
+                  class="qtm-main-blog-single__share-link"
+                  href="{{ x_share_url }}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Share {{ article.title | escape }} on X"
+                >
+                  X
+                </a>
+              {%- endif -%}
+
+              {%- if section.settings.share_pinterest -%}
+                <a
+                  class="qtm-main-blog-single__share-link"
+                  href="{{ pinterest_share_url }}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Share {{ article.title | escape }} on Pinterest"
+                >
+                  Pinterest
+                </a>
+              {%- endif -%}
+
+              {%- if section.settings.share_linkedin -%}
+                <a
+                  class="qtm-main-blog-single__share-link"
+                  href="{{ linkedin_share_url }}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Share {{ article.title | escape }} on LinkedIn"
+                >
+                  LinkedIn
+                </a>
+              {%- endif -%}
+            </div>
+          </div>
+        {%- endif -%}
+
+        {%- if has_article_navigation -%}
+          <nav class="qtm-main-blog-single__article-nav" aria-label="Article navigation">
+            {%- if article.previous != blank -%}
+              <a class="qtm-main-blog-single__article-nav-link qtm-main-blog-single__article-nav-link--prev" href="{{ article.previous.url }}">
+                <span class="qtm-main-blog-single__article-nav-label">Previous article</span>
+                <span class="qtm-main-blog-single__article-nav-title">{{ article.previous.title }}</span>
+              </a>
+            {%- else -%}
+              <div class="qtm-main-blog-single__article-nav-placeholder" aria-hidden="true"></div>
+            {%- endif -%}
+
+            {%- if article.next != blank -%}
+              <a class="qtm-main-blog-single__article-nav-link qtm-main-blog-single__article-nav-link--next" href="{{ article.next.url }}">
+                <span class="qtm-main-blog-single__article-nav-label">Next article</span>
+                <span class="qtm-main-blog-single__article-nav-title">{{ article.next.title }}</span>
+              </a>
+            {%- else -%}
+              <div class="qtm-main-blog-single__article-nav-placeholder" aria-hidden="true"></div>
+            {%- endif -%}
+          </nav>
+        {%- endif -%}
+
+        {%- if section.settings.show_related_articles -%}
+          {%- liquid
+            assign related_rendered = 0
+          -%}
+          <div class="qtm-main-blog-single__related">
+            <h2 class="qtm-main-blog-single__subheading">Related articles</h2>
+
+            <div class="qtm-main-blog-single__related-grid">
+              {%- for related_article in blog.articles -%}
+                {%- if related_article.id != article.id and related_rendered < section.settings.related_count -%}
+                  <div class="qtm-main-blog-single__related-item">
+                    {% render 'blog-card',
+                      article: related_article,
+                      heading_level: 3,
+                      show_image: true,
+                      show_author: section.settings.show_author,
+                      show_date: section.settings.show_date,
+                      show_read_time: false,
+                      show_tags: false,
+                      show_excerpt: true,
+                      cta_label: 'Read more'
+                    %}
+                  </div>
+                  {%- assign related_rendered = related_rendered | plus: 1 -%}
+                {%- endif -%}
+              {%- endfor -%}
+            </div>
+          </div>
+        {%- endif -%}
+      </div>
+
+      {%- if layout_style == 'sidebar' -%}
+        <aside class="qtm-main-blog-single__sidebar" aria-label="Article sidebar">
+          {%- for block in section.blocks -%}
+            <div class="qtm-main-blog-single__sidebar-block qtm-main-blog-single__sidebar-block--{{ block.type }}" {{ block.shopify_attributes }}>
+              {%- case block.type -%}
+                {%- when 'author_box' -%}
+                  <div class="qtm-main-blog-single__sidebar-author">
+                    {%- if section.settings.author_image != blank -%}
+                      <div class="qtm-main-blog-single__author-image-wrap">
+                        {{
+                          section.settings.author_image
+                          | image_url: width: 240
+                          | image_tag:
+                            widths: '80, 120, 160, 240',
+                            sizes: '80px',
+                            loading: 'lazy',
+                            class: 'qtm-main-blog-single__author-image',
+                            alt: author_name | escape
+                        }}
+                      </div>
+                    {%- endif -%}
+
+                    <div class="qtm-main-blog-single__author-content">
+                      {%- if author_name != blank -%}
+                        <h2 class="qtm-main-blog-single__sidebar-heading">{{ author_name }}</h2>
+                      {%- endif -%}
+
+                      {%- if section.settings.author_bio != blank -%}
+                        <div class="qtm-main-blog-single__sidebar-rte rte">
+                          {{ section.settings.author_bio }}
+                        </div>
+                      {%- endif -%}
+                    </div>
+                  </div>
+
+                {%- when 'rich_text' -%}
+                  {%- if block.settings.heading != blank -%}
+                    <h2 class="qtm-main-blog-single__sidebar-heading">{{ block.settings.heading }}</h2>
+                  {%- endif -%}
+                  {%- if block.settings.body != blank -%}
+                    <div class="qtm-main-blog-single__sidebar-rte rte">
+                      {{ block.settings.body }}
+                    </div>
+                  {%- endif -%}
+
+                {%- when 'promo_banner' -%}
+                  <div class="qtm-main-blog-single__promo">
+                    {%- if block.settings.image != blank -%}
+                      <div class="qtm-main-blog-single__promo-media">
+                        {{
+                          block.settings.image
+                          | image_url: width: 900
+                          | image_tag:
+                            widths: '240, 360, 540, 720, 900',
+                            sizes: '(min-width: 990px) 320px, 100vw',
+                            loading: 'lazy',
+                            class: 'qtm-main-blog-single__promo-image',
+                            alt: block.settings.heading | default: 'Promotional banner' | escape
+                        }}
+                        {%- if block.settings.overlay -%}
+                          <span class="qtm-main-blog-single__promo-overlay" aria-hidden="true"></span>
+                        {%- endif -%}
+                      </div>
+                    {%- endif -%}
+
+                    <div class="qtm-main-blog-single__promo-content">
+                      {%- if block.settings.heading != blank -%}
+                        <h2 class="qtm-main-blog-single__sidebar-heading">{{ block.settings.heading }}</h2>
+                      {%- endif -%}
+
+                      {%- if block.settings.text != blank -%}
+                        <div class="qtm-main-blog-single__sidebar-rte rte">
+                          {{ block.settings.text }}
+                        </div>
+                      {%- endif -%}
+
+                      {%- if block.settings.button_label != blank and block.settings.button_url != blank -%}
+                        <a class="qtm-main-blog-single__button" href="{{ block.settings.button_url }}">
+                          {{ block.settings.button_label }}
+                        </a>
+                      {%- endif -%}
+                    </div>
+                  </div>
+
+                {%- when 'recent_posts' -%}
+                  {%- if block.settings.heading != blank -%}
+                    <h2 class="qtm-main-blog-single__sidebar-heading">{{ block.settings.heading }}</h2>
+                  {%- endif -%}
+                  <ul class="qtm-main-blog-single__recent-list" role="list">
+                    {%- liquid
+                      assign recent_count = 0
+                    -%}
+                    {%- for recent_article in blog.articles -%}
+                      {%- if recent_article.id != article.id and recent_count < block.settings.max_posts -%}
+                        <li class="qtm-main-blog-single__recent-item">
+                          <a class="qtm-main-blog-single__recent-link" href="{{ recent_article.url }}">
+                            {{ recent_article.title }}
+                          </a>
+                        </li>
+                        {%- assign recent_count = recent_count | plus: 1 -%}
+                      {%- endif -%}
+                    {%- endfor -%}
+                  </ul>
+
+                {%- when 'custom_liquid' -%}
+                  {%- if block.settings.heading != blank -%}
+                    <h2 class="qtm-main-blog-single__sidebar-heading">{{ block.settings.heading }}</h2>
+                  {%- endif -%}
+                  <div class="qtm-main-blog-single__sidebar-custom-liquid">
+                    {{ block.settings.custom_liquid }}
+                  </div>
+
+                {%- when 'menu' -%}
+                  {%- if block.settings.heading != blank -%}
+                    <h2 class="qtm-main-blog-single__sidebar-heading">{{ block.settings.heading }}</h2>
+                  {%- endif -%}
+                  {%- if block.settings.menu != blank -%}
+                    <nav class="qtm-main-blog-single__sidebar-menu" aria-label="{{ block.settings.heading | default: 'Sidebar menu' | escape }}">
+                      <ul class="qtm-main-blog-single__menu-list" role="list">
+                        {%- for link in linklists[block.settings.menu].links -%}
+                          <li class="qtm-main-blog-single__menu-item">
+                            <a class="qtm-main-blog-single__menu-link" href="{{ link.url }}">
+                              {{ link.title }}
+                            </a>
+                          </li>
+                        {%- endfor -%}
+                      </ul>
+                    </nav>
+                  {%- endif -%}
+              {%- endcase -%}
+            </div>
+          {%- endfor -%}
+        </aside>
+      {%- endif -%}
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Main Blog Single",
+  "tag": "section",
+  "class": "section section-main-blog-single",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Content"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_featured_image",
+      "label": "Show featured image",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_title",
+      "label": "Show title",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_date",
+      "label": "Show publish date",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_author",
+      "label": "Show author",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_tags",
+      "label": "Show tags",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_author_box",
+      "label": "Show author box",
+      "default": true
+    },
+    {
+      "type": "image_picker",
+      "id": "author_image",
+      "label": "Author image"
+    },
+    {
+      "type": "text",
+      "id": "author_name_override",
+      "label": "Author name override"
+    },
+    {
+      "type": "richtext",
+      "id": "author_bio",
+      "label": "Author bio",
+      "default": "<p>Add a short author bio here.</p>"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_share_links",
+      "label": "Show share links",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "share_facebook",
+      "label": "Enable Facebook",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "share_x",
+      "label": "Enable X",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "share_pinterest",
+      "label": "Enable Pinterest",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "share_linkedin",
+      "label": "Enable LinkedIn",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_related_articles",
+      "label": "Show related articles",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "related_count",
+      "label": "Related article count",
+      "min": 1,
+      "max": 6,
+      "step": 1,
+      "default": 3
+    },
+    {
+      "type": "checkbox",
+      "id": "show_prev_next_navigation",
+      "label": "Show previous and next navigation",
+      "default": true
+    },
+    {
+      "type": "header",
+      "content": "Layout"
+    },
+    {
+      "type": "select",
+      "id": "layout_style",
+      "label": "Layout style",
+      "default": "classic",
+      "options": [
+        {
+          "value": "classic",
+          "label": "Classic"
+        },
+        {
+          "value": "wide",
+          "label": "Wide"
+        },
+        {
+          "value": "sidebar",
+          "label": "Sidebar"
+        }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "content_max_width",
+      "label": "Content max width",
+      "min": 700,
+      "max": 1100,
+      "step": 20,
+      "default": 800
+    },
+    {
+      "type": "header",
+      "content": "Typography"
+    },
+    {
+      "type": "range",
+      "id": "title_font_size",
+      "label": "Title font size",
+      "min": 28,
+      "max": 72,
+      "step": 2,
+      "default": 42
+    },
+    {
+      "type": "color",
+      "id": "title_color",
+      "label": "Title color",
+      "default": "#111111"
+    },
+    {
+      "type": "color",
+      "id": "meta_color",
+      "label": "Meta color",
+      "default": "#666666"
+    },
+    {
+      "type": "range",
+      "id": "content_font_size",
+      "label": "Content font size",
+      "min": 14,
+      "max": 24,
+      "step": 1,
+      "default": 18
+    },
+    {
+      "type": "range",
+      "id": "content_line_height",
+      "label": "Content line height",
+      "min": 1,
+      "max": 2,
+      "step": 0.1,
+      "default": 1.7
+    },
+    {
+      "type": "header",
+      "content": "Spacing"
+    },
+    {
+      "type": "range",
+      "id": "section_padding_top",
+      "label": "Top padding",
+      "min": 0,
+      "max": 120,
+      "step": 4,
+      "default": 48
+    },
+    {
+      "type": "range",
+      "id": "section_padding_bottom",
+      "label": "Bottom padding",
+      "min": 0,
+      "max": 120,
+      "step": 4,
+      "default": 48
+    },
+    {
+      "type": "range",
+      "id": "content_spacing",
+      "label": "Content spacing",
+      "min": 12,
+      "max": 56,
+      "step": 2,
+      "default": 28
+    }
+  ],
+  "blocks": [
+    {
+      "type": "author_box",
+      "name": "Author box",
+      "limit": 1,
+      "settings": []
+    },
+    {
+      "type": "rich_text",
+      "name": "Rich text",
+      "settings": [
+        {
+          "type": "text",
+          "id": "heading",
+          "label": "Heading"
+        },
+        {
+          "type": "richtext",
+          "id": "body",
+          "label": "Body",
+          "default": "<p>Add sidebar text here.</p>"
+        }
+      ]
+    },
+    {
+      "type": "promo_banner",
+      "name": "Promotional banner",
+      "settings": [
+        {
+          "type": "image_picker",
+          "id": "image",
+          "label": "Image"
+        },
+        {
+          "type": "text",
+          "id": "heading",
+          "label": "Heading"
+        },
+        {
+          "type": "richtext",
+          "id": "text",
+          "label": "Text",
+          "default": "<p>Add promotional copy here.</p>"
+        },
+        {
+          "type": "text",
+          "id": "button_label",
+          "label": "Button label"
+        },
+        {
+          "type": "url",
+          "id": "button_url",
+          "label": "Button URL"
+        },
+        {
+          "type": "checkbox",
+          "id": "overlay",
+          "label": "Enable image overlay",
+          "default": false
+        }
+      ]
+    },
+    {
+      "type": "recent_posts",
+      "name": "Recent posts",
+      "settings": [
+        {
+          "type": "text",
+          "id": "heading",
+          "label": "Heading",
+          "default": "Recent posts"
+        },
+        {
+          "type": "range",
+          "id": "max_posts",
+          "label": "Max posts",
+          "min": 2,
+          "max": 10,
+          "step": 1,
+          "default": 5
+        }
+      ]
+    },
+    {
+      "type": "custom_liquid",
+      "name": "Custom liquid",
+      "settings": [
+        {
+          "type": "text",
+          "id": "heading",
+          "label": "Heading"
+        },
+        {
+          "type": "liquid",
+          "id": "custom_liquid",
+          "label": "Custom liquid"
+        }
+      ]
+    },
+    {
+      "type": "menu",
+      "name": "Menu",
+      "settings": [
+        {
+          "type": "text",
+          "id": "heading",
+          "label": "Heading",
+          "default": "Explore"
+        },
+        {
+          "type": "link_list",
+          "id": "menu",
+          "label": "Menu"
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Main Blog Single"
+    }
+  ]
+}
+{% endschema %}
