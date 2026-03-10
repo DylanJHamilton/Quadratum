@@ -1,0 +1,60 @@
+{%- liquid
+  assign reward_count = 0
+  assign highest_threshold = 0
+  assign next_threshold = 0
+  assign next_locked_text = blank
+
+  for block in section.blocks
+    if block.type == 'reward_tier'
+      assign reward_count = reward_count | plus: 1
+      assign threshold_cents = block.settings.threshold_amount | times: 100
+
+      if threshold_cents > highest_threshold
+        assign highest_threshold = threshold_cents
+      endif
+
+      if cart.total_price < threshold_cents
+        if next_threshold == 0 or threshold_cents < next_threshold
+          assign next_threshold = threshold_cents
+          assign next_locked_text = block.settings.locked_text
+        endif
+      endif
+    endif
+  endfor
+
+  assign progress_percent = 0
+  if highest_threshold > 0
+    assign progress_percent = cart.total_price | times: 100.0 | divided_by: highest_threshold
+    if progress_percent > 100
+      assign progress_percent = 100
+    endif
+  endif
+-%}
+
+{%- if reward_count > 0 -%}
+  <div class="qtm-cart-rewards-bar" data-cart-rewards-bar>
+    <div class="qtm-cart-rewards-bar__top">
+      <div class="qtm-cart-rewards-bar__message">
+        {%- if next_threshold > 0 -%}
+          {%- assign amount_remaining = next_threshold | minus: cart.total_price -%}
+          {{ amount_remaining | money }} away from {{ next_locked_text }}
+        {%- else -%}
+          All rewards unlocked
+        {%- endif -%}
+      </div>
+
+      {%- if section.settings.show_rewards_progress_percentage -%}
+        <div class="qtm-cart-rewards-bar__percent">
+          {{ progress_percent | round }}%
+        </div>
+      {%- endif -%}
+    </div>
+
+    <div class="qtm-cart-rewards-bar__track" aria-hidden="true">
+      <div
+        class="qtm-cart-rewards-bar__fill"
+        style="width: {{ progress_percent }}%;"
+      ></div>
+    </div>
+  </div>
+{%- endif -%}
