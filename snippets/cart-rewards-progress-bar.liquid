@@ -1,101 +1,77 @@
 {%- liquid
   assign context = context | default: 'page'
   assign compact = compact | default: false
-  assign reward_count = 0
-  assign highest_threshold = 0
-  assign next_threshold = 0
-  assign next_locked_text = blank
+  assign addon_count = 0
 
   for block in section.blocks
-    if block.type == 'reward_tier'
-      assign reward_count = reward_count | plus: 1
-      assign block_threshold = block.settings.threshold_amount | times: 100
-
-      if block_threshold > highest_threshold
-        assign highest_threshold = block_threshold
-      endif
-
-      if cart.total_price < block_threshold
-        if next_threshold == 0 or block_threshold < next_threshold
-          assign next_threshold = block_threshold
-          assign next_locked_text = block.settings.locked_text
-        endif
-      endif
+    if block.type == 'addon_product' and block.settings.product != blank
+      assign addon_count = addon_count | plus: 1
     endif
   endfor
-
-  assign progress_percent = 0
-  if highest_threshold > 0
-    assign progress_percent = cart.total_price | times: 100.0 | divided_by: highest_threshold
-    if progress_percent > 100
-      assign progress_percent = 100
-    endif
-  endif
 -%}
 
-{%- if reward_count > 0 -%}
-  <div class="qtm-cart-rewards qtm-cart-rewards--{{ context }} {% if compact %}qtm-cart-rewards--compact{% endif %}" data-cart-rewards>
-    <div class="qtm-cart-rewards__header">
-      <h2 class="qtm-cart-rewards__title">Rewards</h2>
-
-      {%- if next_threshold > 0 -%}
-        {%- assign amount_remaining = next_threshold | minus: cart.total_price -%}
-        <p class="qtm-cart-rewards__message">
-          {{ amount_remaining | money }} away from {{ next_locked_text }}
-        </p>
-      {%- else -%}
-        <p class="qtm-cart-rewards__message">All rewards unlocked</p>
-      {%- endif -%}
+{%- if addon_count > 0 -%}
+  <div class="qtm-cart-addons qtm-cart-addons--{{ context }} {% if compact %}qtm-cart-addons--compact{% endif %}" data-cart-addons>
+    <div class="qtm-cart-addons__header">
+      <h2 class="qtm-cart-addons__title">Recommended add-ons</h2>
     </div>
 
-    {%- unless compact -%}
-      <div class="qtm-cart-rewards__progress" aria-hidden="true">
-        <div class="qtm-cart-rewards__progress-track">
-          <div
-            class="qtm-cart-rewards__progress-fill"
-            style="width: {{ progress_percent }}%;"
-            data-cart-progress-fill
-          ></div>
-        </div>
-        <div class="qtm-cart-rewards__progress-text">
-          {{ progress_percent | round }}%
-        </div>
-      </div>
-    {%- endunless -%}
-
-    <div class="qtm-cart-rewards__tiers">
+    <div class="qtm-cart-addons__grid">
       {%- for block in section.blocks -%}
-        {%- if block.type == 'reward_tier' -%}
-          {%- liquid
-            assign threshold_cents = block.settings.threshold_amount | times: 100
-            assign tier_state = 'locked'
+        {%- if block.type == 'addon_product' and block.settings.product != blank -%}
+          {%- assign addon_product = block.settings.product -%}
+          {%- assign addon_variant = addon_product.selected_or_first_available_variant -%}
 
-            if cart.total_price >= threshold_cents
-              assign tier_state = 'unlocked'
-            elsif next_threshold == threshold_cents
-              assign tier_state = 'current'
-            endif
-          -%}
-
-          <div class="qtm-cart-rewards__tier qtm-cart-rewards__tier--{{ tier_state }}" {{ block.shopify_attributes }}>
-            {%- if block.settings.icon != blank -%}
-              <div class="qtm-cart-rewards__tier-icon">{{ block.settings.icon }}</div>
-            {%- endif -%}
-
-            <div class="qtm-cart-rewards__tier-content">
-              <div class="qtm-cart-rewards__tier-threshold">
-                Spend {{ threshold_cents | money }}
-              </div>
-
-              <div class="qtm-cart-rewards__tier-text">
-                {%- if tier_state == 'unlocked' -%}
-                  {{ block.settings.unlocked_text }}
+          {%- if addon_variant != blank and addon_variant.available -%}
+            <article class="qtm-cart-addon-card" {{ block.shopify_attributes }}>
+              <a href="{{ addon_product.url }}" class="qtm-cart-addon-card__media">
+                {%- if addon_product.featured_image -%}
+                  {{
+                    addon_product.featured_image
+                    | image_url: width: 320
+                    | image_tag:
+                      loading: 'lazy',
+                      widths: '160,240,320',
+                      class: 'qtm-cart-addon-card__image',
+                      alt: addon_product.featured_image.alt | escape
+                  }}
                 {%- else -%}
-                  {{ block.settings.locked_text }}
+                  <div class="qtm-cart-addon-card__image-placeholder"></div>
                 {%- endif -%}
+              </a>
+
+              <div class="qtm-cart-addon-card__content">
+                <h3 class="qtm-cart-addon-card__title">
+                  <a href="{{ addon_product.url }}">
+                    {{ block.settings.custom_label | default: addon_product.title }}
+                  </a>
+                </h3>
+
+                {%- if block.settings.custom_description != blank -%}
+                  <div class="qtm-cart-addon-card__description">
+                    {{ block.settings.custom_description }}
+                  </div>
+                {%- endif -%}
+
+                <div class="qtm-cart-addon-card__price">
+                  {{ addon_variant.price | money }}
+                </div>
+
+                <form
+                  action="{{ routes.cart_add_url }}"
+                  method="post"
+                  enctype="multipart/form-data"
+                  class="qtm-cart-addon-card__form"
+                  data-addon-form
+                >
+                  <input type="hidden" name="id" value="{{ addon_variant.id }}">
+                  <button type="submit" class="qtm-cart-addon-card__button">
+                    Add to cart
+                  </button>
+                </form>
               </div>
-            </div>
-          </div>
+            </article>
+          {%- endif -%}
         {%- endif -%}
       {%- endfor -%}
     </div>
