@@ -189,6 +189,12 @@
       url.searchParams.set('resources[limit]', String(getMaxLimit()));
       url.searchParams.set('resources[options][unavailable_products]', 'hide');
 
+      // Critical fix: broaden searchable fields for predictive search
+      url.searchParams.set(
+        'resources[options][fields]',
+        'title,product_type,variants.title,vendor,tag,body'
+      );
+
       try {
         const response = await fetch(url.toString(), {
           signal: abortController.signal,
