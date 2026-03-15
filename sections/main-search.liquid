@@ -13,6 +13,7 @@
   assign view_all_label = settings.search_view_all_label | default: 'View all results'
   assign section_padding_top = settings.section_padding_top | default: 48
   assign section_padding_bottom = settings.section_padding_bottom | default: 48
+  assign button_radius = settings.button_radius | default: 12
 -%}
 
 <style>
@@ -25,7 +26,8 @@
     --qtm-search-muted: {{ settings.text_muted | default: '#6b7280' }};
     --qtm-search-border: rgba(0,0,0,0.10);
     --qtm-search-accent: {{ settings.color_primary | default: '#2563eb' }};
-    --qtm-search-radius: {{ settings.button_radius | default: 12 }}px;
+    --qtm-search-accent-hover: {{ settings.color_secondary | default: '#111827' }};
+    --qtm-search-radius: {{ button_radius }}px;
     --qtm-search-container: {{ settings.container_lg | default: 1152 }}px;
   }
 
@@ -91,6 +93,13 @@
     align-items: center;
   }
 
+  #QtmMainSearch-{{ section.id }} .qtm-search__actions .button,
+  #QtmMainSearch-{{ section.id }} .qtm-search__actions button {
+    min-height: 52px;
+    padding: 0 18px;
+    border-radius: var(--qtm-search-radius);
+  }
+
   #QtmMainSearch-{{ section.id }} .qtm-search__layout {
     display: flex;
     gap: 8px;
@@ -140,12 +149,37 @@
     min-width: 0;
   }
 
-  #QtmMainSearch-{{ section.id }} .qtm-search-result--page,
-  #QtmMainSearch-{{ section.id }} .qtm-search-result--collection {
-    padding: 20px;
+  #QtmMainSearch-{{ section.id }} .qtm-search-result__card {
+    height: 100%;
     border: 1px solid var(--qtm-search-border);
-    border-radius: 16px;
+    border-radius: 18px;
     background: var(--qtm-search-surface);
+    overflow: hidden;
+  }
+
+  #QtmMainSearch-{{ section.id }} .qtm-search-result__link {
+    display: block;
+    height: 100%;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  #QtmMainSearch-{{ section.id }} .qtm-search-result__media {
+    position: relative;
+    aspect-ratio: 4 / 5;
+    background: var(--qtm-search-bg);
+    overflow: hidden;
+  }
+
+  #QtmMainSearch-{{ section.id }} .qtm-search-result__media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  #QtmMainSearch-{{ section.id }} .qtm-search-result__body {
+    padding: 16px;
   }
 
   #QtmMainSearch-{{ section.id }} .qtm-search-result__type {
@@ -159,17 +193,41 @@
 
   #QtmMainSearch-{{ section.id }} .qtm-search-result__title {
     margin: 0 0 8px;
-    font-size: 1.1rem;
+    font-size: 1.05rem;
+    line-height: 1.3;
   }
 
-  #QtmMainSearch-{{ section.id }} .qtm-search-result__title a {
-    color: inherit;
-    text-decoration: none;
+  #QtmMainSearch-{{ section.id }} .qtm-search-result__price {
+    margin: 8px 0 0;
+    font-weight: 700;
+    color: var(--qtm-search-accent);
   }
 
   #QtmMainSearch-{{ section.id }} .qtm-search-result__excerpt {
     color: var(--qtm-search-muted);
     margin: 0;
+    line-height: 1.5;
+  }
+
+  #QtmMainSearch-{{ section.id }} .qtm-search-result--page .qtm-search-result__card,
+  #QtmMainSearch-{{ section.id }} .qtm-search-result--collection .qtm-search-result__card,
+  #QtmMainSearch-{{ section.id }} .qtm-search-result--article .qtm-search-result__card {
+    background: var(--qtm-search-surface);
+  }
+
+  #QtmMainSearch-{{ section.id }} .qtm-search-result--list-card .qtm-search-result__link {
+    display: grid;
+    grid-template-columns: 160px minmax(0, 1fr);
+    gap: 0;
+  }
+
+  #QtmMainSearch-{{ section.id }} .qtm-search-results--list .qtm-search-result__media {
+    aspect-ratio: 1 / 1;
+    min-height: 100%;
+  }
+
+  #QtmMainSearch-{{ section.id }} .qtm-search-result__link:hover .qtm-search-result__title {
+    color: var(--qtm-search-accent-hover);
   }
 
   #QtmMainSearch-{{ section.id }} .qtm-search__empty {
@@ -193,6 +251,16 @@
     clip: rect(0, 0, 0, 0) !important;
     white-space: nowrap !important;
     border: 0 !important;
+  }
+
+  @media (max-width: 767px) {
+    #QtmMainSearch-{{ section.id }} .qtm-search-results--list .qtm-search-result__link {
+      grid-template-columns: 1fr;
+    }
+
+    #QtmMainSearch-{{ section.id }} .qtm-search-results--list .qtm-search-result__media {
+      aspect-ratio: 4 / 3;
+    }
   }
 </style>
 
@@ -247,56 +315,146 @@
           <div class="qtm-search-results qtm-search-results--{{ layout }}">
             {%- for result in search.results -%}
               {%- case result.object_type -%}
+
                 {%- when 'product' -%}
                   {%- if show_products -%}
-                    <div class="qtm-search-result qtm-search-result--product">
-                      {%- render 'card-product', product_card_product: result, show_secondary_image: true -%}
-                    </div>
+                    <article class="qtm-search-result qtm-search-result--product{% if layout == 'list' %} qtm-search-result--list-card{% endif %}">
+                      <div class="qtm-search-result__card">
+                        <a class="qtm-search-result__link" href="{{ result.url }}">
+                          <div class="qtm-search-result__media">
+                            {%- if result.featured_image != blank -%}
+                              {{
+                                result.featured_image
+                                | image_url: width: 900
+                                | image_tag:
+                                  widths: '320,480,640,900',
+                                  sizes: '(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw',
+                                  loading: 'lazy',
+                                  alt: result.title
+                              }}
+                            {%- elsif result.images.size > 0 -%}
+                              {{
+                                result.images.first
+                                | image_url: width: 900
+                                | image_tag:
+                                  widths: '320,480,640,900',
+                                  sizes: '(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw',
+                                  loading: 'lazy',
+                                  alt: result.title
+                              }}
+                            {%- endif -%}
+                          </div>
+                          <div class="qtm-search-result__body">
+                            <span class="qtm-search-result__type">Product</span>
+                            <h2 class="qtm-search-result__title">{{ result.title }}</h2>
+
+                            {%- if settings.pdp_show_compare_at and result.compare_at_price > result.price -%}
+                              <p class="qtm-search-result__price">
+                                {{ result.price | money }}
+                              </p>
+                            {%- elsif result.price != blank -%}
+                              <p class="qtm-search-result__price">
+                                {{ result.price | money }}
+                              </p>
+                            {%- endif -%}
+
+                            {%- if result.description != blank -%}
+                              <p class="qtm-search-result__excerpt">
+                                {{ result.description | strip_html | truncate: 150 }}
+                              </p>
+                            {%- endif -%}
+                          </div>
+                        </a>
+                      </div>
+                    </article>
                   {%- endif -%}
 
                 {%- when 'article' -%}
                   {%- if show_articles -%}
-                    <div class="qtm-search-result qtm-search-result--article">
-                      {%- render 'article-card', article: result -%}
-                    </div>
+                    <article class="qtm-search-result qtm-search-result--article{% if layout == 'list' %} qtm-search-result--list-card{% endif %}">
+                      <div class="qtm-search-result__card">
+                        <a class="qtm-search-result__link" href="{{ result.url }}">
+                          <div class="qtm-search-result__media">
+                            {%- if result.image != blank -%}
+                              {{
+                                result.image
+                                | image_url: width: 900
+                                | image_tag:
+                                  widths: '320,480,640,900',
+                                  sizes: '(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw',
+                                  loading: 'lazy',
+                                  alt: result.title
+                              }}
+                            {%- endif -%}
+                          </div>
+                          <div class="qtm-search-result__body">
+                            <span class="qtm-search-result__type">Article</span>
+                            <h2 class="qtm-search-result__title">{{ result.title }}</h2>
+                            {%- if result.excerpt != blank -%}
+                              <p class="qtm-search-result__excerpt">{{ result.excerpt | strip_html | truncate: 160 }}</p>
+                            {%- elsif result.content != blank -%}
+                              <p class="qtm-search-result__excerpt">{{ result.content | strip_html | truncate: 160 }}</p>
+                            {%- endif -%}
+                          </div>
+                        </a>
+                      </div>
+                    </article>
                   {%- endif -%}
 
                 {%- when 'page' -%}
                   {%- if show_pages -%}
                     <article class="qtm-search-result qtm-search-result--page">
-                      <span class="qtm-search-result__type">Page</span>
-                      <h2 class="qtm-search-result__title">
-                        <a href="{{ result.url }}">{{ result.title }}</a>
-                      </h2>
-                      {%- if result.content != blank -%}
-                        <p class="qtm-search-result__excerpt">{{ result.content | strip_html | truncate: 180 }}</p>
-                      {%- endif -%}
+                      <div class="qtm-search-result__card">
+                        <a class="qtm-search-result__link" href="{{ result.url }}">
+                          <div class="qtm-search-result__body">
+                            <span class="qtm-search-result__type">Page</span>
+                            <h2 class="qtm-search-result__title">{{ result.title }}</h2>
+                            {%- if result.content != blank -%}
+                              <p class="qtm-search-result__excerpt">{{ result.content | strip_html | truncate: 180 }}</p>
+                            {%- endif -%}
+                          </div>
+                        </a>
+                      </div>
                     </article>
                   {%- endif -%}
 
                 {%- when 'collection' -%}
                   {%- if show_collections -%}
-                    <article class="qtm-search-result qtm-search-result--collection">
-                      <span class="qtm-search-result__type">Collection</span>
-                      <h2 class="qtm-search-result__title">
-                        <a href="{{ result.url }}">{{ result.title }}</a>
-                      </h2>
-                      {%- if result.description != blank -%}
-                        <p class="qtm-search-result__excerpt">{{ result.description | strip_html | truncate: 180 }}</p>
-                      {%- endif -%}
+                    <article class="qtm-search-result qtm-search-result--collection{% if layout == 'list' %} qtm-search-result--list-card{% endif %}">
+                      <div class="qtm-search-result__card">
+                        <a class="qtm-search-result__link" href="{{ result.url }}">
+                          <div class="qtm-search-result__media">
+                            {%- if result.featured_image != blank -%}
+                              {{
+                                result.featured_image
+                                | image_url: width: 900
+                                | image_tag:
+                                  widths: '320,480,640,900',
+                                  sizes: '(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw',
+                                  loading: 'lazy',
+                                  alt: result.title
+                              }}
+                            {%- endif -%}
+                          </div>
+                          <div class="qtm-search-result__body">
+                            <span class="qtm-search-result__type">Collection</span>
+                            <h2 class="qtm-search-result__title">{{ result.title }}</h2>
+                            {%- if result.description != blank -%}
+                              <p class="qtm-search-result__excerpt">{{ result.description | strip_html | truncate: 180 }}</p>
+                            {%- endif -%}
+                          </div>
+                        </a>
+                      </div>
                     </article>
                   {%- endif -%}
+
               {%- endcase -%}
             {%- endfor -%}
           </div>
 
           {%- if paginate.pages > 1 -%}
             <div class="qtm-search__pagination">
-              {%- if pagination != blank -%}
-                {%- render 'pagination', paginate: paginate -%}
-              {%- else -%}
-                {{ paginate | default_pagination }}
-              {%- endif -%}
+              {{ paginate | default_pagination }}
             </div>
           {%- endif -%}
         {%- else -%}
