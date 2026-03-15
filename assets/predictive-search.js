@@ -1,5 +1,5 @@
 (function () {
-  const SELECTOR = '[data-qtm-predictive-search]';
+  const ROOT_SELECTOR = '[data-qtm-predictive-search]';
 
   function escapeHtml(str) {
     return String(str || '')
@@ -10,26 +10,44 @@
       .replace(/'/g, '&#039;');
   }
 
-  function buildSearchUrl(term) {
-    const url = new URL(window.Shopify?.routes?.root ? `${window.Shopify.routes.root}search` : '/search', window.location.origin);
-    url.searchParams.set('q', term);
+  function moneyFormat(cents) {
+    if (typeof cents !== 'number') return '';
+    const currency = (window.Shopify && window.Shopify.currency && window.Shopify.currency.active) || 'USD';
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency
+      }).format(cents / 100);
+    } catch (e) {
+      return `${(cents / 100).toFixed(2)} ${currency}`;
+    }
+  }
+
+  function buildViewAllUrl(query) {
+    const url = new URL('/search', window.location.origin);
+    url.searchParams.set('q', query);
     return url.toString();
   }
 
-  function formatMoney(cents) {
-    if (typeof cents !== 'number') return '';
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: window.Shopify?.currency?.active || 'USD'
-    }).format(cents / 100);
+  function getImageUrl(item) {
+    if (item && item.featured_image && typeof item.featured_image === 'object' && item.featured_image.url) {
+      return item.featured_image.url;
+    }
+    if (item && item.image && typeof item.image === 'object' && item.image.url) {
+      return item.image.url;
+    }
+    if (item && typeof item.image === 'string') {
+      return item.image;
+    }
+    return '';
   }
 
-  function makeItem(item, type, flatIndex) {
-    const image = item.featured_image?.url || item.image || item.featured_image || '';
+  function buildItemMarkup(item, type, flatIndex) {
+    const imageUrl = getImageUrl(item);
     let meta = '';
 
-    if (type === 'products' && typeof item.price !== 'undefined') {
-      meta = formatMoney(item.price);
+    if (type === 'products' && typeof item.price === 'number') {
+      meta = moneyFormat(item.price);
     } else if (type === 'collections' && typeof item.products_count !== 'undefined') {
       meta = `${item.products_count} items`;
     } else if (type === 'articles' && item.author) {
@@ -41,10 +59,11 @@
         class="qtm-search-predictive__item"
         href="${escapeHtml(item.url)}"
         role="option"
+        aria-selected="false"
         data-qtm-option
         data-flat-index="${flatIndex}"
       >
-        ${image ? `<img class="qtm-search-predictive__thumb" src="${escapeHtml(image)}" alt="" loading="lazy">` : `<div class="qtm-search-predictive__thumb" aria-hidden="true"></div>`}
+        ${imageUrl ? `<img class="qtm-search-predictive__thumb" src="${escapeHtml(imageUrl)}" alt="" loading="lazy">` : `<div class="qtm-search-predictive__thumb" aria-hidden="true"></div>`}
         <div class="qtm-search-predictive__content">
           <p class="qtm-search-predictive__title">${escapeHtml(item.title)}</p>
           ${meta ? `<p class="qtm-search-predictive__meta">${escapeHtml(meta)}</p>` : ''}
@@ -53,7 +72,10 @@
     `;
   }
 
-  function initPredictiveSearch(root) {
+  function initPredictive(root) {
+    if (!root || root.dataset.qtmPredictiveReady === 'true') return;
+    root.dataset.qtmPredictiveReady = 'true';
+
     const input = root.querySelector('[data-qtm-predictive-input]');
     const panel = root.querySelector('[data-qtm-predictive-panel]');
     if (!input || !panel) return;
@@ -76,94 +98,75 @@
       pages: parseInt(root.dataset.pagesLimit || '3', 10)
     };
 
-    let activeIndex = -1;
-    let activeItems = [];
     let debounceTimer = null;
     let abortController = null;
-
-    function closePanel() {
-      panel.hidden = true;
-      panel.innerHTML = '';
-      input.setAttribute('aria-expanded', 'false');
-      activeItems = [];
-      activeIndex = -1;
-    }
+    let activeIndex = -1;
 
     function openPanel() {
       panel.hidden = false;
       input.setAttribute('aria-expanded', 'true');
     }
 
-    function getResourceTypes() {
-      const out = [];
-      if (enabled.products) out.push('product');
-      if (enabled.collections) out.push('collection');
-      if (enabled.articles) out.push('article');
-      if (enabled.pages) out.push('page');
-      return out;
+    function closePanel() {
+      panel.hidden = true;
+      panel.innerHTML = '';
+      input.setAttribute('aria-expanded', 'false');
+      activeIndex = -1;
     }
 
-    function getLimit() {
-      return Math.max(limits.products, limits.collections, limits.articles, limits.pages);
+    function getEnabledTypes() {
+      const types = [];
+      if (enabled.products) types.push('product');
+      if (enabled.collections) types.push('collection');
+      if (enabled.articles) types.push('article');
+      if (enabled.pages) types.push('page');
+      return types;
+    }
+
+    function getMaxLimit() {
+      return Math.max(limits.products, limits.collections, limits.articles, limits.pages, 1);
     }
 
     function renderResults(query, payload) {
-      const results = payload?.resources?.results || {};
-      const groups = [];
-      activeItems = [];
-      let flatIndex = 0;
-
-      const definitions = [
+      const resources = (payload && payload.resources && payload.resources.results) || {};
+      const groupDefs = [
         { key: 'products', label: 'Products', enabled: enabled.products, limit: limits.products },
         { key: 'collections', label: 'Collections', enabled: enabled.collections, limit: limits.collections },
         { key: 'articles', label: 'Articles', enabled: enabled.articles, limit: limits.articles },
         { key: 'pages', label: 'Pages', enabled: enabled.pages, limit: limits.pages }
       ];
 
-      definitions.forEach((groupDef) => {
-        if (!groupDef.enabled) return;
+      let flatIndex = 0;
+      const groups = [];
 
-        const items = (results[groupDef.key] || []).slice(0, groupDef.limit);
+      groupDefs.forEach((group) => {
+        if (!group.enabled) return;
+
+        const items = Array.isArray(resources[group.key]) ? resources[group.key].slice(0, group.limit) : [];
         if (!items.length) return;
 
-        const html = items.map((item) => {
-          const markup = makeItem(item, groupDef.key, flatIndex);
-          activeItems.push(item.url);
+        const itemsMarkup = items.map((item) => {
+          const markup = buildItemMarkup(item, group.key, flatIndex);
           flatIndex += 1;
           return markup;
         }).join('');
 
         groups.push(`
           <section class="qtm-search-predictive__group">
-            <h3 class="qtm-search-predictive__heading">${groupDef.label}</h3>
+            <h3 class="qtm-search-predictive__heading">${group.label}</h3>
             <div class="qtm-search-predictive__items">
-              ${html}
+              ${itemsMarkup}
             </div>
           </section>
         `);
       });
 
-      if (!groups.length) {
-        panel.innerHTML = `
-          <div class="qtm-search-predictive__groups">
-            <section class="qtm-search-predictive__group">
-              <h3 class="qtm-search-predictive__heading">No matches</h3>
-            </section>
-          </div>
-          <div class="qtm-search-predictive__footer">
-            <a class="qtm-search-predictive__view-all" href="${buildSearchUrl(query)}">${escapeHtml(viewAllLabel)}</a>
-          </div>
-        `;
-        openPanel();
-        return;
-      }
-
       panel.innerHTML = `
         <div class="qtm-search-predictive__groups">
-          ${groups.join('')}
+          ${groups.length ? groups.join('') : '<section class="qtm-search-predictive__group"><h3 class="qtm-search-predictive__heading">No matches</h3></section>'}
         </div>
         <div class="qtm-search-predictive__footer">
-          <a class="qtm-search-predictive__view-all" href="${buildSearchUrl(query)}">${escapeHtml(viewAllLabel)}</a>
+          <a class="qtm-search-predictive__view-all" href="${buildViewAllUrl(query)}">${escapeHtml(viewAllLabel)}</a>
         </div>
       `;
 
@@ -174,12 +177,17 @@
       if (abortController) abortController.abort();
       abortController = new AbortController();
 
+      const types = getEnabledTypes();
+      if (!types.length) {
+        closePanel();
+        return;
+      }
+
       const url = new URL('/search/suggest.json', window.location.origin);
       url.searchParams.set('q', query);
-      url.searchParams.set('resources[type]', getResourceTypes().join(','));
-      url.searchParams.set('resources[limit]', String(getLimit()));
+      url.searchParams.set('resources[type]', types.join(','));
+      url.searchParams.set('resources[limit]', String(getMaxLimit()));
       url.searchParams.set('resources[options][unavailable_products]', 'hide');
-      url.searchParams.set('resources[options][fields]', 'title,product_type,variants,title,tag,body');
 
       try {
         const response = await fetch(url.toString(), {
@@ -187,10 +195,10 @@
           headers: { Accept: 'application/json' }
         });
 
-        if (!response.ok) throw new Error('Predictive search request failed.');
+        if (!response.ok) throw new Error('Predictive search failed');
 
-        const payload = await response.json();
-        renderResults(query, payload);
+        const data = await response.json();
+        renderResults(query, data);
       } catch (error) {
         if (error.name !== 'AbortError') {
           closePanel();
@@ -198,11 +206,12 @@
       }
     }
 
-    function updateActiveOption() {
+    function syncActiveOption() {
       const options = panel.querySelectorAll('[data-qtm-option]');
       options.forEach((option, index) => {
-        option.classList.toggle('is-active', index === activeIndex);
-        option.setAttribute('aria-selected', index === activeIndex ? 'true' : 'false');
+        const isActive = index === activeIndex;
+        option.classList.toggle('is-active', isActive);
+        option.setAttribute('aria-selected', isActive ? 'true' : 'false');
       });
 
       if (activeIndex >= 0 && options[activeIndex]) {
@@ -210,9 +219,8 @@
       }
     }
 
-    input.addEventListener('input', () => {
+    input.addEventListener('input', function () {
       const query = input.value.trim();
-
       clearTimeout(debounceTimer);
 
       if (query.length < minChars) {
@@ -220,12 +228,18 @@
         return;
       }
 
-      debounceTimer = setTimeout(() => {
+      debounceTimer = setTimeout(function () {
         fetchResults(query);
       }, debounceMs);
     });
 
-    input.addEventListener('keydown', (event) => {
+    input.addEventListener('focus', function () {
+      if (panel.innerHTML.trim() !== '') {
+        openPanel();
+      }
+    });
+
+    input.addEventListener('keydown', function (event) {
       const options = panel.querySelectorAll('[data-qtm-option]');
       if (panel.hidden || !options.length) {
         if (event.key === 'Escape') closePanel();
@@ -235,48 +249,38 @@
       if (event.key === 'ArrowDown') {
         event.preventDefault();
         activeIndex = (activeIndex + 1) % options.length;
-        updateActiveOption();
-      }
-
-      if (event.key === 'ArrowUp') {
+        syncActiveOption();
+      } else if (event.key === 'ArrowUp') {
         event.preventDefault();
         activeIndex = activeIndex <= 0 ? options.length - 1 : activeIndex - 1;
-        updateActiveOption();
-      }
-
-      if (event.key === 'Enter' && activeIndex >= 0 && options[activeIndex]) {
-        event.preventDefault();
-        options[activeIndex].click();
-      }
-
-      if (event.key === 'Escape') {
+        syncActiveOption();
+      } else if (event.key === 'Enter') {
+        if (activeIndex >= 0 && options[activeIndex]) {
+          event.preventDefault();
+          options[activeIndex].click();
+        }
+      } else if (event.key === 'Escape') {
         event.preventDefault();
         closePanel();
       }
     });
 
-    document.addEventListener('click', (event) => {
+    document.addEventListener('click', function (event) {
       if (!root.contains(event.target)) {
         closePanel();
       }
     });
-
-    input.addEventListener('focus', () => {
-      if (panel.innerHTML.trim() !== '') {
-        openPanel();
-      }
-    });
   }
 
-  function boot() {
-    document.querySelectorAll(SELECTOR).forEach(initPredictiveSearch);
+  function bootPredictiveSearch() {
+    document.querySelectorAll(ROOT_SELECTOR).forEach(initPredictive);
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
+    document.addEventListener('DOMContentLoaded', bootPredictiveSearch);
   } else {
-    boot();
+    bootPredictiveSearch();
   }
 
-  window.initPredictiveSearch = boot;
+  window.initPredictiveSearch = bootPredictiveSearch;
 })();
