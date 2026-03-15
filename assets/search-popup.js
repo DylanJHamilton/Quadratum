@@ -1,49 +1,68 @@
-{%- if settings.enable_search_popup -%}
-  <div
-    id="QtmSearchPopup"
-    class="qtm-search-popup"
-    hidden
-    aria-hidden="true"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="QtmSearchPopupTitle"
-  >
-    <div class="qtm-search-popup__overlay" data-search-popup-close></div>
+(function () {
+  function initSearchPopup() {
+    var popup = document.getElementById('QtmSearchPopup');
+    if (!popup || popup.dataset.qtmPopupReady === 'true') return;
 
-    <div
-      class="qtm-search-popup__dialog"
-      style="--qtm-search-popup-max-width: {{ settings.search_popup_max_width | default: 760 }}px;"
-    >
-      <button
-        type="button"
-        class="qtm-search-popup__close"
-        data-search-popup-close
-        aria-label="Close search"
-      >
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-        </svg>
-      </button>
+    popup.dataset.qtmPopupReady = 'true';
 
-      <div class="qtm-search-popup__content">
-        <h2 id="QtmSearchPopupTitle" class="qtm-search-popup__title">
-          {{ settings.search_popup_heading | default: 'Search' }}
-        </h2>
+    var dialog = popup.querySelector('.qtm-search-popup__dialog');
+    var input = popup.querySelector('input[type="search"]');
+    var lastTrigger = null;
 
-        {%- if settings.search_popup_subheading != blank -%}
-          <p class="qtm-search-popup__subtitle">
-            {{ settings.search_popup_subheading }}
-          </p>
-        {%- endif -%}
+    function openPopup(trigger) {
+      lastTrigger = trigger || document.activeElement;
+      popup.hidden = false;
+      popup.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('qtm-search-popup-open');
 
-        {% render 'search-form-static',
-          form_context: 'popup',
-          input_id: 'QtmSearchPopupInput',
-          placeholder: settings.search_popup_placeholder | default: settings.search_placeholder,
-          show_button: true,
-          extra_class: 'qtm-search-popup__form'
-        %}
-      </div>
-    </div>
-  </div>
-{%- endif -%}
+      window.setTimeout(function () {
+        if (input) input.focus();
+      }, 20);
+    }
+
+    function closePopup() {
+      popup.hidden = true;
+      popup.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('qtm-search-popup-open');
+
+      if (lastTrigger && typeof lastTrigger.focus === 'function') {
+        lastTrigger.focus();
+      }
+    }
+
+    document.addEventListener('click', function (event) {
+      var openTrigger = event.target.closest('[data-search-popup-open]');
+      if (openTrigger) {
+        event.preventDefault();
+        openPopup(openTrigger);
+        return;
+      }
+
+      var closeTrigger = event.target.closest('[data-search-popup-close]');
+      if (closeTrigger) {
+        event.preventDefault();
+        closePopup();
+        return;
+      }
+
+      if (!popup.hidden && dialog && !dialog.contains(event.target)) {
+        closePopup();
+      }
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (popup.hidden) return;
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closePopup();
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSearchPopup);
+  } else {
+    initSearchPopup();
+  }
+})();
