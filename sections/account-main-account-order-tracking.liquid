@@ -1,0 +1,511 @@
+{% comment %}
+  Quadratum Account System
+  File 5 of 5 — Order Tracking
+
+  Handles:
+  - Customer-facing tracking lookup UI
+  - Order number / email / optional tracking number fields
+  - Presentational tracking status panel
+  - Visual tracking timeline
+  - Support CTA
+  - Back to account/orders links
+  - Stable API-ready hooks for future QuadratumLink integration
+
+  Does NOT handle:
+  - FedEx API
+  - UPS API
+  - USPS API
+  - Private API keys
+  - Carrier API calls
+{% endcomment %}
+
+{{ 'account-main-account-order-tracking.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'account-main-account-order-tracking.js' | asset_url }}" defer="defer"></script>
+
+{%- liquid
+  assign layout_style = section.settings.layout_style
+
+  assign orders_url = section.settings.orders_page_url
+  if orders_url == blank
+    assign orders_url = routes.account_url
+  endif
+-%}
+
+<section
+  id="QtmAccountMainOrderTracking-{{ section.id }}"
+  class="
+    qtmAccountTracking
+    qtmAccountTracking--{{ layout_style }}
+  "
+  style="
+    --qtm-account-heading-size: {{ section.settings.heading_font_size }}px;
+    --qtm-account-body-size: {{ section.settings.body_font_size }}px;
+    --qtm-account-card-bg: {{ section.settings.card_background }};
+    --qtm-account-card-border: {{ section.settings.card_border }};
+    --qtm-account-radius: {{ section.settings.card_radius }}px;
+    --qtm-account-card-padding: {{ section.settings.card_padding }}px;
+    --qtm-account-timeline-active: {{ section.settings.timeline_active_color }};
+    --qtm-account-timeline-inactive: {{ section.settings.timeline_inactive_color }};
+  "
+  data-qtm-order-tracking
+>
+  <div class="qtmAccountTracking__shell">
+    <header class="qtmAccountTracking__header">
+      <div>
+        <h1 class="qtmAccountTracking__heading">
+          {{ section.settings.heading }}
+        </h1>
+
+        {% if section.settings.subheading != blank %}
+          <p class="qtmAccountTracking__subheading">
+            {{ section.settings.subheading }}
+          </p>
+        {% endif %}
+      </div>
+
+      <nav class="qtmAccountTracking__links" aria-label="Account tracking navigation">
+        <a href="{{ routes.account_url }}" class="qtmAccountTracking__link">
+          {{ section.settings.back_to_account_label }}
+        </a>
+
+        <a href="{{ orders_url }}" class="qtmAccountTracking__link">
+          {{ section.settings.back_to_orders_label }}
+        </a>
+      </nav>
+    </header>
+
+    <div class="qtmAccountTracking__layout">
+      <div class="qtmAccountTracking__lookupCard">
+        <form
+          class="qtmAccountTracking__form"
+          data-qtm-tracking-form
+          novalidate
+        >
+          <div class="qtmAccountTracking__formHeader">
+            <h2 class="qtmAccountTracking__cardTitle">
+              Look up your order
+            </h2>
+
+            <p class="qtmAccountTracking__formText">
+              Enter your order details below. Carrier-powered tracking can be connected later through QuadratumLink.
+            </p>
+          </div>
+
+          <div class="qtmAccountTracking__field">
+            <label for="QtmTrackingOrderNumber-{{ section.id }}">
+              Order number
+            </label>
+            <input
+              id="QtmTrackingOrderNumber-{{ section.id }}"
+              type="text"
+              name="order_number"
+              autocomplete="off"
+              placeholder="#1001"
+              data-qtm-tracking-order-number
+              required
+            >
+          </div>
+
+          <div class="qtmAccountTracking__field">
+            <label for="QtmTrackingEmail-{{ section.id }}">
+              Email address
+            </label>
+            <input
+              id="QtmTrackingEmail-{{ section.id }}"
+              type="email"
+              name="email"
+              autocomplete="email"
+              placeholder="you@example.com"
+              data-qtm-tracking-email
+              required
+            >
+          </div>
+
+          {% if section.settings.show_tracking_number_field %}
+            <div class="qtmAccountTracking__field">
+              <label for="QtmTrackingNumber-{{ section.id }}">
+                Tracking number
+              </label>
+              <input
+                id="QtmTrackingNumber-{{ section.id }}"
+                type="text"
+                name="tracking_number"
+                autocomplete="off"
+                placeholder="Optional"
+                data-qtm-tracking-number
+              >
+            </div>
+          {% endif %}
+
+          <div
+            class="qtmAccountTracking__message"
+            data-qtm-tracking-message
+            aria-live="polite"
+            hidden
+          ></div>
+
+          <button
+            type="submit"
+            class="qtmAccountTracking__button qtmAccountTracking__button--{{ section.settings.button_style }}"
+            data-qtm-tracking-submit
+          >
+            Check tracking status
+          </button>
+        </form>
+      </div>
+
+      <div
+        class="qtmAccountTracking__results"
+        data-qtm-tracking-results
+        aria-live="polite"
+      >
+        <section class="qtmAccountTracking__statusCard" aria-labelledby="QtmTrackingStatusHeading-{{ section.id }}">
+          <div class="qtmAccountTracking__statusHeader">
+            <div>
+              <h2 id="QtmTrackingStatusHeading-{{ section.id }}" class="qtmAccountTracking__cardTitle">
+                Tracking Status
+              </h2>
+
+              <p
+                class="qtmAccountTracking__statusText"
+                data-qtm-tracking-status
+              >
+                Enter your order information to view the tracking timeline.
+              </p>
+            </div>
+
+            <span class="qtmAccountTracking__statusBadge" data-qtm-tracking-status-badge>
+              Ready
+            </span>
+          </div>
+
+          <div class="qtmAccountTracking__shipment">
+            <div>
+              <span class="qtmAccountTracking__shipmentLabel">
+                Carrier
+              </span>
+              <span class="qtmAccountTracking__shipmentValue" data-qtm-tracking-carrier>
+                Carrier placeholder
+              </span>
+            </div>
+
+            <div>
+              <span class="qtmAccountTracking__shipmentLabel">
+                Shipment
+              </span>
+              <span class="qtmAccountTracking__shipmentValue" data-qtm-tracking-shipment>
+                Awaiting lookup
+              </span>
+            </div>
+          </div>
+
+          {% if section.settings.show_timeline %}
+            <ol
+              class="qtmAccountTracking__timeline"
+              data-qtm-tracking-timeline
+              aria-label="Tracking timeline"
+            >
+              <li class="qtmAccountTracking__step is-active" data-qtm-tracking-step="received">
+                <span class="qtmAccountTracking__stepMarker" aria-hidden="true"></span>
+                <div>
+                  <span class="qtmAccountTracking__stepTitle">
+                    Order received
+                  </span>
+                  <span class="qtmAccountTracking__stepText">
+                    Your order has been received.
+                  </span>
+                </div>
+              </li>
+
+              <li class="qtmAccountTracking__step" data-qtm-tracking-step="processing">
+                <span class="qtmAccountTracking__stepMarker" aria-hidden="true"></span>
+                <div>
+                  <span class="qtmAccountTracking__stepTitle">
+                    Processing
+                  </span>
+                  <span class="qtmAccountTracking__stepText">
+                    Your order is being prepared.
+                  </span>
+                </div>
+              </li>
+
+              <li class="qtmAccountTracking__step" data-qtm-tracking-step="shipped">
+                <span class="qtmAccountTracking__stepMarker" aria-hidden="true"></span>
+                <div>
+                  <span class="qtmAccountTracking__stepTitle">
+                    Shipped
+                  </span>
+                  <span class="qtmAccountTracking__stepText">
+                    Your order has left the warehouse.
+                  </span>
+                </div>
+              </li>
+
+              <li class="qtmAccountTracking__step" data-qtm-tracking-step="out-for-delivery">
+                <span class="qtmAccountTracking__stepMarker" aria-hidden="true"></span>
+                <div>
+                  <span class="qtmAccountTracking__stepTitle">
+                    Out for delivery
+                  </span>
+                  <span class="qtmAccountTracking__stepText">
+                    Your order is on the way.
+                  </span>
+                </div>
+              </li>
+
+              <li class="qtmAccountTracking__step" data-qtm-tracking-step="delivered">
+                <span class="qtmAccountTracking__stepMarker" aria-hidden="true"></span>
+                <div>
+                  <span class="qtmAccountTracking__stepTitle">
+                    Delivered
+                  </span>
+                  <span class="qtmAccountTracking__stepText">
+                    Your order has been delivered.
+                  </span>
+                </div>
+              </li>
+            </ol>
+          {% endif %}
+        </section>
+
+        {% if section.settings.show_support_cta %}
+          <section class="qtmAccountTracking__supportCard" aria-labelledby="QtmTrackingSupportHeading-{{ section.id }}">
+            {% if section.settings.support_heading != blank %}
+              <h2 id="QtmTrackingSupportHeading-{{ section.id }}" class="qtmAccountTracking__cardTitle">
+                {{ section.settings.support_heading }}
+              </h2>
+            {% endif %}
+
+            {% if section.settings.support_text != blank %}
+              <div class="qtmAccountTracking__supportText rte">
+                {{ section.settings.support_text }}
+              </div>
+            {% endif %}
+
+            {% if section.settings.support_button_label != blank and section.settings.support_button_url != blank %}
+              <a
+                href="{{ section.settings.support_button_url }}"
+                class="qtmAccountTracking__button qtmAccountTracking__button--{{ section.settings.button_style }}"
+              >
+                {{ section.settings.support_button_label }}
+              </a>
+            {% endif %}
+          </section>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+
+{% schema %}
+{
+  "name": "Account Order Tracking",
+  "tag": "section",
+  "class": "qtm-account-main-order-tracking",
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Order Tracking"
+    },
+    {
+      "type": "text",
+      "id": "subheading",
+      "label": "Subheading",
+      "default": "Look up your order status and follow the shipping timeline."
+    },
+    {
+      "type": "select",
+      "id": "layout_style",
+      "label": "Layout style",
+      "default": "split",
+      "options": [
+        {
+          "value": "classic",
+          "label": "Classic"
+        },
+        {
+          "value": "card",
+          "label": "Card"
+        },
+        {
+          "value": "split",
+          "label": "Split"
+        }
+      ]
+    },
+    {
+      "type": "checkbox",
+      "id": "show_tracking_number_field",
+      "label": "Show tracking number field",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_timeline",
+      "label": "Show tracking timeline",
+      "default": true
+    },
+    {
+      "type": "header",
+      "content": "Support CTA"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_support_cta",
+      "label": "Show support CTA",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "support_heading",
+      "label": "Support heading",
+      "default": "Need help with your order?"
+    },
+    {
+      "type": "richtext",
+      "id": "support_text",
+      "label": "Support text",
+      "default": "<p>If your tracking information has not updated yet, contact support and our team can help review your order.</p>"
+    },
+    {
+      "type": "text",
+      "id": "support_button_label",
+      "label": "Support button label",
+      "default": "Contact Support"
+    },
+    {
+      "type": "url",
+      "id": "support_button_url",
+      "label": "Support button URL"
+    },
+    {
+      "type": "header",
+      "content": "Account links"
+    },
+    {
+      "type": "text",
+      "id": "back_to_account_label",
+      "label": "Back to account label",
+      "default": "Back to account"
+    },
+    {
+      "type": "text",
+      "id": "back_to_orders_label",
+      "label": "Back to orders label",
+      "default": "Back to orders"
+    },
+    {
+      "type": "url",
+      "id": "orders_page_url",
+      "label": "Orders page URL"
+    },
+    {
+      "type": "header",
+      "content": "Typography"
+    },
+    {
+      "type": "range",
+      "id": "heading_font_size",
+      "label": "Heading font size",
+      "min": 24,
+      "max": 72,
+      "step": 1,
+      "unit": "px",
+      "default": 44
+    },
+    {
+      "type": "range",
+      "id": "body_font_size",
+      "label": "Body font size",
+      "min": 13,
+      "max": 22,
+      "step": 1,
+      "unit": "px",
+      "default": 16
+    },
+    {
+      "type": "header",
+      "content": "Cards"
+    },
+    {
+      "type": "color",
+      "id": "card_background",
+      "label": "Card background",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "card_border",
+      "label": "Card border",
+      "default": "#e5e7eb"
+    },
+    {
+      "type": "range",
+      "id": "card_radius",
+      "label": "Card radius",
+      "min": 0,
+      "max": 40,
+      "step": 1,
+      "unit": "px",
+      "default": 24
+    },
+    {
+      "type": "range",
+      "id": "card_padding",
+      "label": "Card padding",
+      "min": 16,
+      "max": 64,
+      "step": 2,
+      "unit": "px",
+      "default": 28
+    },
+    {
+      "type": "header",
+      "content": "Timeline"
+    },
+    {
+      "type": "color",
+      "id": "timeline_active_color",
+      "label": "Timeline active color",
+      "default": "#14532d"
+    },
+    {
+      "type": "color",
+      "id": "timeline_inactive_color",
+      "label": "Timeline inactive color",
+      "default": "#d1d5db"
+    },
+    {
+      "type": "header",
+      "content": "Buttons"
+    },
+    {
+      "type": "select",
+      "id": "button_style",
+      "label": "Button style",
+      "default": "solid",
+      "options": [
+        {
+          "value": "solid",
+          "label": "Solid"
+        },
+        {
+          "value": "outline",
+          "label": "Outline"
+        },
+        {
+          "value": "ghost",
+          "label": "Ghost"
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Account Main Order Tracking"
+    }
+  ]
+}
+{% endschema %}
