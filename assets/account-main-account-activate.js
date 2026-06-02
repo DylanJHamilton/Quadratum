@@ -47,7 +47,6 @@ function initializeQuadratumAccountActivateSections() {
 
     if (sectionAlreadyInitialized) return;
 
-    sectionAlreadyInitialized;
     activateSectionElement.dataset.qtmAccountActivateInitialized = 'true';
 
     new QuadratumAccountActivatePasswordToggle(activateSectionElement);
