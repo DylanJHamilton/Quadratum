@@ -9,6 +9,7 @@
     var mobileCloseButtons = root.querySelectorAll('[data-qtm-h5-mobile-close]');
     var mobileNestedToggles = root.querySelectorAll('[data-qtm-h5-mobile-nested-toggle]');
     var lastFocusedElement = null;
+    var mobileCloseTimer = null;
 
     function isVisible(element) {
       if (!element) return false;
@@ -63,6 +64,11 @@
     function openMobileMenu() {
       if (!mobileOpenButton || !mobilePanel) return;
 
+      if (mobileCloseTimer) {
+        window.clearTimeout(mobileCloseTimer);
+        mobileCloseTimer = null;
+      }
+
       lastFocusedElement = document.activeElement;
 
       closeDepartments();
@@ -74,26 +80,44 @@
       document.body.classList.add('qtm-header-five-mobile-open');
       document.body.classList.add('qtmHeaderFiveMobileOpen');
 
-      var focusable = getFocusableElements(mobilePanel);
+      mobilePanel.classList.remove('is-closing');
 
-      if (focusable.length) {
-        focusable[0].focus();
-      }
+      window.requestAnimationFrame(function () {
+        mobilePanel.classList.add('is-open');
+
+        var focusable = getFocusableElements(mobilePanel);
+
+        if (focusable.length) {
+          focusable[0].focus();
+        }
+      });
     }
 
     function closeMobileMenu() {
-      if (!mobileOpenButton || !mobilePanel) return;
+      if (!mobileOpenButton || !mobilePanel || mobilePanel.hidden) return;
 
-      mobilePanel.hidden = true;
-      mobilePanel.setAttribute('aria-hidden', 'true');
       mobileOpenButton.setAttribute('aria-expanded', 'false');
+      mobilePanel.setAttribute('aria-hidden', 'true');
+
+      mobilePanel.classList.remove('is-open');
+      mobilePanel.classList.add('is-closing');
 
       document.body.classList.remove('qtm-header-five-mobile-open');
       document.body.classList.remove('qtmHeaderFiveMobileOpen');
 
-      if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-        lastFocusedElement.focus();
+      if (mobileCloseTimer) {
+        window.clearTimeout(mobileCloseTimer);
       }
+
+      mobileCloseTimer = window.setTimeout(function () {
+        mobilePanel.hidden = true;
+        mobilePanel.classList.remove('is-closing');
+        mobileCloseTimer = null;
+
+        if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+          lastFocusedElement.focus();
+        }
+      }, 280);
     }
 
     if (departmentToggle && departmentPanel) {
