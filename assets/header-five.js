@@ -10,15 +10,25 @@
     var mobileNestedToggles = root.querySelectorAll('[data-qtm-h5-mobile-nested-toggle]');
     var lastFocusedElement = null;
 
+    function isVisible(element) {
+      if (!element) return false;
+      if (element.hidden) return false;
+      if (element.getAttribute('aria-hidden') === 'true') return false;
+
+      var style = window.getComputedStyle(element);
+
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    }
+
     function getFocusableElements(container) {
       if (!container) return [];
 
       return Array.prototype.slice.call(
         container.querySelectorAll(
-          'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
         )
       ).filter(function (element) {
-        return !element.hasAttribute('disabled') && element.offsetParent !== null;
+        return isVisible(element);
       });
     }
 
@@ -27,6 +37,7 @@
 
       departmentToggle.setAttribute('aria-expanded', 'true');
       departmentPanel.hidden = false;
+      root.classList.add('qtmHeaderFive--departmentsOpen');
     }
 
     function closeDepartments() {
@@ -34,6 +45,7 @@
 
       departmentToggle.setAttribute('aria-expanded', 'false');
       departmentPanel.hidden = true;
+      root.classList.remove('qtmHeaderFive--departmentsOpen');
     }
 
     function toggleDepartments() {
@@ -52,9 +64,14 @@
       if (!mobileOpenButton || !mobilePanel) return;
 
       lastFocusedElement = document.activeElement;
+
+      closeDepartments();
+
       mobilePanel.hidden = false;
       mobilePanel.setAttribute('aria-hidden', 'false');
       mobileOpenButton.setAttribute('aria-expanded', 'true');
+
+      document.body.classList.add('qtm-header-five-mobile-open');
       document.body.classList.add('qtmHeaderFiveMobileOpen');
 
       var focusable = getFocusableElements(mobilePanel);
@@ -70,6 +87,8 @@
       mobilePanel.hidden = true;
       mobilePanel.setAttribute('aria-hidden', 'true');
       mobileOpenButton.setAttribute('aria-expanded', 'false');
+
+      document.body.classList.remove('qtm-header-five-mobile-open');
       document.body.classList.remove('qtmHeaderFiveMobileOpen');
 
       if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
@@ -77,7 +96,7 @@
       }
     }
 
-    if (departmentToggle) {
+    if (departmentToggle && departmentPanel) {
       departmentToggle.addEventListener('click', function (event) {
         event.preventDefault();
         event.stopPropagation();
@@ -96,6 +115,17 @@
           }
         }
       });
+
+      departmentPanel.addEventListener('click', function (event) {
+        event.stopPropagation();
+      });
+
+      departmentPanel.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+          closeDepartments();
+          departmentToggle.focus();
+        }
+      });
     }
 
     document.addEventListener('click', function (event) {
@@ -105,11 +135,17 @@
     });
 
     if (mobileOpenButton) {
-      mobileOpenButton.addEventListener('click', openMobileMenu);
+      mobileOpenButton.addEventListener('click', function (event) {
+        event.preventDefault();
+        openMobileMenu();
+      });
     }
 
     mobileCloseButtons.forEach(function (button) {
-      button.addEventListener('click', closeMobileMenu);
+      button.addEventListener('click', function (event) {
+        event.preventDefault();
+        closeMobileMenu();
+      });
     });
 
     mobileNestedToggles.forEach(function (toggle) {
@@ -156,6 +192,10 @@
     window.addEventListener('resize', function () {
       if (window.innerWidth > 1100 && mobilePanel && !mobilePanel.hidden) {
         closeMobileMenu();
+      }
+
+      if (window.innerWidth <= 1100) {
+        closeDepartments();
       }
     });
   }
