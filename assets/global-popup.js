@@ -14,6 +14,8 @@
   const showOnMobile = popup.dataset.popupMobile === 'true';
   const showOnDesktop = popup.dataset.popupDesktop === 'true';
   const overlayClickClose = popup.dataset.popupOverlayClose === 'true';
+  const editorPreview = popup.dataset.popupEditorPreview === 'true';
+  const isShopifyEditor = Boolean(window.Shopify && window.Shopify.designMode);
 
   const frequencyKey = 'qtm_global_popup_seen';
   const sessionKey = 'qtm_global_popup_seen_session';
@@ -31,6 +33,7 @@
   ].join(',');
 
   function shouldRespectDevice() {
+    if (isShopifyEditor && editorPreview) return true;
     return mobileQuery.matches ? showOnMobile : showOnDesktop;
   }
 
@@ -52,6 +55,7 @@
   }
 
   function shouldShowByFrequency() {
+    if (isShopifyEditor && editorPreview) return true;
     if (frequency === 'always') return true;
 
     if (frequency === 'once_per_session') {
@@ -73,6 +77,7 @@
   }
 
   function markSeen() {
+    if (isShopifyEditor && editorPreview) return;
     if (frequency === 'once_per_session') {
       sessionStorage.setItem(sessionKey, 'true');
       return;
@@ -222,6 +227,11 @@
   }
 
   function setupTrigger() {
+    if (isShopifyEditor && editorPreview) {
+      window.setTimeout(() => openPopup(true), 250);
+      return;
+    }
+
     if (!shouldRespectDevice()) return;
 
     if (trigger === 'manual') return;
@@ -250,6 +260,11 @@
 
   window.QuadratumPopup = {
     open: () => openPopup(true),
-    close: closePopup
+    close: closePopup,
+    reset: () => {
+      localStorage.removeItem(frequencyKey);
+      sessionStorage.removeItem(sessionKey);
+      hasOpened = false;
+    }
   };
 })();
