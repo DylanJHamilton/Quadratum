@@ -1,269 +1,214 @@
-{%- liquid
-  assign qtm_locale_code = request.locale.iso_code | downcase
-  assign qtm_locale_root = qtm_locale_code | split: '-' | first
-  assign qtm_rtl_locales = ',ar,arc,ckb,dv,fa,ha,he,khw,ks,ku,ps,sd,ur,yi,'
-  assign qtm_locale_token = ',' | append: qtm_locale_root | append: ','
-  assign qtm_document_dir = 'ltr'
-
-  if settings.rtl_enable and qtm_rtl_locales contains qtm_locale_token
-    assign qtm_document_dir = 'rtl'
-  endif
-
-  assign qtm_page_title = page_title | default: shop.name
-  assign qtm_meta_description = page_description | default: shop.description | default: settings.site_tagline
-  assign qtm_canonical_url = canonical_url | default: request.origin
-
-  assign qtm_font_display = settings.font_loading | default: 'swap'
-  if qtm_font_display == 'async'
-    assign qtm_font_display = 'swap'
-  endif
--%}
-
 <!doctype html>
-<html lang="{{ request.locale.iso_code }}" dir="{{ qtm_document_dir }}" class="no-js" data-theme="{{ settings.color_scheme | default: 'default' }}">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+<html class="no-js" lang="{{ request.locale.iso_code }}">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="">
 
-  <title>
-    {{ qtm_page_title | escape }}
-    {%- unless qtm_page_title contains shop.name -%}
-      · {{ shop.name | escape }}
+    <link rel="canonical" href="{{ canonical_url }}">
+
+    {%- if settings.favicon != blank -%}
+      <link
+        rel="icon"
+        type="image/png"
+        href="{{ settings.favicon | image_url: width: 32, height: 32 }}"
+      >
+    {%- endif -%}
+
+    {%- unless settings.type_header_font.system? and settings.type_body_font.system? -%}
+      <link rel="preconnect" href="https://fonts.shopifycdn.net" crossorigin>
     {%- endunless -%}
-  </title>
 
-  <link rel="canonical" href="{{ qtm_canonical_url }}">
-
-  {% if qtm_meta_description != blank %}
-    <meta name="description" content="{{ qtm_meta_description | strip_html | escape }}">
-  {% endif %}
-
-  {%- if settings.favicon != blank -%}
-    <link rel="icon" type="image/png" href="{{ settings.favicon | image_url: width: 32, height: 32 }}">
-  {%- endif -%}
-
-  {%- if settings.preconnect_hosts != blank and settings.preconnect_hosts != 'none' -%}
-    {%- assign qtm_preconnect_hosts = settings.preconnect_hosts | split: ',' -%}
-    {%- for qtm_host in qtm_preconnect_hosts -%}
-      {%- assign qtm_host_clean = qtm_host | strip -%}
-      {%- if qtm_host_clean != blank -%}
-        <link rel="preconnect" href="{{ qtm_host_clean }}" crossorigin>
+    <title>
+      {{ page_title }}
+      {%- if current_tags %}
+        &ndash; tagged "{{ current_tags | join: ', ' }}"
       {%- endif -%}
-    {%- endfor -%}
-  {%- endif -%}
+      {%- if current_page != 1 %}
+        &ndash; Page {{ current_page }}
+      {%- endif -%}
+      {%- unless page_title contains shop.name %}
+        &ndash; {{ shop.name }}
+      {%- endunless -%}
+    </title>
 
-  <style>
-    {%- if settings.font_heading != blank -%}
-      {{ settings.font_heading | font_face: font_display: qtm_font_display }}
+    {% if page_description %}
+      <meta name="description" content="{{ page_description | escape }}">
+    {% endif %}
+
+    {% render 'meta-tags' %}
+
+    {{ content_for_header }}
+
+    {%- liquid
+      assign body_font_bold = settings.type_body_font | font_modify: 'weight', 'bold'
+      assign body_font_italic = settings.type_body_font | font_modify: 'style', 'italic'
+      assign body_font_bold_italic = body_font_bold | font_modify: 'style', 'italic'
+    -%}
+
+    {% style %}
+      {{ settings.type_body_font | font_face: font_display: 'swap' }}
+      {{ body_font_bold | font_face: font_display: 'swap' }}
+      {{ body_font_italic | font_face: font_display: 'swap' }}
+      {{ body_font_bold_italic | font_face: font_display: 'swap' }}
+      {{ settings.type_header_font | font_face: font_display: 'swap' }}
+
+      :root {
+        --font-body-family: {{ settings.type_body_font.family }}, {{ settings.type_body_font.fallback_families }};
+        --font-body-style: {{ settings.type_body_font.style }};
+        --font-body-weight: {{ settings.type_body_font.weight }};
+        --font-body-weight-bold: {{ settings.type_body_font.weight | plus: 300 | at_most: 1000 }};
+
+        --font-heading-family: {{ settings.type_header_font.family }}, {{ settings.type_header_font.fallback_families }};
+        --font-heading-style: {{ settings.type_header_font.style }};
+        --font-heading-weight: {{ settings.type_header_font.weight }};
+
+        --color-background: {{ settings.colors_background_1.red }}, {{ settings.colors_background_1.green }}, {{ settings.colors_background_1.blue }};
+        --color-foreground: {{ settings.colors_text.red }}, {{ settings.colors_text.green }}, {{ settings.colors_text.blue }};
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: inherit;
+      }
+
+      html {
+        box-sizing: border-box;
+        height: 100%;
+        font-size: 62.5%;
+      }
+
+      body {
+        min-height: 100%;
+        margin: 0;
+        font-size: 1.5rem;
+        letter-spacing: 0.06rem;
+        line-height: 1.8;
+        font-family: var(--font-body-family);
+        font-style: var(--font-body-style);
+        font-weight: var(--font-body-weight);
+        color: rgb(var(--color-foreground));
+        background: rgb(var(--color-background));
+      }
+
+      @media screen and (min-width: 750px) {
+        body {
+          font-size: 1.6rem;
+        }
+      }
+
+      .qtm-page-shell {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .qtm-main-content {
+        flex: 1 0 auto;
+        width: 100%;
+      }
+    {% endstyle %}
+
+    {{ 'base.css' | asset_url | stylesheet_tag }}
+
+    {%- if settings.predictive_search_enabled -%}
+      <link
+        rel="stylesheet"
+        href="{{ 'component-predictive-search.css' | asset_url }}"
+        media="print"
+        onload="this.media='all'"
+      >
     {%- endif -%}
 
-    {%- if settings.font_body != blank -%}
-      {{ settings.font_body | font_face: font_display: qtm_font_display }}
+    <script>
+      document.documentElement.className = document.documentElement.className.replace('no-js', 'js');
+
+      if (Shopify.designMode) {
+        document.documentElement.classList.add('shopify-design-mode');
+      }
+    </script>
+  </head>
+
+  <body>
+    <a class="skip-to-content-link button visually-hidden" href="#MainContent">
+      {{ 'accessibility.skip_to_text' | t }}
+    </a>
+
+    <div class="qtm-page-shell">
+      {% sections 'header-group' %}
+
+      <main
+        id="MainContent"
+        class="qtm-main-content"
+        role="main"
+        tabindex="-1"
+      >
+        {{ content_for_layout }}
+      </main>
+
+      {% sections 'footer-group' %}
+    </div>
+
+    <ul hidden>
+      <li id="a11y-refresh-page-message">
+        {{ 'accessibility.refresh_page' | t }}
+      </li>
+      <li id="a11y-new-window-message">
+        {{ 'accessibility.link_messages.new_window' | t }}
+      </li>
+    </ul>
+
+    <script>
+      window.shopUrl = '{{ request.origin }}';
+      window.routes = {
+        cart_add_url: '{{ routes.cart_add_url }}',
+        cart_change_url: '{{ routes.cart_change_url }}',
+        cart_update_url: '{{ routes.cart_update_url }}',
+        cart_url: '{{ routes.cart_url }}',
+        predictive_search_url: '{{ routes.predictive_search_url }}'
+      };
+
+      window.cartStrings = {
+        error: `{{ 'sections.cart.cart_error' | t }}`,
+        quantityError: `{{ 'sections.cart.cart_quantity_error_html' | t: quantity: '[quantity]' }}`
+      };
+
+      window.variantStrings = {
+        addToCart: `{{ 'products.product.add_to_cart' | t }}`,
+        soldOut: `{{ 'products.product.sold_out' | t }}`,
+        unavailable: `{{ 'products.product.unavailable' | t }}`,
+        unavailable_with_option: `{{ 'products.product.value_unavailable' | t: option_value: '[value]' }}`
+      };
+
+      window.quickOrderListStrings = {
+        itemsAdded: `{{ 'sections.quick_order_list.items_added.other' | t: quantity: '[quantity]' }}`,
+        itemAdded: `{{ 'sections.quick_order_list.items_added.one' | t: quantity: '[quantity]' }}`,
+        itemsRemoved: `{{ 'sections.quick_order_list.items_removed.other' | t: quantity: '[quantity]' }}`,
+        itemRemoved: `{{ 'sections.quick_order_list.items_removed.one' | t: quantity: '[quantity]' }}`,
+        viewCart: `{{ 'sections.quick_order_list.view_cart' | t }}`,
+        each: `{{ 'sections.quick_order_list.each' | t: money: '[money]' }}`,
+        min_error: `{{ 'sections.quick_order_list.min_error' | t: min: '[min]' }}`,
+        max_error: `{{ 'sections.quick_order_list.max_error' | t: max: '[max]' }}`,
+        step_error: `{{ 'sections.quick_order_list.step_error' | t: step: '[step]' }}`
+      };
+
+      window.accessibilityStrings = {
+        imageAvailable: `{{ 'products.product.media.image_available' | t: index: '[index]' }}`,
+        shareSuccess: `{{ 'general.share.success_message' | t }}`,
+        pauseSlideshow: `{{ 'sections.slideshow.pause_slideshow' | t }}`,
+        playSlideshow: `{{ 'sections.slideshow.play_slideshow' | t }}`,
+        recipientFormExpanded: `{{ 'recipient.form.expanded' | t }}`,
+        recipientFormCollapsed: `{{ 'recipient.form.collapsed' | t }}`,
+        countrySelectorSearchCount: `{{ 'localization.country_results_count' | t: count: '[count]' }}`
+      };
+    </script>
+
+    {%- if settings.predictive_search_enabled -%}
+      <script src="{{ 'predictive-search.js' | asset_url }}" defer="defer"></script>
     {%- endif -%}
-  </style>
 
-  {% render 'global-theme-vars' %}
-
-  {{ 'theme.css' | asset_url | stylesheet_tag }}
-
-  <style>
-    {% render 'theme-tokens' %}
-    {% render 'utilities.css' %}
-  </style>
-
-  {{ 'tailwind.css' | asset_url | stylesheet_tag }}
-  {{ 'q-base.css' | asset_url | stylesheet_tag }}
-  {{ 'styles.css' | asset_url | stylesheet_tag }}
-  {{ 'q-quick-view.css' | asset_url | stylesheet_tag }}
-
-  {{ content_for_header }}
-
-  {{ 'cart-drawer.css' | asset_url | stylesheet_tag }}
-  <script src="{{ 'cart-drawer.js' | asset_url }}" defer></script>
-
-  {%- if settings.enable_search_popup -%}
-    {{ 'search-popup.css' | asset_url | stylesheet_tag }}
-    <script src="{{ 'search-popup.js' | asset_url }}" defer></script>
-  {%- endif -%}
-
-  <script>
-    window.QuadratumSettings = window.QuadratumSettings || {};
-
-    window.QuadratumSettings.theme = {
-      name: {{ shop.name | json }},
-      locale: {{ request.locale.iso_code | json }},
-      direction: {{ qtm_document_dir | json }},
-      designKit: {{ settings.style_kit | json }},
-      headerLayout: {{ settings.header_layout | json }},
-      footerLayout: {{ settings.footer_layout | json }}
-    };
-
-    window.QuadratumSettings.cart = {
-      ajaxDrawerEnabled: {{ settings.enable_ajax_cart_drawer | json }},
-      openAfterAdd: {{ settings.open_ajax_cart_after_add | json }},
-      freeShippingEnabled: {{ settings.cart_free_ship_threshold_enable | json }},
-      freeShippingThreshold: {{ settings.cart_free_ship_threshold_amount | json }},
-      giftWrapEnabled: {{ settings.cart_gift_wrap_enable | json }},
-      couponInputEnabled: {{ settings.cart_coupon_input_enable | json }},
-      drawerWidth: {{ settings.cart_drawer_width | json }},
-      showContinueShopping: {{ settings.cart_drawer_show_continue_shopping | json }},
-      showRewardsProgressBar: {{ settings.cart_drawer_show_rewards_progress_bar | json }},
-      showRewardsTiers: {{ settings.cart_drawer_show_rewards_tiers | json }},
-      showAddons: {{ settings.cart_drawer_show_addons | json }}
-    };
-
-    window.QuadratumSettings.search = {
-      defaultFormType: {{ settings.search_default_form_type | json }},
-      placeholder: {{ settings.search_placeholder | json }},
-      submitLabel: {{ settings.search_submit_label | json }},
-      viewAllLabel: {{ settings.search_view_all_label | json }},
-      resultsLayout: {{ settings.search_results_layout | json }},
-      resultsPerPage: {{ settings.search_results_per_page | json }},
-      emptyMessage: {{ settings.search_empty_message | json }},
-      emptyRecommendations: {{ settings.search_empty_recommendations | json }},
-      sources: {
-        products: {{ settings.search_src_products | json }},
-        collections: {{ settings.search_src_collections | json }},
-        articles: {{ settings.search_src_articles | json }},
-        pages: {{ settings.search_src_pages | json }}
-      },
-      predictive: {
-        enabled: {{ settings.enable_predictive_search | json }},
-        productsLimit: {{ settings.predictive_search_products_limit | json }},
-        collectionsLimit: {{ settings.predictive_search_collections_limit | json }},
-        articlesLimit: {{ settings.predictive_search_articles_limit | json }},
-        pagesLimit: {{ settings.predictive_search_pages_limit | json }},
-        minChars: {{ settings.predictive_search_min_chars | json }},
-        debounce: {{ settings.predictive_search_debounce | json }},
-        showGroupHeadings: {{ settings.predictive_search_show_group_headings | json }},
-        showThumbnails: {{ settings.predictive_search_show_thumbnails | json }},
-        showViewAll: {{ settings.predictive_search_show_view_all | json }}
-      },
-      popup: {
-        enabled: {{ settings.enable_search_popup | json }},
-        formType: {{ settings.search_popup_form_type | json }},
-        placeholder: {{ settings.search_popup_placeholder | json }}
-      }
-    };
-
-    window.QuadratumSettings.media = {
-      imagesLazyload: {{ settings.images_lazyload | json }},
-      defaultRatio: {{ settings.image_default_ratio | json }},
-      videoAutoplay: {{ settings.video_autoplay | json }},
-      videoLoop: {{ settings.video_loop | json }},
-      videoMuted: {{ settings.video_muted | json }},
-      videoControls: {{ settings.video_controls | json }},
-      lottieEnabled: {{ settings.enable_lottie | json }}
-    };
-
-    window.QuadratumSettings.performance = {
-      fontLoading: {{ settings.font_loading | json }},
-      deferNonCriticalJs: {{ settings.defer_non_critical_js | json }},
-      reduceMotionMode: {{ settings.reduce_motion_mode | json }}
-    };
-
-    window.QuadratumSettings.localization = {
-      currencySelectorEnabled: {{ settings.currency_selector_enable | json }},
-      localeSelectorEnabled: {{ settings.locale_selector_enable | json }},
-      rtlEnabled: {{ settings.rtl_enable | json }},
-      direction: {{ qtm_document_dir | json }},
-      languageSwitcherStyle: {{ settings.language_switcher_style | json }},
-      breakpoints: {
-        sm: {{ settings.bp_sm | json }},
-        md: {{ settings.bp_md | json }},
-        lg: {{ settings.bp_lg | json }},
-        xl: {{ settings.bp_xl | json }}
-      }
-    };
-
-    window.QuadratumSettings.customer = {
-      accountLayout: {{ settings.account_layout | json }},
-      ordersShowReorder: {{ settings.orders_show_reorder | json }},
-      helpText: {{ settings.customer_help_text | json }}
-    };
-
-    window.QuadratumSettings.popups = {
-      enabled: {{ settings.popup_enable | json }},
-      type: {{ settings.popup_type | json }},
-      trigger: {{ settings.popup_trigger | json }},
-      delaySeconds: {{ settings.popup_delay_seconds | json }},
-      scrollPercent: {{ settings.popup_scroll_percent | json }},
-      frequency: {{ settings.popup_frequency | json }},
-      showOnMobile: {{ settings.popup_show_on_mobile | json }},
-      showOnDesktop: {{ settings.popup_show_on_desktop | json }},
-      placement: {{ settings.popup_placement | json }},
-      animation: {{ settings.popup_animation | json }}
-    };
-  </script>
-
-  <script src="{{ 'global.js' | asset_url }}" defer></script>
-
-  {%- if settings.popup_enable -%}
-    <script src="{{ 'global-popup.js' | asset_url }}" defer></script>
-  {%- endif -%}
-
-  {%- if settings.script_head != blank and settings.script_head != 'none' -%}
-    {{ settings.script_head }}
-  {%- endif -%}
-</head>
-
-<body class="q-typography qtm-dir-{{ qtm_document_dir }}">
-
-  {%- if settings.script_body_open != blank and settings.script_body_open != 'none' -%}
-    {{ settings.script_body_open }}
-  {%- endif -%}
-
-  {% case settings.header_layout %}
-    {% when 'header_1' %}
-      {% section 'header-one' %}
-    {% when 'header_2' %}
-      {% section 'header-two' %}
-    {% when 'header_3' %}
-      {% section 'header-three' %}
-    {% when 'header_4' %}
-      {% section 'header-four' %}
-    {% when 'header_5' %}
-      {% section 'header-five' %}
-    {% else %}
-      {% section 'header-one' %}
-  {% endcase %}
-
-  <main id="MainContent">
-    {{ content_for_layout }}
-  </main>
-
-  {% case settings.footer_layout %}
-    {% when 'footer_1' %}
-      {% section 'footer-one' %}
-    {% when 'footer_2' %}
-      {% section 'footer-two' %}
-    {% when 'footer_3' %}
-      {% section 'footer-three' %}
-    {% when 'footer_4' %}
-      {% section 'footer-four' %}
-    {% when 'footer_5' %}
-      {% section 'footer-five' %}
-    {% else %}
-      {% section 'footer-one' %}
-  {% endcase %}
-
-  {%- if settings.enable_search_popup -%}
-    {% render 'search-popup' %}
-  {%- endif -%}
-
-  {%- if settings.popup_enable -%}
-    {% render 'global-popup' %}
-  {%- endif -%}
-
-  {% render 'q-quick-view-host' %}
-
-  {{ 'q-quick-view.js' | asset_url | script_tag }}
-
-  {%- if settings.script_body_close != blank and settings.script_body_close != 'none' -%}
-    {{ settings.script_body_close }}
-  {%- endif -%}
-
-  {{ content_for_footer }}
-
-</body>
+    <script src="{{ 'qtm-content-blocks-engine.js' | asset_url }}" defer></script>
+  </body>
 </html>
