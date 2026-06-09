@@ -1,269 +1,220 @@
+<!doctype html>
+<html
+  lang="{{ request.locale.iso_code }}"
+  dir="{% if settings.rtl_enable %}rtl{% else %}ltr{% endif %}"
+  class="no-js"
+  data-theme="{{ settings.color_scheme | default: 'default' }}"
+>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
 {%- liquid
-  assign qtm_locale_code = request.locale.iso_code | downcase
-  assign qtm_locale_root = qtm_locale_code | split: '-' | first
-  assign qtm_rtl_locales = ',ar,arc,ckb,dv,fa,ha,he,khw,ks,ku,ps,sd,ur,yi,'
-  assign qtm_locale_token = ',' | append: qtm_locale_root | append: ','
-  assign qtm_document_dir = 'ltr'
-
-  if settings.rtl_enable and qtm_rtl_locales contains qtm_locale_token
-    assign qtm_document_dir = 'rtl'
-  endif
-
-  assign qtm_page_title = page_title | default: shop.name
-  assign qtm_meta_description = page_description | default: shop.description | default: settings.site_tagline
-  assign qtm_canonical_url = canonical_url | default: request.origin
-
-  assign qtm_font_display = settings.font_loading | default: 'swap'
-  if qtm_font_display == 'async'
-    assign qtm_font_display = 'swap'
-  endif
+assign qtm_page_title = page_title | default: shop.name
+assign qtm_meta_description = page_description | default: shop.description | default: settings.site_tagline
+assign qtm_canonical_url = canonical_url | default: request.origin
+assign qtm_preconnect_hosts = settings.preconnect_hosts | default: '' | split: ','
 -%}
 
-<!doctype html>
-<html lang="{{ request.locale.iso_code }}" dir="{{ qtm_document_dir }}" class="no-js" data-theme="{{ settings.color_scheme | default: 'default' }}">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+<title>
+{{ qtm_page_title | escape }}
+{%- unless qtm_page_title contains shop.name -%}
+· {{ shop.name | escape }}
+{%- endunless -%}
+</title>
 
-  <title>
-    {{ qtm_page_title | escape }}
-    {%- unless qtm_page_title contains shop.name -%}
-      · {{ shop.name | escape }}
-    {%- endunless -%}
-  </title>
+<link rel="canonical" href="{{ qtm_canonical_url }}">
 
-  <link rel="canonical" href="{{ qtm_canonical_url }}">
+{% if settings.favicon != blank %}
+<link rel="icon" type="image/png" href="{{ settings.favicon | image_url: width: 32, height: 32 }}">
+{% endif %}
 
-  {% if qtm_meta_description != blank %}
-    <meta name="description" content="{{ qtm_meta_description | strip_html | escape }}">
+{% if qtm_meta_description != blank %}
+<meta name="description" content="{{ qtm_meta_description | strip_html | escape }}">
+{% endif %}
+
+{% for host in qtm_preconnect_hosts %}
+  {%- assign qtm_host = host | strip -%}
+  {% if qtm_host != blank and qtm_host != 'none' %}
+    <link rel="preconnect" href="{{ qtm_host }}" crossorigin>
   {% endif %}
+{% endfor %}
 
-  {%- if settings.favicon != blank -%}
-    <link rel="icon" type="image/png" href="{{ settings.favicon | image_url: width: 32, height: 32 }}">
-  {%- endif -%}
+{% render 'global-theme-vars' %}
 
-  {%- if settings.preconnect_hosts != blank and settings.preconnect_hosts != 'none' -%}
-    {%- assign qtm_preconnect_hosts = settings.preconnect_hosts | split: ',' -%}
-    {%- for qtm_host in qtm_preconnect_hosts -%}
-      {%- assign qtm_host_clean = qtm_host | strip -%}
-      {%- if qtm_host_clean != blank -%}
-        <link rel="preconnect" href="{{ qtm_host_clean }}" crossorigin>
-      {%- endif -%}
-    {%- endfor -%}
-  {%- endif -%}
+{{ 'styles.css' | asset_url | stylesheet_tag }}
+{{ 'theme.css' | asset_url | stylesheet_tag }}
 
-  <style>
-    {%- if settings.font_heading != blank -%}
-      {{ settings.font_heading | font_face: font_display: qtm_font_display }}
-    {%- endif -%}
+<style>
+{% render 'theme-tokens' %}
+{% render 'utilities.css' %}
+</style>
 
-    {%- if settings.font_body != blank -%}
-      {{ settings.font_body | font_face: font_display: qtm_font_display }}
-    {%- endif -%}
-  </style>
+{{ 'tailwind.css' | asset_url | stylesheet_tag }}
+{{ 'q-base.css' | asset_url | stylesheet_tag }}
+{{ 'q-quick-view.css' | asset_url | stylesheet_tag }}
 
-  {% render 'global-theme-vars' %}
-
-  {{ 'theme.css' | asset_url | stylesheet_tag }}
-
-  <style>
-    {% render 'theme-tokens' %}
-    {% render 'utilities.css' %}
-  </style>
-
-  {{ 'tailwind.css' | asset_url | stylesheet_tag }}
-  {{ 'q-base.css' | asset_url | stylesheet_tag }}
-  {{ 'styles.css' | asset_url | stylesheet_tag }}
-  {{ 'q-quick-view.css' | asset_url | stylesheet_tag }}
-
-  {{ content_for_header }}
-
-  {{ 'cart-drawer.css' | asset_url | stylesheet_tag }}
-  <script src="{{ 'cart-drawer.js' | asset_url }}" defer></script>
-
-  {%- if settings.enable_search_popup -%}
-    {{ 'search-popup.css' | asset_url | stylesheet_tag }}
-    <script src="{{ 'search-popup.js' | asset_url }}" defer></script>
-  {%- endif -%}
-
-  <script>
-    window.QuadratumSettings = window.QuadratumSettings || {};
-
-    window.QuadratumSettings.theme = {
-      name: {{ shop.name | json }},
-      locale: {{ request.locale.iso_code | json }},
-      direction: {{ qtm_document_dir | json }},
-      designKit: {{ settings.style_kit | json }},
-      headerLayout: {{ settings.header_layout | json }},
-      footerLayout: {{ settings.footer_layout | json }}
-    };
-
-    window.QuadratumSettings.cart = {
-      ajaxDrawerEnabled: {{ settings.enable_ajax_cart_drawer | json }},
-      openAfterAdd: {{ settings.open_ajax_cart_after_add | json }},
-      freeShippingEnabled: {{ settings.cart_free_ship_threshold_enable | json }},
-      freeShippingThreshold: {{ settings.cart_free_ship_threshold_amount | json }},
+<script>
+  window.QuadratumSettings = {
+    header: {
+      layout: {{ settings.header_layout | json }},
+      announcementEnabled: {{ settings.header_announce_enable | json }},
+      sticky: {{ settings.header_sticky | json }},
+      mobileDrawerPosition: {{ settings.mobile_drawer_position | json }}
+    },
+    footer: {
+      layout: {{ settings.footer_layout | json }},
+      columns: {{ settings.footer_columns | json }},
+      announcementEnabled: {{ settings.footer_announce_enable | json }}
+    },
+    cart: {
+      freeShippingThresholdEnabled: {{ settings.cart_free_ship_threshold_enable | json }},
+      freeShippingThresholdAmount: {{ settings.cart_free_ship_threshold_amount | json }},
       giftWrapEnabled: {{ settings.cart_gift_wrap_enable | json }},
       couponInputEnabled: {{ settings.cart_coupon_input_enable | json }},
+      ajaxCartDrawerEnabled: {{ settings.enable_ajax_cart_drawer | json }},
+      openAjaxCartAfterAdd: {{ settings.open_ajax_cart_after_add | json }},
       drawerWidth: {{ settings.cart_drawer_width | json }},
-      showContinueShopping: {{ settings.cart_drawer_show_continue_shopping | json }},
-      showRewardsProgressBar: {{ settings.cart_drawer_show_rewards_progress_bar | json }},
-      showRewardsTiers: {{ settings.cart_drawer_show_rewards_tiers | json }},
-      showAddons: {{ settings.cart_drawer_show_addons | json }}
-    };
-
-    window.QuadratumSettings.search = {
+      drawerOverlayOpacity: {{ settings.cart_drawer_overlay_opacity | json }}
+    },
+    search: {
       defaultFormType: {{ settings.search_default_form_type | json }},
       placeholder: {{ settings.search_placeholder | json }},
       submitLabel: {{ settings.search_submit_label | json }},
       viewAllLabel: {{ settings.search_view_all_label | json }},
-      resultsLayout: {{ settings.search_results_layout | json }},
-      resultsPerPage: {{ settings.search_results_per_page | json }},
-      emptyMessage: {{ settings.search_empty_message | json }},
-      emptyRecommendations: {{ settings.search_empty_recommendations | json }},
-      sources: {
-        products: {{ settings.search_src_products | json }},
-        collections: {{ settings.search_src_collections | json }},
-        articles: {{ settings.search_src_articles | json }},
-        pages: {{ settings.search_src_pages | json }}
-      },
-      predictive: {
-        enabled: {{ settings.enable_predictive_search | json }},
-        productsLimit: {{ settings.predictive_search_products_limit | json }},
-        collectionsLimit: {{ settings.predictive_search_collections_limit | json }},
-        articlesLimit: {{ settings.predictive_search_articles_limit | json }},
-        pagesLimit: {{ settings.predictive_search_pages_limit | json }},
-        minChars: {{ settings.predictive_search_min_chars | json }},
-        debounce: {{ settings.predictive_search_debounce | json }},
-        showGroupHeadings: {{ settings.predictive_search_show_group_headings | json }},
-        showThumbnails: {{ settings.predictive_search_show_thumbnails | json }},
-        showViewAll: {{ settings.predictive_search_show_view_all | json }}
-      },
-      popup: {
-        enabled: {{ settings.enable_search_popup | json }},
-        formType: {{ settings.search_popup_form_type | json }},
-        placeholder: {{ settings.search_popup_placeholder | json }}
-      }
-    };
-
-    window.QuadratumSettings.media = {
+      enablePredictiveSearch: {{ settings.enable_predictive_search | json }},
+      predictiveMinChars: {{ settings.predictive_search_min_chars | json }},
+      predictiveDebounce: {{ settings.predictive_search_debounce | json }},
+      productsLimit: {{ settings.predictive_search_products_limit | json }},
+      collectionsLimit: {{ settings.predictive_search_collections_limit | json }},
+      articlesLimit: {{ settings.predictive_search_articles_limit | json }},
+      pagesLimit: {{ settings.predictive_search_pages_limit | json }},
+      popupEnabled: {{ settings.enable_search_popup | json }}
+    },
+    media: {
       imagesLazyload: {{ settings.images_lazyload | json }},
-      defaultRatio: {{ settings.image_default_ratio | json }},
+      imageDefaultRatio: {{ settings.image_default_ratio | json }},
       videoAutoplay: {{ settings.video_autoplay | json }},
       videoLoop: {{ settings.video_loop | json }},
       videoMuted: {{ settings.video_muted | json }},
       videoControls: {{ settings.video_controls | json }},
-      lottieEnabled: {{ settings.enable_lottie | json }}
-    };
-
-    window.QuadratumSettings.performance = {
+      enableLottie: {{ settings.enable_lottie | json }}
+    },
+    performance: {
       fontLoading: {{ settings.font_loading | json }},
       deferNonCriticalJs: {{ settings.defer_non_critical_js | json }},
       reduceMotionMode: {{ settings.reduce_motion_mode | json }}
-    };
-
-    window.QuadratumSettings.localization = {
-      currencySelectorEnabled: {{ settings.currency_selector_enable | json }},
-      localeSelectorEnabled: {{ settings.locale_selector_enable | json }},
-      rtlEnabled: {{ settings.rtl_enable | json }},
-      direction: {{ qtm_document_dir | json }},
-      languageSwitcherStyle: {{ settings.language_switcher_style | json }},
-      breakpoints: {
-        sm: {{ settings.bp_sm | json }},
-        md: {{ settings.bp_md | json }},
-        lg: {{ settings.bp_lg | json }},
-        xl: {{ settings.bp_xl | json }}
-      }
-    };
-
-    window.QuadratumSettings.customer = {
+    },
+    localization: {
+      currencySelectorEnable: {{ settings.currency_selector_enable | json }},
+      localeSelectorEnable: {{ settings.locale_selector_enable | json }},
+      rtlEnable: {{ settings.rtl_enable | json }},
+      languageSwitcherStyle: {{ settings.language_switcher_style | json }}
+    },
+    customer: {
       accountLayout: {{ settings.account_layout | json }},
       ordersShowReorder: {{ settings.orders_show_reorder | json }},
       helpText: {{ settings.customer_help_text | json }}
-    };
-
-    window.QuadratumSettings.popups = {
+    },
+    popups: {
       enabled: {{ settings.popup_enable | json }},
       type: {{ settings.popup_type | json }},
       trigger: {{ settings.popup_trigger | json }},
       delaySeconds: {{ settings.popup_delay_seconds | json }},
       scrollPercent: {{ settings.popup_scroll_percent | json }},
       frequency: {{ settings.popup_frequency | json }},
+      placement: {{ settings.popup_placement | json }},
+      animation: {{ settings.popup_animation | json }},
       showOnMobile: {{ settings.popup_show_on_mobile | json }},
       showOnDesktop: {{ settings.popup_show_on_desktop | json }},
-      placement: {{ settings.popup_placement | json }},
-      animation: {{ settings.popup_animation | json }}
-    };
-  </script>
+      editorPreview: {{ settings.popup_editor_preview | json }}
+    },
+    support: {
+      docsUrl: {{ settings.support_docs_url | json }},
+      contactUrl: {{ settings.support_contact_url | json }},
+      tinkerruneUrl: {{ settings.support_tinkerrune_url | json }},
+      changelogUrl: {{ settings.support_changelog_url | json }},
+      licenseUrl: {{ settings.support_license_url | json }}
+    }
+  };
+</script>
 
-  <script src="{{ 'global.js' | asset_url }}" defer></script>
+{{ content_for_header }}
 
-  {%- if settings.popup_enable -%}
-    <script src="{{ 'global-popup.js' | asset_url }}" defer></script>
-  {%- endif -%}
+{{ 'cart-drawer.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'cart-drawer.js' | asset_url }}" defer></script>
+<script src="{{ 'global.js' | asset_url }}" defer></script>
 
-  {%- if settings.script_head != blank and settings.script_head != 'none' -%}
-    {{ settings.script_head }}
-  {%- endif -%}
+{%- if settings.enable_search_popup -%}
+{{ 'search-popup.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'search-popup.js' | asset_url }}" defer></script>
+{%- endif -%}
+
+{%- if settings.popup_enable -%}
+<script src="{{ 'global-popup.js' | asset_url }}" defer></script>
+{%- endif -%}
+
+{% if settings.script_head != blank and settings.script_head != 'none' %}
+  {{ settings.script_head }}
+{% endif %}
+
 </head>
 
-<body class="q-typography qtm-dir-{{ qtm_document_dir }}">
+<body class="q-typography">
 
-  {%- if settings.script_body_open != blank and settings.script_body_open != 'none' -%}
-    {{ settings.script_body_open }}
-  {%- endif -%}
+{% if settings.script_body_open != blank and settings.script_body_open != 'none' %}
+  {{ settings.script_body_open }}
+{% endif %}
 
-  {% case settings.header_layout %}
-    {% when 'header_1' %}
-      {% section 'header-one' %}
-    {% when 'header_2' %}
-      {% section 'header-two' %}
-    {% when 'header_3' %}
-      {% section 'header-three' %}
-    {% when 'header_4' %}
-      {% section 'header-four' %}
-    {% when 'header_5' %}
-      {% section 'header-five' %}
-    {% else %}
-      {% section 'header-one' %}
-  {% endcase %}
+{% case settings.header_layout %}
+  {% when 'header_1' %}
+    {% section 'header-one' %}
+  {% when 'header_2' %}
+    {% section 'header-two' %}
+  {% when 'header_3' %}
+    {% section 'header-three' %}
+  {% when 'header_4' %}
+    {% section 'header-four' %}
+  {% when 'header_5' %}
+    {% section 'header-five' %}
+  {% else %}
+    {% section 'header-one' %}
+{% endcase %}
 
-  <main id="MainContent">
-    {{ content_for_layout }}
-  </main>
+<main id="MainContent">
+{{ content_for_layout }}
+</main>
 
-  {% case settings.footer_layout %}
-    {% when 'footer_1' %}
-      {% section 'footer-one' %}
-    {% when 'footer_2' %}
-      {% section 'footer-two' %}
-    {% when 'footer_3' %}
-      {% section 'footer-three' %}
-    {% when 'footer_4' %}
-      {% section 'footer-four' %}
-    {% when 'footer_5' %}
-      {% section 'footer-five' %}
-    {% else %}
-      {% section 'footer-one' %}
-  {% endcase %}
+{% case settings.footer_layout %}
+  {% when 'footer_1' %}
+    {% section 'footer-one' %}
+  {% when 'footer_2' %}
+    {% section 'footer-two' %}
+  {% when 'footer_3' %}
+    {% section 'footer-three' %}
+  {% when 'footer_4' %}
+    {% section 'footer-four' %}
+  {% when 'footer_5' %}
+    {% section 'footer-five' %}
+  {% else %}
+    {% section 'footer-one' %}
+{% endcase %}
 
-  {%- if settings.enable_search_popup -%}
-    {% render 'search-popup' %}
-  {%- endif -%}
+{%- if settings.enable_search_popup -%}
+{% render 'search-popup' %}
+{%- endif -%}
 
-  {%- if settings.popup_enable -%}
-    {% render 'global-popup' %}
-  {%- endif -%}
+{% render 'global-popup' %}
 
-  {% render 'q-quick-view-host' %}
+{% render 'q-quick-view-host' %}
 
-  {{ 'q-quick-view.js' | asset_url | script_tag }}
+{{ 'q-quick-view.js' | asset_url | script_tag }}
 
-  {%- if settings.script_body_close != blank and settings.script_body_close != 'none' -%}
-    {{ settings.script_body_close }}
-  {%- endif -%}
+{% if settings.script_body_close != blank and settings.script_body_close != 'none' %}
+  {{ settings.script_body_close }}
+{% endif %}
 
-  {{ content_for_footer }}
+{{ content_for_footer }}
 
 </body>
 </html>
