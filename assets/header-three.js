@@ -8,6 +8,7 @@
     var mobileCloseButtons = root.querySelectorAll('[data-qtm-h3-mobile-close]');
     var dropdownButtons = root.querySelectorAll('[data-qtm-h3-dropdown-toggle]');
     var lastFocusedElement = null;
+    var mobileCloseTimer = null;
 
     function setScrolledState() {
       if (!transparentUntilScroll) return;
@@ -48,46 +49,89 @@
       }
     }
 
+    function isVisible(element) {
+      if (!element) return false;
+      if (element.hidden) return false;
+      if (element.getAttribute('aria-hidden') === 'true') return false;
+
+      var style = window.getComputedStyle(element);
+
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    }
+
     function getFocusableElements(container) {
       if (!container) return [];
 
       return Array.prototype.slice.call(
         container.querySelectorAll(
-          'a[href], button:not([disabled]), textarea, input, select, details, [tabindex]:not([tabindex="-1"])'
+          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
         )
       ).filter(function (element) {
-        return !element.hasAttribute('disabled') && element.offsetParent !== null;
+        return !element.hasAttribute('disabled') && isVisible(element);
       });
     }
 
-    function openMobileMenu() {
+    function openMobileMenu(event) {
+      if (event) event.preventDefault();
       if (!mobilePanel || !mobileOpenButton) return;
 
+      if (mobileCloseTimer) {
+        window.clearTimeout(mobileCloseTimer);
+        mobileCloseTimer = null;
+      }
+
       lastFocusedElement = document.activeElement;
+
+      closeDropdowns();
 
       mobilePanel.hidden = false;
       mobilePanel.setAttribute('aria-hidden', 'false');
       mobileOpenButton.setAttribute('aria-expanded', 'true');
+
+      document.documentElement.classList.add('qtmHeaderThreeMobileOpen');
       document.body.classList.add('qtmHeaderThreeMobileOpen');
+      document.body.classList.add('qtm-header-three-mobile-open');
 
-      var focusable = getFocusableElements(mobilePanel);
+      mobilePanel.classList.remove('is-closing');
 
-      if (focusable.length) {
-        focusable[0].focus();
-      }
+      window.requestAnimationFrame(function () {
+        mobilePanel.classList.add('is-open');
+
+        var focusable = getFocusableElements(mobilePanel);
+
+        if (focusable.length) {
+          focusable[0].focus();
+        }
+      });
     }
 
-    function closeMobileMenu() {
-      if (!mobilePanel || !mobileOpenButton) return;
+    function closeMobileMenu(event) {
+      if (event) event.preventDefault();
+      if (!mobilePanel || !mobileOpenButton || mobilePanel.hidden) return;
 
-      mobilePanel.hidden = true;
-      mobilePanel.setAttribute('aria-hidden', 'true');
       mobileOpenButton.setAttribute('aria-expanded', 'false');
-      document.body.classList.remove('qtmHeaderThreeMobileOpen');
+      mobilePanel.setAttribute('aria-hidden', 'true');
 
-      if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-        lastFocusedElement.focus();
+      mobilePanel.classList.remove('is-open');
+      mobilePanel.classList.add('is-closing');
+
+      document.documentElement.classList.remove('qtmHeaderThreeMobileOpen');
+      document.body.classList.remove('qtmHeaderThreeMobileOpen');
+      document.body.classList.remove('qtm-header-three-mobile-open');
+
+      if (mobileCloseTimer) {
+        window.clearTimeout(mobileCloseTimer);
       }
+
+      mobileCloseTimer = window.setTimeout(function () {
+        mobilePanel.hidden = true;
+        mobilePanel.classList.remove('is-closing');
+        mobileCloseTimer = null;
+
+        if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+          lastFocusedElement.focus();
+        }
+      }, 280);
     }
 
     if (transparentUntilScroll) {
@@ -139,7 +183,7 @@
         closeDropdowns();
 
         if (mobilePanel && !mobilePanel.hidden) {
-          closeMobileMenu();
+          closeMobileMenu(event);
         }
       }
 
