@@ -1,155 +1,208 @@
 {%- comment -%}
   Snippet: header-two-mega-menu
-  Reusable desktop navigation with mega menus, standard dropdowns,
-  promo content, featured collections, and badges.
+  Desktop navigation with mega menus, standard dropdowns, promo content, and featured collections.
 
   Accepts:
     menu        - linklist object
-    mega_blocks - section.blocks (mega_menu blocks matched by menu item title)
-    section_id  - section.id (for unique panel ids)
-
-  Mega menu blocks are matched against top-level menu item titles
-  (case-insensitive, whitespace-trimmed). A matched item renders a
-  full-width mega panel; an unmatched item with children renders a
-  standard dropdown; otherwise a plain link.
-
-  Interaction hooks consumed by header-two.js:
-    data-qh2-menu-item / data-qh2-menu-trigger / data-qh2-menu-panel
-
-  Usage:
-    {% render 'header-two-mega-menu', menu: main_menu, mega_blocks: section.blocks, section_id: section.id %}
+    mega_blocks - section.blocks
+    section_id  - section.id
 {%- endcomment -%}
 
-{%- if menu != blank -%}
-<nav class="qtm-hm-nav" aria-label="Primary navigation">
-  <ul class="qtm-hm-nav__list" role="list">
-    {%- for link in menu.links -%}
-      {%- liquid
-        assign link_key = link.title | strip | downcase
-        assign mega_block = false
-        for block in mega_blocks
-          if block.type == 'mega_menu'
-            assign block_key = block.settings.menu_item_title | strip | downcase
-            if block_key == link_key
-              assign mega_block = block
-              break
+{%- if menu != blank and menu.links != blank -%}
+  <nav class="qtm-hm-nav" aria-label="Primary navigation">
+    <ul class="qtm-hm-nav__list" role="list">
+      {%- for link in menu.links -%}
+        {%- liquid
+          assign link_key = link.title | strip | downcase
+          assign mega_block = false
+
+          for block in mega_blocks
+            if block.type == 'mega_menu'
+              assign block_key = block.settings.menu_item_title | strip | downcase
+              if block_key == link_key
+                assign mega_block = block
+                break
+              endif
             endif
+          endfor
+
+          assign panel_id = 'QH2Panel-' | append: section_id | append: '-' | append: forloop.index
+          assign badge_label = ''
+          if mega_block
+            assign badge_label = mega_block.settings.badge_label
           endif
-        endfor
+        -%}
 
-        assign panel_id = 'QH2Panel-' | append: section_id | append: '-' | append: forloop.index
-        assign badge_label = ''
-        if mega_block
-          assign badge_label = mega_block.settings.badge_label
-        endif
-      -%}
+        {%- if mega_block and link.links.size > 0 -%}
+          <li class="qtm-hm-nav__item qtm-hm-nav__item--mega" data-qh2-menu-item {{ mega_block.shopify_attributes }}>
+            <span class="qtm-hm-nav__pair">
+              <a
+                class="qtm-hm-nav__link{% if link.active or link.child_active %} qtm-hm-nav__link--active{% endif %}"
+                href="{{ link.url }}"
+                {% if link.active %}aria-current="page"{% endif %}
+              >
+                {{ link.title | escape }}
+                {%- if badge_label != blank -%}
+                  <span class="qtm-hm-badge">{{ badge_label | escape }}</span>
+                {%- endif -%}
+              </a>
 
-      {%- if mega_block and link.links.size > 0 -%}
-        {%- comment -%} ---------- Mega menu item ---------- {%- endcomment -%}
-        <li class="qtm-hm-nav__item qtm-hm-nav__item--mega" data-qh2-menu-item {{ mega_block.shopify_attributes }}>
-          <span class="qtm-hm-nav__pair">
-            <a
-              class="qtm-hm-nav__link{% if link.active %} qtm-hm-nav__link--active{% endif %}"
-              href="{{ link.url }}"
-              {% if link.active %}aria-current="page"{% endif %}
-            >
-              {{ link.title | escape }}
-              {%- if badge_label != blank -%}
-                <span class="qtm-hm-badge">{{ badge_label | escape }}</span>
-              {%- endif -%}
-            </a>
-            <button
-              type="button"
-              class="qtm-hm-nav__caret"
-              aria-expanded="false"
-              aria-controls="{{ panel_id }}"
-              aria-label="Open {{ link.title | escape }} menu"
-              data-qh2-menu-trigger
-            >
-              <svg class="qtm-hm-caret-icon" viewBox="0 0 12 8" fill="none" aria-hidden="true">
-                <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
-          </span>
+              <button
+                type="button"
+                class="qtm-hm-nav__caret"
+                aria-expanded="false"
+                aria-controls="{{ panel_id }}"
+                aria-label="Open {{ link.title | escape }} menu"
+                data-qh2-menu-trigger
+              >
+                <svg class="qtm-hm-caret-icon" viewBox="0 0 12 8" fill="none" aria-hidden="true">
+                  <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </span>
 
-          <div id="{{ panel_id }}" class="qtm-hm-mega" data-qh2-menu-panel hidden>
-            <div class="qtm-hm-mega__inner" style="--qh2-mega-cols: {{ mega_block.settings.columns | default: 4 }};">
-              <div class="qtm-hm-mega__columns">
-                {%- for child in link.links -%}
-                  <div class="qtm-hm-mega__group">
-                    <a class="qtm-hm-mega__heading" href="{{ child.url }}">{{ child.title | escape }}</a>
-                    {%- if child.links.size > 0 -%}
-                      <ul class="qtm-hm-mega__links" role="list">
-                        {%- for grandchild in child.links -%}
-                          <li>
-                            <a
-                              class="qtm-hm-mega__link{% if grandchild.active %} qtm-hm-mega__link--active{% endif %}"
-                              href="{{ grandchild.url }}"
-                              {% if grandchild.active %}aria-current="page"{% endif %}
-                            >
-                              {{ grandchild.title | escape }}
-                            </a>
-                          </li>
-                        {%- endfor -%}
-                      </ul>
-                    {%- endif -%}
-                  </div>
-                {%- endfor -%}
-              </div>
+            <div id="{{ panel_id }}" class="qtm-hm-mega" data-qh2-menu-panel hidden>
+              <div class="qtm-hm-mega__inner" style="--qh2-mega-cols: {{ mega_block.settings.columns | default: 4 }};">
+                <div class="qtm-hm-mega__columns">
+                  {%- for child in link.links -%}
+                    <div class="qtm-hm-mega__group">
+                      <a
+                        class="qtm-hm-mega__heading{% if child.active or child.child_active %} qtm-hm-mega__heading--active{% endif %}"
+                        href="{{ child.url }}"
+                        {% if child.active %}aria-current="page"{% endif %}
+                      >
+                        {{ child.title | escape }}
+                      </a>
 
-              {%- assign has_promo = false -%}
-              {%- if mega_block.settings.promo_image != blank or mega_block.settings.promo_heading != blank or mega_block.settings.promo_text != blank -%}
-                {%- assign has_promo = true -%}
-              {%- endif -%}
-              {%- assign featured = mega_block.settings.featured_collection -%}
-
-              {%- if has_promo or featured != blank -%}
-                <aside class="qtm-hm-mega__aside">
-                  {%- if has_promo -%}
-                    <div class="qtm-hm-promo">
-                      {%- if mega_block.settings.promo_image != blank -%}
-                        {%- assign promo_alt = mega_block.settings.promo_heading | default: link.title -%}
-                        <div class="qtm-hm-promo__media">
-                          {{ mega_block.settings.promo_image | image_url: width: 640 | image_tag: loading: 'lazy', class: 'qtm-hm-promo__img', alt: promo_alt }}
-                        </div>
-                      {%- endif -%}
-                      {%- if mega_block.settings.promo_heading != blank -%}
-                        <p class="qtm-hm-promo__heading">{{ mega_block.settings.promo_heading | escape }}</p>
-                      {%- endif -%}
-                      {%- if mega_block.settings.promo_text != blank -%}
-                        <p class="qtm-hm-promo__text">{{ mega_block.settings.promo_text }}</p>
-                      {%- endif -%}
-                      {%- if mega_block.settings.promo_button_label != blank and mega_block.settings.promo_button_url != blank -%}
-                        <a class="qtm-hm-promo__btn" href="{{ mega_block.settings.promo_button_url }}">
-                          {{ mega_block.settings.promo_button_label | escape }}
-                        </a>
+                      {%- if child.links.size > 0 -%}
+                        <ul class="qtm-hm-mega__links" role="list">
+                          {%- for grandchild in child.links -%}
+                            <li>
+                              <a
+                                class="qtm-hm-mega__link{% if grandchild.active %} qtm-hm-mega__link--active{% endif %}"
+                                href="{{ grandchild.url }}"
+                                {% if grandchild.active %}aria-current="page"{% endif %}
+                              >
+                                {{ grandchild.title | escape }}
+                              </a>
+                            </li>
+                          {%- endfor -%}
+                        </ul>
                       {%- endif -%}
                     </div>
-                  {%- endif -%}
+                  {%- endfor -%}
+                </div>
 
-                  {%- if featured != blank -%}
-                    <a class="qtm-hm-featured" href="{{ featured.url }}">
-                      {%- if featured.featured_image != blank -%}
-                        <span class="qtm-hm-featured__media">
-                          {{ featured.featured_image | image_url: width: 480 | image_tag: loading: 'lazy', class: 'qtm-hm-featured__img', alt: featured.title }}
+                {%- assign has_promo = false -%}
+                {%- if mega_block.settings.promo_image != blank or mega_block.settings.promo_heading != blank or mega_block.settings.promo_text != blank -%}
+                  {%- assign has_promo = true -%}
+                {%- endif -%}
+                {%- assign featured = mega_block.settings.featured_collection -%}
+
+                {%- if has_promo or featured != blank -%}
+                  <aside class="qtm-hm-mega__aside">
+                    {%- if has_promo -%}
+                      <div class="qtm-hm-promo">
+                        {%- if mega_block.settings.promo_image != blank -%}
+                          {%- assign promo_alt = mega_block.settings.promo_heading | default: link.title -%}
+                          <div class="qtm-hm-promo__media">
+                            {{ mega_block.settings.promo_image | image_url: width: 640 | image_tag: loading: 'lazy', class: 'qtm-hm-promo__img', alt: promo_alt }}
+                          </div>
+                        {%- endif -%}
+
+                        {%- if mega_block.settings.promo_heading != blank -%}
+                          <p class="qtm-hm-promo__heading">{{ mega_block.settings.promo_heading | escape }}</p>
+                        {%- endif -%}
+
+                        {%- if mega_block.settings.promo_text != blank -%}
+                          <p class="qtm-hm-promo__text">{{ mega_block.settings.promo_text }}</p>
+                        {%- endif -%}
+
+                        {%- if mega_block.settings.promo_button_label != blank and mega_block.settings.promo_button_url != blank -%}
+                          <a class="qtm-hm-promo__btn" href="{{ mega_block.settings.promo_button_url }}">
+                            {{ mega_block.settings.promo_button_label | escape }}
+                          </a>
+                        {%- endif -%}
+                      </div>
+                    {%- endif -%}
+
+                    {%- if featured != blank -%}
+                      <a class="qtm-hm-featured" href="{{ featured.url }}">
+                        {%- if featured.featured_image != blank -%}
+                          <span class="qtm-hm-featured__media">
+                            {{ featured.featured_image | image_url: width: 480 | image_tag: loading: 'lazy', class: 'qtm-hm-featured__img', alt: featured.title }}
+                          </span>
+                        {%- endif -%}
+
+                        <span class="qtm-hm-featured__body">
+                          <span class="qtm-hm-featured__eyebrow">Featured collection</span>
+                          <span class="qtm-hm-featured__title">{{ featured.title | escape }}</span>
                         </span>
-                      {%- endif -%}
-                      <span class="qtm-hm-featured__body">
-                        <span class="qtm-hm-featured__eyebrow">Featured collection</span>
-                        <span class="qtm-hm-featured__title">{{ featured.title | escape }}</span>
-                      </span>
-                    </a>
-                  {%- endif -%}
-                </aside>
-              {%- endif -%}
+                      </a>
+                    {%- endif -%}
+                  </aside>
+                {%- endif -%}
+              </div>
             </div>
-          </div>
-        </li>
+          </li>
 
-      {%- elsif link.links.size > 0 -%}
-        {%- comment -%} ---------- Standard dropdown item ---------- {%- endcomment -%}
-        <li class="qtm-hm-nav__item qtm-hm-nav__item--dropdown" data-qh2-menu-item>
-          <span class="qtm-hm-nav__pair">
+        {%- elsif link.links.size > 0 -%}
+          <li class="qtm-hm-nav__item qtm-hm-nav__item--dropdown" data-qh2-menu-item>
+            <span class="qtm-hm-nav__pair">
+              <a
+                class="qtm-hm-nav__link{% if link.active or link.child_active %} qtm-hm-nav__link--active{% endif %}"
+                href="{{ link.url }}"
+                {% if link.active %}aria-current="page"{% endif %}
+              >
+                {{ link.title | escape }}
+                {%- if badge_label != blank -%}
+                  <span class="qtm-hm-badge">{{ badge_label | escape }}</span>
+                {%- endif -%}
+              </a>
+
+              <button
+                type="button"
+                class="qtm-hm-nav__caret"
+                aria-expanded="false"
+                aria-controls="{{ panel_id }}"
+                aria-label="Open {{ link.title | escape }} menu"
+                data-qh2-menu-trigger
+              >
+                <svg class="qtm-hm-caret-icon" viewBox="0 0 12 8" fill="none" aria-hidden="true">
+                  <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </span>
+
+            <div id="{{ panel_id }}" class="qtm-hm-dropdown" data-qh2-menu-panel hidden>
+              <ul class="qtm-hm-dropdown__list" role="list">
+                <li>
+                  <a
+                    class="qtm-hm-dropdown__link{% if link.active %} qtm-hm-dropdown__link--active{% endif %}"
+                    href="{{ link.url }}"
+                    {% if link.active %}aria-current="page"{% endif %}
+                  >
+                    View {{ link.title | escape }}
+                  </a>
+                </li>
+
+                {%- for child in link.links -%}
+                  <li>
+                    <a
+                      class="qtm-hm-dropdown__link{% if child.active %} qtm-hm-dropdown__link--active{% endif %}"
+                      href="{{ child.url }}"
+                      {% if child.active %}aria-current="page"{% endif %}
+                    >
+                      {{ child.title | escape }}
+                    </a>
+                  </li>
+                {%- endfor -%}
+              </ul>
+            </div>
+          </li>
+
+        {%- else -%}
+          <li class="qtm-hm-nav__item">
             <a
               class="qtm-hm-nav__link{% if link.active %} qtm-hm-nav__link--active{% endif %}"
               href="{{ link.url }}"
@@ -160,53 +213,13 @@
                 <span class="qtm-hm-badge">{{ badge_label | escape }}</span>
               {%- endif -%}
             </a>
-            <button
-              type="button"
-              class="qtm-hm-nav__caret"
-              aria-expanded="false"
-              aria-controls="{{ panel_id }}"
-              aria-label="Open {{ link.title | escape }} menu"
-              data-qh2-menu-trigger
-            >
-              <svg class="qtm-hm-caret-icon" viewBox="0 0 12 8" fill="none" aria-hidden="true">
-                <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
-          </span>
-
-          <div id="{{ panel_id }}" class="qtm-hm-dropdown" data-qh2-menu-panel hidden>
-            <ul class="qtm-hm-dropdown__list" role="list">
-              {%- for child in link.links -%}
-                <li>
-                  <a
-                    class="qtm-hm-dropdown__link{% if child.active %} qtm-hm-dropdown__link--active{% endif %}"
-                    href="{{ child.url }}"
-                    {% if child.active %}aria-current="page"{% endif %}
-                  >
-                    {{ child.title | escape }}
-                  </a>
-                </li>
-              {%- endfor -%}
-            </ul>
-          </div>
-        </li>
-
-      {%- else -%}
-        {%- comment -%} ---------- Plain link ---------- {%- endcomment -%}
-        <li class="qtm-hm-nav__item">
-          <a
-            class="qtm-hm-nav__link{% if link.active %} qtm-hm-nav__link--active{% endif %}"
-            href="{{ link.url }}"
-            {% if link.active %}aria-current="page"{% endif %}
-          >
-            {{ link.title | escape }}
-            {%- if badge_label != blank -%}
-              <span class="qtm-hm-badge">{{ badge_label | escape }}</span>
-            {%- endif -%}
-          </a>
-        </li>
-      {%- endif -%}
-    {%- endfor -%}
-  </ul>
-</nav>
+          </li>
+        {%- endif -%}
+      {%- endfor -%}
+    </ul>
+  </nav>
+{%- elsif request.design_mode -%}
+  <div class="qtm-hm-nav" aria-label="Primary navigation">
+    <p class="qtm-hm-nav__empty">Select a menu for Header Two.</p>
+  </div>
 {%- endif -%}
