@@ -55,26 +55,31 @@
   }
 
   function shouldShowByFrequency() {
-    if (isShopifyEditor && editorPreview) return true;
-    if (frequency === 'always') return true;
+  if (isShopifyEditor && editorPreview) return true;
 
-    if (frequency === 'once_per_session') {
-      return sessionStorage.getItem(sessionKey) !== 'true';
-    }
-
-    const lastSeen = getStoredTimestamp();
-    if (!lastSeen) return true;
-
-    if (frequency === 'once_per_day') {
-      return now() - lastSeen > oneDay();
-    }
-
-    if (frequency === 'once_per_week') {
-      return now() - lastSeen > oneWeek();
-    }
-
+  if (frequency === 'always') {
+    localStorage.removeItem(frequencyKey);
+    sessionStorage.removeItem(sessionKey);
     return true;
   }
+
+  if (frequency === 'once_per_session') {
+    return sessionStorage.getItem(sessionKey) !== 'true';
+  }
+
+  const lastSeen = getStoredTimestamp();
+
+  if (!lastSeen) return true;
+
+  const now = Date.now();
+  const oneDay = 24 * 60 * 60 * 1000;
+  const oneWeek = 7 * oneDay;
+
+  if (frequency === 'once_per_day') return now - lastSeen > oneDay;
+  if (frequency === 'once_per_week') return now - lastSeen > oneWeek;
+
+  return true;
+}
 
   function markSeen() {
     if (isShopifyEditor && editorPreview) return;
