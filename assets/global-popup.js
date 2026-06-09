@@ -1,117 +1,220 @@
 (() => {
-  const popup = document.querySelector('[data-qtm-popup]');
-  if (!popup) return;
+  const STORAGE_KEY = 'qtm_global_popup_seen';
+  const SESSION_KEY = 'qtm_global_popup_seen_session';
 
-  const dialog = popup.querySelector('[data-qtm-popup-dialog]');
-  const closeButtons = popup.querySelectorAll('[data-qtm-popup-close]');
-  const overlay = popup.querySelector('[data-qtm-popup-overlay]');
-
-  const config = window.QuadratumSettings?.popups || {};
-  const trigger = popup.dataset.popupTrigger || config.trigger || 'delay';
-  const frequency = popup.dataset.popupFrequency || config.frequency || 'once_per_session';
-  const delaySeconds = Number(popup.dataset.popupDelay || config.delaySeconds || 0);
-  const scrollPercent = Number(popup.dataset.popupScroll || config.scrollPercent || 45);
-  const showOnMobile = popup.dataset.popupMobile === 'true';
-  const showOnDesktop = popup.dataset.popupDesktop === 'true';
-  const overlayClickClose = popup.dataset.popupOverlayClose === 'true';
-  const editorPreview = popup.dataset.popupEditorPreview === 'true';
-  const isShopifyEditor = Boolean(window.Shopify && window.Shopify.designMode);
-
-  const frequencyKey = 'qtm_global_popup_seen';
-  const sessionKey = 'qtm_global_popup_seen_session';
-  const mobileQuery = window.matchMedia('(max-width: 749px)');
+  let popup = null;
+  let dialog = null;
+  let config = {};
+  let openedThisPage = false;
   let lastFocusedElement = null;
-  let hasOpened = false;
 
-  const focusableSelector = [
-    'a[href]',
-    'button:not([disabled])',
-    'input:not([disabled])',
-    'select:not([disabled])',
-    'textarea:not([disabled])',
-    '[tabindex]:not([tabindex="-1"])'
-  ].join(',');
-
-  function shouldRespectDevice() {
-    if (isShopifyEditor && editorPreview) return true;
-    return mobileQuery.matches ? showOnMobile : showOnDesktop;
+  function isThemeEditor() {
+    return Boolean(
+      (window.Shopify && window.Shopify.designMode) ||
+      document.documentElement.classList.contains('shopify-design-mode') ||
+      window.location.href.includes('preview_theme_id') ||
+      window.location.href.includes('_ab=')
+    );
   }
 
-  function now() {
-    return Date.now();
+  function getPopup() {
+    return document.getElementById('QuadratumGlobalPopup') || document.querySelector('[data-qtm-popup]');
   }
 
-  function oneDay() {
-    return 24 * 60 * 60 * 1000;
+  function getBoolean(value) {
+    return value === true || value === 'true';
   }
 
-  function oneWeek() {
-    return 7 * oneDay();
+  function getConfig() {
+    const globalConfig =
+      window.QuadratumSettings && window.QuadratumSettings.popups
+        ? window.QuadratumSettings.popups
+        : {};
+
+    return {
+      enabled: getBoolean(popup?.dataset.popupEnabled) || getBoolean(globalConfig.enabled),
+      type: popup?.dataset.popupType || globalConfig.type || 'newsletter',
+      trigger: popup?.dataset.popupTrigger || globalConfig.trigger || 'delay',
+      frequency: popup?.dataset.popupFrequency || globalConfig.frequency || 'always',
+      delaySeconds: Number(popup?.dataset.popupDelay || globalConfig.delaySeconds || 0),
+      scrollPercent: Number(popup?.dataset.popupScroll || globalConfig.scrollPercent || 45),
+      showOnMobile: getBoolean(popup?.dataset.popupMobile) || getBoolean(globalConfig.showOnMobile),
+      showOnDesktop: getBoolean(popup?.dataset.popupDesktop) || getBoolean(globalConfig.showOnDesktop),
+      overlayClickClose: getBoolean(popup?.dataset.popupOverlayClose) || getBoolean(globalConfig.overlayClickClose),
+      editorPreview: getBoolean(popup?.dataset.popupEditorPreview) || getBoolean(globalConfig.editorPreview)
+    };
   }
 
-  function getStoredTimestamp() {
-    const value = localStorage.getItem(frequencyKey);
-    return value ? Number(value) : 0;
+  function isMobile() {
+    return window.matchMedia('(max-width: 749px)').matches;
+  }
+
+  function shouldShowForDevice() {
+    if (isThemeEditor() && config.editorPreview) return true;
+    return isMobile() ? config.showOnMobile : config.showOnDesktop;
   }
 
   function shouldShowByFrequency() {
-  if (isShopifyEditor && editorPreview) return true;
+    if (isThemeEditor() && config.editorPreview) return true;
 
-  if (frequency === 'always') {
-    localStorage.removeItem(frequencyKey);
-    sessionStorage.removeItem(sessionKey);
+    if (config.frequency === 'always') {
+      localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
+      return true;
+    }
+
+    if (config.frequency === 'once_per_session') {
+      return sessionStorage.getItem(SESSION_KEY) !== 'true';
+    }
+
+    const lastSeen = Number(localStorage.getItem(STORAGE_KEY) || 0);
+    if (!lastSeen) return true;
+
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+    const oneWeek = 7 * oneDay;
+
+    if (config.frequency === 'once_per_day') return now - lastSeen > oneDay;
+    if (config.frequency === 'once_per_week') return now - lastSeen > oneWeek;
+
     return true;
   }
 
-  if (frequency === 'once_per_session') {
-    return sessionStorage.getItem(sessionKey) !== 'true';
-  }
-
-  const lastSeen = getStoredTimestamp();
-
-  if (!lastSeen) return true;
-
-  const now = Date.now();
-  const oneDay = 24 * 60 * 60 * 1000;
-  const oneWeek = 7 * oneDay;
-
-  if (frequency === 'once_per_day') return now - lastSeen > oneDay;
-  if (frequency === 'once_per_week') return now - lastSeen > oneWeek;
-
-  return true;
-}
-
   function markSeen() {
-    if (isShopifyEditor && editorPreview) return;
-    if (frequency === 'once_per_session') {
-      sessionStorage.setItem(sessionKey, 'true');
+    if (isThemeEditor() && config.editorPreview) return;
+    if (config.frequency === 'always') return;
+
+    if (config.frequency === 'once_per_session') {
+      sessionStorage.setItem(SESSION_KEY, 'true');
       return;
     }
 
-    if (frequency !== 'always') {
-      localStorage.setItem(frequencyKey, String(now()));
-    }
+    localStorage.setItem(STORAGE_KEY, String(Date.now()));
   }
 
   function getFocusableElements() {
     if (!dialog) return [];
-    return Array.from(dialog.querySelectorAll(focusableSelector)).filter((element) => {
+
+    return Array.from(
+      dialog.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((element) => {
       return Boolean(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
     });
   }
 
-  function trapFocus(event) {
-    if (event.key !== 'Tab') return;
+  function physicallyShowPopup() {
+    if (!popup) return false;
 
-    const focusableElements = getFocusableElements();
-    if (!focusableElements.length) {
-      event.preventDefault();
-      dialog?.focus();
+    popup.hidden = false;
+    popup.removeAttribute('hidden');
+    popup.setAttribute('aria-hidden', 'false');
+    popup.classList.add('is-visible');
+
+    popup.style.display = 'flex';
+    popup.style.opacity = '1';
+    popup.style.visibility = 'visible';
+    popup.style.pointerEvents = 'auto';
+    popup.style.position = 'fixed';
+    popup.style.inset = '0';
+    popup.style.zIndex = '999999';
+
+    document.documentElement.classList.add('qtm-popup-open');
+    document.body.classList.add('qtm-popup-open');
+
+    window.requestAnimationFrame(() => {
+      const focusable = getFocusableElements();
+
+      if (focusable.length) {
+        focusable[0].focus();
+      } else if (dialog) {
+        dialog.focus();
+      }
+    });
+
+    return true;
+  }
+
+  function physicallyHidePopup() {
+    if (!popup) return false;
+
+    popup.classList.remove('is-visible');
+    popup.setAttribute('aria-hidden', 'true');
+
+    document.documentElement.classList.remove('qtm-popup-open');
+    document.body.classList.remove('qtm-popup-open');
+
+    popup.style.opacity = '';
+    popup.style.visibility = '';
+    popup.style.pointerEvents = '';
+    popup.style.display = '';
+    popup.style.position = '';
+    popup.style.inset = '';
+    popup.style.zIndex = '';
+
+    window.setTimeout(() => {
+      popup.hidden = true;
+      popup.setAttribute('hidden', '');
+    }, 220);
+
+    if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+      lastFocusedElement.focus();
+    }
+
+    return true;
+  }
+
+  function openPopup(force = false) {
+    if (!popup) {
+      popup = getPopup();
+      if (!popup) return false;
+      dialog = popup.querySelector('[data-qtm-popup-dialog]') || popup.querySelector('[role="dialog"]');
+      config = getConfig();
+    }
+
+    if (!force) {
+      if (openedThisPage && config.frequency !== 'always' && !(isThemeEditor() && config.editorPreview)) return false;
+      if (!config.enabled && !(isThemeEditor() && config.editorPreview)) return false;
+      if (!shouldShowForDevice()) return false;
+      if (!shouldShowByFrequency()) return false;
+    }
+
+    openedThisPage = true;
+    lastFocusedElement = document.activeElement;
+
+    physicallyShowPopup();
+    markSeen();
+
+    document.addEventListener('keydown', handleKeydown);
+
+    return true;
+  }
+
+  function closePopup() {
+    document.removeEventListener('keydown', handleKeydown);
+    return physicallyHidePopup();
+  }
+
+  function resetPopup() {
+    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
+    openedThisPage = false;
+  }
+
+  function handleKeydown(event) {
+    if (event.key === 'Escape') {
+      closePopup();
       return;
     }
 
-    const first = focusableElements[0];
-    const last = focusableElements[focusableElements.length - 1];
+    if (event.key !== 'Tab') return;
+
+    const focusable = getFocusableElements();
+    if (!focusable.length) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
 
     if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
@@ -122,67 +225,23 @@
     }
   }
 
-  function openPopup(force = false) {
-    if (hasOpened && !force) return;
-    if (!force && !shouldRespectDevice()) return;
-    if (!force && !shouldShowByFrequency()) return;
+  function setupEvents() {
+    if (!popup) return;
 
-    hasOpened = true;
-    lastFocusedElement = document.activeElement;
-
-    popup.hidden = false;
-    popup.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('qtm-popup-open');
-
-    requestAnimationFrame(() => {
-      popup.classList.add('is-visible');
-      const focusableElements = getFocusableElements();
-      if (focusableElements.length) {
-        focusableElements[0].focus();
-      } else {
-        dialog?.focus();
-      }
-    });
-
-    document.addEventListener('keydown', handleKeydown);
-    markSeen();
-  }
-
-  function closePopup() {
-    popup.classList.remove('is-visible');
-    popup.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('qtm-popup-open');
-    document.removeEventListener('keydown', handleKeydown);
-
-    window.setTimeout(() => {
-      popup.hidden = true;
-    }, 220);
-
-    if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-      lastFocusedElement.focus();
-    }
-  }
-
-  function handleKeydown(event) {
-    if (event.key === 'Escape') {
-      closePopup();
-      return;
-    }
-
-    trapFocus(event);
-  }
-
-  function bindCloseEvents() {
-    closeButtons.forEach((button) => {
+    popup.querySelectorAll('[data-qtm-popup-close]').forEach((button) => {
       button.addEventListener('click', closePopup);
     });
 
-    if (overlay && overlayClickClose) {
-      overlay.addEventListener('click', closePopup);
-    }
-  }
+    const overlay = popup.querySelector('[data-qtm-popup-overlay]');
 
-  function bindManualTriggers() {
+    if (overlay) {
+      overlay.addEventListener('click', () => {
+        if (config.overlayClickClose || isThemeEditor()) {
+          closePopup();
+        }
+      });
+    }
+
     document.addEventListener('click', (event) => {
       const opener = event.target.closest('[data-qtm-popup-open]');
       if (!opener) return;
@@ -192,84 +251,89 @@
     });
   }
 
-  function setupDelayTrigger() {
-    window.setTimeout(() => openPopup(false), delaySeconds * 1000);
-  }
+  function setupAutoTrigger() {
+    if (!popup) return;
 
-  function setupScrollTrigger() {
-    function onScroll() {
-      const doc = document.documentElement;
-      const scrollTop = window.scrollY || doc.scrollTop;
-      const scrollHeight = Math.max(doc.scrollHeight - window.innerHeight, 1);
-      const progress = (scrollTop / scrollHeight) * 100;
+    if (isThemeEditor() && config.editorPreview) {
+      window.setTimeout(() => openPopup(true), 100);
+      window.setTimeout(() => openPopup(true), 600);
+      window.setTimeout(() => openPopup(true), 1300);
+      return;
+    }
 
-      if (progress >= scrollPercent) {
-        window.removeEventListener('scroll', onScroll);
+    if (!config.enabled) return;
+    if (!shouldShowForDevice()) return;
+    if (config.trigger === 'manual') return;
+
+    if (config.trigger === 'scroll') {
+      const onScroll = () => {
+        const doc = document.documentElement;
+        const scrollTop = window.scrollY || doc.scrollTop;
+        const scrollHeight = Math.max(doc.scrollHeight - window.innerHeight, 1);
+        const progress = (scrollTop / scrollHeight) * 100;
+
+        if (progress >= config.scrollPercent) {
+          window.removeEventListener('scroll', onScroll);
+          openPopup(false);
+        }
+      };
+
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+      return;
+    }
+
+    if (config.trigger === 'exit_intent') {
+      if (isMobile()) return;
+
+      const onMouseOut = (event) => {
+        if (event.clientY > 8) return;
+
+        document.removeEventListener('mouseout', onMouseOut);
         openPopup(false);
-      }
-    }
+      };
 
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-  }
-
-  function setupExitIntentTrigger() {
-    function onMouseOut(event) {
-      if (event.clientY > 8) return;
-      document.removeEventListener('mouseout', onMouseOut);
-      openPopup(false);
-    }
-
-    if (!mobileQuery.matches) {
       document.addEventListener('mouseout', onMouseOut);
+      return;
     }
+
+    if (config.trigger === 'first_visit') {
+      if (!localStorage.getItem(STORAGE_KEY)) {
+        window.setTimeout(() => openPopup(false), config.delaySeconds * 1000);
+      }
+
+      return;
+    }
+
+    window.setTimeout(() => openPopup(false), config.delaySeconds * 1000);
   }
 
-  function setupFirstVisitTrigger() {
-    if (!localStorage.getItem(frequencyKey)) {
-      setupDelayTrigger();
-    }
+  function boot() {
+    popup = getPopup();
+
+    window.QuadratumPopup = {
+      open: () => openPopup(true),
+      close: closePopup,
+      reset: resetPopup
+    };
+
+    if (!popup) return;
+
+    dialog = popup.querySelector('[data-qtm-popup-dialog]') || popup.querySelector('[role="dialog"]');
+    config = getConfig();
+
+    resetPopup();
+    setupEvents();
+    setupAutoTrigger();
   }
 
-  function setupTrigger() {
-    if (isShopifyEditor && editorPreview) {
-      window.setTimeout(() => openPopup(true), 250);
-      return;
-    }
-
-    if (!shouldRespectDevice()) return;
-
-    if (trigger === 'manual') return;
-
-    if (trigger === 'scroll') {
-      setupScrollTrigger();
-      return;
-    }
-
-    if (trigger === 'exit_intent') {
-      setupExitIntentTrigger();
-      return;
-    }
-
-    if (trigger === 'first_visit') {
-      setupFirstVisitTrigger();
-      return;
-    }
-
-    setupDelayTrigger();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
   }
 
-  bindCloseEvents();
-  bindManualTriggers();
-  setupTrigger();
-
-  window.QuadratumPopup = {
-    open: () => openPopup(true),
-    close: closePopup,
-    reset: () => {
-      localStorage.removeItem(frequencyKey);
-      sessionStorage.removeItem(sessionKey);
-      hasOpened = false;
-    }
-  };
+  document.addEventListener('shopify:section:load', boot);
+  document.addEventListener('shopify:section:select', boot);
+  document.addEventListener('shopify:block:select', boot);
 })();
