@@ -5,23 +5,19 @@
   assign header_width = section.settings.header_width | default: 'wide'
   assign sticky_mode = section.settings.sticky_mode | default: 'sticky_shadow'
   assign navigation_mode = section.settings.navigation_mode | default: 'minimal'
+  assign mobile_menu_style = section.settings.mobile_menu_style | default: 'slide_left'
 
   assign search_display = section.settings.search_display | default: 'search_button'
   assign search_button_action = section.settings.search_button_action | default: 'popup'
 
   assign has_announcement_blocks = false
-  for block in section.blocks
-    if block.type == 'announcement'
-      assign has_announcement_blocks = true
-      break
-    endif
-  endfor
-
   assign has_nav_blocks = false
+
   for block in section.blocks
-    if block.type == 'nav_link'
+    if block.type == 'announcement' and block.settings.message != blank
+      assign has_announcement_blocks = true
+    elsif block.type == 'nav_link' and block.settings.label != blank and block.settings.url != blank
       assign has_nav_blocks = true
-      break
     endif
   endfor
 
@@ -30,11 +26,12 @@
     assign show_desktop_nav = false
   elsif navigation_mode == 'minimal' and has_nav_blocks == false
     assign show_desktop_nav = false
+  elsif navigation_mode == 'full' and main_menu == blank
+    assign show_desktop_nav = false
   endif
 
   assign sticky_enabled = false
   assign sticky_shadow_enabled = false
-  assign hide_on_scroll_enabled = false
 
   if sticky_mode == 'sticky' or sticky_mode == 'sticky_shadow' or sticky_mode == 'hide_on_scroll'
     assign sticky_enabled = true
@@ -42,10 +39,6 @@
 
   if sticky_mode == 'sticky_shadow'
     assign sticky_shadow_enabled = true
-  endif
-
-  if sticky_mode == 'hide_on_scroll'
-    assign hide_on_scroll_enabled = true
   endif
 %}
 
@@ -58,6 +51,7 @@
     qtmHeaderFour--layout-{{ header_layout }}
     qtmHeaderFour--width-{{ header_width }}
     qtmHeaderFour--nav-{{ navigation_mode }}
+    qtmHeaderFour--mobile-{{ mobile_menu_style }}
     qtmHeaderFour--sticky-{{ sticky_mode }}
     {% if sticky_enabled %}qtmHeaderFour--sticky{% endif %}
     {% if sticky_shadow_enabled %}qtmHeaderFour--stickyShadow{% endif %}
@@ -98,7 +92,7 @@
       <div class="qtmHeaderFour__announcementInner">
         {% if section.settings.announcement_auto_rotate and has_announcement_blocks %}
           {% for block in section.blocks %}
-            {% if block.type == 'announcement' %}
+            {% if block.type == 'announcement' and block.settings.message != blank %}
               <p
                 class="qtmHeaderFour__announcementText{% unless forloop.first %} is-hidden{% endunless %}"
                 data-qtm-h4-announcement-slide
@@ -175,7 +169,7 @@
           <nav class="qtmHeaderFour__nav" aria-label="Campaign navigation">
             {% if navigation_mode == 'minimal' and has_nav_blocks %}
               {% for block in section.blocks %}
-                {% if block.type == 'nav_link' %}
+                {% if block.type == 'nav_link' and block.settings.label != blank and block.settings.url != blank %}
                   <a
                     class="qtmHeaderFour__navLink"
                     href="{{ block.settings.url }}"
@@ -188,7 +182,7 @@
             {% elsif navigation_mode == 'full' and main_menu != blank %}
               {% for link in main_menu.links %}
                 <a
-                  class="qtmHeaderFour__navLink{% if link.active %} qtmHeaderFour__navLink--active{% endif %}"
+                  class="qtmHeaderFour__navLink{% if link.active or link.child_active %} qtmHeaderFour__navLink--active{% endif %}"
                   href="{{ link.url }}"
                   {% if link.active %}aria-current="page"{% endif %}
                 >
@@ -344,7 +338,7 @@
         <nav class="qtmHeaderFour__mobileNav" aria-label="Mobile campaign navigation">
           {% if navigation_mode == 'minimal' and has_nav_blocks %}
             {% for block in section.blocks %}
-              {% if block.type == 'nav_link' %}
+              {% if block.type == 'nav_link' and block.settings.label != blank and block.settings.url != blank %}
                 <a class="qtmHeaderFour__mobileNavLink" href="{{ block.settings.url }}" {{ block.shopify_attributes }}>
                   {{ block.settings.label }}
                 </a>
@@ -352,14 +346,44 @@
             {% endfor %}
           {% elsif navigation_mode == 'full' and main_menu != blank %}
             {% for link in main_menu.links %}
-              <a
-                class="qtmHeaderFour__mobileNavLink{% if link.active %} qtmHeaderFour__mobileNavLink--active{% endif %}"
-                href="{{ link.url }}"
-                {% if link.active %}aria-current="page"{% endif %}
-              >
-                {{ link.title }}
-              </a>
+              {% if link.links != blank %}
+                <details class="qtmHeaderFour__mobileNavDetails">
+                  <summary class="qtmHeaderFour__mobileNavSummary">
+                    {{ link.title }}
+                  </summary>
+
+                  <div class="qtmHeaderFour__mobileSubNav">
+                    <a
+                      class="qtmHeaderFour__mobileSubNavLink{% if link.active %} qtmHeaderFour__mobileSubNavLink--active{% endif %}"
+                      href="{{ link.url }}"
+                      {% if link.active %}aria-current="page"{% endif %}
+                    >
+                      View {{ link.title }}
+                    </a>
+
+                    {% for child_link in link.links %}
+                      <a
+                        class="qtmHeaderFour__mobileSubNavLink{% if child_link.active %} qtmHeaderFour__mobileSubNavLink--active{% endif %}"
+                        href="{{ child_link.url }}"
+                        {% if child_link.active %}aria-current="page"{% endif %}
+                      >
+                        {{ child_link.title }}
+                      </a>
+                    {% endfor %}
+                  </div>
+                </details>
+              {% else %}
+                <a
+                  class="qtmHeaderFour__mobileNavLink{% if link.active %} qtmHeaderFour__mobileNavLink--active{% endif %}"
+                  href="{{ link.url }}"
+                  {% if link.active %}aria-current="page"{% endif %}
+                >
+                  {{ link.title }}
+                </a>
+              {% endif %}
             {% endfor %}
+          {% elsif request.design_mode %}
+            <p class="qtmHeaderFour__mobileUtility">Add navigation links or select a desktop menu.</p>
           {% endif %}
         </nav>
       {% endif %}
@@ -390,7 +414,7 @@
 
           {% if section.settings.show_cart %}
             <button type="button" class="qtmHeaderFour__mobileUtility" data-cart-drawer-open>
-              Cart{% if cart.item_count > 0 %} ({{ cart.item_count }}){% endif %}
+              Cart <span data-cart-count>{% if cart.item_count > 0 %}({{ cart.item_count }}){% else %}(0){% endif %}</span>
             </button>
           {% endif %}
         </div>
@@ -456,6 +480,17 @@
       "id": "sticky_mobile_cta",
       "label": "Show sticky mobile CTA",
       "default": true
+    },
+    {
+      "type": "select",
+      "id": "mobile_menu_style",
+      "label": "Mobile menu style",
+      "default": "slide_left",
+      "options": [
+        { "value": "slide_left", "label": "Slide left" },
+        { "value": "slide_right", "label": "Slide right" },
+        { "value": "fullscreen", "label": "Fullscreen" }
+      ]
     },
     {
       "type": "header",
