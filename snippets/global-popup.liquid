@@ -1,628 +1,554 @@
 {%- liquid
-  assign qtm_popup_should_render = false
+  assign popup_enabled = settings.popup_enable
+  assign popup_editor_preview = settings.popup_editor_preview
 
-  if settings.popup_enable
-    assign qtm_popup_should_render = true
+  assign popup_should_render = false
+
+  if popup_enabled
+    assign popup_should_render = true
   endif
 
-  if request.design_mode and settings.popup_editor_preview
-    assign qtm_popup_should_render = true
+  if request.design_mode and popup_editor_preview
+    assign popup_should_render = true
   endif
 
-  assign popup_placement = settings.popup_placement | default: 'center'
-  assign popup_animation = settings.popup_animation | default: 'fade'
   assign popup_type = settings.popup_type | default: 'newsletter'
   assign popup_trigger = settings.popup_trigger | default: 'delay'
-  assign popup_frequency = settings.popup_frequency | default: 'once_per_session'
+  assign popup_frequency = settings.popup_frequency | default: 'always'
   assign popup_delay = settings.popup_delay_seconds | default: 1
   assign popup_scroll = settings.popup_scroll_percent | default: 45
+  assign popup_placement = settings.popup_placement | default: 'center'
+  assign popup_animation = settings.popup_animation | default: 'fade'
+  assign popup_style = settings.popup_style | default: 'editorial'
+  assign popup_image_position = settings.popup_image_position | default: 'top'
 -%}
 
-{%- if qtm_popup_should_render -%}
-
-<style>
-  .qtm-popup,
-  .qtm-popup *,
-  .qtm-popup *::before,
-  .qtm-popup *::after {
-    box-sizing: border-box;
-  }
-
-  .qtm-popup {
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 999999 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    height: 100dvh !important;
-    margin: 0 !important;
-    padding: 24px !important;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    background: transparent;
-    transition: opacity 220ms ease, visibility 220ms ease;
-  }
-
-  .qtm-popup[hidden] {
-    display: none !important;
-  }
-
-  .qtm-popup.is-visible {
-    display: flex !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    pointer-events: auto !important;
-  }
-
-  .qtm-popup--center,
-  .qtm-popup--top,
-  .qtm-popup--bottom,
-  .qtm-popup--left,
-  .qtm-popup--right {
-    align-items: center !important;
-    justify-content: center !important;
-  }
-
-  .qtm-popup__overlay {
-    position: absolute !important;
-    inset: 0 !important;
-    z-index: 1 !important;
-    width: 100% !important;
-    height: 100% !important;
-    border: 0 !important;
-    background:
-      radial-gradient(circle at center, rgba(255,255,255,.08), transparent 34%),
-      rgba(10, 12, 18, .66) !important;
-    cursor: pointer;
-    appearance: none;
-  }
-
-  .qtm-popup__dialog {
-    position: relative !important;
-    z-index: 2 !important;
-    display: grid !important;
-    grid-template-columns: minmax(260px, .85fr) minmax(340px, 1fr);
-    width: min(840px, calc(100vw - 48px)) !important;
-    max-width: 840px !important;
-    max-height: calc(100vh - 48px) !important;
-    max-height: calc(100dvh - 48px) !important;
-    margin: auto !important;
-    overflow: hidden !important;
-    border: 1px solid rgba(255, 255, 255, .26);
-    border-radius: 28px;
-    background: #ffffff;
-    color: #111111;
-    box-shadow:
-      0 34px 100px rgba(0, 0, 0, .34),
-      0 1px 0 rgba(255, 255, 255, .4) inset;
-    transform: translateY(12px) scale(.985);
-    transition: transform 220ms ease;
-  }
-
-  .qtm-popup.is-visible .qtm-popup__dialog {
-    transform: translateY(0) scale(1);
-  }
-
-  .qtm-popup__dialog--no-image {
-    grid-template-columns: 1fr !important;
-    width: min(560px, calc(100vw - 48px)) !important;
-    max-width: 560px !important;
-  }
-
-  .qtm-popup__close {
-    position: absolute !important;
-    top: 14px !important;
-    right: 14px !important;
-    z-index: 5 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 36px !important;
-    height: 36px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: 1px solid rgba(17, 17, 17, .10) !important;
-    border-radius: 999px !important;
-    background: rgba(255, 255, 255, .86) !important;
-    color: #111111 !important;
-    font-size: 22px !important;
-    font-weight: 400 !important;
-    line-height: 1 !important;
-    cursor: pointer;
-    appearance: none;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 8px 24px rgba(15, 23, 42, .10);
-    transition: background 180ms ease, transform 180ms ease;
-  }
-
-  .qtm-popup__close:hover {
-    background: #ffffff !important;
-    transform: scale(1.04);
-  }
-
-  .qtm-popup__media {
-    position: relative;
-    min-width: 0;
-    min-height: 100%;
-    overflow: hidden;
-    background: #f4f1eb;
-  }
-
-  .qtm-popup__media::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg, transparent 62%, rgba(255,255,255,.22));
-    pointer-events: none;
-  }
-
-  .qtm-popup__image {
-    display: block !important;
-    width: 100% !important;
-    height: 100% !important;
-    min-height: 520px;
-    object-fit: cover;
-  }
-
-  .qtm-popup__content {
-    display: flex !important;
-    flex-direction: column;
-    justify-content: center;
-    gap: 16px;
-    min-width: 0;
-    padding: 54px 44px 46px;
-    background:
-      linear-gradient(135deg, rgba(248, 250, 252, .9), #ffffff 42%);
-    color: #111111;
-  }
-
-  .qtm-popup__eyebrow {
-    margin: 0 0 2px;
-    color: rgba(17, 17, 17, .52);
-    font-size: 12px;
-    font-weight: 800;
-    line-height: 1.2;
-    letter-spacing: .14em;
-    text-transform: uppercase;
-  }
-
-  .qtm-popup__heading {
-    margin: 0;
-    max-width: 10ch;
-    color: inherit;
-    font-size: clamp(34px, 4.2vw, 48px);
-    font-weight: 850;
-    line-height: .96;
-    letter-spacing: -.055em;
-  }
-
-  .qtm-popup__text {
-    margin: 0;
-    max-width: 36ch;
-    color: rgba(17, 17, 17, .66);
-    font-size: 15.5px;
-    line-height: 1.6;
-  }
-
-  .qtm-popup__text p {
-    margin: 0;
-  }
-
-  .qtm-popup__text p + p {
-    margin-top: 10px;
-  }
-
-  .qtm-popup__newsletter {
-    display: grid;
-    gap: 10px;
-    margin: 6px 0 0;
-  }
-
-  .qtm-popup__newsletter-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 8px;
-    padding: 6px;
-    border: 1px solid rgba(17, 17, 17, .12);
-    border-radius: 999px;
-    background: #ffffff;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
-  }
-
-  .qtm-popup__label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-  }
-
-  .qtm-popup__input {
-    width: 100%;
-    min-width: 0;
-    height: 44px;
-    margin: 0;
-    padding: 0 14px;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
-    color: #111111;
-    font-size: 15px;
-    line-height: 1;
-    box-shadow: none;
-    outline: none;
-  }
-
-  .qtm-popup__input::placeholder {
-    color: rgba(17, 17, 17, .42);
-  }
-
-  .qtm-popup__submit {
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-    min-height: 44px;
-    margin: 0;
-    padding: 0 18px;
-    border: 0;
-    border-radius: 999px;
-    background: #111111;
-    color: #ffffff;
-    font-size: 14px;
-    font-weight: 800;
-    line-height: 1;
-    cursor: pointer;
-    white-space: nowrap;
-    appearance: none;
-    transition: transform 180ms ease, background 180ms ease;
-  }
-
-  .qtm-popup__submit:hover {
-    transform: translateY(-1px);
-    background: #000000;
-  }
-
-  .qtm-popup__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 4px;
-  }
-
-  .qtm-popup__button {
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-    min-height: 46px;
-    margin: 0;
-    padding: 0 18px;
-    border: 1px solid #111111;
-    border-radius: 999px;
-    background: #111111;
-    color: #ffffff;
-    font-size: 14px;
-    font-weight: 800;
-    line-height: 1;
-    text-align: center;
-    text-decoration: none;
-    cursor: pointer;
-    white-space: nowrap;
-    appearance: none;
-    transition:
-      background 180ms ease,
-      color 180ms ease,
-      border-color 180ms ease,
-      transform 180ms ease;
-  }
-
-  .qtm-popup__button:hover {
-    transform: translateY(-1px);
-  }
-
-  .qtm-popup__button--secondary {
-    border-color: rgba(17, 17, 17, .14);
-    background: rgba(17, 17, 17, .04);
-    color: #111111;
-  }
-
-  .qtm-popup__button--secondary:hover {
-    border-color: rgba(17, 17, 17, .22);
-    background: rgba(17, 17, 17, .07);
-  }
-
-  .qtm-popup__message {
-    margin: 0;
-    color: rgba(17, 17, 17, .66);
-    font-size: 14px;
-    line-height: 1.4;
-  }
-
-  .qtm-popup__message--success {
-    color: #047857;
-  }
-
-  body.qtm-popup-open,
-  html.qtm-popup-open {
-    overflow: hidden !important;
-  }
-
-  @media (max-width: 989px) {
-    .qtm-popup__dialog {
-      grid-template-columns: minmax(220px, .82fr) minmax(320px, 1fr);
-      width: min(780px, calc(100vw - 40px)) !important;
-      max-height: calc(100vh - 40px) !important;
-      max-height: calc(100dvh - 40px) !important;
+{%- if popup_should_render -%}
+  <style>
+    #QuadratumGlobalPopup,
+    #QuadratumGlobalPopup *,
+    #QuadratumGlobalPopup *::before,
+    #QuadratumGlobalPopup *::after {
+      box-sizing: border-box;
     }
 
-    .qtm-popup__image {
-      min-height: 500px;
-    }
-
-    .qtm-popup__content {
-      padding: 46px 34px 40px;
-    }
-
-    .qtm-popup__heading {
-      font-size: clamp(31px, 4.5vw, 42px);
-    }
-  }
-
-  @media (max-width: 749px) {
-    .qtm-popup {
+    #QuadratumGlobalPopup {
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 999999 !important;
+      display: flex !important;
       align-items: center !important;
       justify-content: center !important;
       width: 100vw !important;
       height: 100vh !important;
       height: 100dvh !important;
-      padding: 16px !important;
+      margin: 0 !important;
+      padding: 24px !important;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      overflow: hidden !important;
+      background: transparent;
+      transition:
+        opacity 220ms ease,
+        visibility 220ms ease;
     }
 
-    .qtm-popup__dialog,
-    .qtm-popup__dialog--no-image {
-      width: min(100%, calc(100vw - 32px)) !important;
-      max-width: none !important;
-      max-height: calc(100vh - 32px) !important;
-      max-height: calc(100dvh - 32px) !important;
+    #QuadratumGlobalPopup[hidden] {
+      display: none !important;
+    }
+
+    #QuadratumGlobalPopup.is-visible {
+      display: flex !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+      pointer-events: auto !important;
+    }
+
+    #QuadratumGlobalPopup.qtm-popup--center,
+    #QuadratumGlobalPopup.qtm-popup--top,
+    #QuadratumGlobalPopup.qtm-popup--bottom,
+    #QuadratumGlobalPopup.qtm-popup--left,
+    #QuadratumGlobalPopup.qtm-popup--right {
+      align-items: center !important;
+      justify-content: center !important;
+    }
+
+    #QuadratumGlobalPopup .qtm-popup__overlay {
+      position: absolute !important;
+      inset: 0 !important;
+      z-index: 1 !important;
+      width: 100% !important;
+      height: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: 0 !important;
+      border-radius: 0 !important;
+      background:
+        radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.14), transparent 32%),
+        rgba(8, 10, 15, 0.68) !important;
+      cursor: pointer;
+      appearance: none;
+    }
+
+    #QuadratumGlobalPopup .qtm-popup__dialog {
+      position: relative !important;
+      inset: auto !important;
+      z-index: 2 !important;
+      display: grid !important;
       grid-template-columns: 1fr !important;
+      width: min(640px, calc(100vw - 48px)) !important;
+      max-width: 640px !important;
+      min-width: 0 !important;
+      max-height: calc(100vh - 48px) !important;
+      max-height: calc(100dvh - 48px) !important;
+      margin: auto !important;
+      overflow-x: hidden !important;
       overflow-y: auto !important;
-      border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.26);
+      border-radius: 30px;
+      background: #ffffff;
+      color: #111111;
+      box-shadow:
+        0 36px 110px rgba(0, 0, 0, 0.34),
+        0 1px 0 rgba(255, 255, 255, 0.72) inset;
+      transform: translateY(14px) scale(0.985);
+      transition: transform 220ms ease;
     }
 
-    .qtm-popup__media {
-      max-height: 260px;
+    #QuadratumGlobalPopup.is-visible .qtm-popup__dialog {
+      transform: translateY(0) scale(1);
     }
 
-    .qtm-popup__image {
-      min-height: 240px;
-      max-height: 260px;
-    }
-
-    .qtm-popup__content {
-      padding: 34px 24px 26px;
-    }
-
-    .qtm-popup__heading {
-      max-width: 12ch;
-      font-size: clamp(31px, 8vw, 40px);
-    }
-
-    .qtm-popup__text {
-      max-width: none;
-    }
-
-    .qtm-popup__newsletter-row {
-      grid-template-columns: 1fr;
-      padding: 8px;
-      border-radius: 22px;
-    }
-
-    .qtm-popup__input {
-      height: 42px;
-    }
-
-    .qtm-popup__submit {
-      width: 100%;
-      min-height: 44px;
-    }
-
-    .qtm-popup__actions {
-      display: grid;
-      grid-template-columns: 1fr;
-    }
-
-    .qtm-popup__button {
-      width: 100%;
-    }
-  }
-
-  @media (max-width: 420px) {
-    .qtm-popup {
-      padding: 12px !important;
-    }
-
-    .qtm-popup__dialog,
-    .qtm-popup__dialog--no-image {
-      width: calc(100vw - 24px) !important;
-      max-height: calc(100vh - 24px) !important;
-      max-height: calc(100dvh - 24px) !important;
-      border-radius: 22px;
-    }
-
-    .qtm-popup__content {
-      padding: 30px 20px 24px;
-    }
-
-    .qtm-popup__close {
-      top: 10px !important;
-      right: 10px !important;
-      width: 34px !important;
-      height: 34px !important;
+    #QuadratumGlobalPopup .qtm-popup__close {
+      position: absolute !important;
+      top: 14px !important;
+      right: 14px !important;
+      z-index: 5 !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      width: 38px !important;
+      height: 38px !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: 1px solid rgba(17, 17, 17, 0.1) !important;
+      border-radius: 999px !important;
+      background: rgba(255, 255, 255, 0.92) !important;
+      color: #111111 !important;
       font-size: 22px !important;
+      font-weight: 400 !important;
+      line-height: 1 !important;
+      cursor: pointer;
+      appearance: none;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+      transition:
+        transform 180ms ease,
+        background 180ms ease,
+        box-shadow 180ms ease;
     }
-  }
 
-  @media (prefers-reduced-motion: reduce) {
-    .qtm-popup,
-    .qtm-popup__dialog,
-    .qtm-popup__submit,
-    .qtm-popup__button {
-      transition-duration: .01ms !important;
+    #QuadratumGlobalPopup .qtm-popup__close:hover {
+      background: #ffffff !important;
+      transform: scale(1.04);
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
     }
-  }
 
-  /* ==========================================================
-   QUADRATUM POPUP SAFE MODERN CARD OVERRIDE
-   Put at the VERY BOTTOM of snippets/global-popup.liquid
-   right before </style>
-   ========================================================== */
+    #QuadratumGlobalPopup .qtm-popup__media {
+      position: relative;
+      width: 100%;
+      height: 240px;
+      min-height: 0;
+      overflow: hidden;
+      background: #f4f1eb;
+    }
 
-#QuadratumGlobalPopup.qtm-popup,
-#QuadratumGlobalPopup.qtm-popup.qtm-popup--center,
-#QuadratumGlobalPopup.qtm-popup.qtm-popup--top,
-#QuadratumGlobalPopup.qtm-popup.qtm-popup--bottom,
-#QuadratumGlobalPopup.qtm-popup.qtm-popup--left,
-#QuadratumGlobalPopup.qtm-popup.qtm-popup--right {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 999999 !important;
+    #QuadratumGlobalPopup .qtm-popup__media::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, transparent 62%, rgba(0, 0, 0, 0.08)),
+        radial-gradient(circle at 70% 20%, rgba(255,255,255,.2), transparent 34%);
+    }
 
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
+    #QuadratumGlobalPopup .qtm-popup__image {
+      display: block !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 0 !important;
+      object-fit: cover !important;
+      object-position: center !important;
+    }
 
-  width: 100vw !important;
-  max-width: 100vw !important;
-  height: 100vh !important;
-  height: 100dvh !important;
+    #QuadratumGlobalPopup .qtm-popup__content {
+      display: flex !important;
+      flex-direction: column;
+      gap: 16px;
+      width: 100%;
+      min-width: 0;
+      padding: 34px 40px 38px;
+      background:
+        radial-gradient(circle at top left, rgba(17, 17, 17, 0.035), transparent 34%),
+        #ffffff;
+      color: #111111;
+    }
 
-  margin: 0 !important;
-  padding: 24px !important;
+    #QuadratumGlobalPopup .qtm-popup__eyebrow {
+      margin: 0 0 -2px;
+      color: rgba(17, 17, 17, 0.52);
+      font-size: 12px;
+      font-weight: 850;
+      line-height: 1.2;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
 
-  overflow: hidden !important;
-  transform: none !important;
-}
+    #QuadratumGlobalPopup .qtm-popup__heading {
+      margin: 0;
+      max-width: 13ch;
+      color: #111111;
+      font-size: clamp(32px, 5vw, 44px);
+      font-weight: 850;
+      line-height: 0.98;
+      letter-spacing: -0.055em;
+    }
 
-#QuadratumGlobalPopup .qtm-popup__dialog,
-#QuadratumGlobalPopup .qtm-popup__dialog.qtm-popup__dialog--no-image {
-  position: relative !important;
-  inset: auto !important;
+    #QuadratumGlobalPopup .qtm-popup__text {
+      margin: 0;
+      max-width: 50ch;
+      color: rgba(17, 17, 17, 0.68);
+      font-size: 15.5px;
+      line-height: 1.6;
+    }
 
-  display: grid !important;
-  grid-template-columns: 1fr !important;
+    #QuadratumGlobalPopup .qtm-popup__text p {
+      margin: 0;
+    }
 
-  width: min(680px, calc(100vw - 48px)) !important;
-  max-width: 680px !important;
-  min-width: 0 !important;
+    #QuadratumGlobalPopup .qtm-popup__text p + p {
+      margin-top: 10px;
+    }
 
-  height: auto !important;
-  max-height: calc(100vh - 48px) !important;
-  max-height: calc(100dvh - 48px) !important;
+    #QuadratumGlobalPopup .qtm-popup__newsletter {
+      display: grid;
+      gap: 10px;
+      margin: 4px 0 0;
+    }
 
-  margin: auto !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
+    #QuadratumGlobalPopup .qtm-popup__newsletter-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 6px;
+      border: 1px solid rgba(17, 17, 17, 0.11);
+      border-radius: 999px;
+      background: #ffffff;
+      box-shadow:
+        0 14px 34px rgba(15, 23, 42, 0.08),
+        0 1px 0 rgba(255,255,255,.9) inset;
+    }
 
-  border-radius: 28px !important;
-  background: #ffffff !important;
-  transform: none !important;
-}
+    #QuadratumGlobalPopup .qtm-popup__label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+    }
 
-#QuadratumGlobalPopup .qtm-popup__media {
-  width: 100% !important;
-  height: auto !important;
-  max-height: 280px !important;
-  min-height: 0 !important;
-  overflow: hidden !important;
-}
+    #QuadratumGlobalPopup .qtm-popup__input {
+      width: 100%;
+      min-width: 0;
+      height: 44px;
+      margin: 0;
+      padding: 0 14px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: #111111;
+      font-size: 15px;
+      line-height: 1;
+      outline: none;
+      box-shadow: none;
+    }
 
-#QuadratumGlobalPopup .qtm-popup__image {
-  display: block !important;
-  width: 100% !important;
-  height: 280px !important;
-  min-height: 0 !important;
-  max-height: 280px !important;
-  object-fit: cover !important;
-  object-position: center !important;
-}
+    #QuadratumGlobalPopup .qtm-popup__input::placeholder {
+      color: rgba(17, 17, 17, 0.4);
+    }
 
-#QuadratumGlobalPopup .qtm-popup__content {
-  width: 100% !important;
-  min-width: 0 !important;
-  padding: 32px 34px 34px !important;
-}
+    #QuadratumGlobalPopup .qtm-popup__submit {
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      margin: 0;
+      padding: 0 18px;
+      border: 0;
+      border-radius: 999px;
+      background: #111111;
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 850;
+      line-height: 1;
+      cursor: pointer;
+      white-space: nowrap;
+      appearance: none;
+      transition:
+        transform 180ms ease,
+        background 180ms ease;
+    }
 
-#QuadratumGlobalPopup .qtm-popup__heading {
-  max-width: none !important;
-  font-size: clamp(30px, 5vw, 44px) !important;
-  line-height: 1 !important;
-}
+    #QuadratumGlobalPopup .qtm-popup__submit:hover {
+      background: #000000;
+      transform: translateY(-1px);
+    }
 
-#QuadratumGlobalPopup .qtm-popup__text {
-  max-width: 54ch !important;
-}
+    #QuadratumGlobalPopup .qtm-popup__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      width: 100%;
+      margin-top: 4px;
+    }
 
-#QuadratumGlobalPopup .qtm-popup__newsletter-row {
-  width: 100% !important;
-  max-width: 100% !important;
-}
+    #QuadratumGlobalPopup .qtm-popup__button {
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      margin: 0;
+      padding: 0 18px;
+      border: 1px solid #111111;
+      border-radius: 999px;
+      background: #111111;
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 850;
+      line-height: 1;
+      text-align: center;
+      text-decoration: none;
+      cursor: pointer;
+      white-space: nowrap;
+      appearance: none;
+      transition:
+        transform 180ms ease,
+        background 180ms ease,
+        color 180ms ease,
+        border-color 180ms ease;
+    }
 
-#QuadratumGlobalPopup .qtm-popup__actions {
-  width: 100% !important;
-}
+    #QuadratumGlobalPopup .qtm-popup__button:hover {
+      transform: translateY(-1px);
+    }
 
-@media (max-width: 749px) {
-  #QuadratumGlobalPopup.qtm-popup {
-    padding: 14px !important;
-  }
+    #QuadratumGlobalPopup .qtm-popup__button--secondary {
+      border-color: rgba(17, 17, 17, 0.13);
+      background: rgba(17, 17, 17, 0.045);
+      color: #111111;
+    }
 
-  #QuadratumGlobalPopup .qtm-popup__dialog,
-  #QuadratumGlobalPopup .qtm-popup__dialog.qtm-popup__dialog--no-image {
-    width: calc(100vw - 28px) !important;
-    max-width: calc(100vw - 28px) !important;
-    max-height: calc(100vh - 28px) !important;
-    max-height: calc(100dvh - 28px) !important;
-    border-radius: 22px !important;
-  }
+    #QuadratumGlobalPopup .qtm-popup__button--secondary:hover {
+      border-color: rgba(17, 17, 17, 0.22);
+      background: rgba(17, 17, 17, 0.07);
+    }
 
-  #QuadratumGlobalPopup .qtm-popup__media {
-    max-height: 220px !important;
-  }
+    #QuadratumGlobalPopup .qtm-popup__message {
+      margin: 0;
+      color: rgba(17, 17, 17, 0.66);
+      font-size: 14px;
+      line-height: 1.4;
+    }
 
-  #QuadratumGlobalPopup .qtm-popup__image {
-    height: 220px !important;
-    max-height: 220px !important;
-  }
+    #QuadratumGlobalPopup .qtm-popup__message--success {
+      color: #047857;
+    }
 
-  #QuadratumGlobalPopup .qtm-popup__content {
-    padding: 28px 22px 24px !important;
-  }
+    #QuadratumGlobalPopup.qtm-popup--style-minimal .qtm-popup__dialog {
+      width: min(560px, calc(100vw - 48px)) !important;
+      max-width: 560px !important;
+    }
 
-  #QuadratumGlobalPopup .qtm-popup__newsletter-row {
-    grid-template-columns: 1fr !important;
-    border-radius: 22px !important;
-  }
+    #QuadratumGlobalPopup.qtm-popup--style-minimal .qtm-popup__media {
+      display: none;
+    }
 
-  #QuadratumGlobalPopup .qtm-popup__submit,
-  #QuadratumGlobalPopup .qtm-popup__button {
-    width: 100% !important;
-  }
+    #QuadratumGlobalPopup.qtm-popup--style-minimal .qtm-popup__content {
+      padding: 44px 42px;
+    }
 
-  #QuadratumGlobalPopup .qtm-popup__actions {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-  }
-}
-</style>
+    #QuadratumGlobalPopup.qtm-popup--style-commerce .qtm-popup__heading {
+      max-width: 15ch;
+    }
+
+    #QuadratumGlobalPopup.qtm-popup--style-commerce .qtm-popup__button,
+    #QuadratumGlobalPopup.qtm-popup--style-commerce .qtm-popup__submit {
+      background: #111111;
+      color: #ffffff;
+    }
+
+    #QuadratumGlobalPopup.qtm-popup--image-left .qtm-popup__dialog,
+    #QuadratumGlobalPopup.qtm-popup--image-right .qtm-popup__dialog {
+      grid-template-columns: minmax(220px, 0.85fr) minmax(340px, 1fr) !important;
+      width: min(860px, calc(100vw - 48px)) !important;
+      max-width: 860px !important;
+    }
+
+    #QuadratumGlobalPopup.qtm-popup--image-left .qtm-popup__media,
+    #QuadratumGlobalPopup.qtm-popup--image-right .qtm-popup__media {
+      height: 100%;
+      min-height: 500px;
+    }
+
+    #QuadratumGlobalPopup.qtm-popup--image-left .qtm-popup__content,
+    #QuadratumGlobalPopup.qtm-popup--image-right .qtm-popup__content {
+      padding: 48px 44px;
+    }
+
+    #QuadratumGlobalPopup.qtm-popup--image-right .qtm-popup__media {
+      order: 2;
+    }
+
+    #QuadratumGlobalPopup.qtm-popup--image-right .qtm-popup__content {
+      order: 1;
+    }
+
+    #QuadratumGlobalPopup.qtm-popup--image-hidden .qtm-popup__media {
+      display: none;
+    }
+
+    #QuadratumGlobalPopup.qtm-popup--image-hidden .qtm-popup__dialog {
+      width: min(560px, calc(100vw - 48px)) !important;
+      max-width: 560px !important;
+    }
+
+    #QuadratumGlobalPopup.qtm-popup--image-hidden .qtm-popup__content {
+      padding: 44px 42px;
+    }
+
+    html.qtm-popup-open,
+    body.qtm-popup-open {
+      overflow: hidden !important;
+    }
+
+    @media (max-width: 989px) {
+      #QuadratumGlobalPopup.qtm-popup--image-left .qtm-popup__dialog,
+      #QuadratumGlobalPopup.qtm-popup--image-right .qtm-popup__dialog {
+        grid-template-columns: 1fr !important;
+        width: min(640px, calc(100vw - 48px)) !important;
+        max-width: 640px !important;
+      }
+
+      #QuadratumGlobalPopup.qtm-popup--image-left .qtm-popup__media,
+      #QuadratumGlobalPopup.qtm-popup--image-right .qtm-popup__media {
+        height: 240px;
+        min-height: 0;
+      }
+
+      #QuadratumGlobalPopup.qtm-popup--image-right .qtm-popup__media,
+      #QuadratumGlobalPopup.qtm-popup--image-right .qtm-popup__content {
+        order: initial;
+      }
+    }
+
+    @media (max-width: 749px) {
+      #QuadratumGlobalPopup {
+        padding: 14px !important;
+      }
+
+      #QuadratumGlobalPopup .qtm-popup__dialog,
+      #QuadratumGlobalPopup.qtm-popup--style-minimal .qtm-popup__dialog,
+      #QuadratumGlobalPopup.qtm-popup--style-commerce .qtm-popup__dialog,
+      #QuadratumGlobalPopup.qtm-popup--image-left .qtm-popup__dialog,
+      #QuadratumGlobalPopup.qtm-popup--image-right .qtm-popup__dialog,
+      #QuadratumGlobalPopup.qtm-popup--image-hidden .qtm-popup__dialog {
+        width: calc(100vw - 28px) !important;
+        max-width: calc(100vw - 28px) !important;
+        max-height: calc(100vh - 28px) !important;
+        max-height: calc(100dvh - 28px) !important;
+        grid-template-columns: 1fr !important;
+        border-radius: 24px;
+      }
+
+      #QuadratumGlobalPopup .qtm-popup__media,
+      #QuadratumGlobalPopup.qtm-popup--image-left .qtm-popup__media,
+      #QuadratumGlobalPopup.qtm-popup--image-right .qtm-popup__media {
+        height: 220px;
+        min-height: 0;
+        max-height: 220px;
+      }
+
+      #QuadratumGlobalPopup .qtm-popup__content,
+      #QuadratumGlobalPopup.qtm-popup--style-minimal .qtm-popup__content,
+      #QuadratumGlobalPopup.qtm-popup--style-commerce .qtm-popup__content,
+      #QuadratumGlobalPopup.qtm-popup--image-left .qtm-popup__content,
+      #QuadratumGlobalPopup.qtm-popup--image-right .qtm-popup__content,
+      #QuadratumGlobalPopup.qtm-popup--image-hidden .qtm-popup__content {
+        padding: 30px 22px 24px;
+      }
+
+      #QuadratumGlobalPopup .qtm-popup__heading {
+        max-width: 13ch;
+        font-size: clamp(30px, 8vw, 38px);
+      }
+
+      #QuadratumGlobalPopup .qtm-popup__text {
+        max-width: none;
+      }
+
+      #QuadratumGlobalPopup .qtm-popup__newsletter-row {
+        grid-template-columns: 1fr;
+        padding: 8px;
+        border-radius: 22px;
+      }
+
+      #QuadratumGlobalPopup .qtm-popup__submit {
+        width: 100%;
+      }
+
+      #QuadratumGlobalPopup .qtm-popup__actions {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      #QuadratumGlobalPopup .qtm-popup__button {
+        width: 100%;
+      }
+
+      #QuadratumGlobalPopup .qtm-popup__close {
+        top: 10px !important;
+        right: 10px !important;
+        width: 34px !important;
+        height: 34px !important;
+        font-size: 21px !important;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #QuadratumGlobalPopup,
+      #QuadratumGlobalPopup .qtm-popup__dialog,
+      #QuadratumGlobalPopup .qtm-popup__button,
+      #QuadratumGlobalPopup .qtm-popup__submit,
+      #QuadratumGlobalPopup .qtm-popup__close {
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
 
   <div
     id="QuadratumGlobalPopup"
-    class="qtm-popup qtm-popup--{{ popup_placement }} qtm-popup--{{ popup_animation }}"
+    class="
+      qtm-popup
+      qtm-popup--{{ popup_placement }}
+      qtm-popup--{{ popup_animation }}
+      qtm-popup--style-{{ popup_style }}
+      qtm-popup--image-{{ popup_image_position }}
+    "
     data-qtm-popup
     data-popup-enabled="{{ settings.popup_enable }}"
     data-popup-type="{{ popup_type }}"
@@ -651,31 +577,33 @@
         <span aria-hidden="true">&times;</span>
       </button>
 
-      {%- if settings.popup_image != blank -%}
-        <div class="qtm-popup__media">
-          <img
-            class="qtm-popup__image"
-            src="{{ settings.popup_image | image_url: width: 1200 }}"
-            alt="{{ settings.popup_heading | escape }}"
-            loading="lazy"
-          >
-        </div>
-      {%- endif -%}
+      {%- unless popup_image_position == 'hidden' -%}
+        {%- if settings.popup_image != blank -%}
+          <div class="qtm-popup__media">
+            <img
+              class="qtm-popup__image"
+              src="{{ settings.popup_image | image_url: width: 1400 }}"
+              alt="{{ settings.popup_heading | escape }}"
+              loading="lazy"
+              width="{{ settings.popup_image.width }}"
+              height="{{ settings.popup_image.height }}"
+            >
+          </div>
+        {%- endif -%}
+      {%- endunless -%}
 
       <div class="qtm-popup__content">
         {%- if settings.popup_eyebrow != blank -%}
           <p class="qtm-popup__eyebrow">{{ settings.popup_eyebrow }}</p>
         {%- endif -%}
 
-        {%- if settings.popup_heading != blank -%}
-          <h2 id="QuadratumGlobalPopupHeading" class="qtm-popup__heading">
+        <h2 id="QuadratumGlobalPopupHeading" class="qtm-popup__heading">
+          {%- if settings.popup_heading != blank -%}
             {{ settings.popup_heading }}
-          </h2>
-        {%- else -%}
-          <h2 id="QuadratumGlobalPopupHeading" class="qtm-popup__heading">
-            Stay in the loop
-          </h2>
-        {%- endif -%}
+          {%- else -%}
+            Join the list
+          {%- endif -%}
+        </h2>
 
         {%- if settings.popup_text != blank -%}
           <div class="qtm-popup__text">
@@ -701,13 +629,13 @@
                 autocorrect="off"
                 autocapitalize="off"
                 autocomplete="email"
-                placeholder="{{ settings.popup_newsletter_placeholder | default: 'Email address' | escape }}"
-                aria-label="{{ settings.popup_newsletter_placeholder | default: 'Email address' | escape }}"
+                placeholder="{{ settings.popup_newsletter_placeholder | default: 'Enter your email' | escape }}"
+                aria-label="{{ settings.popup_newsletter_placeholder | default: 'Enter your email' | escape }}"
                 required
               >
 
               <button class="qtm-popup__submit" type="submit">
-                {{ settings.popup_newsletter_button_label | default: 'Subscribe' }}
+                {{ settings.popup_newsletter_button_label | default: 'Sign Up' }}
               </button>
             </div>
 
