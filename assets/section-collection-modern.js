@@ -11,6 +11,51 @@
     return el.closest(sel);
   }
 
+  function setHtml(el, html) {
+    if (!el) return;
+    el.innerHTML = html;
+  }
+
+  function lockBodyScroll(lock) {
+    document.documentElement.classList.toggle('qcm-scroll-lock', !!lock);
+  }
+
+  function openQuickView(root, html) {
+    const host = qs(root, '[data-qcm-qv]');
+    const inner = qs(root, '[data-qcm-qv-inner]');
+    if (!host || !inner) return;
+
+    setHtml(inner, html);
+
+    host.hidden = false;
+    host.setAttribute('aria-hidden', 'false');
+
+    lockBodyScroll(true);
+
+    // focus close button for accessibility
+    const closeBtn = qs(host, '[data-qcm-qv-close]');
+    if (closeBtn) closeBtn.focus();
+  }
+
+  function closeQuickView(root) {
+    const host = qs(root, '[data-qcm-qv]');
+    const inner = qs(root, '[data-qcm-qv-inner]');
+    if (!host || !inner) return;
+
+    host.hidden = true;
+    host.setAttribute('aria-hidden', 'true');
+    inner.innerHTML = '';
+
+    lockBodyScroll(false);
+  }
+
+  async function fetchSectionFragment(handle) {
+    const url = `/products/${encodeURIComponent(handle)}?section_id=collection-modern-quick-view`;
+    const res = await fetch(url, { credentials: 'same-origin' });
+    if (!res.ok) throw new Error('Quick view fetch failed');
+    return await res.text();
+  }
+
   function getNextUrl(root) {
     const holder = qs(root, '[data-qcm-next-url]');
     if (!holder) return '';
@@ -61,6 +106,42 @@
 
     slider.setAttribute('data-qcmc-index', String(idx));
     track.style.transform = `translateX(-${idx * 100}%)`;
+  }
+
+  /* ==========================
+     ADD: quick view enhancements
+     - sync variant select -> hidden variant id input
+     - set gallery mode from collection section settings
+     - init slider index to 0
+     ========================== */
+  function enhanceQuickView(root) {
+    const host = qs(root, '[data-qcm-qv]');
+    if (!host) return;
+
+    const frag = qs(host, '[data-qcm-qv-fragment]');
+    if (!frag) return;
+
+    // push mode from collection section into the fragment
+    const mode = root.getAttribute('data-qcm-qv-gallery-mode') || 'slider';
+    frag.setAttribute('data-qcm-qv-mode', mode);
+
+    const select = qs(frag, '[data-qcm-qv-variant]');
+    const idInput = qs(frag, '[data-qcm-qv-id]');
+    if (select && idInput) {
+      // ensure initial alignment (important when markup defaults change)
+      idInput.value = select.value;
+      select.addEventListener('change', () => {
+        idInput.value = select.value;
+      });
+    }
+
+    // init qv slider
+    const qvSlider = qs(frag, '[data-qcm-qv-slider]');
+    if (qvSlider) {
+      qvSlider.setAttribute('data-qcmc-index', '0');
+      const track = qs(qvSlider, '[data-qcm-qv-track]');
+      if (track) track.style.transform = 'translateX(0%)';
+    }
   }
 
   function initSection(root) {
@@ -241,6 +322,48 @@
           if (arr.length) window.location.href = arr[0].url;
           return;
         }
+      });
+    }
+
+    // Quick View (ONE system: section-render fragment)
+    const qvEnabled = root.getAttribute('data-qcm-qv-enabled') === 'true';
+    if (qvEnabled) {
+      root.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-qcm-quick-view]');
+        if (!btn) return;
+
+        e.preventDefault();
+
+        const card = closest(btn, '[data-qcmc]');
+        const handle =
+          (card && card.getAttribute('data-product-handle')) ||
+          btn.getAttribute('data-handle') ||
+          '';
+
+        if (!handle) return;
+
+        // open shell immediately
+        openQuickView(root, '<div style="padding:16px;">Loading…</div>');
+
+        try {
+          const html = await fetchSectionFragment(handle);
+          openQuickView(root, html);
+          enhanceQuickView(root);
+        } catch (err) {
+          openQuickView(root, '<div style="padding:16px;">Could not load product.</div>');
+        }
+      });
+
+      root.addEventListener('click', (e) => {
+        if (e.target.closest('[data-qcm-qv-close]')) {
+          closeQuickView(root);
+        }
+      });
+
+      document.addEventListener('keydown', (e) => {
+        const host = qs(root, '[data-qcm-qv]');
+        if (!host || host.hidden) return;
+        if (e.key === 'Escape') closeQuickView(root);
       });
     }
 
