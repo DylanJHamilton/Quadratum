@@ -82,6 +82,35 @@
   document.addEventListener('change', event => {
     if (event.target.matches('[data-cart-drawer] .qtm-cart-line-item__qty-input')) updateItem(event.target.dataset.key, Number(event.target.value));
   });
+  const submittingForms = new WeakSet();
+  document.addEventListener('submit', async event => {
+    const form = event.target;
+    if (!form.matches('form[data-cart-drawer-add]') || !window.QuadratumSettings?.cart?.ajaxDrawerEnabled) return;
+    if (event.defaultPrevented || event.submitter?.closest('.shopify-payment-button')) return;
+    event.preventDefault();
+    if (submittingForms.has(form)) return;
+    submittingForms.add(form);
+    let status = form.querySelector('[data-cart-add-status]');
+    if (!status) {
+      status = document.createElement('p');
+      status.dataset.cartAddStatus = '';
+      status.setAttribute('role', 'status');
+      form.append(status);
+    }
+    status.textContent = '';
+    form.setAttribute('aria-busy', 'true');
+    try {
+      const url = new URL(form.action, window.location.href);
+      url.pathname = url.pathname.replace(/\/add\/?$/, '/add.js');
+      const response = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' }, body: new FormData(form) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.description || 'Unable to add this item.');
+      status.textContent = 'Added to cart.';
+      if (window.QuadratumSettings.cart.openAfterAdd) await open(event.submitter);
+      else await refresh();
+    } catch (error) { status.textContent = error.message; }
+    finally { submittingForms.delete(form); form.removeAttribute('aria-busy'); }
+  });
   document.addEventListener('keydown', event => {
     const root = drawer();
     if (!root || root.hidden) return;
