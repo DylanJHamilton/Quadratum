@@ -3,12 +3,14 @@
   if (window.QuadratumCartDrawer) return;
   let opener;
   let pending = false;
+  let openRequest = 0;
   let previousOverflow = '';
   const drawer = () => document.querySelector('[data-cart-drawer]');
   const cartUrl = () => drawer()?.dataset.cartUrl || '/cart';
-  const focusable = root => Array.from(root.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex="0"]')).filter(el => el.getClientRects().length);
+  const focusable = root => Array.from(root.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]')).filter(el => el.getClientRects().length && !el.closest('[hidden], [inert]'));
 
   function close() {
+    openRequest += 1;
     const root = drawer();
     if (!root || root.hidden) return;
     root.hidden = true;
@@ -39,10 +41,15 @@
 
   async function open(trigger) {
     if (!drawer()) { window.location.assign(cartUrl()); return; }
+    const request = ++openRequest;
     opener = trigger || document.activeElement;
     show();
-    try { await refresh(); show(); }
-    catch { window.location.assign(cartUrl()); }
+    try {
+      await refresh();
+      if (request === openRequest) show();
+    } catch {
+      if (request === openRequest) window.location.assign(cartUrl());
+    }
   }
 
   async function updateItem(key, quantity) {
@@ -61,7 +68,7 @@
       const result = await response.json();
       if (!response.ok) throw new Error(result.description || 'Unable to update your cart.');
       await refresh();
-      show();
+      if (!root.hidden) show();
     } catch (error) { status.textContent = error.message; }
     finally { pending = false; root.removeAttribute('aria-busy'); }
   }
