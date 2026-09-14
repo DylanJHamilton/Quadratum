@@ -288,5 +288,6 @@
     bootPredictiveSearch();
   }
 
+  document.addEventListener('shopify:section:load', bootPredictiveSearch);
   window.initPredictiveSearch = bootPredictiveSearch;
 })();
