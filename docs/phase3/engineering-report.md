@@ -9,7 +9,7 @@ The branch contains substantial systemic repairs across 3A–3F, but Phase 3 is 
 - Repository: `DylanJHamilton/Quadratum` (not Astral or a historical repository).
 - Base: `bcb6f48440241356c34ffb6d31afa8441e54bdb2`; PR #20 merged baseline.
 - Branch: `release/v1-phase-3-systemic-repair`.
-- Production implementation checkpoint: `ffb68ba13c48ed06292ea7b4ec7f7d9d393fc85c`. Subsequent report/test commits do not imply further storefront changes.
+- Production implementation checkpoint: `2c1cf7ef668a1c09c354fd71e36d7db865c5a70d`. Subsequent report/test commits do not imply further storefront changes.
 - Remote main was rechecked and still matches the base. Main has not been changed by Phase 3.
 - 150 sections and 102 theme blocks retained; zero Phase 3 deletions.
 - `config/settings_data.json` is byte-for-byte unchanged against the base; its SHA-256 is recorded in static-validation.json.
@@ -264,20 +264,20 @@ Official Theme Check is **not clean**. MissingAsset, MissingTemplate, ValidSchem
 ## Commits
 
 ```text
-598a7b6 Phase 3A: repair source, build and schema integrity
-cf55194 Phase 3B: repair shared Liquid rendering mechanisms
-2c4a563 Phase 3C: repair builder admission and shared form foundations
-45d3451 Phase 3D: restore scoped collection, cart, form and gallery settings
-88ca202 Phase 3E: reconnect existing controls and hero child blocks
-6ef5927 Phase 3F: contain responsive layouts and preserve keyboard interaction
-435d9d2 Phase 3D: complete FAQ consumers and repair token units and breakpoints
-5636d21 Phase 3E: honor embed loading and product and reward controls
-7f1bcd4 Phase 3F: make hero initialization and autoplay accessible and repeatable
-2f7c6e1 Phase 3C: populate empty product builder presets and expose font aliases
-f70f284 Phase 3E: make footer inheritance explicit and expose reward type
-e2e3abc Phase 3D: keep gallery caption defaults readable across layouts
-97d5220 Phase 3F: connect embed accent to its keyboard focus indicator
-ffb68ba Phase 3C: implement the shared section surface contract
+969c7dc Phase 3A: repair source, build and schema integrity
+740b02f Phase 3B: repair shared Liquid rendering mechanisms
+54aad4a Phase 3C: repair builder admission and shared form foundations
+c7715f7 Phase 3D: restore scoped collection, cart, form and gallery settings
+49fa659 Phase 3E: reconnect existing controls and hero child blocks
+dd64497 Phase 3F: contain responsive layouts and preserve keyboard interaction
+a5b419d Phase 3D: complete FAQ consumers and repair token units and breakpoints
+bbfd2f1 Phase 3E: honor embed loading and product and reward controls
+b2b30b6 Phase 3F: make hero initialization and autoplay accessible and repeatable
+08c5e63 Phase 3C: populate empty product builder presets and expose font aliases
+41361c8 Phase 3E: make footer inheritance explicit and expose reward type
+3fec86d Phase 3D: keep gallery caption defaults readable across layouts
+ed1ff6c Phase 3F: connect embed accent to its keyboard focus indicator
+2c1cf7e Phase 3C: implement the shared section surface contract
 ```
 
 ## Files and full evidence
