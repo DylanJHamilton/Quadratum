@@ -3,7 +3,11 @@
 /* global window, document */
 (function () {
   function boot(root) {
-    if (!root) return;
+    if (!root || root.dataset.ctaWeb3Ready) return;
+    root.dataset.ctaWeb3Ready = 'true';
+    const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const media = root.querySelector('.qw3-media-wrap,.media-wrap');
+    if (media && media.animate && !reducedMotion()) media.animate([{ opacity: 0, transform: 'translateY(20px) scale(.95)' }, { opacity: 1, transform: 'none' }], { duration: 500, easing: 'ease-out' });
     var btn = root.querySelector('.js-connect');
     if (!btn) return;
 
@@ -18,7 +22,7 @@
       btn.textContent = 'Connected ✅';
 
       // Subtle feedback (respects reduced motion via CSS override)
-      root.style.transition = 'opacity 160ms ease';
+      root.style.transition = reducedMotion() ? 'none' : 'opacity 160ms ease';
       root.style.opacity = '0.98';
       setTimeout(function () { root.style.opacity = ''; }, 200);
 
@@ -45,20 +49,3 @@
     }).observe(document.documentElement, { childList: true, subtree: true });
   }
 })();
-(function(){
-  var root=document.getElementById('cta-web3-{{ section.id }}');
-  if(!root) return;
-  var card=root.querySelector('.q-card,.qw3-card');
-  if(!card) return;
-  if(!('IntersectionObserver'in window)){ card.classList.add('is-visible'); return; }
-  var io=new IntersectionObserver(function(e){ e.forEach(function(x){ if(x.isIntersecting){ card.classList.add('is-visible'); io.disconnect(); } });},{threshold:0.2});
-  io.observe(card);
-})();
-
-const media = root.querySelector('.qw3-media-wrap,.media-wrap');
-if(media){
-  media.animate([
-    { opacity: 0, transform: 'translateY(20px) scale(.95)' },
-    { opacity: 1, transform: 'translateY(0) scale(1)' }
-  ], { duration: 500, easing: 'ease-out', fill: 'forwards' });
-}
