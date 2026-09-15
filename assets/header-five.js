@@ -69,7 +69,7 @@
         mobileCloseTimer = null;
       }
 
-      lastFocusedElement = document.activeElement;
+      lastFocusedElement = mobileOpenButton;
 
       closeDepartments();
 
@@ -85,11 +85,9 @@
       window.requestAnimationFrame(function () {
         mobilePanel.classList.add('is-open');
 
-        var focusable = getFocusableElements(mobilePanel);
-
-        if (focusable.length) {
-          focusable[0].focus();
-        }
+        if (mobilePanel.hidden || mobileOpenButton.getAttribute('aria-expanded') !== 'true') return;
+        var target = mobilePanel.querySelector('button[data-qtm-h5-mobile-close]') || mobilePanel.querySelector('[role=dialog]');
+        if (target) target.focus({ preventScroll: true });
       });
     }
 
@@ -97,6 +95,7 @@
       if (!mobileOpenButton || !mobilePanel || mobilePanel.hidden) return;
 
       mobileOpenButton.setAttribute('aria-expanded', 'false');
+      if (lastFocusedElement && lastFocusedElement.isConnected) lastFocusedElement.focus({ preventScroll: true });
       mobilePanel.setAttribute('aria-hidden', 'true');
 
       mobilePanel.classList.remove('is-open');
@@ -114,10 +113,8 @@
         mobilePanel.classList.remove('is-closing');
         mobileCloseTimer = null;
 
-        if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-          lastFocusedElement.focus();
-        }
-      }, 280);
+
+      }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 280);
     }
 
     if (departmentToggle && departmentPanel) {

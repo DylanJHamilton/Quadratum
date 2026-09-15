@@ -24,7 +24,7 @@
   }
 
   function buildViewAllUrl(query) {
-    const url = new URL('/search', window.location.origin);
+    const url = new URL(`${window.Shopify?.routes?.root || '/'}search`, window.location.origin);
     url.searchParams.set('q', query);
     return url.toString();
   }
@@ -108,6 +108,9 @@
     }
 
     function closePanel() {
+      clearTimeout(debounceTimer);
+      if (abortController) abortController.abort();
+      input.removeAttribute('aria-activedescendant');
       panel.hidden = true;
       panel.innerHTML = '';
       input.setAttribute('aria-expanded', 'false');
@@ -175,7 +178,8 @@
 
     async function fetchResults(query) {
       if (abortController) abortController.abort();
-      abortController = new AbortController();
+      const controller = new AbortController();
+      abortController = controller;
 
       const types = getEnabledTypes();
       if (!types.length) {
@@ -183,7 +187,7 @@
         return;
       }
 
-      const url = new URL('/search/suggest.json', window.location.origin);
+      const url = new URL(`${window.Shopify?.routes?.root || '/'}search/suggest.json`, window.location.origin);
       url.searchParams.set('q', query);
       url.searchParams.set('resources[type]', types.join(','));
       url.searchParams.set('resources[limit]', String(getMaxLimit()));
@@ -197,13 +201,14 @@
 
       try {
         const response = await fetch(url.toString(), {
-          signal: abortController.signal,
+          signal: controller.signal,
           headers: { Accept: 'application/json' }
         });
 
         if (!response.ok) throw new Error('Predictive search failed');
 
         const data = await response.json();
+        if (controller.signal.aborted || input.value.trim() !== query) return;
         renderResults(query, data);
       } catch (error) {
         if (error.name !== 'AbortError') {
@@ -221,7 +226,9 @@
       });
 
       if (activeIndex >= 0 && options[activeIndex]) {
-        options[activeIndex].scrollIntoView({ block: 'nearest' });
+        if (!options[activeIndex].id) options[activeIndex].id = `${panel.id}-option-${activeIndex}`;
+        input.setAttribute('aria-activedescendant', options[activeIndex].id);
+        options[activeIndex].scrollIntoView({ block: 'nearest', behavior: 'instant' });
       }
     }
 
