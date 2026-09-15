@@ -1,3 +1,5 @@
+> Closure update: see [closure-remediation-report.md](closure-remediation-report.md) for the live-QA repair pass, current open blockers and regression queue. The report below is the preserved earlier checkpoint.
+
 # Quadratum V1.0 — Phase 3 engineering review checkpoint
 
 **PHASE 3 INCOMPLETE — BLOCKED**
