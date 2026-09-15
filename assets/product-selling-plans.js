@@ -9,7 +9,7 @@
     try { variants = JSON.parse(source.textContent); } catch { return; }
     const variant = variants.find(item => String(item.id) === form.elements.namedItem('id')?.value);
     if (!variant) return;
-    const ids = variant.selling_plan_allocations.map(allocation => String(allocation.selling_plan.id));
+    const ids = (variant.selling_plan_allocations || []).map(allocation => String(allocation.selling_plan.id));
     const previous = select.value;
     for (const option of select.options) {
       option.disabled = option.value !== '' && !ids.includes(option.value);
