@@ -1320,7 +1320,22 @@
       }
 
       function applyVariant(v){
-        if (!v) return;
+        if (!v) {
+          if (variantIdInput) {
+            variantIdInput.value = '';
+            variantIdInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          if (variantSelect) variantSelect.value = '';
+          if (priceEl) priceEl.textContent = 'Unavailable';
+          if (compareEl) compareEl.style.display = 'none';
+          if (skuWrap) skuWrap.style.display = 'none';
+          if (availText) availText.textContent = 'Unavailable';
+          if (atcBtn) { atcBtn.disabled = true; atcBtn.textContent = 'Unavailable'; }
+          var unavailableUrl = new URL(window.location.href);
+          unavailableUrl.searchParams.delete('variant');
+          window.history.replaceState({}, '', unavailableUrl.toString());
+          return;
+        }
 
         if (variantIdInput) variantIdInput.value = v.id;
 
@@ -1347,20 +1362,16 @@
           }
         }
 
-        if (availText && atcBtn){
-          if (v.available){
-            availText.textContent = 'In stock';
-            atcBtn.disabled = false;
-            atcBtn.textContent = 'Add to cart';
-          } else {
-            availText.textContent = 'Sold out';
-            atcBtn.disabled = true;
-            atcBtn.textContent = 'Sold out';
-          }
+        if (availText) availText.textContent = v.available ? 'In stock' : 'Sold out';
+        if (atcBtn) {
+          atcBtn.disabled = !v.available;
+          atcBtn.textContent = v.available ? 'Add to cart' : 'Sold out';
         }
+        if (variantIdInput) variantIdInput.dispatchEvent(new Event('change', { bubbles: true }));
 
         // If variant has a featured image, try to switch main image to match
         if (v.featured_image && v.featured_image.src && mainImg){
+          mainImg.removeAttribute('srcset');
           mainImg.src = v.featured_image.src;
           if (modalImg) modalImg.src = v.featured_image.src;
 
@@ -1389,6 +1400,16 @@
             updateWishlistUI(wlBtn);
           }
         }catch(e){}
+      }
+
+      if (variantIdInput && variantIdInput.form) {
+        variantIdInput.form.addEventListener('submit', function(event) {
+          var selected = variants.find(function(variant) { return String(variant.id) === variantIdInput.value; });
+          if (!selected || !selected.available) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
       }
 
       // Listen to option changes

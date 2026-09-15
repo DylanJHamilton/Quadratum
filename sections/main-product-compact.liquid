@@ -23,6 +23,7 @@
 <section
   id="MainProductCompact-{{ section.id }}"
   class="qtm-compact"
+  data-product-purchase-sync
   style="
     padding-top: {{ s.padding_top }}px;
     padding-bottom: {{ s.padding_bottom }}px;
@@ -53,13 +54,20 @@
 
       <form
         method="post"
-        action="/cart/add"
+        action="{{ routes.cart_add_url }}"
         enctype="multipart/form-data"
         id="ProductForm-{{ section.id }}"
         class="qtm-compact__form"
       >
 
-        <input type="hidden" name="id" value="{{ v.id }}">
+        <div data-purchase-fallback {% if p.has_only_default_variant %}hidden{% endif %}>
+          <label for="CompactVariant-{{ section.id }}">{{ p.options | join: ' / ' | escape }}</label>
+          <select name="id" id="CompactVariant-{{ section.id }}">
+            {% for variant in p.variants %}
+              <option value="{{ variant.id }}" {% if variant.id == v.id %}selected{% endif %}>{{ variant.title | escape }} — {{ variant.price | money }}{% unless variant.available %} — Sold out{% endunless %}</option>
+            {% endfor %}
+          </select>
+        </div>
         {% render 'product-selling-plans', product: p, id: section.id %}
 
         {% for block in section.blocks %}
@@ -72,21 +80,17 @@
 
             {% when 'price' %}
               <div class="qtm-compact__price" {{ block.shopify_attributes }}>
-                {% if on_sale %}
-                  <span class="sale">{{ v.price | money }}</span>
-                  <span class="compare"><s>{{ v.compare_at_price | money }}</s></span>
-                {% else %}
-                  <span>{{ v.price | money }}</span>
-                {% endif %}
+                <span data-purchase-current>{{ v.price | money }}</span>
+                <s class="compare" data-purchase-compare {% unless on_sale %}hidden{% endunless %}>{{ v.compare_at_price | money }}</s>
               </div>
 
             {% when 'variant_picker' %}
               {% unless p.has_only_default_variant %}
-                <div class="qtm-compact__variants" {{ block.shopify_attributes }}>
+                <div class="qtm-compact__variants" data-purchase-options hidden {{ block.shopify_attributes }}>
                   {% for option in p.options_with_values %}
                     <div class="option">
-                      <label>{{ option.name }}</label>
-                      <select name="options[{{ option.name | escape }}]">
+                      <label for="CompactOption-{{ section.id }}-{{ forloop.index }}">{{ option.name | escape }}</label>
+                      <select id="CompactOption-{{ section.id }}-{{ forloop.index }}" data-purchase-option name="options[{{ option.name | escape }}]">
                         {% for value in option.values %}
                           <option value="{{ value | escape }}"
                             {% if option.selected_value == value %}selected{% endif %}>
@@ -114,6 +118,7 @@
               <div class="qtm-compact__buy" {{ block.shopify_attributes }}>
                 <button
                   type="submit"
+                  name="add"
                   class="qtm-compact__atc"
                   {% unless v.available %}disabled{% endunless %}
                 >
@@ -151,6 +156,8 @@
 
   </div>
 </section>
+{% render 'product-purchase-data', product: p %}
+<script src="{{ 'product-purchase-sync.js' | asset_url }}" defer></script>
 
 <style>
 .qtm-compact__grid {

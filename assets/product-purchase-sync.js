@@ -12,9 +12,32 @@
     let variants;
     try { variants = JSON.parse(source.textContent); } catch { return; }
     const initialId = selector.value;
+    const options = Array.from(form.querySelectorAll('[data-purchase-option]'));
+    function selectedVariant() {
+      return variants.find(item => String(item.id) === selector.value);
+    }
+    function resolveOptions() {
+      const match = variants.find(item => item.options?.length === options.length &&
+        options.every((option, index) => option.value === item.options[index]));
+      selector.value = match ? String(match.id) : '';
+      selector.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    options.forEach(option => option.addEventListener('change', resolveOptions));
+    if (options.length) {
+      form.querySelector('[data-purchase-fallback]').hidden = true;
+      form.querySelectorAll('[data-purchase-options]').forEach(group => { group.hidden = false; });
+      form.addEventListener('submit', event => {
+        resolveOptions();
+        if (!selectedVariant()?.available) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      }, true);
+    }
     function update(updateURL = false) {
-      const variant = variants.find(item => String(item.id) === selector.value);
-      if (!variant) return;
+      const matched = selectedVariant();
+      const variant = matched || { available: false, price: 'Unavailable', compare: '', onSale: false };
+      if (matched) options.forEach((option, index) => { option.value = matched.options[index]; });
       const current = root.querySelector('[data-purchase-current]');
       const compare = root.querySelector('[data-purchase-compare]');
       if (current) current.textContent = variant.price;
@@ -30,12 +53,13 @@
       const sku = root.querySelector('.q-sku');
       if (sku) { sku.textContent = `SKU: ${variant.sku || ''}`; sku.hidden = !variant.sku; }
       const button = form.querySelector('[name="add"]');
-      if (button) { button.disabled = !variant.available; button.textContent = variant.available ? 'Add to cart' : 'Sold out'; }
+      if (button) { button.disabled = !variant.available; button.textContent = variant.available ? 'Add to cart' : (matched ? 'Sold out' : 'Unavailable'); }
       const checkout = root.querySelector('.q-dynamic-checkout');
       if (checkout) checkout.hidden = !variant.available;
       if (updateURL) {
         const url = new URL(window.location.href);
-        url.searchParams.set('variant', selector.value);
+        if (matched) url.searchParams.set('variant', selector.value);
+        else url.searchParams.delete('variant');
         if (url.href !== window.location.href) window.history.pushState({}, '', url);
       }
     }
