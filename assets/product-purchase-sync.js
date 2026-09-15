@@ -20,7 +20,7 @@
       if (current) current.textContent = variant.price;
       if (compare) { compare.textContent = variant.compare; compare.hidden = !variant.onSale; }
       const sale = root.querySelector('[data-purchase-sale]');
-      if (sale) { sale.hidden = !variant.onSale; sale.textContent = 'Sale'; }
+      if (sale) { sale.hidden = !variant.onSale; sale.textContent = variant.saleLabel || 'Sale'; }
       const availability = root.querySelector('[data-purchase-availability]');
       if (availability) {
         availability.textContent = variant.available ? 'In stock' : 'Sold out';
