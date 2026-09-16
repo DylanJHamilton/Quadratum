@@ -234,7 +234,7 @@
   -%}
 
   <section
-    id="q-pdp-{{ section.id }}"
+    id="q-pdp-{{ section.id }}" data-product-purchase-sync
     class="q-pdp-phase0 q-layout-{{ layout_mode }} q-thumbs-d-{{ thumbs_d }} q-thumbs-m-{{ thumbs_m }} q-below-{{ below_layout }}{% if sticky_ok_media %} q-sticky-media{% elsif sticky_ok_summary %} q-sticky-summary{% endif %}"
     aria-label="{{ section_label }}"
     style="
@@ -259,22 +259,22 @@
                   <div id="{{ item_id }}" class="q-pdp-media__item">
                     {%- if m.media_type == 'image' -%}
                       {%- if forloop.first -%}
-                        {{
-                          m
+                        {%- liquid
+                          assign qtm_image_alt = m.alt | default: p.title
+                        -%}
+                        {{ m
                           | image_url: width: 1800
                           | image_tag:
-                            loading: 'eager',
-                            fetchpriority: 'high',
-                            alt: m.alt | default: p.title
-                        }}
+                          loading: 'eager',
+                          fetchpriority: 'high', alt: qtm_image_alt }}
                       {%- else -%}
-                        {{
-                          m
+                        {%- liquid
+                          assign qtm_image_alt = m.alt | default: p.title
+                        -%}
+                        {{ m
                           | image_url: width: 1800
                           | image_tag:
-                            loading: 'lazy',
-                            alt: m.alt | default: p.title
-                        }}
+                          loading: 'lazy', alt: qtm_image_alt }}
                       {%- endif -%}
                     {%- else -%}
                       <div class="q-pdp-media__placeholder" role="note">
@@ -290,13 +290,13 @@
                   {%- assign href_id = '#q-media-' | append: section.id | append: '-' | append: forloop.index0 -%}
                   <a class="q-pdp-media__thumb" href="{{ href_id }}" aria-label="Jump to media {{ forloop.index }}">
                     {%- if m.media_type == 'image' -%}
-                      {{
-                        m
+                      {%- liquid
+                        assign qtm_image_alt = m.alt | default: p.title
+                      -%}
+                      {{ m
                         | image_url: width: 240
                         | image_tag:
-                          loading: 'lazy',
-                          alt: m.alt | default: p.title
-                      }}
+                        loading: 'lazy', alt: qtm_image_alt }}
                     {%- else -%}
                       <span class="q-pdp-media__thumb-placeholder" aria-hidden="true">—</span>
                     {%- endif -%}
@@ -314,14 +314,13 @@
             <div class="q-pdp-phase0__vendor">{{ p.vendor }}</div>
           {%- endif -%}
 
-          <div class="q-pdp-phase0__price">
-            {%- if p.compare_at_price_max > p.price -%}
-              <span class="q-pdp-phase0__compare">{{ p.compare_at_price_max | money }}</span>
-            {%- endif -%}
-            <span class="q-pdp-phase0__current">{{ p.price | money }}</span>
+          <div class="q-pdp-phase0__price" data-purchase-price>
+            <span data-purchase-current>{{ p.selected_or_first_available_variant.price | money }}</span>
+            <s class="q-pdp-phase0__compare" data-purchase-compare {% unless p.selected_or_first_available_variant.compare_at_price > p.selected_or_first_available_variant.price %}hidden{% endunless %}>{{ p.selected_or_first_available_variant.compare_at_price | money }}</s>
           </div>
 
           {%- form 'product', p, id: form_id, novalidate: 'novalidate' -%}
+            {% render 'product-selling-plans', product: p, id: section.id %}
             <div class="q-pdp-phase0__form">
               {%- comment -%}
                 Baseline submission source MUST remain:
@@ -336,8 +335,8 @@
                   {%- for v in p.variants -%}
                     <option value="{{ v.id }}"
                       {% if v == p.selected_or_first_available_variant %}selected{% endif %}
-                      {% unless v.available %}disabled{% endunless %}>
-                      {{ v.title }}{% unless v.available %} — Sold out{% endunless %}
+                      >
+                      {{ v.title }} — {{ v.price | money }}{% unless v.available %} — Sold out{% endunless %}
                     </option>
                   {%- endfor -%}
                 </select>
@@ -346,8 +345,8 @@
               <label class="q-pdp-phase0__label" for="q-qty-{{ section.id }}">Quantity</label>
               <input id="q-qty-{{ section.id }}" class="q-pdp-phase0__qty" type="number" name="quantity" min="1" value="1" inputmode="numeric">
 
-              <button type="submit" name="add" class="q-pdp-phase0__btn">
-                Add to cart
+              <button type="submit" name="add" class="q-pdp-phase0__btn" {% unless p.selected_or_first_available_variant.available %}disabled{% endunless %}>
+                {% if p.selected_or_first_available_variant.available %}Add to cart{% else %}Sold out{% endif %}
               </button>
 
               {%- if s.show_inventory -%}
@@ -1177,6 +1176,8 @@
   </section>
 {%- endif -%}
 
+{% render 'product-purchase-data', product: p, sale_badge_style: s.sale_badge_style %}
+<script src="{{ 'product-purchase-sync.js' | asset_url }}" defer></script>
 {% schema %}
 {
   "name": "Main Product Master",

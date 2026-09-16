@@ -11,7 +11,8 @@
   function setPressedState(controlsEl, value) {
     controlsEl.querySelectorAll('.q-variant-ui__item').forEach((btn) => {
       const isSelected = btn.dataset.productOptionValue === value;
-      btn.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+      const radio = btn.querySelector('input[type=radio]');
+      if (radio) radio.checked = isSelected;
       btn.classList.toggle('is-selected', isSelected);
     });
   }
@@ -22,6 +23,7 @@
   }
 
   function initVariantUI(wrapper) {
+    if (wrapper.dataset.initialized) return;
     const selectId = wrapper.dataset.productSelectId;
     const select =
       document.getElementById(selectId) ||
@@ -59,7 +61,7 @@
 
     function selectVariantByOptions(selectedOptions) {
       const match = findMatchingVariant(variants, selectedOptions);
-      if (!match) return;
+      if (!match) { applySelectedFromVariant(currentVariant()); return; }
 
       const newId = String(match.id);
       if (select.value !== newId) {
@@ -70,7 +72,7 @@
       applySelectedFromVariant(match);
     }
 
-    wrapper.addEventListener('click', (e) => {
+    wrapper.addEventListener('change', (e) => {
       const btn = e.target.closest('.q-variant-ui__item');
       if (!btn) return;
 
@@ -88,14 +90,6 @@
       selectVariantByOptions(selectedOptions);
     });
 
-    wrapper.addEventListener('keydown', (e) => {
-      const btn = e.target.closest('.q-variant-ui__item');
-      if (!btn) return;
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      e.preventDefault();
-      btn.click();
-    });
-
     select.addEventListener(
       'change',
       () => {
@@ -105,6 +99,10 @@
     );
 
     applySelectedFromVariant(currentVariant());
+    select.addEventListener('qtm:variant-restored', () => applySelectedFromVariant(currentVariant()));
+    select.closest('.q-field')?.setAttribute('hidden', '');
+    wrapper.hidden = false;
+    wrapper.dataset.initialized = 'true';
   }
 
   function boot(root = document) {

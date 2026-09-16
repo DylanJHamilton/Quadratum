@@ -13,7 +13,7 @@
 
     function isVisible(element) {
       if (!element) return false;
-      if (element.hidden) return false;
+      if (element.closest('[hidden], [aria-hidden="true"]')) return false;
       if (element.getAttribute('aria-hidden') === 'true') return false;
 
       var style = window.getComputedStyle(element);
@@ -69,7 +69,7 @@
         mobileCloseTimer = null;
       }
 
-      lastFocusedElement = document.activeElement;
+      lastFocusedElement = mobileOpenButton;
 
       closeDepartments();
 
@@ -81,15 +81,15 @@
       document.body.classList.add('qtmHeaderFiveMobileOpen');
 
       mobilePanel.classList.remove('is-closing');
+      mobilePanel.classList.add('is-open');
+      // Visibility must be applied before focus; it must not wait for a transition.
+      var target = mobilePanel.querySelector('button[data-qtm-h5-mobile-close]') || mobilePanel.querySelector('[role=dialog]');
+      if (target) target.focus({ preventScroll: true });
 
       window.requestAnimationFrame(function () {
-        mobilePanel.classList.add('is-open');
-
-        var focusable = getFocusableElements(mobilePanel);
-
-        if (focusable.length) {
-          focusable[0].focus();
-        }
+        if (mobilePanel.hidden || mobileOpenButton.getAttribute('aria-expanded') !== 'true') return;
+        var target = mobilePanel.querySelector('button[data-qtm-h5-mobile-close]') || mobilePanel.querySelector('[role=dialog]');
+        if (target && !mobilePanel.contains(document.activeElement)) target.focus({ preventScroll: true });
       });
     }
 
@@ -97,6 +97,7 @@
       if (!mobileOpenButton || !mobilePanel || mobilePanel.hidden) return;
 
       mobileOpenButton.setAttribute('aria-expanded', 'false');
+      if (lastFocusedElement && lastFocusedElement.isConnected) lastFocusedElement.focus({ preventScroll: true });
       mobilePanel.setAttribute('aria-hidden', 'true');
 
       mobilePanel.classList.remove('is-open');
@@ -114,10 +115,8 @@
         mobilePanel.classList.remove('is-closing');
         mobileCloseTimer = null;
 
-        if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-          lastFocusedElement.focus();
-        }
-      }, 280);
+
+      }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 280);
     }
 
     if (departmentToggle && departmentPanel) {
@@ -186,6 +185,14 @@
       });
     });
 
+    document.addEventListener('focusin', function (event) {
+      if (!root.isConnected || !mobilePanel || !mobileOpenButton || mobileOpenButton.getAttribute('aria-expanded') !== 'true') return;
+      if (!mobilePanel.contains(event.target)) {
+        var target = getFocusableElements(mobilePanel)[0] || mobilePanel.querySelector('[role=dialog]');
+        if (target) target.focus({ preventScroll: true });
+      }
+    });
+
     document.addEventListener('keydown', function (event) {
       if (event.key === 'Escape') {
         closeDepartments();
@@ -195,15 +202,23 @@
         }
       }
 
-      if (event.key === 'Tab' && mobilePanel && !mobilePanel.hidden) {
+      if (event.key === 'Tab' && mobilePanel && mobileOpenButton.getAttribute('aria-expanded') === 'true') {
         var focusable = getFocusableElements(mobilePanel);
 
-        if (!focusable.length) return;
+        if (!focusable.length) {
+          event.preventDefault();
+          var dialog = mobilePanel.querySelector('[role=dialog]');
+          if (dialog) dialog.focus();
+          return;
+        }
 
         var first = focusable[0];
         var last = focusable[focusable.length - 1];
 
-        if (event.shiftKey && document.activeElement === first) {
+        if (!mobilePanel.contains(document.activeElement)) {
+          event.preventDefault();
+          (event.shiftKey ? last : first).focus();
+        } else if (event.shiftKey && document.activeElement === first) {
           event.preventDefault();
           last.focus();
         } else if (!event.shiftKey && document.activeElement === last) {

@@ -72,13 +72,15 @@
   assign image_media = '' | split: ''
   for m in image_media_all
     assign keep = true
-    if s.hide_variants and variant_media_ids contains m.id
+    assign media_id_string = m.id | append: ''
+    if s.hide_variants and variant_media_ids contains media_id_string
       if featured and m.id != featured.id
         assign keep = false
       endif
     endif
     if keep
-      assign image_media = image_media | push: m
+      assign media_slice = image_media_all | slice: forloop.index0, 1
+      assign image_media = image_media | concat: media_slice
     endif
   endfor
 
@@ -782,19 +784,13 @@
         {%- endfor -%}
 
         {%- comment -%} Single product form wrapper; FORM blocks render inside {%- endcomment -%}
-        <form
-          id="{{ product_form_id }}"
-          class="qtm-modern__form"
-          method="post"
-          action="{{ routes.cart_add_url }}"
-          enctype="multipart/form-data"
-          {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}
-        >
+        {%- form 'product', p, id: product_form_id, class: 'qtm-modern__form', data-cart-drawer-add: settings.enable_ajax_cart_drawer -%}
+            {% render 'product-selling-plans', product: p, id: section.id %}
           <input type="hidden" name="id" id="QtmVariantId-{{ section.id }}" value="{{ current_variant.id }}">
           <input type="hidden" name="quantity" id="QtmQtyHidden-{{ section.id }}" value="1">
 
           {%- comment -%} ADDITION A: Variant compatibility select (hidden). {%- endcomment -%}
-          <select name="id" id="QtmVariantSelect-{{ section.id }}" style="display:none !important" aria-hidden="true" tabindex="-1">
+          <select id="QtmVariantSelect-{{ section.id }}" style="display:none !important" aria-hidden="true" tabindex="-1">
             {%- for v in p.variants -%}
               <option value="{{ v.id }}" {% if v.id == current_variant.id %}selected{% endif %}>{{ v.title | escape }}</option>
             {%- endfor -%}
@@ -880,10 +876,7 @@
 
                   {%- if block.settings.show_dynamic_checkout -%}
                     <div style="margin-top: .75rem;">
-                      {%- form section.id -%}
-                        <input type="hidden" name="id" value="{{ current_variant.id }}">
-                        {{ form | payment_button }}
-                      {%- endform -%}
+                      {{ form | payment_button }}
                     </div>
                   {%- endif -%}
                 </div>
@@ -934,10 +927,7 @@
 
                     {%- if block.settings.show_dynamic_checkout -%}
                       <div style="margin-top: .75rem;">
-                        {%- form section.id -%}
-                          <input type="hidden" name="id" value="{{ current_variant.id }}">
-                          {{ form | payment_button }}
-                        {%- endform -%}
+                        {{ form | payment_button }}
                       </div>
                     {%- endif -%}
                   </div>
@@ -971,7 +961,7 @@
 
             {%- endcase -%}
           {%- endfor -%}
-        </form>
+        {%- endform -%}
 
         {%- comment -%} Accordion blocks area {%- endcomment -%}
         {%- assign has_accordion = false -%}
@@ -1330,7 +1320,22 @@
       }
 
       function applyVariant(v){
-        if (!v) return;
+        if (!v) {
+          if (variantIdInput) {
+            variantIdInput.value = '';
+            variantIdInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          if (variantSelect) variantSelect.value = '';
+          if (priceEl) priceEl.textContent = 'Unavailable';
+          if (compareEl) compareEl.style.display = 'none';
+          if (skuWrap) skuWrap.style.display = 'none';
+          if (availText) availText.textContent = 'Unavailable';
+          if (atcBtn) { atcBtn.disabled = true; atcBtn.textContent = 'Unavailable'; }
+          var unavailableUrl = new URL(window.location.href);
+          unavailableUrl.searchParams.delete('variant');
+          window.history.replaceState({}, '', unavailableUrl.toString());
+          return;
+        }
 
         if (variantIdInput) variantIdInput.value = v.id;
 
@@ -1357,20 +1362,16 @@
           }
         }
 
-        if (availText && atcBtn){
-          if (v.available){
-            availText.textContent = 'In stock';
-            atcBtn.disabled = false;
-            atcBtn.textContent = 'Add to cart';
-          } else {
-            availText.textContent = 'Sold out';
-            atcBtn.disabled = true;
-            atcBtn.textContent = 'Sold out';
-          }
+        if (availText) availText.textContent = v.available ? 'In stock' : 'Sold out';
+        if (atcBtn) {
+          atcBtn.disabled = !v.available;
+          atcBtn.textContent = v.available ? 'Add to cart' : 'Sold out';
         }
+        if (variantIdInput) variantIdInput.dispatchEvent(new Event('change', { bubbles: true }));
 
         // If variant has a featured image, try to switch main image to match
         if (v.featured_image && v.featured_image.src && mainImg){
+          mainImg.removeAttribute('srcset');
           mainImg.src = v.featured_image.src;
           if (modalImg) modalImg.src = v.featured_image.src;
 
@@ -1399,6 +1400,16 @@
             updateWishlistUI(wlBtn);
           }
         }catch(e){}
+      }
+
+      if (variantIdInput && variantIdInput.form) {
+        variantIdInput.form.addEventListener('submit', function(event) {
+          var selected = variants.find(function(variant) { return String(variant.id) === variantIdInput.value; });
+          if (!selected || !selected.available) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
       }
 
       // Listen to option changes

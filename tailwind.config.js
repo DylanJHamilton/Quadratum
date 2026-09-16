@@ -1,10 +1,14 @@
+import typography from "@tailwindcss/typography";
+
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+export default {
   content: [
     "./layout/**/*.liquid",
     "./templates/**/*.liquid",
     "./sections/**/*.liquid",
     "./snippets/**/*.liquid",
+    "./blocks/**/*.liquid",
+    "./templates/**/*.json",
     "./assets/**/*.js"
   ],
   theme: {
@@ -25,7 +29,7 @@ module.exports = {
       }
     }
   },
-  plugins: [require("@tailwindcss/typography")],
+  plugins: [typography],
   safelist: [
     // alignment we toggle from schema
     'text-left','text-center','text-right',

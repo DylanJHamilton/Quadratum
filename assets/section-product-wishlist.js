@@ -169,8 +169,8 @@
   }
 
   async function fetchWishlistCardHTML(handle) {
-    // Requires: sections/q-wishlist-card-render.liquid
-    const url = `/products/${encodeURIComponent(handle)}?section_id=q-wishlist-card-render`;
+    // Requires: sections/product-wishlist-card-renderer.liquid
+    const url = `${window.Shopify?.routes?.root || '/'}products/${encodeURIComponent(handle)}?section_id=product-wishlist-card-renderer`;
     const res = await fetch(url, { credentials: "same-origin" });
     if (!res.ok) throw new Error(`Wishlist render failed for ${handle}`);
     return await res.text();

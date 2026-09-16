@@ -199,26 +199,26 @@
 
     .qtm-heading--display {
       font-size: clamp(3rem, 7vw, 6.75rem);
-      line-height: 0.95;
-      letter-spacing: -0.055em;
+      line-height: var(--qtm-heading-line-height, 0.95);
+      letter-spacing: var(--qtm-heading-letter-spacing, -0.055em);
     }
 
     .qtm-heading--large {
       font-size: clamp(2.25rem, 5vw, 4.5rem);
-      line-height: 1;
-      letter-spacing: -0.045em;
+      line-height: var(--qtm-heading-line-height, 1);
+      letter-spacing: var(--qtm-heading-letter-spacing, -0.045em);
     }
 
     .qtm-heading--medium {
       font-size: clamp(1.75rem, 3.5vw, 3rem);
-      line-height: 1.08;
-      letter-spacing: -0.035em;
+      line-height: var(--qtm-heading-line-height, 1.08);
+      letter-spacing: var(--qtm-heading-letter-spacing, -0.035em);
     }
 
     .qtm-heading--small {
       font-size: clamp(1.25rem, 2vw, 1.75rem);
-      line-height: 1.18;
-      letter-spacing: -0.02em;
+      line-height: var(--qtm-heading-line-height, 1.18);
+      letter-spacing: var(--qtm-heading-letter-spacing, -0.02em);
     }
 
     .qtm-heading--gradient {

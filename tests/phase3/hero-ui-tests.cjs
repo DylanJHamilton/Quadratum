@@ -1,0 +1,18 @@
+const fs=require('node:fs'), assert=require('node:assert/strict');
+const {JSDOM}=require('jsdom');
+const markup=id=>`<div id="${id}"><section class="q-multipurpose-banner" data-mode="slideshow" data-autoplay="true" data-autoplay-speed="5000"><div class="q-mpb-slides-wrapper"><div class="q-mpb-slide active"><a href="#">One</a></div><div class="q-mpb-slide"><a href="#">Two</a></div></div><button class="q-mpb-arrow-next">Next</button><button class="q-mpb-dot"></button><button class="q-mpb-dot"></button><button data-mpb-pause>Pause slides</button></section></div>`;
+const dom=new JSDOM(markup('a')+markup('b'),{runScripts:'outside-only'}),w=dom.window;
+w.matchMedia=()=>({matches:false,addEventListener(){}});
+const timers=new Map();let timer=0;
+w.setTimeout=fn=>{timers.set(++timer,fn);return timer;};w.clearTimeout=id=>timers.delete(id);
+const script=fs.readFileSync('./assets/multipurpose-hero-banner.js','utf8');w.eval(script);w.eval(script);w.QuadratumMultipurposeBanner.init();
+assert.equal(timers.size,2);
+const a=w.document.getElementById('a'), b=w.document.getElementById('b');
+a.querySelector('.q-mpb-arrow-next').click();
+assert.equal(a.querySelectorAll('.q-mpb-slide')[1].getAttribute('aria-hidden'),'false');
+assert.equal(b.querySelectorAll('.q-mpb-slide')[1].getAttribute('aria-hidden'),'true');
+assert.equal(timers.size,2);
+a.querySelector('[data-mpb-pause]').click();assert.equal(timers.size,1);
+a.dispatchEvent(new w.Event('shopify:section:load',{bubbles:true}));assert.equal(timers.size,1);
+b.dispatchEvent(new w.Event('shopify:section:unload',{bubbles:true}));assert.equal(timers.size,0);
+w.close();console.log('PASS hero: duplicate loading, two independent instances, one timer per instance, pause, section reload/unload, inactive slide semantics. Mock DOM only.');
