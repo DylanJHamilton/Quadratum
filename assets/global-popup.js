@@ -1,4 +1,6 @@
 (() => {
+  if (window.qtmGlobalPopupBound) return;
+  window.qtmGlobalPopupBound = true;
   const STORAGE_KEY = 'qtm_global_popup_seen';
   const SESSION_KEY = 'qtm_global_popup_seen_session';
 
@@ -8,14 +10,18 @@
   let openedThisPage = false;
   let lastFocusedElement = null;
   let eventsBound = false;
+  let closeTimer = null;
+  let bootedPopup = null;
 
   function isThemeEditor() {
     return Boolean(
       (window.Shopify && window.Shopify.designMode) ||
-      document.documentElement.classList.contains('shopify-design-mode') ||
-      window.location.href.includes('preview_theme_id') ||
-      window.location.href.includes('_ab=')
+      document.documentElement.classList.contains('shopify-design-mode')
     );
+  }
+
+  function storage(kind, method, ...args) {
+    try { return window[kind][method](...args); } catch { return null; }
   }
 
   function getPopup() {
@@ -38,16 +44,16 @@
         : {};
 
     return {
-      enabled: getBoolean(popup?.dataset.popupEnabled) || getBoolean(globalConfig.enabled),
+      enabled: getBoolean(popup?.dataset.popupEnabled ?? globalConfig.enabled),
       type: popup?.dataset.popupType || globalConfig.type || 'newsletter',
       trigger: popup?.dataset.popupTrigger || globalConfig.trigger || 'delay',
       frequency: popup?.dataset.popupFrequency || globalConfig.frequency || 'always',
       delaySeconds: getNumber(popup?.dataset.popupDelay || globalConfig.delaySeconds, 1),
       scrollPercent: getNumber(popup?.dataset.popupScroll || globalConfig.scrollPercent, 45),
-      showOnMobile: getBoolean(popup?.dataset.popupMobile) || getBoolean(globalConfig.showOnMobile),
-      showOnDesktop: getBoolean(popup?.dataset.popupDesktop) || getBoolean(globalConfig.showOnDesktop),
-      overlayClickClose: getBoolean(popup?.dataset.popupOverlayClose) || getBoolean(globalConfig.overlayClickClose),
-      editorPreview: getBoolean(popup?.dataset.popupEditorPreview) || getBoolean(globalConfig.editorPreview)
+      showOnMobile: getBoolean(popup?.dataset.popupMobile ?? globalConfig.showOnMobile),
+      showOnDesktop: getBoolean(popup?.dataset.popupDesktop ?? globalConfig.showOnDesktop),
+      overlayClickClose: getBoolean(popup?.dataset.popupOverlayClose ?? globalConfig.overlayClickClose),
+      editorPreview: getBoolean(popup?.dataset.popupEditorPreview ?? globalConfig.editorPreview)
     };
   }
 
@@ -64,16 +70,16 @@
     if (isThemeEditor() && config.editorPreview) return true;
 
     if (config.frequency === 'always') {
-      localStorage.removeItem(STORAGE_KEY);
-      sessionStorage.removeItem(SESSION_KEY);
+      storage('localStorage', 'removeItem', STORAGE_KEY);
+      storage('sessionStorage', 'removeItem', SESSION_KEY);
       return true;
     }
 
     if (config.frequency === 'once_per_session') {
-      return sessionStorage.getItem(SESSION_KEY) !== 'true';
+      return storage('sessionStorage', 'getItem', SESSION_KEY) !== 'true';
     }
 
-    const lastSeen = Number(localStorage.getItem(STORAGE_KEY) || 0);
+    const lastSeen = Number(storage('localStorage', 'getItem', STORAGE_KEY) || 0);
 
     if (!lastSeen) return true;
 
@@ -92,11 +98,11 @@
     if (config.frequency === 'always') return;
 
     if (config.frequency === 'once_per_session') {
-      sessionStorage.setItem(SESSION_KEY, 'true');
+      storage('sessionStorage', 'setItem', SESSION_KEY, 'true');
       return;
     }
 
-    localStorage.setItem(STORAGE_KEY, String(Date.now()));
+    storage('localStorage', 'setItem', STORAGE_KEY, String(Date.now()));
   }
 
   function getFocusableElements() {
@@ -124,6 +130,7 @@
   function physicallyShowPopup() {
     if (!popup) return false;
 
+    window.clearTimeout(closeTimer);
     popup.hidden = false;
     popup.removeAttribute('hidden');
     popup.setAttribute('aria-hidden', 'false');
@@ -145,6 +152,7 @@
     lockScroll();
 
     window.requestAnimationFrame(() => {
+      if (popup.hidden || !popup.classList.contains('is-visible')) return;
       const focusable = getFocusableElements();
 
       if (focusable.length) {
@@ -165,11 +173,11 @@
 
     unlockScroll();
 
-    window.setTimeout(() => {
+    closeTimer = window.setTimeout(() => {
       popup.hidden = true;
       popup.setAttribute('hidden', '');
       popup.removeAttribute('style');
-    }, 220);
+    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220);
 
     if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
       lastFocusedElement.focus();
@@ -212,8 +220,8 @@
   }
 
   function resetPopup() {
-    localStorage.removeItem(STORAGE_KEY);
-    sessionStorage.removeItem(SESSION_KEY);
+    storage('localStorage', 'removeItem', STORAGE_KEY);
+    storage('sessionStorage', 'removeItem', SESSION_KEY);
     openedThisPage = false;
   }
 
@@ -317,7 +325,7 @@
     }
 
     if (config.trigger === 'first_visit') {
-      if (!localStorage.getItem(STORAGE_KEY)) {
+      if (!storage('localStorage', 'getItem', STORAGE_KEY)) {
         window.setTimeout(() => openPopup(false), config.delaySeconds * 1000);
       }
 
@@ -328,7 +336,10 @@
   }
 
   function boot() {
-    popup = getPopup();
+    const nextPopup = getPopup();
+    if (nextPopup && nextPopup === bootedPopup) return;
+    popup = nextPopup;
+    bootedPopup = popup;
 
     window.QuadratumPopup = {
       open: () => openPopup(true),
@@ -341,7 +352,6 @@
     dialog = popup.querySelector('[data-qtm-popup-dialog]') || popup.querySelector('[role="dialog"]');
     config = getConfig();
 
-    resetPopup();
     setupEvents();
     setupAutoTrigger();
   }
