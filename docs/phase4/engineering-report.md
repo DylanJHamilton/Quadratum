@@ -175,3 +175,20 @@ Focused actual-Liquid/DOM fixtures cover both Split mobile/container modes and s
 **B2-SPLIT-STANDOUT-TRANSPARENT live queue (OPEN):** all layouts and settings at 1440/1280/768/390/320px; long content, image-only/mobile-only/empty media, both stacking orders, contained/full widths, custom anchors, color contrast and keyboard/screen reader. Real editor add/remove/reorder; actual MP4 and controls; reduced-motion changes; Transparent touch/trackpad scrolling, header overlap with every retained header, and multiple instances. Saved merchant configuration is unchanged. Keep PR draft.
 
 Theme Check comparison: image dimensions 40→38, complexity 13→12, unused assignments 64→54, naming 334→331. All other counts unchanged, including five pre-existing Liquid parser errors. The Standout snippet orphan warning remains a tracing false positive with two explicit render consumers. No diagnostic is suppressed.
+
+
+## Web3 Hero motion checkpoint — section review remains open
+
+Register: **452 primary components; 381 NOT REVIEWED, 70 REQUIRES LIVE VERIFICATION, one retained owner-review deletion candidate**. The new motion controller is source-reviewed; Web3 Hero remains NOT REVIEWED because its primary action and complete setting/preset audit are not closed.
+
+Confirmed repairs: false autoplay/effect flags remain false; manual pause no longer restarts on mouseleave; inactive slides are inert; timers, observers, handlers and queued animation frames are disposed on editor removal. Native hero video obeys pause/reduced motion/visibility. Reveal stays visible without IntersectionObserver or JavaScript. Existing parallax, tilt, cursor glow and magnetic-button effects are retained with motion guards and cleanup. Literal anchors no longer have section IDs appended. All generated CSS is instance scoped; heading size/letter spacing and hover values render correctly rather than leaking Liquid syntax. Slideshow card border, background position and content measure are no longer overwritten, and mobile arrows remain reachable. No-media hero content uses the full grid. Existing saved settings are unchanged.
+
+**Unresolved source issue:** the primary hero button emits `data-q-wallet-connect`, but no repository consumer was found. The hook is preserved; no wallet interaction or simulated connection was invented. Define the primary action and finish the remaining setting/preset review before closing this section. This differs from the separate CTA Web3 simulation finding already documented above.
+
+Validation: actual hero/slideshow Liquid, multiple instances, false settings, no-observer reveal, timers, persistent pause, slide inertness, reduced-motion/video, editor selection/unload and scoped CSS. Motion fixture does not certify wallet behavior or real browser geometry. Evidence: `validation/web3-motion/`.
+
+**B2-WEB3-MOTION live queue (OPEN):** actual MP4, every effect and motion-preference change, slideshow navigation, mobile controls, all saved layouts and custom anchors, responsive widths 1440/1280/768/390/320px, long content and real editor lifecycle. Keep draft; the section remains source-incomplete.
+
+Next untouched component: Grid Banner. Source inspection found mobile inline hero height overriding the desktop height rule, autoplaying MP4/YouTube without pause/lifecycle controls, anchor-derived CSS, and inline CTA analytics listeners without editor cleanup. These are recorded findings only; Grid Banner remains NOT REVIEWED and unmodified.
+
+Web3 checkpoint validation: schema/reference checks and CSS build pass; final Theme Check counts are unchanged from Split/Standout/Transparent, including the five pre-existing parser errors. Plain-text reference fixture logs now use `.txt`; the erroneous `.json` extension was corrected and the final rerun no longer reports that artifact-format error.
