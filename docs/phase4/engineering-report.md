@@ -17,7 +17,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | Batch | Status |
 |---|---|
 | 1 Global / Structural | Initial engineering hardening and focused fixtures implemented; live visual/settings/editor acceptance queued. |
-| 2 Hero / Banner / CTA | Ten active components repaired and fixture-tested; remaining family components NOT REVIEWED; live acceptance pending |
+| 2 Hero / Banner / CTA | Eleven active components repaired and fixture-tested; remaining family components NOT REVIEWED; live acceptance pending |
 | 3 Collection / Discovery | Pending |
 | 4 Product / Commerce | Pending; Phase 3 contracts protected |
 | 5 Content / Interactive | Pending |
@@ -145,3 +145,16 @@ Focused actual-Liquid/DOM fixtures cover eight breadcrumb contexts across both p
 **B2-CONTEXT-OFFERS live queue (OPEN):** both components at 1440/1280/768/390/320px, long titles, localized page/product/collection/blog/article/cart/search contexts, all color/layout/spacing overrides and keyboard/screen-reader navigation. Breadcrumb: plain/media, overlap on/off with actual header, structured-data validation on rendered storefront URLs. Offers: hero/grid/split, zero/one/multiple promo blocks, both offset extremes, all width/ratio choices, real MP4/poster/image fallback, paused/reduced-motion/visibility states and real editor add/remove/reorder. Original Video Hero should retain its existing breakpoint behavior. Phase 4 remains unfinished and PR stays draft.
 
 Context/Offers validation: structural/reference checks and CSS build pass. Theme Check totals are unchanged from Classic; existing debt remains in the full JSON. The package launcher stalled and was stopped; the installed Shopify CLI completed the recorded run. Structural source_commit identifies the parent HEAD, while source-hashes.json identifies the tested working-tree files.
+
+
+## Boxed Content Banner checkpoint
+
+Register totals: **450 primary components; 386 NOT REVIEWED, 63 REQUIRES LIVE VERIFICATION, one retained owner-review deletion candidate**. No production asset added. Batches 3–9 remain pending and the rest of Batch 2 is unfinished.
+
+The unscoped h2 selector is now scoped to its section, and generic animation names are component-specific. Buttons no longer depend on animation to override a persistent zero-opacity base: reduced-motion users retain visible CTAs. The pop animation explicitly ends at full opacity, and keyboard focus reveals animated buttons immediately. All three layouts use the existing video controller for reduced-motion defaults, explicit play/pause and unload cleanup; selected images provide posters. Custom IDs are preserved, labels/links escaped, default insertion copy is neutral with a valid collection destination, and long content/controls can wrap. Existing layout families, full-bleed geometry and merchant settings are retained.
+
+Validation in `validation/boxed/`: actual Liquid for card/boxed-background/panel, two instances, existing insertion preset, custom anchors, primary links, reduced-motion media, explicit play and unload, missing-video image fallback, empty media/CTA states, scoped CSS selectors/keyframes and visible animation endpoints. Inventory/schema, references and CSS build are recorded. The preceding context-offers checkpoint contains structural protection checks; this source-only follow-up has no JS asset or architectural change. Source hashes identify the tested files.
+
+**B2-BOXED live queue (OPEN):** card/band/panel at 1440/1280/768/390/320px, container widths, full bleed, min-height/spacing/color overrides, long text, mobile vertical and CTA alignment, all banner/content/button animation choices including zero duration and pop, reduced motion and keyboard focus, actual MP4/poster, editor add/remove/reorder. Browser layout and live Shopify acceptance are not claimed. PR remains draft.
+
+Boxed Content Theme Check completed with unchanged check totals from Context/Offers. Existing debt remains visible; no clean global lint claim.
