@@ -192,3 +192,18 @@ Validation: actual hero/slideshow Liquid, multiple instances, false settings, no
 Next untouched component: Grid Banner. Source inspection found mobile inline hero height overriding the desktop height rule, autoplaying MP4/YouTube without pause/lifecycle controls, anchor-derived CSS, and inline CTA analytics listeners without editor cleanup. These are recorded findings only; Grid Banner remains NOT REVIEWED and unmodified.
 
 Web3 checkpoint validation: schema/reference checks and CSS build pass; final Theme Check counts are unchanged from Split/Standout/Transparent, including the five pre-existing parser errors. Plain-text reference fixture logs now use `.txt`; the erroneous `.json` extension was corrected and the final rerun no longer reports that artifact-format error.
+
+
+## Grid Banner and Modern Sub Banner checkpoint
+
+Register: **453 primary components; 379 NOT REVIEWED, 73 REQUIRES LIVE VERIFICATION, one retained owner-review deletion candidate**. Grid Banner's delegated analytics asset adds one component. Remaining Batch 2 work and Batches 3–9 are unfinished.
+
+Grid Banner now exposes the previously missing hero CTA text/link/product/collection/article/accessibility settings using the existing implementation IDs. Desktop hero height is no longer defeated by an inline mobile height. Heights and grid rows are minimums so long content can expand; tile column spans cannot exceed the configured column count. Literal custom anchors are separate from CSS scope; mobile-only image picks render, image/video positioning is wired, and the section tone acts as the default for automatic tiles. Native/YouTube playback uses the existing disposable video controller with a pause button and deferred iframe sources. Analytics uses one guarded document listener, supporting editor insertions without retaining removed sections. Existing event names/payloads and opt-in setting are preserved. Merchant state is unchanged.
+
+Modern Sub Banner now scopes CSS by Shopify section identity independently of the merchant anchor, skips buttons with missing labels/destinations, contains long text, and respects reduced motion on button interactions. Its already-implemented subheading size now has an editor control. All existing panel, zero-value, overlay, alignment, manual overlap and centering controls remain.
+
+Focused actual-Liquid/DOM tests cover Grid's three modes/preset tiles, all span breakpoints, picker CTA destinations and accessible labels, mobile-only images, scoped styles, paused/reduced-motion media, unload and exactly-once analytics. Modern's tests cover all overlay/alignment combinations, two instances, literal anchors, zero panel/button values, typography and explicit button overrides. Build/schema/reference evidence is in `validation/grid-modern/`.
+
+**B2-GRID-MODERN live queue (OPEN):** all layouts/settings at 1440/1280/768/390/320px, long merchant text, image object positions, min-height and row expansion, text contrast, real MP4/YouTube, keyboard/screen reader, editor add/remove/reorder, saved CTA picker objects, click events and store consent configuration. No screenshot/live Shopify acceptance claimed. No section deletion or merchant-state change. Keep draft.
+
+Final validation: all retained schemas and asset JavaScript parse, references pass, CSS build passes, and merchant settings remain byte-identical to the protected baseline. CLI 4.8.0 was restored in the tool cache; both the unchanged local baseline `8250344` and final source were checked with that exact version. Diagnostic counts are unchanged; existing parser errors remain open. Gradient checkboxes are also independent of solid overlay opacity, verified with zero-opacity hero/tile image fixtures. No release-readiness claim.
