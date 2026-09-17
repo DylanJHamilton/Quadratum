@@ -17,7 +17,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | Batch | Status |
 |---|---|
 | 1 Global / Structural | Initial engineering hardening and focused fixtures implemented; live visual/settings/editor acceptance queued. |
-| 2 Hero / Banner / CTA | Five active components repaired and fixture-tested; remaining family components NOT REVIEWED; live acceptance pending |
+| 2 Hero / Banner / CTA | Seven active components repaired and fixture-tested; remaining family components NOT REVIEWED; live acceptance pending |
 | 3 Collection / Discovery | Pending |
 | 4 Product / Commerce | Pending; Phase 3 contracts protected |
 | 5 Content / Interactive | Pending |
@@ -102,3 +102,16 @@ Static and slideshow modes now suspend inactive, hidden-document and reduced-mot
 Validation: actual Liquid presets and empty-state rendering, product-object resolution, native video/iframe activation and cleanup, preference/visibility changes, duplicate boot, root reload and the existing Phase 3 two-instance hero suite pass. All seven Phase 3 suites and existing Phase 4 fixtures pass. The Phase 3 JSDOM fixture now explicitly simulates a visible browser; its original timer/independence/pause assertions are retained. CSS build, schema/reference/architecture checks and Theme Check evidence accompany this checkpoint. No browser screenshot or live Shopify acceptance is claimed.
 
 **B2-MULTIPURPOSE live queue:** every layout and override at 1440/1280/768/390/320px; long content, split stacking/reversal, desktop/mobile placement, panel colors/contrast and all animation choices. Use actual MP4/YouTube assets and real product selections. Exercise editor add/remove/reorder/block changes and existing parent-slide relationships. This remains open; the draft gate is unchanged.
+
+
+## Featured Product Hero and Video Hero checkpoint
+
+Register totals: **449 primary components; 391 NOT REVIEWED, 57 REQUIRES LIVE VERIFICATION, one retained owner-review deletion candidate**. Two new controllers account for the inventory increase. Batches 3–9 remain unfinished.
+
+Featured Product Hero now leaves content visible when reveal is disabled or IntersectionObserver is unavailable. Reveal/parallax respect reduced motion and clean up on unload. Product and collection picker objects resolve directly; native forms use the localized cart route, exact selected variant, availability guards, current price and the existing selling-plan snippet. Its three insertion presets now apply their named alignment/panel settings; fallback colors, wrapping and control focus were corrected. Merchant configuration is unchanged.
+
+Video Hero now defers embedded playback, offers a persistent pause control, respects initial reduced motion and hidden/viewport settings, and disposes playback/listeners on editor unload. Explicit user playback remains possible with reduced motion. Missing links no longer produce placeholder buttons; example video URLs and external demo CTA defaults were removed. YouTube embed/shorts URLs resolve along with existing formats. Poster imagery remains available before playback.
+
+Validation in `validation/hero-media/`: all seven Phase 3 and seven Phase 4 suites pass, including actual two-instance Liquid, selected variant/price/availability, sold-out products, collection objects, missing-observer fallback, media suspension and editor disposal. CSS build, structural/reference checks pass; 150 sections and 102 Theme Blocks retained, no deletions, merchant settings hash unchanged. Theme Check remains nonzero for existing debt: image-dimension diagnostics 43→41 and hardcoded routes 10→8; all other check totals unchanged. Structural evidence reports the parent HEAD because it tested the working tree; source-hashes.json identifies the reviewed source.
+
+**B2-HERO-MEDIA live queue (OPEN):** both sections at 1440/1280/768/390/320px, long merchant content, all layouts/presets/color overrides, reveal enabled/disabled, parallax, keyboard and screen reader, real editor add/remove/reorder. Featured Product Hero: available/sold-out variants, required/optional selling plans, localized native submission and AJAX drawer. Video Hero: real MP4/YouTube/Vimeo, poster/empty states, autoplay denial, persistent pause, reduced-motion changes and viewport hiding. No screenshots or live Shopify acceptance claimed. PR remains draft.
