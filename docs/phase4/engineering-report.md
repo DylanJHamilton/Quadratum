@@ -17,7 +17,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | Batch | Status |
 |---|---|
 | 1 Global / Structural | Initial engineering hardening and focused fixtures implemented; live visual/settings/editor acceptance queued. |
-| 2 Hero / Banner / CTA | Eight active components repaired and fixture-tested; remaining family components NOT REVIEWED; live acceptance pending |
+| 2 Hero / Banner / CTA | Ten active components repaired and fixture-tested; remaining family components NOT REVIEWED; live acceptance pending |
 | 3 Collection / Discovery | Pending |
 | 4 Product / Commerce | Pending; Phase 3 contracts protected |
 | 5 Content / Interactive | Pending |
@@ -130,3 +130,18 @@ Focused validation in `validation/classic/` exercises actual Liquid, two indepen
 **B2-CLASSIC live queue (OPEN):** 1440/1280/768/390/320px, all nine placement choices, tablet/mobile height and text overrides, contained/full width, long content and custom anchors. Test real MP4/YouTube/Vimeo, slideshow images/overlays/Ken Burns, pause/focus/hover/reduced-motion changes, visibility settings, editor block selection and add/remove/reorder. Real browser layout/media and assistive-technology acceptance remain outstanding. Keep PR draft.
 
 Classic Theme Check: ImgWidthAndHeight 41→40; all other check totals unchanged. Existing diagnostics remain visible in the full report.
+
+
+## Breadcrumb Banner and Special Offers checkpoint
+
+Register totals: **450 primary components; 387 NOT REVIEWED, 62 REQUIRES LIVE VERIFICATION, one retained owner-review deletion candidate**. No new production asset: Special Offers reuses the existing video controller. Earlier counts are historical.
+
+Breadcrumb Banner now resolves article context explicitly, builds the blog/article chain in both visible markup and JSON-LD, and resolves heading defaults from the actual page context. Titles are escaped in markup; literal less-than characters in JSON are escaped without changing parsed values. Custom anchor characters no longer determine CSS selectors, breadcrumb alignment uses the full row, and long text can wrap. The previously unused overlap setting now applies the same gated margin/padding contract as sibling banners. References to nonexistent panel settings were replaced with their existing fallback values. Blank button destinations are skipped and reduced-motion/focus rules are explicit. Existing saved headings remain untouched.
+
+Special Offers now uses the disposable video controller with its own 768px visibility boundary; original Video Hero keeps its 750px boundary. Native autoplay is deferred, manual pause is available, and hidden/editor-removed media stops. Missing media has a dark fallback surface; custom anchors and accessible labels are escaped, and the split promo receives its editor attributes. Grid offset participates in document flow so positive offsets cannot push cards below the clipped section. The grid and split insertion presets now create their required promo blocks, with neutral copy and a valid primary collection link.
+
+Focused actual-Liquid/DOM fixtures cover eight breadcrumb contexts across both presets, visible/structured-data agreement, article chains, escaped titles, custom anchors and overlap gating; all three Offers presets, promo counts/editor attributes, two independent videos, viewport hiding and unload/reload. Existing Video Hero regression also passes. Evidence is in `validation/context-offers/`; this is not browser or Shopify acceptance.
+
+**B2-CONTEXT-OFFERS live queue (OPEN):** both components at 1440/1280/768/390/320px, long titles, localized page/product/collection/blog/article/cart/search contexts, all color/layout/spacing overrides and keyboard/screen-reader navigation. Breadcrumb: plain/media, overlap on/off with actual header, structured-data validation on rendered storefront URLs. Offers: hero/grid/split, zero/one/multiple promo blocks, both offset extremes, all width/ratio choices, real MP4/poster/image fallback, paused/reduced-motion/visibility states and real editor add/remove/reorder. Original Video Hero should retain its existing breakpoint behavior. Phase 4 remains unfinished and PR stays draft.
+
+Context/Offers validation: structural/reference checks and CSS build pass. Theme Check totals are unchanged from Classic; existing debt remains in the full JSON. The package launcher stalled and was stopped; the installed Shopify CLI completed the recorded run. Structural source_commit identifies the parent HEAD, while source-hashes.json identifies the tested working-tree files.

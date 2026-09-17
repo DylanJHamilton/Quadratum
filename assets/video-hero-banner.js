@@ -9,7 +9,7 @@
     if (!toggle) return;
     const events = new AbortController();
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const mobile = window.matchMedia('(max-width: 749px)');
+    const mobile = window.matchMedia(root.dataset.videoHeroMobileQuery || '(max-width: 749px)');
     let paused = motion.matches;
     const videos = root.querySelectorAll('video');
     const frames = root.querySelectorAll('iframe[data-video-hero-src]');
