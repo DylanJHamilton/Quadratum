@@ -17,7 +17,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | Batch | Status |
 |---|---|
 | 1 Global / Structural | Initial engineering hardening and focused fixtures implemented; live visual/settings/editor acceptance queued. |
-| 2 Hero / Banner / CTA | Four active components repaired and fixture-tested; remaining family components NOT REVIEWED; live acceptance pending |
+| 2 Hero / Banner / CTA | Five active components repaired and fixture-tested; remaining family components NOT REVIEWED; live acceptance pending |
 | 3 Collection / Discovery | Pending |
 | 4 Product / Commerce | Pending; Phase 3 contracts protected |
 | 5 Content / Interactive | Pending |
@@ -90,3 +90,15 @@ Batch 2 code publication: local `66826fe5e3a102a35f8bb82757a7aab2b48e0dde`; remo
 These discoveries are recorded without promoting the components from NOT REVIEWED. Multipurpose Hero has active slide/content snippets, a gradient variable mismatch, broad button selectors, incomplete setting-to-CSS contracts, and unresolved media/product-picker handling. CTA Web3's active implementation is inline; when no URL is supplied it simulates connection without calling a wallet provider. Its similarly named external asset is not the active section implementation. Preserve the component and record a release decision rather than silently building a wallet connector or removing its intended behavior. The proxy snippets and q-banner-base have no literal consumers yet; dynamic tracing remains pending. tw-safelist-banners is a real Tailwind build input and is rendered by Grid Banner.
 
 Current checkpoint: 447 primary components; 49 carry a reviewed disposition (mostly live-pending), 398 remain NOT REVIEWED, including partially inspected components with open engineering findings. Batches 3–9 have not been completed. The 7,830 excluded icons remain separately inventoried with visual review pending.
+
+## Multipurpose Hero checkpoint
+
+Five more register entries (section, two snippets, CSS and JS) now have a live-pending disposition. Register totals: 447 primary components, 393 NOT REVIEWED, 53 REQUIRES LIVE VERIFICATION and one retained owner-review deletion candidate. Earlier checkpoint counts above are historical.
+
+Repairs restore solid/gradient overlays, slide fallback background, split ratios, stacking/reversal, content placement and width, card sizing and transition options. Shared-looking button rules are scoped to this component. Slides use a shared grid area so their content can establish height instead of being clipped by an absolute-only layout. Missing image selections no longer call image_url; selected product objects resolve directly, with legacy handle fallback. Existing image objects provide intrinsic dimensions. Product/info cards receive readable text on their light surfaces, and tiled panel imagery uses a valid background size.
+
+Static and slideshow modes now suspend inactive, hidden-document and reduced-motion media, including deferred embedded video URLs. Unload clears playback and handlers; reload restores exactly one active slide. Pause exposes its pressed state. Default insertion now includes neutral copy and a valid collection destination; a storefront section with no slides is hidden, while the editor displays an instruction. Saved merchant state is unchanged.
+
+Validation: actual Liquid presets and empty-state rendering, product-object resolution, native video/iframe activation and cleanup, preference/visibility changes, duplicate boot, root reload and the existing Phase 3 two-instance hero suite pass. All seven Phase 3 suites and existing Phase 4 fixtures pass. The Phase 3 JSDOM fixture now explicitly simulates a visible browser; its original timer/independence/pause assertions are retained. CSS build, schema/reference/architecture checks and Theme Check evidence accompany this checkpoint. No browser screenshot or live Shopify acceptance is claimed.
+
+**B2-MULTIPURPOSE live queue:** every layout and override at 1440/1280/768/390/320px; long content, split stacking/reversal, desktop/mobile placement, panel colors/contrast and all animation choices. Use actual MP4/YouTube assets and real product selections. Exercise editor add/remove/reorder/block changes and existing parent-slide relationships. This remains open; the draft gate is unchanged.
