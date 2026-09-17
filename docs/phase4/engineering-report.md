@@ -17,7 +17,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | Batch | Status |
 |---|---|
 | 1 Global / Structural | Initial engineering hardening and focused fixtures implemented; live visual/settings/editor acceptance queued. |
-| 2 Hero / Banner / CTA | Seven active components repaired and fixture-tested; remaining family components NOT REVIEWED; live acceptance pending |
+| 2 Hero / Banner / CTA | Eight active components repaired and fixture-tested; remaining family components NOT REVIEWED; live acceptance pending |
 | 3 Collection / Discovery | Pending |
 | 4 Product / Commerce | Pending; Phase 3 contracts protected |
 | 5 Content / Interactive | Pending |
@@ -115,3 +115,18 @@ Video Hero now defers embedded playback, offers a persistent pause control, resp
 Validation in `validation/hero-media/`: all seven Phase 3 and seven Phase 4 suites pass, including actual two-instance Liquid, selected variant/price/availability, sold-out products, collection objects, missing-observer fallback, media suspension and editor disposal. CSS build, structural/reference checks pass; 150 sections and 102 Theme Blocks retained, no deletions, merchant settings hash unchanged. Theme Check remains nonzero for existing debt: image-dimension diagnostics 43→41 and hardcoded routes 10→8; all other check totals unchanged. Structural evidence reports the parent HEAD because it tested the working tree; source-hashes.json identifies the reviewed source.
 
 **B2-HERO-MEDIA live queue (OPEN):** both sections at 1440/1280/768/390/320px, long merchant content, all layouts/presets/color overrides, reveal enabled/disabled, parallax, keyboard and screen reader, real editor add/remove/reorder. Featured Product Hero: available/sold-out variants, required/optional selling plans, localized native submission and AJAX drawer. Video Hero: real MP4/YouTube/Vimeo, poster/empty states, autoplay denial, persistent pause, reduced-motion changes and viewport hiding. No screenshots or live Shopify acceptance claimed. PR remains draft.
+
+
+## Classic Hero checkpoint
+
+Register totals: **450 primary components; 389 NOT REVIEWED, 60 REQUIRES LIVE VERIFICATION, one retained owner-review deletion candidate**. The controller adds one asset. Counts above describe earlier checkpoints.
+
+Classic Hero's untracked interval and repeated global initialization were replaced by an instance-guarded, abortable controller. It supports static and slideshow modes, persistent manual pause, reduced motion, document/viewport hiding, focus/hover suspension, inactive media suspension and inertness, editor block selection, unload and reload. Embedded videos load on playback only. New CSS is scoped to this component's data attribute; the separate Sub Banner consumer remains unreviewed and unchanged.
+
+Source fixes restore mobile font overrides and breakpoint height settings previously defeated by inline values; hide-on-desktop no longer hides mobile content. Custom anchors are emitted verbatim, decorative images include dimensions and skip missing selections, slideshow dots appear only in slideshow mode, and blank CTA links no longer become hash links. Controls have 44px targets and visible focus. Existing default/preset settings and merchant data are preserved.
+
+Focused validation in `validation/classic/` exercises actual Liquid, two independent instances, exact timer counts, persistent pause, inactive media, reduced motion, editor block selection/unload/reload, blank image/link states and deferred YouTube parameters. Phase 3 hero regression, structural/reference checks and CSS build accompany the fixture. The prior hero-media checkpoint retains the complete seven Phase 3/seven Phase 4 regression run. Structural source_commit is parent HEAD; source-hashes.json identifies the tested working-tree files.
+
+**B2-CLASSIC live queue (OPEN):** 1440/1280/768/390/320px, all nine placement choices, tablet/mobile height and text overrides, contained/full width, long content and custom anchors. Test real MP4/YouTube/Vimeo, slideshow images/overlays/Ken Burns, pause/focus/hover/reduced-motion changes, visibility settings, editor block selection and add/remove/reorder. Real browser layout/media and assistive-technology acceptance remain outstanding. Keep PR draft.
+
+Classic Theme Check: ImgWidthAndHeight 41→40; all other check totals unchanged. Existing diagnostics remain visible in the full report.
