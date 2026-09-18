@@ -371,10 +371,10 @@
                   {% if is_youtube %}
                     {% assign vid = B.background_video | split: 'v=' | last | split: '&' | first %}
                     {% if vid contains 'youtu.be' %}{% assign vid = B.background_video | split: '.be/' | last | split: '?' | first %}{% endif %}
-                    <iframe class="qsl__iframe" src="https://www.youtube.com/embed/{{ vid }}?autoplay=1&mute=1&loop=1&controls=0&playsinline=1&modestbranding=1&playlist={{ vid }}" allow="autoplay; fullscreen" title="Background video"></iframe>
+                    <iframe class="qsl__iframe" tabindex="-1" aria-hidden="true" data-video-src="https://www.youtube.com/embed/{{ vid }}?autoplay=1&mute=1&loop=1&controls=0&playsinline=1&modestbranding=1&playlist={{ vid }}" allow="autoplay; fullscreen" title="Background video"></iframe>
                   {% elsif is_vimeo %}
                     {% assign vimeo_id = B.background_video | split: '/' | last | split: '?' | first %}
-                    <iframe class="qsl__iframe" src="https://player.vimeo.com/video/{{ vimeo_id }}?background=1&autoplay=1&loop=1&muted=1" allow="autoplay; fullscreen" title="Background video"></iframe>
+                    <iframe class="qsl__iframe" tabindex="-1" aria-hidden="true" data-video-src="https://player.vimeo.com/video/{{ vimeo_id }}?background=1&autoplay=1&loop=1&muted=1" allow="autoplay; fullscreen" title="Background video"></iframe>
                   {% else %}
                      <video class="qsl__video" autoplay muted loop playsinline {% if forloop.first %}preload="auto"{% else %}preload="metadata"{% endif %} poster="{{ main_src | default: mob_src }}" style="object-position: {{ _focal }};">
                       <source src="{{ B.background_video | escape }}" type="video/mp4">
@@ -484,12 +484,12 @@
                 {% if is_youtube %}
                   {% assign vid = B.background_video | split: 'v=' | last | split: '&' | first %}
                   {% if vid contains 'youtu.be' %}{% assign vid = B.background_video | split: '.be/' | last | split: '?' | first %}{% endif %}
-                  <iframe class="qsl__iframe" src="https://www.youtube.com/embed/{{ vid }}?autoplay=1&mute=1&loop=1&controls=0&playsinline=1&modestbranding=1&playlist={{ vid }}" allow="autoplay; fullscreen" title="Background video"></iframe>
+                  <iframe class="qsl__iframe" tabindex="-1" aria-hidden="true" data-video-src="https://www.youtube.com/embed/{{ vid }}?autoplay=1&mute=1&loop=1&controls=0&playsinline=1&modestbranding=1&playlist={{ vid }}" allow="autoplay; fullscreen" title="Background video"></iframe>
                 {% elsif is_vimeo %}
                   {% assign vimeo_id = B.background_video | split: '/' | last | split: '?' | first %}
-                  <iframe class="qsl__iframe" src="https://player.vimeo.com/video/{{ vimeo_id }}?background=1&autoplay=1&loop=1&muted=1" allow="autoplay; fullscreen" title="Background video"></iframe>
+                  <iframe class="qsl__iframe" tabindex="-1" aria-hidden="true" data-video-src="https://player.vimeo.com/video/{{ vimeo_id }}?background=1&autoplay=1&loop=1&muted=1" allow="autoplay; fullscreen" title="Background video"></iframe>
                 {% else %}
-                  <video class="qsl__video" autoplay muted loop playsinline {% if forloop.first %}preload="auto"{% else %}preload="metadata"%{% endif %} poster="{{ main_src | default: mob_src }}" style="object-position: {{ _focal }};">
+                  <video class="qsl__video" autoplay muted loop playsinline {% if forloop.first %}preload="auto"{% else %}preload="metadata"{% endif %} poster="{{ main_src | default: mob_src }}" style="object-position: {{ _focal }};">
                     <source src="{{ B.background_video | escape }}" type="video/mp4">
                   </video>
                 {% endif %}
@@ -589,6 +589,7 @@
     </div>
 
     {% if section.blocks.size > 1 %}
+      {% if S.autoplay %}<button type="button" class="qsl__pause" data-qsl-toggle aria-pressed="false">Pause slides</button>{% endif %}
       {% if S.show_arrows %}
         <div class="q-arrows {% if S.arrows_position == 'edges' %}q-arrows--edges{% else %}q-arrows--centered{% endif %} {% if S.arrows_theme == 'light' %}q-arrows--light{% endif %}">
           <button type="button" class="q-arrow" aria-label="Previous slide" data-qsl-prev style="--arr-bg: {{ S.arrows_bg | default: 'rgba(0,0,0,.4)' }}; --arr-fg: {{ S.arrows_fg | default: '#fff' }};"><span aria-hidden="true">‹</span></button>
@@ -609,117 +610,11 @@
 </section>
 
 
-<script>
-(function(){
-  function init(root){
-    if(!root || root.__inited) return;
-    const track = root.querySelector('[data-qsl-track]');
-    const slides = Array.from(root.querySelectorAll('[data-qsl-slide]'));
-    if(!track || slides.length === 0){ return; }
-    root.__inited = true;
-
-    const dots = Array.from(root.querySelectorAll('[data-qsl-dot]'));
-    const prevBtn = root.querySelector('[data-qsl-prev]');
-    const nextBtn = root.querySelector('[data-qsl-next]');
-    const progress = root.querySelector('[data-qsl-progress]');
-
-    const transition = root.dataset.transition || 'slide';
-    const autoplay = String(root.dataset.autoplay) === 'true';
-    const intervalSec = Math.max(3, parseInt(root.dataset.interval || '5', 10));
-    const showProgress = String(root.dataset.progress) === 'true';
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    let idx = Math.max(0, slides.findIndex(s => s.hasAttribute('data-active')));
-    if(idx === -1) idx = 0;
-    let timer = null, paused = false, resizing = false;
-
-    root.setAttribute('data-q-ready', 'true');
-
-    function setActive(){
-      slides.forEach((s,i)=>{
-        const on = i===idx;
-        if(on){ s.setAttribute('data-active',''); } else { s.removeAttribute('data-active'); }
-        if(transition==='fade'){
-          s.style.opacity = on ? '1' : '0';
-          s.style.pointerEvents = on ? 'auto' : 'none';
-        }
-      });
-      dots.forEach((d,i)=>{ if(i===idx){ d.setAttribute('aria-current','true'); d.classList.add('is-active'); }
-                            else { d.removeAttribute('aria-current'); d.classList.remove('is-active'); }});
-      // animate all .q-anim items in the active slide
-      slides.forEach((s,i)=> s.querySelectorAll('.q-anim').forEach(el=> i===idx ? el.classList.add('is-in') : el.classList.remove('is-in')));
-    }
-
-    function slideWidth(){ return root.getBoundingClientRect().width; }
-
-    function moveTo(i, snap){
-      if(transition==='fade'){ return; }
-      const x = -i * slideWidth();
-      if(snap){ track.style.transition = 'none'; }
-      track.style.transform = 'translate3d('+x+'px,0,0)';
-      if(snap){ requestAnimationFrame(()=>{ track.style.transition = 'transform 500ms ease'; }); }
-    }
-
-    function resetProgress(){
-      if(!progress || !autoplay || prefersReduced || !showProgress) return;
-      progress.style.transition = 'none';
-      progress.style.width = '0%';
-      requestAnimationFrame(()=>{ requestAnimationFrame(()=>{
-        progress.style.transition = 'width '+intervalSec+'s linear';
-        progress.style.width = '100%';
-      });});
-    }
-
-    function goTo(i){
-      idx = (i + slides.length) % slides.length;
-      if(transition==='slide'){ moveTo(idx, false); }
-      setActive();
-      resetProgress();
-      const img = slides[idx].querySelector('img.qsl__img');
-      if(img && img.decode){ img.decode().catch(()=>{}); }
-    }
-
-    function next(){ goTo(idx+1); }
-    function prev(){ goTo(idx-1); }
-
-    function start(){
-      if(!autoplay || prefersReduced || slides.length < 2) return;
-      stop();
-      timer = setInterval(()=>{ if(!paused) next(); }, intervalSec*1000);
-      resetProgress();
-    }
-    function stop(){
-      if(timer){ clearInterval(timer); timer = null; }
-      if(progress){ progress.style.transition = 'none'; }
-    }
-
-    prevBtn && prevBtn.addEventListener('click', prev);
-    nextBtn && nextBtn.addEventListener('click', next);
-    dots.forEach(d => d.addEventListener('click', ()=>{ const k = parseInt(d.dataset.index || '0',10); if(!isNaN(k)) goTo(k); }));
-    track.addEventListener('keydown', (e)=>{ if(e.key==='ArrowRight'){ e.preventDefault(); next(); } if(e.key==='ArrowLeft'){ e.preventDefault(); prev(); }});
-    root.addEventListener('mouseenter', ()=> paused=true);
-    root.addEventListener('mouseleave', ()=> paused=false);
-    root.addEventListener('focusin',  ()=> paused=true);
-    root.addEventListener('focusout', ()=> paused=false);
-
-    function onResize(){
-      if(resizing) return; resizing = true;
-      requestAnimationFrame(()=>{ if(transition==='slide') moveTo(idx, true); resizing=false; });
-    }
-    window.addEventListener('resize', onResize);
-
-    if(transition==='slide'){ track.style.transition = 'transform 500ms ease'; moveTo(idx, true); }
-    setActive();
-    start();
-  }
-
-  function boot(){ document.querySelectorAll('[data-qsl]').forEach(init); }
-  if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); } else { boot(); }
-
-  document.addEventListener('shopify:section:load', (e)=> { const root = e.target.querySelector('[data-qsl]'); if(root) init(root); });
-  document.addEventListener('shopify:section:select', (e)=> { const root = e.target.querySelector('[data-qsl]'); if(root) init(root); });
-})();
-</script>
+<style>
+[data-qsl] .qsl__pause { position: absolute; top: 12px; right: 12px; z-index: 5; min-height: 44px; padding: 8px 14px; border: 1px solid #fff; border-radius: 4px; background: #111827; color: #fff; cursor: pointer; }
+[data-qsl] .qsl__pause:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+</style>
+<script src="{{ 'slideshow-banner.js' | asset_url }}" defer></script>
 
 
 

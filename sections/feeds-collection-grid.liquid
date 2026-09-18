@@ -9,8 +9,7 @@
   • Optional filtering must never break rendering
 
   Notes:
-  • "Dynamic: all collections" is only guaranteed on list-collections template
-    (where `collections` is an iterable array). Else we fail gracefully.
+  • Dynamic mode uses Shopify’s global collections object on any template.
 {% endcomment %}
 
 {%- liquid
@@ -19,10 +18,6 @@
   assign source_mode = section.settings.source_mode | default: 'manual'
 
   assign manual_collections = section.settings.manual_collections
-  assign manual_count = 0
-  if manual_collections != blank
-    assign manual_count = manual_collections.size
-  endif
 
   assign cols_p = section.settings.columns_phone | default: 2
   assign cols_t = section.settings.columns_tablet | default: 3
@@ -43,7 +38,7 @@
   assign title_size = section.settings.title_size | default: 16
   assign title_weight = section.settings.title_weight | default: '600'
   assign meta_size = section.settings.meta_size | default: 13
-  assign meta_opacity = section.settings.meta_opacity | default: 82 | divided_by: 100.0
+  assign meta_opacity = section.settings.meta_opacity | default: 85 | divided_by: 100.0
 
   assign enable_color_overrides = section.settings.enable_color_overrides
 
@@ -57,8 +52,8 @@
   assign exclude_handles = section.settings.exclude_handles | default: ''
   assign title_contains = section.settings.title_contains | default: ''
 
-  assign include_list = include_handles | downcase | split: ',' | map: 'strip'
-  assign exclude_list = exclude_handles | downcase | split: ',' | map: 'strip'
+  assign include_list = include_handles | downcase | remove: ' ' | split: ','
+  assign exclude_list = exclude_handles | downcase | remove: ' ' | split: ','
   assign title_contains_down = title_contains | downcase | strip
 
   assign density_class = 'q-density--comfortable'
@@ -90,24 +85,9 @@
     assign style_vars = style_vars | append: '--q-cc-overlay-text:' | append: section.settings.overlay_text_color | append: ';'
   endif
 
-  comment
-    Build the source list.
-
-    Manual:
-      - uses collection_list setting
-    Dynamic (all):
-      - only guaranteed on list-collections template where `collections` is iterable
-      - elsewhere: fail gracefully to empty state
-  endcomment
-
-  assign can_iterate_collections = false
-  if collections and collections.size
-    assign can_iterate_collections = true
-  endif
-
-  assign use_dynamic = false
-  if source_mode == 'dynamic_all' and can_iterate_collections
-    assign use_dynamic = true
+  assign source_collections = manual_collections
+  if source_mode == 'dynamic_all'
+    assign source_collections = collections
   endif
 
   assign has_any = false
@@ -124,7 +104,7 @@
       <header class="q-feed__header">
         <div class="q-feed__header-left">
           {%- if section.settings.heading != blank -%}
-            <h2 class="q-feed__heading">{{ section.settings.heading }}</h2>
+            <h2 class="q-feed__heading">{{ section.settings.heading | escape }}</h2>
           {%- endif -%}
           {%- if section.settings.subheading != blank -%}
             <div class="q-feed__subheading">{{ section.settings.subheading }}</div>
@@ -134,10 +114,9 @@
     {%- endif -%}
 
     <div class="q-feed__body">
-      <div class="q-feed__grid" data-feed-grid aria-live="polite">
-        {%- if source_mode == 'manual' -%}
-          {%- if manual_count > 0 -%}
-            {%- for collection in manual_collections -%}
+      <div class="q-feed__grid" data-feed-grid>
+            {%- for collection in source_collections -%}
+              {%- if collection.url == blank -%}{%- continue -%}{%- endif -%}
               {%- assign h = collection.handle | downcase -%}
               {%- assign t = collection.title | downcase -%}
 
@@ -176,7 +155,7 @@
                     title_size: title_size,
                     title_weight: title_weight,
                     meta_size: meta_size,
-                    meta_opacity: section.settings.meta_opacity,
+                    meta_opacity: meta_opacity,
                     enable_color_overrides: enable_color_overrides,
                     card_bg: section.settings.card_bg,
                     card_border: section.settings.card_border,
@@ -188,71 +167,16 @@
                 </div>
               {%- endif -%}
             {%- endfor -%}
-          {%- endif -%}
-
-        {%- elsif use_dynamic -%}
-          {%- for collection in collections -%}
-            {%- assign h = collection.handle | downcase -%}
-            {%- assign t = collection.title | downcase -%}
-
-            {%- assign ok = true -%}
-
-            {%- if include_handles != blank and include_list.size > 0 -%}
-              {%- assign ok = false -%}
-              {%- if include_list contains h -%}{%- assign ok = true -%}{%- endif -%}
-            {%- endif -%}
-
-            {%- if ok and exclude_handles != blank and exclude_list contains h -%}
-              {%- assign ok = false -%}
-            {%- endif -%}
-
-            {%- if ok and title_contains_down != blank -%}
-              {%- unless t contains title_contains_down -%}
-                {%- assign ok = false -%}
-              {%- endunless -%}
-            {%- endif -%}
-
-            {%- if ok -%}
-              {%- assign has_any = true -%}
-              <div class="q-feed__item" data-feed-item>
-                {%- render 'collection-card',
-                  collection: collection,
-                  card_preset: card_preset,
-                  density: density,
-                  show_image: show_image,
-                  show_count: show_count,
-                  show_description: show_description,
-                  overlay_text_enabled: overlay_text_enabled,
-                  overlay_text_source: overlay_text_source,
-                  overlay_custom_text: overlay_custom_text,
-                  image_aspect: image_aspect,
-                  text_align: text_align,
-                  title_size: title_size,
-                  title_weight: title_weight,
-                  meta_size: meta_size,
-                  meta_opacity: section.settings.meta_opacity,
-                  enable_color_overrides: enable_color_overrides,
-                  card_bg: section.settings.card_bg,
-                  card_border: section.settings.card_border,
-                  title_color: section.settings.title_color,
-                  meta_color: section.settings.meta_color,
-                  overlay_color: section.settings.overlay_color,
-                  overlay_text_color: section.settings.overlay_text_color
-                -%}
-              </div>
-            {%- endif -%}
-          {%- endfor -%}
-        {%- endif -%}
       </div>
 
       {%- unless has_any -%}
         <div class="q-feed__empty" role="status">
-          <h3 class="q-feed__empty-title">{{ section.settings.empty_title | default: 'Nothing to show' }}</h3>
+          <h3 class="q-feed__empty-title">{{ section.settings.empty_title | default: 'Nothing to show' | escape }}</h3>
           <p class="q-feed__empty-text">
-            {%- if source_mode == 'dynamic_all' and can_iterate_collections == false -%}
-              {{ section.settings.empty_text_dynamic | default: 'Dynamic mode is only available on the collections list template. Use Manual mode here.' }}
+            {%- if source_mode == 'dynamic_all' -%}
+              {{ section.settings.empty_text_dynamic | default: 'No collections match the current filters.' | escape }}
             {%- else -%}
-              {{ section.settings.empty_text | default: 'Choose collections in the section settings.' }}
+              {{ section.settings.empty_text | default: 'Choose collections in the section settings.' | escape }}
             {%- endif -%}
           </p>
         </div>
@@ -261,6 +185,8 @@
   </div>
 
   <style>
+    [data-section-id="{{ sid }}"], [data-section-id="{{ sid }}"] * { box-sizing: border-box; }
+    [data-section-id="{{ sid }}"] .q-feed__item, [data-section-id="{{ sid }}"] .q-feed__header-left { min-width: 0; overflow-wrap: anywhere; }
     [data-section-id="{{ sid }}"]{
       background: var(--q-section-bg, transparent);
       border: 1px solid var(--q-section-border, transparent);
@@ -470,7 +396,7 @@
     { "type": "header", "content": "Empty states" },
     { "type": "text", "id": "empty_title", "label": "Empty title", "default": "Nothing to show" },
     { "type": "text", "id": "empty_text", "label": "Empty text (manual)", "default": "Choose collections in the section settings." },
-    { "type": "text", "id": "empty_text_dynamic", "label": "Empty text (dynamic mode unsupported here)", "default": "Dynamic mode is only available on the collections list template. Use Manual mode here." }
+    { "type": "text", "id": "empty_text_dynamic", "label": "Empty text (dynamic mode)", "default": "No collections match the current filters." }
   ],
   "presets": [
     { "name": "Feed · Collection Grid", "category": "Content Feeds" }

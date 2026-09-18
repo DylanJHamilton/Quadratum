@@ -17,13 +17,15 @@
 {%- comment -%} Optional product {%- endcomment -%}
 {% assign prod = nil %}
 {% if s.product != blank %}
-  {% assign prod = all_products[s.product] %}
+  {% assign prod = s.product %}
+  {% unless prod.id %}{% assign prod = all_products[s.product] %}{% endunless %}
 {% endif %}
 
 {%- comment -%} Optional collection {%- endcomment -%}
 {% assign row_collection = nil %}
 {% if s.product_block_mode == 'collection' and s.row_collection != blank %}
-  {% assign row_collection = collections[s.row_collection] %}
+  {% assign row_collection = s.row_collection %}
+  {% unless row_collection.id %}{% assign row_collection = collections[s.row_collection] %}{% endunless %}
 {% endif %}
 
 {%- comment -%} Button motion vars (global → section override) {%- endcomment -%}
@@ -38,6 +40,10 @@
 <section
   id="fp-hero-{{ section.id }}"
   class="fp-hero fp-hero--{{ s.layout_variant }}"
+  data-featured-product-hero
+  data-reveal-enabled="{{ s.reveal_enable }}"
+  data-parallax-enabled="{{ s.parallax_enable }}"
+  data-parallax-strength="{{ s.parallax_strength }}"
   role="region"
   aria-label="{{ s.region_label | escape }}"
   style="
@@ -99,7 +105,7 @@
             {% if s.heading != blank %}
               {{ s.heading }}
             {% elsif prod %}
-              {{ prod.title }}
+              {{ prod.title | escape }}
             {% endif %}
           </{{ htag }}>
         {% endif %}
@@ -114,37 +120,35 @@
 
         {% if s.product_block_mode == 'single' and s.show_atc and prod %}
           <div class="fp-atc" data-reveal="{{ s.reveal_style }}">
-            {% if prod.has_only_default_variant == false %}
-              <form method="post" action="/cart/add" class="fp-atc-form">
-                <label class="sr-only" for="fp-var-{{ section.id }}">{{ 'products.product.selector_label' | t }}</label>
-                <select id="fp-var-{{ section.id }}" class="fp-variant" name="id" aria-label="{{ 'products.product.selector_label' | t }}">
-                  {% for v in prod.variants %}
-                    <option value="{{ v.id }}" {% unless v.available %}disabled{% endunless %}>
-                      {{ v.title }}{% unless v.available %} — {{ 'products.product.sold_out' | t }}{% endunless %}
+            {% assign selected_variant = prod.selected_or_first_available_variant %}
+            <form method="post" action="{{ routes.cart_add_url }}" class="fp-atc-form" data-cart-drawer-add>
+              {% if prod.has_only_default_variant == false %}
+                <label class="sr-only" for="fp-var-{{ section.id }}">Variant</label>
+                <select id="fp-var-{{ section.id }}" class="fp-variant" name="id" data-fp-variant>
+                  {% for variant in prod.variants %}
+                    <option value="{{ variant.id }}" data-available="{{ variant.available }}" data-price="{{ variant.price | money | escape }}" {% if variant.id == selected_variant.id %}selected{% endif %} {% unless variant.available %}disabled{% endunless %}>
+                      {{ variant.title | escape }} — {{ variant.price | money }}{% unless variant.available %} — {{ 'products.product.sold_out' | t }}{% endunless %}
                     </option>
                   {% endfor %}
                 </select>
-                <button type="submit" class="btn btn-solid" aria-label="Add {{ prod.title }} to cart">
-                  {{ 'products.product.add_to_cart' | t }} — {{ prod.price | money }}
-                </button>
-              </form>
-            {% else %}
-              <form method="post" action="/cart/add" class="fp-atc-form">
-                <input type="hidden" name="id" value="{{ prod.variants.first.id }}">
-                <button type="submit" class="btn btn-solid" aria-label="Add {{ prod.title }} to cart">
-                  {{ 'products.product.add_to_cart' | t }} — {{ prod.price | money }}
-                </button>
-              </form>
-            {% endif %}
+              {% else %}
+                <input type="hidden" name="id" value="{{ selected_variant.id }}">
+              {% endif %}
+              {% assign plan_id = 'fp-hero-' | append: section.id %}
+              {% render 'product-selling-plans', product: prod, id: plan_id %}
+              <button type="submit" class="btn btn-solid" {% unless selected_variant.available %}disabled{% endunless %}>
+                {{ 'products.product.add_to_cart' | t }} <span data-fp-price>— {{ selected_variant.price | money }}</span>
+              </button>
+            </form>
           </div>
         {% endif %}
 
-        <div class="fp-ctas fp-ctas-{{ s.cta_align }}" data-reveal="{{ s.reveal_style }}">
+        <div class="fp-ctas fp-ctas-{{ s.text_align }}" data-reveal="{{ s.reveal_style }}">
           {% if s.cta1_text != blank and s.cta1_link != blank %}
-            <a class="btn btn-solid" href="{{ s.cta1_link }}" aria-label="{{ s.cta1_aria }}">{{ s.cta1_text }}</a>
+            <a class="btn btn-solid" href="{{ s.cta1_link }}" aria-label="{{ s.cta1_aria | default: s.cta1_text | escape }}">{{ s.cta1_text }}</a>
           {% endif %}
           {% if s.cta2_text != blank and s.cta2_link != blank %}
-            <a class="btn btn-outline" href="{{ s.cta2_link }}" aria-label="{{ s.cta2_aria }}">{{ s.cta2_text }}</a>
+            <a class="btn btn-outline" href="{{ s.cta2_link }}" aria-label="{{ s.cta2_aria | default: s.cta2_text | escape }}">{{ s.cta2_text }}</a>
           {% endif %}
         </div>
       </div>
@@ -178,7 +182,7 @@
                 {% endif %}
               </a>
               <div class="fp-card-body">
-                <a class="fp-card-title" href="{{ p.url }}">{{ p.title }}</a>
+                <a class="fp-card-title" href="{{ p.url }}">{{ p.title | escape }}</a>
                 <div class="fp-card-price">
                   <span class="price">{{ p.price | money }}</span>
                   {% if p.compare_at_price > p.price %}
@@ -193,48 +197,12 @@
     </div>
   {% endif %}
 
-  {% if s.reveal_enable or s.parallax_enable %}
-  <script>
-  (function(){
-    var root=document.getElementById('fp-hero-{{ section.id }}'); if(!root) return;
-
-    // Reveal
-    {% if s.reveal_enable %}
-    try{
-      var io=new IntersectionObserver(function(entries){
-        entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('is-in'); io.unobserve(e.target); }});
-      },{threshold:0.15});
-      root.querySelectorAll('[data-reveal]').forEach(function(n){ io.observe(n); });
-    }catch(e){}
-    {% endif %}
-
-    // Parallax
-    {% if s.parallax_enable %}
-    var bg=root.querySelector('.fp-bg'); if(bg){ bg.classList.add('parallax'); }
-    var strength={{ s.parallax_strength }};
-    var ticking=false;
-    function onScroll(){
-      if(ticking) return; ticking=true;
-      requestAnimationFrame(function(){
-        var r=root.getBoundingClientRect();
-        var winH=window.innerHeight||document.documentElement.clientHeight;
-        var mid=r.top + r.height/2 - winH/2;
-        var offset=Math.max(-60, Math.min(60, -mid * (strength/100)));
-        if(bg) bg.style.setProperty('--fp-parallax', offset+'px');
-        ticking=false;
-      });
-    }
-    onScroll();
-    window.addEventListener('scroll', onScroll, {passive:true});
-    {% endif %}
-  })();
-  </script>
-  {% endif %}
 </section>
+<script src="{{ 'featured-product-hero-banner.js' | asset_url }}" defer></script>
 
 <style>
 /* --------- Scope --------- */
-#fp-hero-{{ section.id }}{position:relative;isolation:isolate;overflow:hidden;min-height:{{ s.min_h_vh }}vh;padding-top:{{ s.pad_top }}px;padding-bottom:{{ s.pad_bottom }}px;}
+#fp-hero-{{ section.id }}{position:relative;isolation:isolate;overflow:hidden;background:#111111;min-height:{{ s.min_h_vh }}vh;padding-top:{{ s.pad_top }}px;padding-bottom:{{ s.pad_bottom }}px;}
 #fp-hero-{{ section.id }} .fp-bg{position:absolute;inset:0;z-index:0;}
 #fp-hero-{{ section.id }} .fp-bg-img,#fp-hero-{{ section.id }} .fp-bg-video{width:100%;height:100%;object-fit:cover;display:block;}
 #fp-hero-{{ section.id }} .fp-overlay{position:absolute;inset:0;}
@@ -302,21 +270,29 @@
 #fp-hero-{{ section.id }} .btn:active{transform: scale(var(--btn-active-scale));}
 
 /* Reveal animations */
-#fp-hero-{{ section.id }} [data-reveal]{opacity:0;transform:translateY(16px);transition:opacity {{ s.reveal_dur }}ms {{ s.reveal_ease }}, transform {{ s.reveal_dur }}ms {{ s.reveal_ease }};}
-#fp-hero-{{ section.id }} [data-reveal].is-in{opacity:1;transform:none;}
-#fp-hero-{{ section.id }} [data-reveal="left"]{transform:translateX(-18px);}
-#fp-hero-{{ section.id }} [data-reveal="right"]{transform:translateX(18px);}
+#fp-hero-{{ section.id }}.fp-reveal-ready [data-reveal]{opacity:0;transform:translateY(16px);transition:opacity {{ s.reveal_dur }}ms {{ s.reveal_ease }}, transform {{ s.reveal_dur }}ms {{ s.reveal_ease }};}
+#fp-hero-{{ section.id }}.fp-reveal-ready [data-reveal].is-in,
+#fp-hero-{{ section.id }}.fp-reveal-ready [data-reveal]:focus-within{opacity:1;transform:none;}
+#fp-hero-{{ section.id }}.fp-reveal-ready [data-reveal="left"]{transform:translateX(-18px);}
+#fp-hero-{{ section.id }}.fp-reveal-ready [data-reveal="right"]{transform:translateX(18px);}
 @media (prefers-reduced-motion: reduce){
-  #fp-hero-{{ section.id }} [data-reveal]{opacity:1;transform:none;}
+  #fp-hero-{{ section.id }}.fp-reveal-ready [data-reveal]{opacity:1;transform:none;transition:none;}
   #fp-hero-{{ section.id }} .fp-bg.parallax{transform:none;}
 }
+
+#fp-hero-{{ section.id }} .fp-content, #fp-hero-{{ section.id }} .fp-card-body{min-width:0;overflow-wrap:anywhere;}
+#fp-hero-{{ section.id }} .fp-atc-form{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;}
+#fp-hero-{{ section.id }} .fp-variant{max-width:100%;}
+#fp-hero-{{ section.id }} :focus-visible{outline:2px solid currentColor;outline-offset:3px;}
+#fp-hero-{{ section.id }} .btn:disabled{opacity:.5;cursor:not-allowed;}
+#fp-hero-{{ section.id }}.fp-reveal-ready [data-reveal="fade"]{transform:none;}
 
 /* ATC */
 #fp-hero-{{ section.id }} .fp-atc{margin-top:1rem;}
 #fp-hero-{{ section.id }} .fp-variant{padding:.6rem .75rem;border-radius:10px;border:1px solid rgba(2,6,23,.14);margin-right:.5rem;}
 
 /* Row / grid */
-#fp-hero-{{ section.id }} .fp-row-heading{margin:0 0 12px;font-size:clamp(1.125rem,1.8vw,1.5rem);font-weight:700;color:{{ settings.text_base | default: '#111' }};}
+#fp-hero-{{ section.id }} .fp-row-heading{margin:0 0 12px;font-size:clamp(1.125rem,1.8vw,1.5rem);font-weight:700;color:{% if s.row_bg_enable %}{{ settings.text_base | default: '#111' }}{% else %}{{ s.heading_color }}{% endif %};}
 #fp-hero-{{ section.id }} .fp-row-grid{display:grid;}
 #fp-hero-{{ section.id }} .fp-row-grid[data-cols-m="1"]{grid-template-columns:repeat(1,minmax(0,1fr));}
 #fp-hero-{{ section.id }} .fp-row-grid[data-cols-m="2"]{grid-template-columns:repeat(2,minmax(0,1fr));}
@@ -369,19 +345,19 @@
     ]},
     { "type": "color", "id": "card_bg", "label": "Panel background (for 'panel')", "default": "#ffffff" },
 
-    { "type": "text", "id": "badge", "label": "Badge", "default": "Badge" },
-    { "type": "text", "id": "heading", "label": "Heading", "default": "Goodness in Every Bite" },
+    { "type": "text", "id": "badge", "label": "Badge", "default": "Featured" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Discover your next favorite" },
     { "type": "select", "id": "heading_level", "label": "Heading level", "default": "h2", "options": [
       { "value": "h1", "label": "H1" }, { "value": "h2", "label": "H2" }
     ]},
     { "type": "text", "id": "heading_size", "label": "Heading size (CSS)", "default": "clamp(2.25rem,4vw,3.5rem)" },
     { "type": "color", "id": "heading_color", "label": "Heading color", "default": "#ffffff" },
 
-    { "type": "text", "id": "subheading", "label": "Subheading", "default": "Delight your taste buds with premium ingredients and feel-good nutrition." },
+    { "type": "text", "id": "subheading", "label": "Subheading", "default": "Explore our featured collection." },
     { "type": "text", "id": "sub_size", "label": "Subheading size (CSS)", "default": "clamp(1rem,1.6vw,1.125rem)" },
     { "type": "color", "id": "subheading_color", "label": "Subheading color", "default": "#ffffff" },
 
-    { "type": "text", "id": "copy", "label": "Body text", "default": "Fast shipping. 30-day returns. Quality you can feel." },
+    { "type": "text", "id": "copy", "label": "Body text", "info": "Add product, delivery or returns information that applies to your store." },
     { "type": "range", "id": "copy_max_ch", "label": "Body max width (ch)", "min": 40, "max": 80, "step": 1, "default": 60 },
     { "type": "select", "id": "text_align", "label": "Text alignment", "default": "left", "options": [
       { "value": "left", "label": "Left" }, { "value": "center", "label": "Center" }, { "value": "right", "label": "Right" }
@@ -448,9 +424,9 @@
     { "type": "text", "id": "region_label", "label": "ARIA region label", "default": "Featured product hero" }
   ],
   "presets": [
-    { "name":"Featured Product Hero Banner (Left Aligned)","category":"Hero Banners" },
-    { "name":"Featured Product Hero Banner (Right Aligned)","category":"Hero Banners" },
-    { "name":"Featured Product Hero Banner (Product Card on Image)","category":"Hero Banners" }
+    { "name":"Featured Product Hero Banner (Left Aligned)","category":"Hero Banners", "settings":{"text_align":"left"} },
+    { "name":"Featured Product Hero Banner (Right Aligned)","category":"Hero Banners", "settings":{"text_align":"right"} },
+    { "name":"Featured Product Hero Banner (Product Card on Image)","category":"Hero Banners", "settings":{"layout_variant":"overlay", "card_style":"panel", "card_bg":"#111111", "product_block_mode":"single"} }
   ]
 }
 {% endschema %}

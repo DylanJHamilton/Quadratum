@@ -21,7 +21,8 @@
 {%- else -%}
   {%- assign _handle = _raw -%}
 {%- endif -%}
-{%- assign product = all_products[_handle] -%}
+{%- assign product = s.product -%}
+{%- unless product.id -%}{%- assign product = all_products[_handle] -%}{%- endunless -%}
 {%- if product == blank and s.dev_product_handle != blank -%}
   {%- assign product = all_products[s.dev_product_handle] -%}
 {%- endif -%}
@@ -88,11 +89,11 @@
 
   #{{ section.id }} .q-wrap.is-split{
     display:grid; gap:1.5rem;
-    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    grid-template-columns:minmax(0,1fr);
     align-items:start;
   }
-  @media (min-width: 900px){
-    #{{ section.id }} .q-wrap.is-split .q-media{ width:var(--q-media-width); }
+  @media (min-width: 1024px){
+    #{{ section.id }} .q-wrap.is-split{ grid-template-columns:minmax(0, var(--q-media-width)) minmax(0,1fr); }
   }
 
   /* media / slider */
@@ -148,13 +149,13 @@
   }
 </style>
 
-<section id="{{ section.id }}"
+<section id="{{ section.id }}" data-section-id="{{ section.id }}"
   class="q-section cta-featured-product {{ layout_class }} {{ surface_class }} {{ align_class }}"
   role="region"
-  aria-label="{{ s.aria_label | default: 'Featured product call to action' }}"
+  aria-label="{{ s.aria_label | default: 'Featured product call to action' | escape }}"
   data-sticky-enabled="{{ s.sticky_mobile_cta }}"
 >
-  <div class="container" style="padding-top:var(--q-pad-top);padding-bottom:var(--q-pad-bot);">
+  <div class="container">
     {%- if product == blank -%}
       <div class="q-admin-empty card">
         <h3 class="q-heading">Select a product to feature</h3>
@@ -207,20 +208,20 @@
                 {%- if s.show_dots -%}
                   <div class="q-dots" aria-label="Slide navigation">
                     {%- for m in product.media -%}
-                      <button class="q-dot" type="button" data-dot="{{ forloop.index0 }}" aria-current="{% if forloop.first %}true{% else %}false{% endif %}"></button>
+                      <button class="q-dot" type="button" data-dot="{{ forloop.index0 }}" aria-label="Go to image {{ forloop.index }}" aria-current="{% if forloop.first %}true{% else %}false{% endif %}"></button>
                     {%- endfor -%}
                   </div>
                 {%- endif -%}
               </div>
             {%- else -%}
-              {%- assign media = s.custom_media | default: product.featured_media -%}
-              {%- if media and media.preview_image != blank -%}
+              {%- assign media = s.custom_media | default: product.featured_media.preview_image | default: product.featured_image -%}
+              {%- if media != blank -%}
                 {%- if s.media_ratio != 'auto' -%}
                   <div class="q-aspect">
                     {%- liquid
                       assign qtm_image_alt = media.alt | default: product.title
                     -%}
-                    {{ media.preview_image | image_url: width: 1600
+                    {{ media | image_url: width: 1600
                       | image_tag: loading: 'lazy', decoding: 'async',
                       widths: '640,960,1280,1600,1920',
                       sizes: '(min-width: 1024px) 48vw, 100vw', alt: qtm_image_alt }}
@@ -229,7 +230,7 @@
                   {%- liquid
                     assign qtm_image_alt = media.alt | default: product.title
                   -%}
-                  {{ media.preview_image | image_url: width: 1600
+                  {{ media | image_url: width: 1600
                     | image_tag: loading: 'lazy', decoding: 'async',
                     widths: '640,960,1280,1600,1920',
                     sizes: '(min-width: 1024px) 48vw, 100vw', alt: qtm_image_alt }}
@@ -287,13 +288,16 @@
             {%- if s.show_price -%}
               <span class="q-price-now" data-price>{{ firstv.price | money }}</span>
             {%- endif -%}
-            {%- if s.show_compare and firstv.compare_at_price > firstv.price -%}
-              <span class="q-price-compare" data-compare>{{ firstv.compare_at_price | money }}</span>
+            {%- if s.show_compare -%}
+              <span class="q-price-compare" data-compare {% unless firstv.compare_at_price > firstv.price %}hidden{% endunless %}>{{ firstv.compare_at_price | money }}</span>
             {%- endif -%}
-            {%- if s.show_savings and firstv.compare_at_price > firstv.price -%}
+            {%- if s.show_savings -%}
+              {%- assign save_amt = 0 -%}{%- assign save_pct = 0 -%}
+              {%- if firstv.compare_at_price > firstv.price -%}
               {%- assign save_amt = firstv.compare_at_price | minus: firstv.price -%}
               {%- assign save_pct = save_amt | times: 100 | divided_by: firstv.compare_at_price | round -%}
-              <span class="q-price-save" data-savings>Save {{ save_amt | money }} ({{ save_pct }}%)</span>
+              {%- endif -%}
+              <span class="q-price-save" data-savings {% unless firstv.compare_at_price > firstv.price %}hidden{% endunless %}>Save {{ save_amt | money }} ({{ save_pct }}%)</span>
             {%- endif -%}
             <span class="q-stock" data-stock data-available="{{ firstv.available }}">
               {% if firstv.available %}In stock{% else %}Sold out{% endif %}
@@ -301,18 +305,24 @@
           </div>
 
           {%- assign _form_id = 'q-cta-form-' | append: section.id -%}
-          {%- form 'product', product, id: _form_id, class: 'q-form', novalidate: 'novalidate' -%}
-            <input type="hidden" name="id" value="{{ firstv.id }}" data-variant-input>
+          {%- form 'product', product, id: _form_id, class: 'q-form', data-cta-product-form: 'true' -%}
+            <div data-variant-fallback {% if product.has_only_default_variant %}hidden{% endif %}>
+              <label for="CtaVariant-{{ section.id }}">{{ product.options | join: ' / ' | escape }}</label>
+              <select id="CtaVariant-{{ section.id }}" name="id" data-variant-input>
+                {% for variant in product.variants %}<option value="{{ variant.id }}" {% if variant.id == firstv.id %}selected{% endif %}>{{ variant.title | escape }} — {{ variant.price | money }}{% unless variant.available %} — Sold out{% endunless %}</option>{% endfor %}
+              </select>
+            </div>
+            {% render 'product-selling-plans', product: product, id: section.id %}
 
             {%- if s.show_vendor or s.show_sku -%}
               <div class="q-meta" style="color:var(--q-muted)">
                 {%- if s.show_vendor and product.vendor != blank -%}<span class="q-vendor">{{ product.vendor }}</span>{%- endif -%}
-                {%- if s.show_sku and firstv.sku != blank -%}<span class="q-sku" data-sku> • {{ firstv.sku }}</span>{%- endif -%}
+                {%- if s.show_sku -%}<span class="q-sku" data-sku> • {{ firstv.sku }}</span>{%- endif -%}
               </div>
             {%- endif -%}
 
             {%- if product.has_only_default_variant == false -%}
-              <div class="q-options" data-options>
+              <div class="q-options" data-options hidden>
                 {%- for option in product.options_with_values -%}
                   <fieldset class="q-option" data-option-index="{{ forloop.index0 }}">
                     <legend class="q-option-label">{{ option.name }}</legend>
@@ -323,7 +333,7 @@
                             <label class="q-opt-btn" data-opt-btn>
                               <input type="radio" name="options[{{ option.name | escape }}]" value="{{ val | escape }}"
                                      {% if option.selected_value == val %}checked{% endif %}
-                                     aria-checked="{% if option.selected_value == val %}true{% else %}false{% endif %}" />
+                                     />
                               <span>{{ val }}</span>
                             </label>
                           {%- endfor -%}
@@ -334,7 +344,7 @@
                             <label class="q-swatch" data-opt-btn>
                               <input type="radio" name="options[{{ option.name | escape }}]" value="{{ val | escape }}"
                                      {% if option.selected_value == val %}checked{% endif %}
-                                     aria-checked="{% if option.selected_value == val %}true{% else %}false{% endif %}" />
+                                     />
                               <span class="q-swatch-chip" aria-hidden="true"></span>
                               <span class="q-swatch-label">{{ val }}</span>
                             </label>
@@ -392,7 +402,7 @@
                 <a class="btn q-btn q-btn--solid" href="{{ product.url }}">{{ primary_label }}</a>
               {%- else -%}
                 <button class="btn q-btn q-btn--solid" type="submit" name="{% if s.primary_cta_type == 'buy' %}checkout{% else %}add{% endif %}"
-                        data-primary-cta data-available="{{ firstv.available }}">{{ primary_label }}</button>
+                        data-primary-cta {% unless firstv.available %}disabled{% endunless %} data-available="{{ firstv.available }}">{{ primary_label }}</button>
               {%- endif -%}
 
               {%- if s.secondary_label != blank and s.secondary_url != blank -%}
@@ -400,6 +410,7 @@
               {%- endif -%}
             </div>
 
+            {%- if s.trust_badges != blank -%}<div class="q-trust">{{ s.trust_badges }}</div>{%- endif -%}
             {%- if s.microcopy != blank -%}<p class="q-microcopy" style="color:var(--q-muted)">{{ s.microcopy }}</p>{%- endif -%}
           {%- endform -%}
 
@@ -423,35 +434,12 @@
       {%- endif -%}
 
       <script type="application/json" data-product-json>{{ product | json }}</script>
-      {%- if s.enable_slider and product.media.size > 1 -%}
-        <script>
-          (function(){
-            var root = document.getElementById('slider-{{ section.id }}');
-            if(!root) return;
-            var track = root.querySelector('.q-track');
-            var dots  = root.querySelectorAll('.q-dot');
-            var slides = root.querySelectorAll('.q-slide');
-            var i = 0, n = slides.length;
 
-            function go(to){
-              i = (to + n) % n;
-              track.style.transform = 'translateX(' + (-100 * i) + '%)';
-              dots.forEach(function(d,idx){ d.setAttribute('aria-current', idx===i ? 'true' : 'false'); });
-            }
-
-            var prev = root.querySelector('[data-prev]'), next = root.querySelector('[data-next]');
-            if(prev) prev.addEventListener('click', function(){ go(i-1); });
-            if(next) next.addEventListener('click', function(){ go(i+1); });
-            dots.forEach(function(d){ d.addEventListener('click', function(){ go(parseInt(d.getAttribute('data-dot'),10)||0); }); });
-
-            window.addEventListener('resize', function(){ go(i); }, { passive:true });
-          })();
-        </script>
-      {%- endif -%}
     {%- endif -%}
   </div>
 </section>
 
+<script src="{{ 'call-to-action-featured-product.js' | asset_url }}" defer></script>
 {% schema %}
 {
   "name": "CTA — Featured Product",
@@ -505,15 +493,15 @@
     { "type": "checkbox", "id": "enable_slider", "label": "Use slideshow (uses all product media)", "default": true },
     { "type": "checkbox", "id": "show_arrows", "label": "Show arrows", "default": true },
     { "type": "checkbox", "id": "show_dots", "label": "Show dots", "default": true },
-    { "type": "image_picker", "id": "custom_media", "label": "Custom image/video (overrides product image if slider is off)" },
+    { "type": "image_picker", "id": "custom_media", "label": "Custom image (used when slider is off)" },
 
     { "type": "header", "content": "Content" },
     { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Editor’s pick" },
-    { "type": "text", "id": "headline", "label": "Headline (≤ 8 words)", "default": "Sleep better tonight" },
-    { "type": "textarea", "id": "subheading", "label": "Subheading (1–2 sentences)", "default": "Clinically proven cooling foam keeps you comfortable." },
+    { "type": "text", "id": "headline", "label": "Headline (≤ 8 words)", "default": "Discover your next favorite" },
+    { "type": "textarea", "id": "subheading", "label": "Subheading (1–2 sentences)", "default": "Take a closer look at our featured product." },
     { "type": "checkbox", "id": "social_proof", "label": "Show product rating", "default": true },
     { "type": "richtext", "id": "trust_badges", "label": "Trust badges row (icons/text)" },
-    { "type": "text", "id": "microcopy", "label": "Microcopy / shipping line", "default": "Free 30-day returns. Fast shipping." },
+    { "type": "text", "id": "microcopy", "label": "Microcopy / shipping line", "info": "Add delivery or returns information that applies to this product." },
     { "type": "text", "id": "qty_label", "label": "Quantity label (override)", "default": "Quantity" },
 
     { "type": "header", "content": "Pricing visibility" },

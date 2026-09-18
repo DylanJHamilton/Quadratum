@@ -153,7 +153,7 @@
   #shopify-section-{{ section.id }} .q-ctas .q-btn--ghost { color: {{ s.button_text_color | default: _head_color }}; }
   #shopify-section-{{ section.id }} .q-ctas .q-btn--ghost { background: transparent; border-color: transparent; }
   /* ===== Base media + slideshow layout ===== */
-  .q-hero-classic .q-bg { position:absolute; inset:0; overflow:hidden; }
+  .q-hero-classic .q-bg { position:absolute; inset:0; overflow:hidden; background:var(--q-background); }
   .q-hero-classic .q-slides { position:absolute; inset:0; }
   .q-hero-classic .q-frame { position:absolute; inset:0; opacity:0; pointer-events:none; transition: opacity 500ms ease; }
   .q-hero-classic .q-frame.is-active { opacity:1; pointer-events:auto; }
@@ -198,9 +198,8 @@
   }
 
   /* visibility fallbacks */
-  .q-hide-mobile { display:none; }
-  @media (min-width:768px){ .q-hide-mobile{ display:block; } }
-  @media (max-width:767.98px){ .q-hide-desktop{ display:none; } }
+  @media (max-width:767.98px){ [data-classic-hero].q-hide-mobile{ display:none !important; } }
+  @media (min-width:768px){ [data-classic-hero].q-hide-desktop{ display:none !important; } }
 
   /* mobile font-size overrides when not "auto" */
   @media (max-width:767.98px){
@@ -210,8 +209,8 @@
   }
 
   /* optional per-breakpoint min-heights */
-  {% if min_h_val_mobile %}@media (max-width:767.98px){ #shopify-section-{{ section.id }}{ --q-min-h: {{ min_h_val_mobile }}; } }{% endif %}
-  {% if min_h_val_tablet %}@media (min-width:768px) and (max-width:1023.98px){ #shopify-section-{{ section.id }}{ --q-min-h: {{ min_h_val_tablet }}; } }{% endif %}
+  {% if min_h_val_mobile %}@media (max-width:767.98px){ #shopify-section-{{ section.id }} [data-classic-hero]{ --q-min-h: {{ min_h_val_mobile }} !important; } }{% endif %}
+  {% if min_h_val_tablet %}@media (min-width:768px) and (max-width:1023.98px){ #shopify-section-{{ section.id }} [data-classic-hero]{ --q-min-h: {{ min_h_val_tablet }} !important; } }{% endif %}
 
   .q-hero-classic .q-bg { position:absolute; inset:0; z-index:0; pointer-events:none; }
   .q-hero-classic .q-overlay,
@@ -221,14 +220,15 @@
 </style>
 
 <section
-  id="{{ s.anchor_id | default: 'section-' | append: section.id }}"
-  class="q-hero-classic banner-section{{ visibility_classes }}"
+  id="{% if s.anchor_id != blank %}{{ s.anchor_id | escape }}{% else %}section-{{ section.id }}{% endif %}"
+  data-classic-hero class="q-hero-classic banner-section{{ visibility_classes }}"
   role="region"
-  aria-label="{{ s.aria_label | default: 'Hero banner' }}"
+  aria-label="{{ s.aria_label | default: 'Hero banner' | escape }}"
   data-pos-m="{{ pos_m }}"
   data-pos-d="{{ pos_d }}"
   data-text-align="{{ txt_align }}"
   style="
+    --q-background: {{ s.background_color | default: '#111827' }};
     --q-min-h: {{ min_h_val }};
     --q-max-w: {{ max_w_css }};
     --q-pad-top: {{ s.padding_top | default: 60 }}px;
@@ -265,13 +265,13 @@
             {%- if effect == 'pan_right' -%}{%- assign effect_class = 'q-pan-right' -%}{%- endif -%}
             {%- assign focal = b.focal_point | default: 'center' -%}
 
-            <div class="q-frame{% if forloop.first %} is-active{% endif %}" data-q-hero-slide {{ block.shopify_attributes }}>
+            <div class="q-frame{% if forloop.first %} is-active{% endif %}" data-q-hero-slide data-block-id="{{ block.id }}" {% unless forloop.first %}inert aria-hidden="true"{% endunless %} {{ block.shopify_attributes }}>
               {%- if b.video_url != blank -%}
-                <video class="q-media" autoplay loop muted playsinline preload="{% if forloop.first %}auto{% else %}metadata{% endif %}"
+                <video class="q-media" loop muted playsinline preload="{% if forloop.first %}auto{% else %}metadata{% endif %}"
                        {% if b.image != blank %}poster="{{ b.image | image_url: width: 1600 }}"{% endif %}>
                   <source src="{{ b.video_url | escape }}" type="video/mp4">
                 </video>
-              {%- else -%}
+              {%- elsif b.image != blank -%}
                 {%- assign widths = '960,1440,1920,2560,2880' | split: ',' -%}
                 <picture>
                   {%- if b.mobile_image != blank -%}
@@ -280,7 +280,7 @@
                             sizes="100vw">
                   {%- endif -%}
                   <img class="q-media {{ effect_class }}"
-                       alt="{{ b.alt | default: '' | escape }}"
+                       alt="" width="{{ b.image.width }}" height="{{ b.image.height }}"
                        style="object-position: {{ focal }};"
                        {% if forloop.first %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}
                        decoding="async"
@@ -340,25 +340,25 @@
               | replace: 'http://www.youtube.com/watch?v=',''
               | replace: 'https://youtube.com/watch?v=',''
               | replace: 'http://youtube.com/watch?v=',''
-              | split:'?' | first -%}
+              | split:'?' | first | split:'&' | first -%}
             <div class="q-media-wrap" aria-hidden="true">
               <iframe
                 class="q-media-embed"
-                src="https://www.youtube.com/embed/{{ yid }}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&playlist={{ yid }}&modestbranding=1&rel=0"
+                hidden data-classic-video-src="https://www.youtube.com/embed/{{ yid | escape }}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&playlist={{ yid | escape }}&modestbranding=1&rel=0"
                 title="Background video" tabindex="-1"
                 allow="autoplay; encrypted-media"></iframe>
             </div>
           {% elsif is_vimeo %}
-            {%- assign vid = vurl | split:'/' | last | split:'?' | first -%}
+            {%- assign vid = vurl | split:'/' | last | split:'?' | first | split:'&' | first -%}
             <div class="q-media-wrap" aria-hidden="true">
               <iframe
                 class="q-media-embed"
-                src="https://player.vimeo.com/video/{{ vid }}?background=1&autoplay=1&muted=1&loop=1&autopause=0&controls=0"
+                hidden data-classic-video-src="https://player.vimeo.com/video/{{ vid | escape }}?background=1&autoplay=1&muted=1&loop=1&autopause=0&controls=0"
                 title="Background video" tabindex="-1"
                 allow="autoplay; fullscreen; picture-in-picture"></iframe>
             </div>
           {% else %}
-            <video class="q-media" autoplay loop muted playsinline preload="none"
+            <video class="q-media" loop muted playsinline preload="none"
               {% if s.background_image != blank %}poster="{{ s.background_image | image_url: width: 1600 }}"{% endif %}>
               <source src="{{ vurl | escape }}" type="video/mp4">
             </video>
@@ -398,30 +398,30 @@
         <div class="q-wrap {{ s.content_max_w }}"
              style="--q-pad-l-m: {{ pad_l_m }}px; --q-pad-r-m: {{ pad_r_m }}px; --q-pad-l-d: {{ pad_l_d }}px; --q-pad-r-d: {{ pad_r_d }}px; text-align: {{ txt_align }};">
           {% if s.accent_heading != blank %}
-            <p class="q-accent" style="color: var(--q-accent-color); font-size: var(--q-accent-fs);">{{ s.accent_heading }}</p>
+            <p class="q-accent" style="color: var(--q-accent-color); ">{{ s.accent_heading }}</p>
           {% endif %}
 
           {% if s.heading != blank %}
             {% case s.heading_level %}
-              {% when 'h2' %}<h2 class="q-heading" style="color: var(--q-head-color); font-size: var(--q-head-fs); text-align: {{ head_align }};">{{ s.heading }}</h2>
-              {% else %}<h1 class="q-heading" style="color: var(--q-head-color); font-size: var(--q-head-fs); text-align: {{ head_align }};">{{ s.heading }}</h1>
+              {% when 'h2' %}<h2 class="q-heading" style="color: var(--q-head-color);  text-align: {{ head_align }};">{{ s.heading }}</h2>
+              {% else %}<h1 class="q-heading" style="color: var(--q-head-color);  text-align: {{ head_align }};">{{ s.heading }}</h1>
             {% endcase %}
           {% endif %}
 
           {% if s.subheading != blank %}
-            <p class="q-sub" style="color: var(--q-sub-color); font-size: var(--q-sub-fs);">{{ s.subheading }}</p>
+            <p class="q-sub" style="color: var(--q-sub-color); ">{{ s.subheading }}</p>
           {% endif %}
 
           {% if s.cta_text != blank or s.cta2_text != blank %}
             <div class="q-ctas" style="justify-content: var(--q-cta-justify);">
-              {% if s.cta_text != blank %}
-                <a href="{{ s.cta_link | default: '#' }}"
+              {% if s.cta_text != blank and s.cta_link != blank %}
+                <a href="{{ s.cta_link | escape }}"
                    rel="noopener" aria-label="{{ s.cta_aria_label | default: s.cta_text | escape }}"
                    class="q-btn {{ btn_mode_class }}"
                    data-cta="primary">{{ s.cta_text }}</a>
               {% endif %}
-              {% if s.cta2_text != blank %}
-                <a href="{{ s.cta2_link | default: '#' }}"
+              {% if s.cta2_text != blank and s.cta2_link != blank %}
+                <a href="{{ s.cta2_link | escape }}"
                    rel="noopener" aria-label="{{ s.cta2_aria_label | default: s.cta2_text | escape }}"
                    class="q-btn {{ btn_mode_class }}"
                    data-cta="secondary">{{ s.cta2_text }}</a>
@@ -432,7 +432,8 @@
       </div>
     </div>
 
-    {%- if s.show_dots and section.blocks.size > 1 -%}
+    <button type="button" class="q-hero-pause" data-classic-pause aria-pressed="false" hidden>Pause background motion</button>
+    {%- if s.use_slideshow and s.show_dots and section.blocks.size > 1 -%}
       <div class="q-hero-dots" data-q-hero-dots>
         {%- for block in section.blocks -%}
           <button class="q-hero-dot" type="button" data-q-hero-dot data-index="{{ forloop.index0 }}"
@@ -445,81 +446,7 @@
   </div>
 </section>
 
-{% if s.use_slideshow and section.blocks.size > 0 %}
-<script>
-(function () {
-  function init(root) {
-    const stage = root.querySelector('[data-q-hero]');
-    if (!stage || stage.dataset.qHeroInit === '1') return;
-
-    const slides = Array.from(stage.querySelectorAll('[data-q-hero-slide]'));
-    const dots   = Array.from(root.querySelectorAll('[data-q-hero-dot]'));
-    if (!slides.length) return;
-
-    stage.dataset.qHeroInit = '1';
-
-    let idx = slides.findIndex(s => s.classList.contains('is-active'));
-    if (idx < 0) idx = 0;
-
-    function applySlideState(activeIndex){
-      slides.forEach((el, k) => {
-        const isOn = k === activeIndex;
-        el.classList.toggle('is-active', isOn);
-        el.style.opacity        = isOn ? '1'   : '0';
-        el.style.pointerEvents  = isOn ? 'auto': 'none';
-        el.style.visibility     = isOn ? 'visible' : 'hidden';
-        el.setAttribute('aria-hidden', isOn ? 'false' : 'true');
-      });
-      if (dots.length){
-        dots.forEach((d, k) => k === activeIndex
-          ? d.setAttribute('aria-current','true')
-          : d.removeAttribute('aria-current'));
-      }
-      const img = slides[activeIndex].querySelector('img.q-media');
-      if (img && img.decode) img.decode().catch(()=>{});
-    }
-
-    function setActive(i){
-      idx = ((i % slides.length) + slides.length) % slides.length;
-      applySlideState(idx);
-    }
-
-    dots.forEach((dot, k) => {
-      dot.addEventListener('click', (e) => {
-        e.preventDefault();
-        setActive(k);
-      }, { passive: false });
-    });
-
-    const autoplay = String(stage.dataset.autoplay) === 'true';
-    const interval = Math.max(3, parseInt(stage.dataset.interval || '5', 10));
-    if (autoplay && slides.length > 1){
-      setInterval(() => setActive(idx + 1), interval * 1000);
-    }
-
-    setActive(idx);
-  }
-
-  function boot(){ document.querySelectorAll('.q-hero-classic').forEach(init); }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
-
-  document.addEventListener('shopify:section:load',   (e) => {
-    const root = e.target.matches('.q-hero-classic') ? e.target : e.target.querySelector('.q-hero-classic');
-    if (root) init(root);
-  });
-  document.addEventListener('shopify:section:select', (e) => {
-    const root = e.target.matches('.q-hero-classic') ? e.target : e.target.querySelector('.q-hero-classic');
-    if (root) init(root);
-  });
-  document.addEventListener('shopify:section:unload', (e) => {
-    const root  = e.target.matches('.q-hero-classic') ? e.target : e.target.querySelector('.q-hero-classic');
-    const stage = root && root.querySelector('[data-q-hero]');
-    if (stage) delete stage.dataset.qHeroInit;
-  });
-})();
-</script>
-{% endif %}
+<script src="{{ 'section-hero-classic.js' | asset_url }}" defer></script>
 
 {% schema %}
 {
@@ -735,13 +662,3 @@
   "presets": [{ "name": "Hero Banner - Classic", "category": "Hero Banners" }]
 }
 {% endschema %}
-{% comment %}
-
-This file has been rewritten to preserve the original behavior.
-
----
-Changes:
-- from: "{% case s.heading_level | default: 'h2' %}"
-  to: "{% case s.heading_level %}"
-  position: 21755..21781
-{% endcomment %}

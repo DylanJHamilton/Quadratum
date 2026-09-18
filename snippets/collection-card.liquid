@@ -15,9 +15,6 @@
 
 {%- liquid
   assign c = collection
-  if c == blank
-    break
-  endif
 
   assign card_preset = card_preset | default: 'catalog'
   assign density = density | default: 'compact'
@@ -48,11 +45,7 @@
   assign image_aspect = image_aspect | default: 'auto'
 
   assign text_align = text_align | default: 'left'
-  assign title_size = title_size | default: 16
-  assign title_weight = title_weight | default: '600'
 
-  assign meta_size = meta_size | default: 13
-  assign meta_opacity = meta_opacity | default: 0.82
 
   assign enable_color_overrides = enable_color_overrides
 
@@ -105,10 +98,18 @@
   endif
 
   assign card_style = ''
+  if title_size != nil
   assign card_style = card_style | append: '--q-cc-title-size:' | append: title_size | append: 'px;'
+  endif
+  if title_weight != nil
   assign card_style = card_style | append: '--q-cc-title-weight:' | append: title_weight | append: ';'
+  endif
+  if meta_size != nil
   assign card_style = card_style | append: '--q-cc-meta-size:' | append: meta_size | append: 'px;'
+  endif
+  if meta_opacity != nil
   assign card_style = card_style | append: '--q-cc-meta-opacity:' | append: meta_opacity | append: ';'
+  endif
 
   if enable_color_overrides
     assign card_style = card_style | append: '--q-cc-card-bg:' | append: card_bg | append: ';'
@@ -185,12 +186,14 @@
   endif
 -%}
 
+{% if c.url != blank %}
 <article
   class="q-collection-card {{ preset_class }} {{ density_class }} {{ align_class }} {{ aspect_class }} {{ featured_class }} {{ modifier_class }}"
   style="{{ card_style }}"
+  {{ shopify_attributes }}
   data-collection-card
 >
-  <a class="q-collection-card__link" href="{{ c.url }}" aria-label="{{ c.title | escape }}">
+  <a class="q-collection-card__link" href="{{ c.url | escape }}" aria-label="{{ c.title | escape }}">
     {%- if show_image -%}
       <div class="q-collection-card__media" aria-hidden="true">
         <div class="q-collection-card__media-inner">
@@ -210,7 +213,7 @@
           {%- if overlay_text_enabled and overlay_text != blank -%}
             <div class="q-collection-card__overlay" aria-hidden="true">
               <div class="q-collection-card__overlay-inner">
-                <span class="q-collection-card__overlay-text">{{ overlay_text }}</span>
+                <span class="q-collection-card__overlay-text">{{ overlay_text | escape }}</span>
               </div>
             </div>
           {%- endif -%}
@@ -219,10 +222,10 @@
     {%- endif -%}
 
     <div class="q-collection-card__content">
-      <h3 class="q-collection-card__title">{{ c.title }}</h3>
+      <h3 class="q-collection-card__title">{{ c.title | escape }}</h3>
 
       {%- if subtitle != blank -%}
-        <div class="q-collection-card__subtitle">{{ subtitle }}</div>
+        <div class="q-collection-card__subtitle">{{ subtitle | escape }}</div>
       {%- endif -%}
 
       {%- if show_count and count_label != blank -%}
@@ -230,11 +233,11 @@
       {%- endif -%}
 
       {%- if body != blank -%}
-        <div class="q-collection-card__body">{{ body }}</div>
+        <div class="q-collection-card__body">{{ body | escape }}</div>
       {%- endif -%}
 
       {%- if show_description and c.description != blank -%}
-        <div class="q-collection-card__desc">{{ c.description | strip_html | truncate: 120 }}</div>
+        <div class="q-collection-card__desc">{{ c.description | strip_html | truncate: 120 | escape }}</div>
       {%- endif -%}
     </div>
   </a>
@@ -243,9 +246,9 @@
     <div class="q-collection-card__cta" style="{{ cta_style_attr }}">
       <a
         class="q-button q-collection-card__cta-link{% if cta_style != blank %} q-button--{{ cta_style }}{% endif %}"
-        href="{{ resolved_cta_url }}"
+        href="{{ resolved_cta_url | escape }}"
       >
-        {{ cta_label }}
+        {{ cta_label | escape }}
       </a>
     </div>
   {%- endif -%}
@@ -253,6 +256,9 @@
   <style>
     .q-collection-card{
       position: relative;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      box-sizing: border-box;
       background: var(--q-cc-card-bg, var(--q-card-bg, transparent));
       border: 1px solid var(--q-cc-card-border, var(--q-card-border, rgba(0,0,0,.10)));
       border-radius: var(--q-radius, 12px);
@@ -266,14 +272,15 @@
       outline: none;
     }
     .q-collection-card__link:focus-visible{
-      box-shadow: 0 0 0 3px rgba(0,0,0,.18);
+      outline: 2px solid currentColor;
+      outline-offset: -3px;
       border-radius: var(--q-radius, 12px);
     }
 
     .q-collection-card__media{ position: relative; overflow:hidden; }
     .q-collection-card__media-inner{ position: relative; }
 
-    .q-collection-card--aspect-auto .q-collection-card__media-inner{ padding-top: var(--q-cc-media-auto, 62%); height: 0; }
+    .q-collection-card--aspect-auto .q-collection-card__media-inner{ padding-top: var(--q-ch-media-ratio, var(--q-cc-media-auto, 62%)); height: 0; }
     .q-collection-card--aspect-square .q-collection-card__media-inner{ padding-top: 100%; height: 0; }
     .q-collection-card--aspect-landscape .q-collection-card__media-inner{ padding-top: 66.666%; height: 0; }
 
@@ -354,6 +361,8 @@
 
     /* HARD GUARANTEE: CTA looks like a button even if global q-button CSS is missing */
     .q-collection-card__cta-link{
+      box-sizing: border-box;
+      white-space: normal;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -376,13 +385,32 @@
       transform: translateY(-1px);
     }
     .q-collection-card__cta-link:focus-visible{
-      outline: none;
-      box-shadow: 0 0 0 3px rgba(0,0,0,.18);
+      outline: 2px solid currentColor;
+      outline-offset: -3px;
     }
 
     .q-collection-card--density-compact .q-collection-card__content{ padding: .8rem .9rem; }
     .q-collection-card--density-comfortable .q-collection-card__content{ padding: 1rem 1rem; }
     .q-collection-card--density-compact .q-collection-card__cta{ padding: 0 .9rem .9rem; }
     .q-collection-card--density-comfortable .q-collection-card__cta{ padding: 0 1rem 1rem; }
+    .q-collection-card__cta-link.q-button--primary { background: var(--q-cc-cta-bg, var(--q-ch-accent, #111)); color: var(--q-cc-cta-text, #fff); }
+    .q-collection-card__cta-link.q-button--secondary { background: var(--q-cc-cta-bg, #eee); color: var(--q-cc-cta-text, #111); }
+    .q-collection-card__cta-link.q-button--outline { background: transparent; border-color: currentColor; }
+    .q-collection-card__cta-link.q-button--ghost { background: transparent; border-color: transparent; }
+    .q-collection-card__cta-link.q-button--link { background: transparent; border-color: transparent; text-decoration: underline; border-radius: 0; }
+    /* Existing preset choices now have bounded, shared visual treatments. */
+    .q-collection-card.q-collection-card--editorial { --q-cc-media-auto: 75%; }
+    .q-collection-card.q-collection-card--tech { border-radius: 4px; border-width: 2px; }
+    .q-collection-card.q-collection-card--minimal { border-color: var(--q-cc-card-border, transparent); background: var(--q-cc-card-bg, transparent); }
+    .q-collection-card.q-collection-card--pill { border-radius: 28px; }
+    .q-collection-card.q-collection-card--pill .q-collection-card__media { margin: .75rem .75rem 0; border-radius: 999px; }
+    .q-collection-card.q-collection-card--catalog { --q-cc-media-auto: 62%; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .q-collection-card__cta-link { transition: none; }
+      .q-collection-card__cta-link:hover { transform: none; }
+    }
   </style>
 </article>
+
+{% endif %}

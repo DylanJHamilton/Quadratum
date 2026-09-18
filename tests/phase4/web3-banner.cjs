@@ -1,0 +1,38 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const {Liquid}=require('liquidjs'),{JSDOM}=require('jsdom');
+const source=fs.readFileSync('sections/web3-hero-banner.liquid','utf8'),start=source.lastIndexOf('{% schema %}');
+const schema=JSON.parse(source.slice(start+12).split('{% endschema %}')[0]);
+const defaults=fields=>Object.fromEntries(fields.filter(x=>x.id).map(x=>[x.id,x.default??null]));
+const globals=Object.assign({},...JSON.parse(fs.readFileSync('config/settings_schema.json')).map(x=>defaults(x.settings)));
+const engine=new Liquid({root:'snippets',extname:'.liquid'});engine.registerFilter('t',x=>x);engine.registerFilter('image_url',image=>{assert(image);return '/image.jpg'});
+const slideSchema=schema.blocks.find(x=>x.type==='slide');
+const blocks=[0,1].map(i=>({id:`slide${i}`,type:'slide',settings:{...defaults(slideSchema.settings),heading:'Slide '+i,background_image_url:null,background_image:null}}));
+const render=(id,overrides={})=>engine.parseAndRender(source.slice(0,start),{section:{id,settings:{...defaults(schema.settings),...overrides},blocks},settings:globals,request:{design_mode:false}});
+(async()=>{
+ const html=await render('one',{ss_autoplay:true,scroll_reveal:true,anchor_id:'custom:anchor'})+await render('two',{ss_autoplay:false})+await render('hero',{layout_mode:'hero',cta_link:'/collections/all',media_video:'/video.mp4',scroll_reveal:true,enable_parallax:false,tilt_hover:false,cursor_reactive_glow:false});
+ const dom=new JSDOM(html,{runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window,roots=[...w.document.querySelectorAll('[data-web3-hero]')];
+ assert.equal(roots.length,3);assert.equal(roots[0].id,'custom:anchor');assert.equal(roots[1].querySelector('[data-autoplay]').dataset.autoplay,'false');assert.equal(roots[2].querySelector('[data-parallax]').dataset.parallax,'false');assert(!roots[2].querySelector('video').autoplay);
+ const timers=new Map();let tick=0;w.setTimeout=fn=>{timers.set(++tick,fn);return tick};w.clearTimeout=id=>timers.delete(id);
+ const motion=new w.EventTarget();motion.matches=false;w.matchMedia=()=>motion;
+ w.HTMLMediaElement.prototype.play=function(){this.dataset.playing='true';return Promise.resolve()};w.HTMLMediaElement.prototype.pause=function(){this.dataset.playing='false'};
+ const script=fs.readFileSync('assets/web3-hero-banner.js','utf8');w.eval(script);w.document.dispatchEvent(new w.Event('DOMContentLoaded'));w.eval(script);
+ assert.equal(timers.size,1);assert(!w.document.querySelector('.q-reveal-pending'),'no observer keeps reveal content visible');assert.equal(roots[0].querySelectorAll('[data-q-dot]').length,2);assert.equal(roots[0].querySelectorAll('.q-slide')[1].inert,true);
+ roots[0].querySelector('[data-q-pp]').click();assert.equal(timers.size,0);roots[0].dispatchEvent(new w.Event('mouseleave'));assert.equal(timers.size,0,'manual pause persists');
+ roots[0].querySelector('[data-q-next]').click();assert.equal(roots[0].querySelectorAll('.q-slide')[0].inert,true);
+ roots[1].dispatchEvent(new w.CustomEvent('shopify:block:select',{bubbles:true,detail:{blockId:'slide1'}}));assert.equal(roots[1].querySelectorAll('.q-slide')[1].inert,false);
+ assert.equal(roots[2].querySelector('video').dataset.playing,'true');motion.matches=true;motion.dispatchEvent(new w.Event('change'));assert.equal(roots[2].querySelector('video').dataset.playing,'false');
+ roots.forEach(root=>root.dispatchEvent(new w.Event('shopify:section:unload',{bubbles:true})));assert.equal(timers.size,0);assert.equal(roots[2].querySelector('video').dataset.playing,'false');
+ for(const sheet of w.document.styleSheets)for(const rule of [...sheet.cssRules].flatMap(r=>r.cssRules?[...r.cssRules]:[r]))if(rule.selectorText)for(const selector of rule.selectorText.split(','))assert(selector.trim().startsWith('#shopify-section-'),'CSS cannot leak across instances');
+ assert(!html.includes('{{ settings.button_hover_opacity'),'hover values render rather than leaking Liquid text');
+ assert.equal(roots[2].querySelector('[data-cta="primary"]').getAttribute('href'),'/collections/all','configured primary link navigates without inventing a wallet provider');assert(!roots[2].querySelector('[data-q-wallet-connect]'));const empty=new JSDOM(await render('empty',{layout_mode:'hero',cta_link:null}));assert(!empty.window.document.querySelector('[data-cta="primary"]'));empty.window.close();w.close();
+ const configured = new JSDOM(await render('configured',{layout_mode:'hero',cta_link:'/pages/community',button_fx:'gradient',button_mode:'outline',gradient_top:'#112233',gradient_bottom:'#445566',glow_color_1:'#123456',glow_color_2:'#234567',glow_color_3:'#345678',card_shadow:false,content_align_y:'end',button_border_width:0,button_radius:0}));
+ const configuredRoot=configured.window.document.querySelector('[data-web3-hero]');assert.equal(configuredRoot.dataset.buttonMode,'outline');assert.equal(configuredRoot.dataset.cardShadow,'false');
+ const configuredHtml=configured.window.document.documentElement.innerHTML;for(const color of ['#112233','#445566','#123456','#234567','#345678'])assert(configuredHtml.includes(color));assert(configuredRoot.querySelector('.q-btn--gradient'));assert(configuredHtml.includes('--q-btn-radius: 0px'));assert(configuredHtml.includes('--q-btn-border-w: 0px'));configured.window.close();
+ const described=new JSDOM(await render('described',{layout_mode:'hero',background_url:'https://example.com/background.jpg',bg_image_alt:'Custom artwork'}));assert.equal(described.window.document.querySelector('[role="img"]').getAttribute('aria-label'),'Custom artwork');described.window.close();
+ const noScript=new JSDOM(await render('no-script'));assert.equal(noScript.window.document.querySelectorAll('.q-slide[aria-hidden="true"]').length,0);noScript.window.close();
+ for(const mode of ['hero','slideshow'])for(const field of schema.settings){
+  if(field.type==='select')for(const option of field.options)await render('matrix',{layout_mode:mode,[field.id]:option.value});
+  if(field.type==='range')for(const value of [field.min,field.max])await render('matrix',{layout_mode:mode,[field.id]:value});
+ }
+ console.log('PASS Web3 motion/layout subset: actual hero/slideshow, false settings, custom anchors, no-observer reveal, persistent pause, inactive slide inertness, editor selection/unload, reduced-motion video, scoped CSS. Primary URL, gradient/glow colors, outline/gradient styles, shadow false, zero values, background description, no-JS slides and all select/range settings render; live acceptance remains pending.');
+})().catch(error=>{console.error(error);process.exitCode=1});

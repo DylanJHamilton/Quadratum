@@ -1,6 +1,12 @@
 (function () {
+  if (window.qtmHeaderFiveBound) return;
+  window.qtmHeaderFiveBound = true;
   function initHeaderFive(root) {
     if (!root) return;
+    var lifecycle = new AbortController();
+    function on(target, type, listener, options) {
+      target.addEventListener(type, listener, Object.assign({}, options, { signal: lifecycle.signal }));
+    }
 
     var departmentToggle = root.querySelector('[data-qtm-h5-departments-toggle]');
     var departmentPanel = root.querySelector('[data-qtm-h5-departments-panel]');
@@ -15,6 +21,8 @@
       if (!element) return false;
       if (element.closest('[hidden], [aria-hidden="true"]')) return false;
       if (element.getAttribute('aria-hidden') === 'true') return false;
+      var closedDetails = element.closest('details:not([open])');
+      if (closedDetails && element !== closedDetails.querySelector('summary')) return false;
 
       var style = window.getComputedStyle(element);
 
@@ -73,6 +81,7 @@
 
       closeDepartments();
 
+      document.dispatchEvent(new CustomEvent('qtm:header-mobile-open', {detail:root}));
       mobilePanel.hidden = false;
       mobilePanel.setAttribute('aria-hidden', 'false');
       mobileOpenButton.setAttribute('aria-expanded', 'true');
@@ -120,13 +129,13 @@
     }
 
     if (departmentToggle && departmentPanel) {
-      departmentToggle.addEventListener('click', function (event) {
+      on(departmentToggle, 'click', function (event) {
         event.preventDefault();
         event.stopPropagation();
         toggleDepartments();
       });
 
-      departmentToggle.addEventListener('keydown', function (event) {
+      on(departmentToggle, 'keydown', function (event) {
         if (event.key === 'ArrowDown') {
           event.preventDefault();
           openDepartments();
@@ -139,11 +148,11 @@
         }
       });
 
-      departmentPanel.addEventListener('click', function (event) {
+      on(departmentPanel, 'click', function (event) {
         event.stopPropagation();
       });
 
-      departmentPanel.addEventListener('keydown', function (event) {
+      on(departmentPanel, 'keydown', function (event) {
         if (event.key === 'Escape') {
           closeDepartments();
           departmentToggle.focus();
@@ -151,28 +160,28 @@
       });
     }
 
-    document.addEventListener('click', function (event) {
+    on(document, 'click', function (event) {
       if (!root.contains(event.target)) {
         closeDepartments();
       }
     });
 
     if (mobileOpenButton) {
-      mobileOpenButton.addEventListener('click', function (event) {
+      on(mobileOpenButton, 'click', function (event) {
         event.preventDefault();
         openMobileMenu();
       });
     }
 
     mobileCloseButtons.forEach(function (button) {
-      button.addEventListener('click', function (event) {
+      on(button, 'click', function (event) {
         event.preventDefault();
         closeMobileMenu();
       });
     });
 
     mobileNestedToggles.forEach(function (toggle) {
-      toggle.addEventListener('click', function () {
+      on(toggle, 'click', function () {
         var panelId = toggle.getAttribute('aria-controls');
         var panel = panelId ? document.getElementById(panelId) : null;
         var isOpen = toggle.getAttribute('aria-expanded') === 'true';
@@ -185,7 +194,11 @@
       });
     });
 
-    document.addEventListener('focusin', function (event) {
+    on(document, 'qtm:header-mobile-open', function(event) { if (event.detail !== root) closeMobileMenu(); });
+    on(root, 'click', function(event) {
+      if (mobilePanel && mobilePanel.contains(event.target) && event.target.closest('[data-search-popup-open], [data-cart-drawer-open]')) closeMobileMenu();
+    });
+    on(document, 'focusin', function (event) {
       if (!root.isConnected || !mobilePanel || !mobileOpenButton || mobileOpenButton.getAttribute('aria-expanded') !== 'true') return;
       if (!mobilePanel.contains(event.target)) {
         var target = getFocusableElements(mobilePanel)[0] || mobilePanel.querySelector('[role=dialog]');
@@ -193,7 +206,7 @@
       }
     });
 
-    document.addEventListener('keydown', function (event) {
+    on(document, 'keydown', function (event) {
       if (event.key === 'Escape') {
         closeDepartments();
 
@@ -228,7 +241,7 @@
       }
     });
 
-    window.addEventListener('resize', function () {
+    on(window, 'resize', function () {
       if (window.innerWidth > 1100 && mobilePanel && !mobilePanel.hidden) {
         closeMobileMenu();
       }
@@ -236,6 +249,14 @@
       if (window.innerWidth <= 1100) {
         closeDepartments();
       }
+    });
+    on(document, 'shopify:section:unload', function (event) {
+      if (!event.target.contains(root)) return;
+      if (mobilePanel && !mobilePanel.hidden) closeMobileMenu();
+      window.clearTimeout(mobileCloseTimer);
+      if (mobilePanel) mobilePanel.hidden = true;
+      lifecycle.abort();
+      delete root.dataset.qtmHeaderFiveInitialized;
     });
   }
 
@@ -262,7 +283,6 @@
     var root = event.target.querySelector('[data-qtm-header-five]');
 
     if (root) {
-      root.dataset.qtmHeaderFiveInitialized = 'false';
       initAllHeaderFive();
     }
   });

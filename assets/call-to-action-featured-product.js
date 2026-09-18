@@ -6,6 +6,9 @@
  * Keep it tiny and strictly scoped to [data-section-id]
  */
 (() => {
+  if (window.qtmFeaturedCtaBound) return;
+  window.qtmFeaturedCtaBound = true;
+  const instances = new WeakMap();
   function money(cents, locale, currency) {
     try { return (cents/100).toLocaleString(locale || undefined, { style:'currency', currency: currency || window.Shopify?.currency?.active || 'USD' }); }
     catch(_) { return (cents/100).toFixed(2); }
@@ -16,15 +19,18 @@
   }
   function init(root){
     if (!root || root.dataset.qCtaInit) return;
-    root.dataset.qCtaInit = '1';
 
-    const sectionId = root.dataset.sectionId;
+
     const jsonEl = root.querySelector('[data-product-json]');
     const form = root.querySelector('form.q-form');
     if (!jsonEl || !form) return;
 
-    const data = JSON.parse(jsonEl.textContent || '{}');
-    const priceArea = root.querySelector('[data-price-area]');
+    let data;
+    try { data = JSON.parse(jsonEl.textContent || '{}'); } catch { return; }
+    if (!Array.isArray(data.variants)) return;
+    const events = new AbortController();
+    instances.set(root, events);
+    root.dataset.qCtaInit = '1';
     const priceEl   = root.querySelector('[data-price]');
     const compareEl = root.querySelector('[data-compare]');
     const saveEl    = root.querySelector('[data-savings]');
@@ -48,7 +54,7 @@
     root.dispatchEvent(new CustomEvent('quadratum.cta_featured_product.view', { bubbles:true, detail: payload() }));
 
     // Options: radio groups & selects
-    const optionFields = Array.from(root.querySelectorAll('[data-options] [name^="options["]'));
+    const optionFields = Array.from(root.querySelectorAll('[data-options] [name]')).filter(field => /^options\[.+\]$/.test(field.name));
     function readSelection(){
       const groups = {};
       optionFields.forEach(f=>{
@@ -63,8 +69,21 @@
     }
 
     function updateUI(variant){
-      if (!variant) return;
-      if (varInput) varInput.value = variant.id;
+      const purchasable = Boolean(variant?.available);
+      root.querySelectorAll('[data-primary-cta], [data-sticky-button]').forEach(button => {
+        if (button.tagName === 'BUTTON') button.disabled = !purchasable;
+        button.dataset.available = String(purchasable);
+      });
+      if (!variant) {
+        if (varInput) { varInput.value = ''; varInput.dispatchEvent(new Event('change', {bubbles:true})); }
+        if (priceEl) priceEl.textContent = 'Unavailable';
+        if (stockEl) stockEl.textContent = 'Unavailable';
+        if (compareEl) compareEl.hidden = true;
+        if (saveEl) saveEl.hidden = true;
+        if (stickyPrice) stickyPrice.textContent = 'Unavailable';
+        return;
+      }
+      if (varInput) { varInput.value = variant.id; varInput.dispatchEvent(new Event('change', {bubbles:true})); }
 
       const locale = document.documentElement.lang || undefined;
       const currency = window.Shopify?.currency?.active;
@@ -91,10 +110,7 @@
       }
       if (stickyPrice) stickyPrice.textContent = money(variant.price, locale, currency);
 
-      if (sticky && stickyBtn){
-        if (variant.available){ sticky.hidden = false; stickyBtn.disabled = false; }
-        else { stickyBtn.disabled = true; }
-      }
+      if (sticky) sticky.hidden = false;
 
       const live = root.querySelector('[data-live]');
       if (live) live.textContent = `${priceEl?.textContent || ''} — ${stockEl?.textContent || ''}`;
@@ -102,12 +118,43 @@
 
     function onChange(){
       const selected = readSelection();
-      const v = findVariant(data, selected) || data.variants?.[0];
+      const v = optionFields.length ? findVariant(data, selected) : data.variants.find(variant => String(variant.id) === varInput?.value);
       updateUI(v);
       root.dispatchEvent(new CustomEvent('quadratum.cta_featured_product.variant_change', { bubbles:true, detail: payload({ variant_id: v?.id }) }));
     }
 
-    optionFields.forEach(f => f.addEventListener('change', onChange, { passive:true }));
+    optionFields.forEach(f => f.addEventListener('change', onChange, { passive:true, signal: events.signal }));
+    form.addEventListener('submit', event => {
+      onChange();
+      const variant = data.variants.find(item => String(item.id) === varInput?.value);
+      if (!variant?.available) { event.preventDefault(); event.stopImmediatePropagation(); }
+    }, {capture:true, signal:events.signal});
+    if (optionFields.length) {
+      root.querySelector('[data-options]').hidden = false;
+      const fallback = root.querySelector('[data-variant-fallback]');
+      if (fallback) fallback.hidden = true;
+    }
+    const slider = root.querySelector('.q-slider');
+    if (slider) {
+      const track = slider.querySelector('.q-track');
+      const slides = Array.from(slider.querySelectorAll('.q-slide'));
+      const dots = Array.from(slider.querySelectorAll('[data-dot]'));
+      let index = 0;
+      function showSlide(next) {
+        if (!track || !slides.length) return;
+        index = (next + slides.length) % slides.length;
+        track.style.transform = `translateX(${-100 * index}%)`;
+        slides.forEach((slide, position) => {
+          slide.inert = position !== index;
+          slide.setAttribute('aria-hidden', String(position !== index));
+        });
+        dots.forEach((dot, position) => dot.setAttribute('aria-current', String(position === index)));
+      }
+      slider.querySelector('[data-prev]')?.addEventListener('click', () => showSlide(index - 1), {signal:events.signal});
+      slider.querySelector('[data-next]')?.addEventListener('click', () => showSlide(index + 1), {signal:events.signal});
+      dots.forEach((dot, position) => dot.addEventListener('click', () => showSlide(position), {signal:events.signal}));
+      showSlide(0);
+    }
     // Initialize with the currently selected variant (Shopify sets product.selected_or_first_available_variant)
     onChange();
 
@@ -115,7 +162,7 @@
     if (form) {
       form.addEventListener('submit', (e)=>{
         root.dispatchEvent(new CustomEvent('quadratum.cta_featured_product.add_to_cart_attempt', { bubbles:true, detail: payload() }));
-      });
+      }, {signal:events.signal});
       // Ajax cart not assumed; success/fail events should be emitted by your cart handler.
     }
 
@@ -123,8 +170,15 @@
     const secondary = root.querySelector('[data-secondary-cta]');
     if (secondary) secondary.addEventListener('click', ()=>{
       root.dispatchEvent(new CustomEvent('quadratum.cta_featured_product.click_secondary', { bubbles:true, detail: payload() }));
-    });
+    }, {signal:events.signal});
   }
+
+  document.addEventListener('shopify:section:unload', event => {
+    const roots = [...(event.target.matches?.('[data-section-id].cta-featured-product') ? [event.target] : []), ...event.target.querySelectorAll('[data-section-id].cta-featured-product')];
+    roots.forEach(root => {
+      instances.get(root)?.abort(); instances.delete(root); delete root.dataset.qCtaInit;
+    });
+  });
 
   function boot(){
     document.querySelectorAll('[data-section-id].cta-featured-product').forEach(init);
