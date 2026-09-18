@@ -26,7 +26,7 @@
     const track = root.querySelector('.thb-track'), toggle = root.querySelector('[data-transparent-pause]');
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)'), mobile = window.matchMedia('(max-width: 767px)');
     const autoplay = root.dataset.autoplay === 'true' && slides.length > 1;
-    let index = 0, paused = motion.matches, hovered = false, focused = false, timer, scrollTimer, observer, resizeObserver, owner;
+    let index = 0, paused = motion.matches || (!autoplay && root.dataset.videoAutoplay === 'false'), hovered = false, focused = false, timer, scrollTimer, observer, resizeObserver, owner;
     let inView = false;
     let videoAllowed = root.dataset.videoAutoplay === 'true';
     const hidden = () => document.hidden || root.classList.contains(mobile.matches ? 'hide-mobile' : 'hide-desktop');
@@ -89,7 +89,7 @@
       if (selected >= 0) {paused = true;go(selected);}
     });
     const header = document.querySelector('[data-header]') || document.querySelector('header');
-    if (header && root.dataset.headerSync === 'true') {
+    if (header && (root.dataset.headerSync === 'true' || root.dataset.headerMeasure === 'true')) {
       const measure = () => {
         const height = header.getBoundingClientRect().height || 0;
         root.style.setProperty('--thb-header-h', `${height}px`);
@@ -97,7 +97,7 @@
       };
       measure();on(window, 'resize', measure);
       if ('ResizeObserver' in window) {resizeObserver = new ResizeObserver(measure);resizeObserver.observe(header);}
-      if ('IntersectionObserver' in window) {
+      if (root.dataset.headerSync === 'true' && 'IntersectionObserver' in window) {
         owner = headerOwner(header, root);
         observer = new IntersectionObserver(entries => entries.forEach(entry => {inView = entry.isIntersecting && entry.intersectionRatio > .1;owner.set(inView && !hidden());}), {threshold:.1});
         observer.observe(root);
