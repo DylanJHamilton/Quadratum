@@ -9,6 +9,8 @@
 {{ 'call-to-action-reviews.css' | asset_url | stylesheet_tag }}
 
 {%- assign s = section.settings -%}
+{%- assign review_blocks = section.blocks | where: 'type', 'review' -%}
+{%- assign app_blocks = section.blocks | where: 'type', '@app' -%}
 
 {%- comment %} THEME TOKENS {% endcomment -%}
 {%- assign T_font_heading = settings.font_heading -%}
@@ -265,24 +267,17 @@
       {%- endif -%}
     </div>
 
-    {%- comment %} Review App Integration {% endcomment -%}
-    {%- if review_app != 'none' and review_app != blank -%}
-      <div class="q-review-app-container">
-        {%- case review_app -%}
-          {%- when 'judgeme' -%}
-            <div id="judgeme_product_reviews" class="jdgm-widget jdgm-review-widget"></div>
-          {%- when 'loox' -%}
-            <div id="looxReviews" data-loox-aggregate></div>
-          {%- when 'yotpo' -%}
-            <div class="yotpo yotpo-reviews-carousel" data-background-color="transparent"></div>
-          {%- when 'stamped' -%}
-            <div id="stamped-main-widget" data-widget-style="standard"></div>
-        {%- endcase -%}
+    {%- for block in app_blocks -%}
+      <div class="q-review-app-container" {{ block.shopify_attributes }}>
+        {% render block %}
       </div>
+    {%- endfor -%}
+    {%- if request.design_mode and review_app != 'none' and app_blocks.size == 0 -%}
+      <p class="q-review-app-setup">Add the review app's block to this section. The legacy app selector does not install or configure an app.</p>
     {%- endif -%}
 
     {%- comment %} Reviews Content {% endcomment -%}
-    {%- if section.blocks.size > 0 -%}
+    {%- if review_blocks.size > 0 -%}
 
       {%- comment -%} SLIDESHOW {%- endcomment -%}
       {%- if layout_mode == 'slideshow' -%}
@@ -296,12 +291,12 @@
           aria-label="Customer reviews carousel"
         >
           <div class="q-reviews-track" data-reviews-track role="list">
-            {%- for block in section.blocks -%}
+            {%- for block in review_blocks -%}
               <div
                 class="q-review-slide{% if forloop.first %} is-active{% endif %}"
                 data-review-slide data-block-id="{{ block.id }}"
                 role="listitem"
-                aria-label="Review {{ forloop.index }} of {{ section.blocks.size }}"
+                aria-label="Review {{ forloop.index }} of {{ review_blocks.size }}"
 
                 {{ block.shopify_attributes }}
               >
@@ -310,7 +305,7 @@
             {%- endfor -%}
           </div>
 
-          {%- if s.show_arrows and section.blocks.size > 1 -%}
+          {%- if s.show_arrows and review_blocks.size > 1 -%}
             <button class="q-review-arrow q-review-arrow--prev" data-reviews-prev aria-label="Previous review" type="button">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
             </button>
@@ -319,9 +314,9 @@
             </button>
           {%- endif -%}
 
-          {%- if s.show_dots and section.blocks.size > 1 -%}
+          {%- if s.show_dots and review_blocks.size > 1 -%}
             <div class="q-reviews-dots" role="group" aria-label="Review navigation">
-              {%- for block in section.blocks -%}
+              {%- for block in review_blocks -%}
                 <button
                   class="q-review-dot"
                   data-reviews-dot
@@ -339,7 +334,7 @@
       {%- comment -%} GRID {%- endcomment -%}
       {%- if layout_mode == 'grid' -%}
         <div class="q-reviews-grid" style="--q-cols-mobile: {{ s.grid_columns_mobile }}; --q-cols-tablet: {{ s.grid_columns_tablet }}; --q-cols-desktop: {{ s.grid_columns_desktop }};">
-          {%- for block in section.blocks -%}
+          {%- for block in review_blocks -%}
             <article class="q-review-card q-review-card--grid" {{ block.shopify_attributes }}>
               {% render 'cta-review-card', block: block %}
             </article>
@@ -350,7 +345,7 @@
       {%- comment -%} MASONRY (no extra <header>) {%- endcomment -%}
       {%- if layout_mode == 'masonry' -%}
         <div class="q-reviews-masonry" data-reviews-masonry>
-          {%- for block in section.blocks -%}
+          {%- for block in review_blocks -%}
             <article class="q-review-card q-review-card--masonry" {{ block.shopify_attributes }}>
               {% render 'cta-review-card', block: block %}
             </article>
@@ -361,7 +356,7 @@
       {%- comment -%} NEW: CAROUSEL / FILMSTRIP {%- endcomment -%}
       {%- if layout_mode == 'carousel' -%}
         <div class="q-reviews-carousel" role="list">
-          {%- for block in section.blocks -%}
+          {%- for block in review_blocks -%}
             <article class="q-review-card q-review-card--carousel" role="listitem" {{ block.shopify_attributes }}>
               {% render 'cta-review-card', block: block %}
             </article>
@@ -369,8 +364,16 @@
         </div>
       {%- endif -%}
 
+    {%- elsif request.design_mode and app_blocks.size == 0 -%}
+      <div class="q-empty-state">
+        <p>Add review blocks to display customer testimonials.</p>
+      </div>
+    {%- endif -%}
       {%- comment -%} CTA Buttons {% endcomment -%}
-      {%- if s.cta_text != blank or s.cta2_text != blank -%}
+      {%- assign has_review_cta = false -%}
+      {%- if s.cta_text != blank and s.cta_link != blank -%}{%- assign has_review_cta = true -%}{%- endif -%}
+      {%- if s.cta2_text != blank and s.cta2_link != blank -%}{%- assign has_review_cta = true -%}{%- endif -%}
+      {%- if has_review_cta -%}
         <div class="q-cta-actions q-text-{{ actions_align }}">
           {%- if s.cta_text != blank and s.cta_link != blank -%}
             <a
@@ -389,21 +392,16 @@
         </div>
       {%- endif -%}
 
-    {%- elsif request.design_mode -%}
-      <div class="q-empty-state">
-        <p>Add review blocks to display customer testimonials.</p>
-      </div>
-    {%- endif -%}
   </div>
 
-  {%- if s.enable_schema -%}
+  {%- if s.enable_schema and review_blocks.size > 0 -%}
     {%- capture review_schema -%}
       {
         "@context":"https://schema.org",
         "@type":"ItemList",
         "itemListElement":[
           {%- assign review_separator = '' -%}
-          {%- for block in section.blocks -%}
+          {%- for block in review_blocks -%}
             {%- assign b = block.settings -%}
             {%- if b.product.url != blank and b.reviewer_name != blank and b.review_text != blank -%}
               {{ review_separator }}
@@ -620,9 +618,9 @@
     {
       "type": "select",
       "id": "review_app_integration",
-      "label": "Review app",
+      "label": "Legacy review app selection",
       "default": "none",
-      "info": "Enable integration with popular review apps",
+      "info": "Add your installed review app using Add block > Apps. This legacy selection is retained for compatibility; the app block supplies its widget.",
       "options": [
         { "value": "none", "label": "None (manual blocks)" },
         { "value": "judgeme", "label": "Judge.me" },
@@ -637,6 +635,7 @@
     { "type": "checkbox", "id": "enable_schema", "label": "Enable Review schema markup", "default": false, "info": "Only enable for real reviews with accurate author, product and date information." }
   ],
   "blocks": [
+    { "type": "@app" },
     {
       "type": "review",
       "name": "Customer Review",

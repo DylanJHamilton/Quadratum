@@ -13,7 +13,7 @@
     const extraToggle = root.querySelector('[data-web3-pause]');
     const autoplay = slider?.dataset.autoplay === 'true' && slides.length > 1;
     const glow = root.querySelector('.q-cursor-glow'), primary = root.querySelector('[data-cta="primary"]');
-    const hasMotion = autoplay || root.querySelector('video,[style*="qWeb3Glow"]');
+    const hasMotion = autoplay || root.querySelector('video,[style*="qWeb3Glow"],.q-btn--gradient');
     let paused = motion.matches, index = 0, hovered = false, focused = false, timer, frame, observer;
     const stopped = () => paused || motion.matches || document.hidden || root.classList.contains(mobile.matches ? 'hide-mobile' : 'hide-desktop');
     function resetEffects() {
@@ -74,7 +74,8 @@
     });
     if(root.dataset.buttonMagnet==='true') on(primary,'mousemove',event=>{if(stopped())return;const rect=primary.getBoundingClientRect();primary.style.transform=`translate(${(event.clientX-rect.left-rect.width/2)/24}px,${(event.clientY-rect.top-rect.height/2)/24}px)`;});
     on(primary,'mouseleave',()=>{primary.style.transform='';});
-    instances.set(root,()=>{events.abort();clearTimeout(timer);cancelAnimationFrame(frame);observer?.disconnect();showAll();resetEffects();root.querySelectorAll('video').forEach(video=>video.pause());root.dataset.motionPaused='true';if(toggle)toggle.hidden=true;instances.delete(root);});
+    instances.set(root,()=>{if(slider)delete slider.dataset.ready;if(track)track.style.transform='';slides.forEach(slide=>{slide.inert=false;slide.removeAttribute('aria-hidden');});events.abort();clearTimeout(timer);cancelAnimationFrame(frame);observer?.disconnect();showAll();resetEffects();root.querySelectorAll('video').forEach(video=>video.pause());root.dataset.motionPaused='true';if(toggle)toggle.hidden=true;instances.delete(root);});
+    if (slider) slider.dataset.ready = 'true';
     sync();
   }
   const roots=scope=>[...(scope.matches?.('[data-web3-hero]')?[scope]:[]),...scope.querySelectorAll('[data-web3-hero]')];

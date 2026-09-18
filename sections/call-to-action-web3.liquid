@@ -77,21 +77,47 @@
                         assign lib = block.settings.icon_library | default: 'lucide'
                         assign filename = block.settings.icon_filename | strip | downcase | replace: ' ', '-' | remove: '.svg'
                         assign icon_file = ''
+                        assign custom_asset = false
                         if lib == 'lucide' and filename != blank
                           assign icon_file = 'lucide/' | append: filename | append: '.svg'
                         elsif lib contains 'tabler' and filename != blank and filename != 'brand-walletconnect'
                           assign icon_file = 'tabler/' | append: filename | append: '.svg'
                         elsif lib == 'custom'
-                          assign icon_file = block.settings.icon_custom_path | strip | remove_first: 'assets/'
+                          assign custom_input = block.settings.icon_custom_path | strip | remove_first: 'assets/'
+                          assign icon_file = custom_input | remove_first: 'icons/' | replace: 'tabler/filled/', 'tabler/' | replace: 'tabler/outline/', 'tabler/'
+                          assign nested_icon = false
+                          if icon_file contains '/'
+                            assign nested_icon = true
+                          endif
+                          if custom_input contains 'icons/' and nested_icon == false
+                            assign icon_file = icon_file | prepend: 'lucide/'
+                          elsif nested_icon == false
+                            assign custom_asset = true
+                          elsif icon_file contains 'tabler/' or icon_file contains 'lucide/'
+                            assign custom_asset = false
+                          else
+                            assign icon_file = ''
+                          endif
+                        endif
+                        if icon_file contains 'brand-walletconnect'
+                          assign icon_file = ''
+                        endif
+                        if custom_asset and icon_file != blank
+                          unless icon_file contains '.svg'
+                            assign icon_file = icon_file | append: '.svg'
+                          endunless
                         endif
                       -%}
                       <span class="{% if icon_file != blank %}qw3-icon-svg{% else %}qw3-icon-label{% endif %}" role="img" aria-label="{{ block.settings.alt_text | default: filename | escape }}" style="--qw3-icon-color: {{ block.settings.icon_color | default: 'currentColor' }};">
-                        {% if icon_file != blank %}
+                        {% if icon_file != blank and custom_asset %}
+                          <span class="qw3-icon-mask" style="--qw3-icon-url:url('{{ icon_file | asset_url | escape }}');"></span>
+                        {% elsif icon_file != blank %}
                           {% render 'cta-icon', filename: icon_file, size: 32 %}
                         {% else %}
                           <span class="qw3-badge">{{ block.settings.alt_text | default: 'Wallet' | escape }}</span>
                         {% endif %}
                       </span>
+                      {% if request.design_mode and lib == 'custom' and icon_file == blank %}<p>Choose a bundled icon or upload a flat SVG asset and enter its filename.</p>{% endif %}
                     {% endif %}
                   </li>
                 {% endif %}
@@ -114,8 +140,8 @@
         </div>
       </div>
 
+      {% if s.image != blank %}
       <div class="qw3-media">
-        {% if s.image != blank %}
           <div class="qw3-media-wrap">
             {{ s.image
               | image_url: width: 800, format: 'webp'
@@ -128,8 +154,8 @@
                 widths: "320,360,420,480,560,640,720,800"
             }}
           </div>
-        {% endif %}
       </div>
+      {% endif %}
     </div>
   </div>
 
@@ -260,6 +286,7 @@
           "type": "select",
           "id": "icon_library",
           "label": "Icon library",
+          "info": "Legacy Tabler filled/outline choices use the shared bundled symbol. Custom uploaded SVG assets retain their tint control.",
           "default": "lucide",
           "options": [
             { "value": "lucide", "label": "Lucide (bundled sprite)" },
