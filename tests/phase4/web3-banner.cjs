@@ -9,7 +9,7 @@ const slideSchema=schema.blocks.find(x=>x.type==='slide');
 const blocks=[0,1].map(i=>({id:`slide${i}`,type:'slide',settings:{...defaults(slideSchema.settings),heading:'Slide '+i,background_image_url:null,background_image:null}}));
 const render=(id,overrides={})=>engine.parseAndRender(source.slice(0,start),{section:{id,settings:{...defaults(schema.settings),...overrides},blocks},settings:globals,request:{design_mode:false}});
 (async()=>{
- const html=await render('one',{ss_autoplay:true,scroll_reveal:true,anchor_id:'custom:anchor'})+await render('two',{ss_autoplay:false})+await render('hero',{layout_mode:'hero',media_video:'/video.mp4',scroll_reveal:true,enable_parallax:false,tilt_hover:false,cursor_reactive_glow:false});
+ const html=await render('one',{ss_autoplay:true,scroll_reveal:true,anchor_id:'custom:anchor'})+await render('two',{ss_autoplay:false})+await render('hero',{layout_mode:'hero',cta_link:'/collections/all',media_video:'/video.mp4',scroll_reveal:true,enable_parallax:false,tilt_hover:false,cursor_reactive_glow:false});
  const dom=new JSDOM(html,{runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window,roots=[...w.document.querySelectorAll('[data-web3-hero]')];
  assert.equal(roots.length,3);assert.equal(roots[0].id,'custom:anchor');assert.equal(roots[1].querySelector('[data-autoplay]').dataset.autoplay,'false');assert.equal(roots[2].querySelector('[data-parallax]').dataset.parallax,'false');assert(!roots[2].querySelector('video').autoplay);
  const timers=new Map();let tick=0;w.setTimeout=fn=>{timers.set(++tick,fn);return tick};w.clearTimeout=id=>timers.delete(id);
@@ -24,6 +24,6 @@ const render=(id,overrides={})=>engine.parseAndRender(source.slice(0,start),{sec
  roots.forEach(root=>root.dispatchEvent(new w.Event('shopify:section:unload',{bubbles:true})));assert.equal(timers.size,0);assert.equal(roots[2].querySelector('video').dataset.playing,'false');
  for(const sheet of w.document.styleSheets)for(const rule of [...sheet.cssRules].flatMap(r=>r.cssRules?[...r.cssRules]:[r]))if(rule.selectorText)for(const selector of rule.selectorText.split(','))assert(selector.trim().startsWith('#shopify-section-'),'CSS cannot leak across instances');
  assert(!html.includes('{{ settings.button_hover_opacity'),'hover values render rather than leaking Liquid text');
- assert(roots[2].querySelector('[data-q-wallet-connect]'),'existing integration hook preserved; unresolved action remains documented');w.close();
- console.log('PASS Web3 motion/layout subset: actual hero/slideshow, false settings, custom anchors, no-observer reveal, persistent pause, inactive slide inertness, editor selection/unload, reduced-motion video, scoped CSS. Wallet action remains unresolved; section NOT REVIEWED.');
+ assert.equal(roots[2].querySelector('[data-cta="primary"]').getAttribute('href'),'/collections/all','configured primary link navigates without inventing a wallet provider');assert(!roots[2].querySelector('[data-q-wallet-connect]'));const empty=new JSDOM(await render('empty',{layout_mode:'hero',cta_link:null}));assert(!empty.window.document.querySelector('[data-cta="primary"]'));empty.window.close();w.close();
+ console.log('PASS Web3 motion/layout subset: actual hero/slideshow, false settings, custom anchors, no-observer reveal, persistent pause, inactive slide inertness, editor selection/unload, reduced-motion video, scoped CSS. Primary CTA uses a configured URL; remaining settings review keeps section NOT REVIEWED.');
 })().catch(error=>{console.error(error);process.exitCode=1});

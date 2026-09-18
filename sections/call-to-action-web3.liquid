@@ -2,15 +2,18 @@
   Quadratum — CTA: Web3
   • Tokenized CTA card; optional background image on ROOT <section>
   • Gradient surface, layered shadows, reveal on view, hover lift
-  • Icon sources: inline SVG (block) → assets/icons/[library]/<file>.svg → text badge fallback
-  • Libraries: Lucide (root), Tabler Filled (tabler/filled), Tabler Outline (tabler/outline), or Custom path
-  • Icons can be colored via block “Icon color”. Inline SVG uses currentColor. File icons use CSS mask + background-color.
+  • Icon sources: inline SVG → deployed sprite/custom flat asset → text badge fallback
+  • Built-in icon libraries use the deployed sprite; custom icons use flat uploaded assets.
+  • Inline SVG and sprite icons inherit the block icon color.
   • Right-side illustration is responsive (320–800px) and fits 4:3
 {% endcomment %}
 
 {% liquid
   assign s = section.settings
-  assign connected = s.simulate_connected
+  assign connected = false
+  if request.design_mode and s.simulate_connected
+    assign connected = true
+  endif
 
   assign align_class = 'align-center'
   if s.alignment == 'start'
@@ -29,9 +32,9 @@
 
   capture primary_label
     if connected
-      echo 'Connected ✅'
+      echo 'Connected state preview'
     else
-      echo s.primary_label | default: 'Connect Wallet'
+      echo s.primary_label | default: 'Explore'
     endif
   endcapture
 
@@ -43,7 +46,7 @@
   endfor
 %}
 
-<section id="cta-web3-{{ section.id }}" class="q-section q-cta-web3" role="region" aria-label="Web3 call to action" style="background-color: {{ bg_color }}; position: relative;">
+<section id="cta-web3-{{ section.id }}" class="q-section q-cta-web3" data-web3-cta role="region" aria-label="Web3 call to action" style="background-color: {{ bg_color }}; position: relative;">
   {% if s.bg_image != blank %}
     <div class="qw3-bg" aria-hidden="true" style="background-image: url({{ s.bg_image | image_url: width: 2400 }});"></div>
   {% endif %}
@@ -51,12 +54,12 @@
   <div class="qw3-container">
     <div class="qw3-card{% if s.image != blank %} has-media{% endif %}">
       <div class="qw3-content {{ align_class }}">
-        {% if s.eyebrow != blank %}<p class="qw3-eyebrow">{{ s.eyebrow }}</p>{% endif %}
-        {% if s.headline != blank %}<h2 class="qw3-title">{{ s.headline }}</h2>{% endif %}
-        {% if s.subheading != blank %}<p class="qw3-sub">{{ s.subheading }}</p>{% endif %}
+        {% if s.eyebrow != blank %}<p class="qw3-eyebrow">{{ s.eyebrow | escape }}</p>{% endif %}
+        {% if s.headline != blank %}<h2 class="qw3-title">{{ s.headline | escape }}</h2>{% endif %}
+        {% if s.subheading != blank %}<p class="qw3-sub">{{ s.subheading | escape }}</p>{% endif %}
 
         {% if s.show_icons %}
-          <ul class="qw3-icons" aria-label="Supported wallets">
+          <ul class="qw3-icons" aria-label="Wallet icons">
             {% if icon_count > 0 %}
               {% for block in section.blocks %}
                 {% if block.type == 'wallet_icon' %}
@@ -66,71 +69,47 @@
                         INLINE SVG PATH (supports color via currentColor)
                         Tip: ensure your SVG uses stroke/fill="currentColor"
                       {%- endcomment -%}
-                      <span class="qw3-icon-svg" style="{% if block.settings.icon_color != blank %}--qw3-icon-color: {{ block.settings.icon_color }};{% endif %}">
+                      <span class="qw3-icon-svg" role="img" aria-label="{{ block.settings.alt_text | default: 'Wallet' | escape }}" style="{% if block.settings.icon_color != blank %}--qw3-icon-color: {{ block.settings.icon_color }};{% endif %}">
                         {{ block.settings.icon_svg }}
                       </span>
                     {% else %}
                       {%- liquid
                         assign lib = block.settings.icon_library | default: 'lucide'
-                        assign filename_raw = block.settings.icon_filename | strip
-                        assign filename = filename_raw | downcase | replace: ' ', '-' | remove: '.svg'
-                        assign custom_path_raw = block.settings.icon_custom_path | strip
-                        assign custom_rel = custom_path_raw | remove_first: 'icons/' | remove: '.svg'
-                        assign src_path = ''
-
+                        assign filename = block.settings.icon_filename | strip | downcase | replace: ' ', '-' | remove: '.svg'
+                        assign icon_file = ''
                         if lib == 'lucide' and filename != blank
-                          assign src_path = 'icons/' | append: filename | append: '.svg'
-                        elsif lib == 'tabler-filled' and filename != blank
-                          assign src_path = 'icons/tabler/filled/' | append: filename | append: '.svg'
-                        elsif lib == 'tabler-outline' and filename != blank
-                          assign src_path = 'icons/tabler/outline/' | append: filename | append: '.svg'
-                        elsif lib == 'custom' and custom_rel != blank
-                          assign src_path = 'icons/' | append: custom_rel
-                          unless custom_rel contains '.svg'
-                            assign src_path = src_path | append: '.svg'
-                          endunless
+                          assign icon_file = 'lucide/' | append: filename | append: '.svg'
+                        elsif lib contains 'tabler' and filename != blank and filename != 'brand-walletconnect'
+                          assign icon_file = 'tabler/' | append: filename | append: '.svg'
+                        elsif lib == 'custom'
+                          assign icon_file = block.settings.icon_custom_path | strip | remove_first: 'assets/'
                         endif
-
-                        assign icon_color = block.settings.icon_color | default: ''
                       -%}
-
-                      {% if src_path != blank %}
-                        {%- comment -%}
-                          FILE SVG PATH (colored via CSS mask + background-color)
-                          Works great for single-color line/filled icons (Lucide/Tabler).
-                        {%- endcomment -%}
-                        <span
-                          class="qw3-icon-mask"
-                          style="--qw3-icon-url: url({{ src_path | asset_url }});{% if icon_color != blank %} --qw3-icon-color: {{ icon_color }};{% endif %}"
-                          aria-label="{{ block.settings.alt_text | default: filename | replace: '-', ' ' | capitalize }}">
-                        </span>
-                      {% else %}
-                        <span class="qw3-badge">{{ block.settings.alt_text | default: 'Wallet' }}</span>
-                      {% endif %}
+                      <span class="{% if icon_file != blank %}qw3-icon-svg{% else %}qw3-icon-label{% endif %}" role="img" aria-label="{{ block.settings.alt_text | default: filename | escape }}" style="--qw3-icon-color: {{ block.settings.icon_color | default: 'currentColor' }};">
+                        {% if icon_file != blank %}
+                          {% render 'cta-icon', filename: icon_file, size: 32 %}
+                        {% else %}
+                          <span class="qw3-badge">{{ block.settings.alt_text | default: 'Wallet' | escape }}</span>
+                        {% endif %}
+                      </span>
                     {% endif %}
                   </li>
                 {% endif %}
               {% endfor %}
-            {% else %}
-              <li><span class="qw3-badge">MetaMask</span></li>
-              <li><span class="qw3-badge">WalletConnect</span></li>
-              <li><span class="qw3-badge">Coinbase</span></li>
             {% endif %}
           </ul>
         {% endif %}
 
         <div class="qw3-actions">
           {% if connected %}
-            <button class="btn btn-primary is-connected" aria-disabled="true" tabindex="-1">{{ primary_label }}</button>
-          {% else %}
-            {% if s.primary_url != blank %}
-              <a class="btn btn-primary" href="{{ s.primary_url }}">{{ primary_label }}</a>
-            {% else %}
-              <button class="btn btn-primary js-connect" type="button" aria-pressed="false">{{ primary_label }}</button>
-            {% endif %}
+            <button class="btn btn-primary is-connected" type="button" disabled>{{ primary_label | strip | escape }}</button>
+          {% elsif s.primary_url != blank and s.primary_label != blank %}
+            <a class="btn btn-primary" href="{{ s.primary_url | escape }}">{{ primary_label | strip | escape }}</a>
+          {% elsif request.design_mode %}
+            <p class="qw3-setup">Set a primary button link. Wallet connections must be handled by your linked service; this section does not connect wallets.</p>
           {% endif %}
           {% if s.secondary_label != blank and s.secondary_url != blank %}
-            <a class="btn btn-secondary" href="{{ s.secondary_url }}">{{ s.secondary_label }}</a>
+            <a class="btn btn-secondary" href="{{ s.secondary_url | escape }}">{{ s.secondary_label | escape }}</a>
           {% endif %}
         </div>
       </div>
@@ -162,14 +141,15 @@
 
     #cta-web3-{{ section.id }} .qw3-card{
       display:grid; gap: var(--space-lg, 1.5rem); grid-template-columns: 1fr; align-items:center;
-      padding: var(--space-2xl, 3rem); border-radius: var(--radius-2xl, 24px);
+      padding: clamp(1rem, 4vw, 3rem); border-radius: var(--radius-2xl, 24px);
       background: linear-gradient(180deg, color-mix(in oklab, var(--surface, #fff) 85%, var(--surface-accent, #eef) 15%), var(--surface, #fff));
       box-shadow: 0 8px 24px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04);
-      opacity: 0; transform: translateY(6%); will-change: opacity, transform;
+      opacity: 1; transform: none;
     }
     #cta-web3-{{ section.id }} .qw3-card:hover{ box-shadow: 0 16px 40px rgba(0,0,0,.12); }
-    @keyframes qw3-reveal{ from{opacity:0;transform:translateY(6%)} to{opacity:1;transform:translateY(0)} }
-    #cta-web3-{{ section.id }} .qw3-card.is-visible{ animation: qw3-reveal 360ms ease forwards; }
+    #cta-web3-{{ section.id }} .qw3-card.is-pending{ opacity:0; transform:translateY(6%); }
+    @keyframes qw3-reveal-{{ section.id }}{ from{opacity:0;transform:translateY(6%)} to{opacity:1;transform:translateY(0)} }
+    #cta-web3-{{ section.id }} .qw3-card.is-visible{ animation: qw3-reveal-{{ section.id }} 360ms ease forwards; }
 
     #cta-web3-{{ section.id }} .qw3-content.align-center{ text-align:center; }
     #cta-web3-{{ section.id }} .qw3-content.align-start{ text-align:start; }
@@ -181,7 +161,8 @@
     #cta-web3-{{ section.id }} .qw3-icons, #cta-web3-{{ section.id }} .qw3-actions{ display:flex; flex-wrap:wrap; gap: var(--space-md, 1rem); }
     #cta-web3-{{ section.id }} .qw3-content.align-center .qw3-icons, #cta-web3-{{ section.id }} .qw3-content.align-center .qw3-actions{ justify-content:center; }
     #cta-web3-{{ section.id }} .qw3-content.align-start .qw3-icons, #cta-web3-{{ section.id }} .qw3-content.align-start .qw3-actions{ justify-content:flex-start; }
-    #cta-web3-{{ section.id }} .qw3-icons li{ line-height:0; }
+    #cta-web3-{{ section.id }} .qw3-icons { list-style:none; padding:0; }
+    #cta-web3-{{ section.id }} .qw3-icons li{ line-height:1.2; }
 
     /* Inline SVG coloring: make sure inner paths use stroke/fill="currentColor" */
     #cta-web3-{{ section.id }} .qw3-icon-svg{
@@ -189,9 +170,10 @@
       color: var(--qw3-icon-color, currentColor);
       line-height: 0;
     }
+    #cta-web3-{{ section.id }} .qw3-icon-svg img{ width:100%; height:100%; object-fit:contain; }
     #cta-web3-{{ section.id }} .qw3-icon-svg svg{ width:100%; height:100%; display:block; }
 
-    /* File SVG coloring via mask */
+    /* Legacy mask styles retained for custom markup. */
     #cta-web3-{{ section.id }} .qw3-icon-mask{
       display:inline-block; width: var(--size-8, 2rem); height: var(--size-8, 2rem);
       background-color: var(--qw3-icon-color, currentColor);
@@ -202,7 +184,7 @@
     #cta-web3-{{ section.id }} .qw3-badge{ display:inline-flex; align-items:center; justify-content:center; padding-inline: var(--space-md, 1rem); height: var(--control-lg, 2.75rem); border-radius: var(--radius-sm, 10px); background: var(--surface-muted, #f0f0f0); color: var(--text-secondary, #555); font: inherit; }
     #cta-web3-{{ section.id }} .btn.is-connected{ opacity:.7; pointer-events:none; }
 
-    #cta-web3-{{ section.id }} .qw3-media{ max-width: clamp(280px, 42vw, 560px); justify-self: center; }
+    #cta-web3-{{ section.id }} .qw3-media{ width: 100%; max-width: 560px; min-width: 0; justify-self: center; }
     #cta-web3-{{ section.id }} .qw3-media-wrap{
       aspect-ratio: 4/3; overflow: clip; border-radius: var(--radius-xl, 18px);
       box-shadow: var(--shadow-md, 0 6px 20px rgba(0,0,0,.06));
@@ -213,38 +195,20 @@
 
     @media (min-width: 48rem){
       #cta-web3-{{ section.id }} .qw3-card{ grid-template-columns: 1fr; }
-      #cta-web3-{{ section.id }} .qw3-card.has-media{ grid-template-columns: 1.1fr minmax(280px, 0.9fr); }
+      #cta-web3-{{ section.id }} .qw3-card.has-media{ grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); }
     }
 
     @media (prefers-reduced-motion: reduce){ #cta-web3-{{ section.id }} *{ animation:none !important; transition:none !important; } }
+    #cta-web3-{{ section.id }}, #cta-web3-{{ section.id }} * { box-sizing:border-box; }
+    #cta-web3-{{ section.id }} .qw3-content { min-width:0; overflow-wrap:anywhere; }
+    #cta-web3-{{ section.id }} .btn { display:inline-flex; justify-content:center; align-items:center; max-width:100%; white-space:normal; text-align:center; padding:.75rem 1.25rem; border:1px solid currentColor; border-radius:{{ settings.button_radius | default: 12 }}px; text-decoration:none; }
+    #cta-web3-{{ section.id }} .btn-primary { background:{{ settings.color_primary | default: '#2563eb' }}; color:{{ settings.text_on_color | default: '#ffffff' }}; }
+    #cta-web3-{{ section.id }} .btn-secondary { color:{{ settings.text_base | default: '#111111' }}; }
+    #cta-web3-{{ section.id }} .btn:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
+    @media (prefers-reduced-motion: reduce) { #cta-web3-{{ section.id }} .qw3-card.is-pending { opacity:1; transform:none; } #cta-web3-{{ section.id }} .qw3-media-wrap:hover { transform:none; } }
   </style>
 
-  <script>
-    (function(){
-      var root=document.getElementById('cta-web3-{{ section.id }}'); if(!root) return;
-
-      {% if s.primary_url == blank and connected == false %}
-      var btn=root.querySelector('.js-connect');
-      if(btn){
-        btn.addEventListener('click',function(){
-          btn.classList.add('is-connected');
-          btn.setAttribute('aria-disabled','true');
-          btn.setAttribute('aria-pressed','true');
-          btn.textContent='Connected ✅';
-          root.style.transition='opacity 160ms ease'; root.style.opacity='0.98';
-          setTimeout(function(){root.style.opacity='';},200);
-          try{window.dispatchEvent(new CustomEvent('quadratum:cta-web3:connected',{detail:{sectionId:'{{ section.id }}'}}));}catch(e){}
-        },{passive:true});
-      }
-      {% endif %}
-
-      var card=root.querySelector('.qw3-card');
-      if(!card) return;
-      if(!('IntersectionObserver'in window)){ card.classList.add('is-visible'); return; }
-      var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ card.classList.add('is-visible'); io.disconnect(); } });},{threshold:.2});
-      io.observe(card);
-    })();
-  </script>
+  <script src="{{ 'call-to-action-web3.js' | asset_url }}" defer></script>
 </section>
 
 {% schema %}
@@ -254,16 +218,16 @@
   "class": "q-section q-cta-web3",
   "settings": [
     { "type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "Web3 Ready" },
-    { "type": "text", "id": "headline", "label": "Headline", "default": "Connect Your Wallet" },
-    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Experience on-chain shopping securely." },
-    { "type": "text", "id": "primary_label", "label": "Primary button label", "default": "Connect Wallet" },
-    { "type": "url",  "id": "primary_url", "label": "Primary button link" },
+    { "type": "text", "id": "headline", "label": "Headline", "default": "Explore your community" },
+    { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Discover your next community experience." },
+    { "type": "text", "id": "primary_label", "label": "Primary button label", "default": "Explore" },
+    { "type": "url",  "id": "primary_url", "label": "Primary button link", "info": "Link to your destination or wallet service. This theme does not establish a wallet connection." },
     { "type": "text", "id": "secondary_label", "label": "Secondary button label", "default": "Learn More" },
     { "type": "url",  "id": "secondary_url", "label": "Secondary button link" },
     { "type": "image_picker", "id": "image", "label": "Right-side illustration" },
     { "type": "image_picker", "id": "bg_image", "label": "Background image (optional)" },
     { "type": "checkbox", "id": "show_icons", "label": "Show wallet icons row", "default": true },
-    { "type": "checkbox", "id": "simulate_connected", "label": "Simulate connected state", "default": false },
+    { "type": "checkbox", "id": "simulate_connected", "label": "Preview connected appearance (editor only)", "default": false },
     {
       "type": "select",
       "id": "background_style",
@@ -298,14 +262,14 @@
           "label": "Icon library",
           "default": "lucide",
           "options": [
-            { "value": "lucide", "label": "Lucide (assets/icons/*.svg)" },
-            { "value": "tabler-filled", "label": "Tabler Filled (assets/icons/tabler/filled/*.svg)" },
-            { "value": "tabler-outline", "label": "Tabler Outline (assets/icons/tabler/outline/*.svg)" },
-            { "value": "custom", "label": "Custom path under assets/icons/" }
+            { "value": "lucide", "label": "Lucide (bundled sprite)" },
+            { "value": "tabler-filled", "label": "Tabler (legacy filled selection)" },
+            { "value": "tabler-outline", "label": "Tabler (bundled sprite)" },
+            { "value": "custom", "label": "Custom uploaded asset" }
           ]
         },
         { "type": "text", "id": "icon_filename", "label": "Filename (no .svg)", "info": "e.g., wallet, arrow-up, brand-ethereum" },
-        { "type": "text", "id": "icon_custom_path", "label": "Custom relative path", "info": "e.g., tabler/filled/brand-ethereum or my-folder/custom-logo.svg" },
+        { "type": "text", "id": "icon_custom_path", "label": "Custom relative path", "info": "Filename of an uploaded theme asset, e.g. custom-logo.svg. For bundled icons use the library controls." },
         { "type": "color", "id": "icon_color", "label": "Icon color (tint)" },
         { "type": "html", "id": "icon_svg", "label": "Inline SVG (overrides file). Use currentColor in your SVG." },
         { "type": "text", "id": "alt_text", "label": "Alt text / name" }
@@ -314,18 +278,18 @@
   ],
   "presets": [
     {
-      "name": "CTA — Web3: Connect (Accent)",
+      "name": "CTA — Web3: Community (Accent)",
       "category": "Call To Action",
       "settings": {
-        "eyebrow": "WEB3 ENABLED",
-        "headline": "Connect Your Wallet",
-        "subheading": "Verify your wallet to unlock on-chain rewards and gated drops.",
-        "primary_label": "Connect Wallet",
+        "eyebrow": "Community",
+        "headline": "Explore your community",
+        "subheading": "Discover your next community experience.",
+        "primary_label": "Explore",
         "primary_url": "",
         "secondary_label": "How it works",
-        "secondary_url": "/pages/web3-onboarding",
-        "image": "shopify://shop_images/web3-illustration.png",
-        "bg_image": "shopify://shop_images/web3-bg-grid.png",
+        "secondary_url": "",
+        "image": "",
+        "bg_image": "",
         "show_icons": true,
         "simulate_connected": false,
         "background_style": "accent",
