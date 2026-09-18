@@ -18,7 +18,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 |---|---|
 | 1 Global / Structural | Initial engineering hardening and focused fixtures implemented; live visual/settings/editor acceptance queued. |
 | 2 Hero / Banner / CTA | Engineering/register closure: all 30 sections and 62 family components have dispositions. 57 await live verification, four dormant helpers retained, one build-only helper reviewed. B2-FINAL live acceptance remains open. |
-| 3 Collection / Discovery | ACTIVE: Collection List and its card/CSS/JS source review complete; live B3-LIST queued. Remaining discovery components NOT REVIEWED. |
+| 3 Collection / Discovery | ACTIVE: Collection List and its card/CSS/JS source review complete; live B3-LIST queued. Collection Grid/shared-card repairs in progress; preset and Spotlight host findings remain NOT REVIEWED. |
 | 4 Product / Commerce | Pending; Phase 3 contracts protected |
 | 5 Content / Interactive | Pending |
 | 6 Forms / Conversion | Pending |
@@ -302,3 +302,17 @@ Carousel controls now have one disposable controller per instance, editor unload
 The register now contains **457 primary components: 354 NOT REVIEWED, 97 REQUIRES LIVE VERIFICATION, four RETAINED — DORMANT SOURCE REVIEWED, one REVIEWED — BUILD ONLY, and one DELETION CANDIDATE — OWNER REVIEW**. All 150 sections, 102 Theme Blocks, both builders and protected product/header/footer/Quick View architecture are retained. `config/settings_data.json` retains SHA256 `ffc244582d58f3e6e07713abd6ab1de2cdef7ba109fc00a60cef886235b6b499`. The excluded icon inventory is unchanged and does not imply approval.
 
 Next review target: Collection Grid feed and its shared Collection Card, including collection selection/filtering and host-dependent settings. These remain NOT REVIEWED until their findings, callers and presets are resolved. Batch 1 and Batch 2 live queues remain open. PR #22 remains DRAFT; no merge or Shopify publication.
+
+### Batch 3 continuation — Collection Grid filters and shared-card repairs
+
+Implemented the next repair checkpoint in `feeds-collection-grid` and its shared `collection-card`. Both deliberately remain **NOT REVIEWED**: the feed's five card-preset choices emit classes without matching repository styles, and complete settings/inheritance review of the Spotlight host remains open. Successful repair fixtures do not close those findings.
+
+The feed now uses one rendering/filtering loop for manual and automatic collections. Replaced the ineffective `map: 'strip'` property mapping with case/space normalization and exact comma-separated handle membership; include/exclude precedence and title matching are covered by fixtures. Cards without collection destinations are omitted without empty grid cells. Automatic mode uses the global collection source, and its default empty message no longer falsely limits availability to the collection-list template. Existing saved merchant text is untouched. Percentage opacity is now passed to the shared card as a fraction, restoring its actual CSS effect; fallback matches the schema's 85 percent default. Header and empty-state plain text are escaped, long grid content is bounded, and the static grid no longer advertises unnecessary live-region updates.
+
+The shared card now guards missing destinations instead of using an invalid top-level `break`. Escaped collection titles, overlay content, URLs, labels and the Spotlight host's text/textarea subtitle/body inputs; the feed's richtext subheading remains richtext. CTA destination fallback and separate links are retained. Added bounded/wrapped card content, border-box CTA sizing, inset focus outlines and reduced-motion handling. The snippet remains shared by both hosts; no duplicate card implementation was introduced.
+
+**Validation:** all seven Phase 3 and **27 Phase 4 suites pass**, including new actual-Liquid/DOM fixtures for both sources, exact handle matching, case/spaces, include/exclude precedence, title filtering, missing collections, empty results, opacity endpoints, false display settings, safe plain text, CTA fallback and all three Spotlight layout render contracts. Schema/reference checks and CSS build pass. Shopify CLI 4.8.0 diagnostic signatures and counts are unchanged from the preceding Collection List checkpoint; existing lint/parser debt remains. Evidence: `validation/batch3-collection-grid/`. The Spotlight rendering fixtures establish shared-card compatibility only, not complete settings/preset or live acceptance.
+
+**B3-GRID live queue (after source closure):** manual/automatic source and filter settings, opacity/colors, images and long content at all five standard viewport widths, keyboard/screen reader, reduced motion, simultaneous feed/Spotlight instances and real editor insertion/removal/settings changes. Complete the preset and host inheritance findings before disposition promotion.
+
+Register totals are unchanged: **457 primary components; 354 NOT REVIEWED; 97 REQUIRES LIVE VERIFICATION; four retained dormant/source-reviewed; one build-only reviewed; one retained deletion candidate requiring owner review**. All 150 sections, 102 Theme Blocks and protected architecture remain. The merchant settings hash is unchanged. Batch 3 remains active, all earlier live queues remain open, and PR #22 remains DRAFT. No merge or Shopify publication.
