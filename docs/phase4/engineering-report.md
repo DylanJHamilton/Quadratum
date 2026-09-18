@@ -18,7 +18,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 |---|---|
 | 1 Global / Structural | Initial engineering hardening and focused fixtures implemented; live visual/settings/editor acceptance queued. |
 | 2 Hero / Banner / CTA | Engineering/register closure: all 30 sections and 62 family components have dispositions. 57 await live verification, four dormant helpers retained, one build-only helper reviewed. B2-FINAL live acceptance remains open. |
-| 3 Collection / Discovery | Pending |
+| 3 Collection / Discovery | ACTIVE: Collection List and its card/CSS/JS source review complete; live B3-LIST queued. Remaining discovery components NOT REVIEWED. |
 | 4 Product / Commerce | Pending; Phase 3 contracts protected |
 | 5 Content / Interactive | Pending |
 | 6 Forms / Conversion | Pending |
@@ -286,3 +286,19 @@ All **30 Hero / Banner / CTA sections** now have engineering dispositions. The e
 PR #22 remains DRAFT. Batch 3 can begin as the next engineering batch; Phase 4 cannot be marked ready until all batches and the required live queues are complete. No merge or Shopify publication was performed.
 
 Final app-only fixture also verified that Reviews' configured CTA is rendered independently of manual cards, missing destinations emit no action spacing, and an app-only instance emits no empty manual-review JSON. The targeted Reviews suite was rerun after this correction; `final-review-cta.txt` records that result. Full regression evidence precedes this localized correction; unaffected suites were not redundantly repeated.
+
+### Batch 3 start — Collection List source and fixture checkpoint
+
+Batch 3 is ACTIVE. `main-collection-list`, `collection-list-card`, and the section's CSS/JS now have source/settings/preset and fixture dispositions of **REQUIRES LIVE VERIFICATION**. The other discovery components remain NOT REVIEWED. This is the first four-component checkpoint, not Batch 3 closure.
+
+**Repairs:** automatic collection discovery now iterates actual collection objects, following [Shopify's collections object contract](https://shopify.dev/docs/api/liquid/objects/collections), instead of treating each collection as a key/value pair. Manual empty blocks are skipped; the automatic maximum remains automatic-only as described by the schema. The page heading and empty state now share the section's width/padding container. Card output safely omits missing destinations, escapes plain text and URLs, and uses one native link without a misleading nested button role. Blank decorative button labels produce no output.
+
+Carousel controls now have one disposable controller per instance, editor unload/reload and block selection handling, resize/image-load boundary updates, reduced-motion navigation and RTL scroll direction. Controls remain hidden until initialized; the native scroller and links remain usable without JavaScript. Mobile column widths no longer have a conflicting minimum, peek now exposes following content, adapt media preserves its natural ratio, long text wraps, and focus styling stays visible within clipped cards. Live browser layout/scroll behavior remains unverified.
+
+**Validation:** all **seven Phase 3 and 26 Phase 4 suites pass**, including the new actual-Liquid/DOM Collection List suite. Tests cover manual/automatic sources in grid/carousel, automatic limits, empty state, insertion defaults, headings, overrides, control suppression, two instances, duplicate script evaluation, LTR/RTL bounds, reduced motion, resizing and editor lifecycle. Schema/reference checks and CSS build pass. Shopify CLI 4.8.0 Theme Check has no added or removed diagnostics compared with Batch 2 closure when matched by file/check/severity/message; existing lint/parser debt remains and the command exits 1. Evidence: `validation/batch3-collection-list/`, including source hashes, register totals and diagnostic movement.
+
+**B3-LIST live acceptance queue:** test manual and automatic collections, empty and populated insertion, all layout/column/spacing/ratio/display settings, long translated content and image overrides at 1440/1280/768/390/320px. Verify actual mobile peek, native touch/trackpad and RTL scrolling, arrow bounds after resize/image load, keyboard and screen-reader names/focus, reduced-motion changes, no-JavaScript fallback, two instances, and real editor insert/remove/reorder/block selection. Fixtures are not Shopify/browser certification.
+
+The register now contains **457 primary components: 354 NOT REVIEWED, 97 REQUIRES LIVE VERIFICATION, four RETAINED — DORMANT SOURCE REVIEWED, one REVIEWED — BUILD ONLY, and one DELETION CANDIDATE — OWNER REVIEW**. All 150 sections, 102 Theme Blocks, both builders and protected product/header/footer/Quick View architecture are retained. `config/settings_data.json` retains SHA256 `ffc244582d58f3e6e07713abd6ab1de2cdef7ba109fc00a60cef886235b6b499`. The excluded icon inventory is unchanged and does not imply approval.
+
+Next review target: Collection Grid feed and its shared Collection Card, including collection selection/filtering and host-dependent settings. These remain NOT REVIEWED until their findings, callers and presets are resolved. Batch 1 and Batch 2 live queues remain open. PR #22 remains DRAFT; no merge or Shopify publication.
