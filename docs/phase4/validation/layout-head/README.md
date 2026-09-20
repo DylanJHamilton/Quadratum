@@ -7,3 +7,5 @@ The active head include now wraps existing token/utility CSS. Dedicated popup bo
 - Schema/reference/protected architecture/state checks and CSS build pass. All 150 sections, 102 Theme Blocks and protected merchant state remain.
 - Shopify CLI 4.8.0 exits 1: 636 diagnostics (17 errors / 619 warnings). One missing-image-dimension error disappears with the duplicate popup markup; no added diagnostic signatures. Existing debt remains unsuppressed.
 - Normal/password layout CSS, popup/editor behavior and real saved settings remain mandatory live acceptance after Batch 9. Token mapping and utility review remain open in Batch 9.
+
+GitGuardian incident 37480944 identified the former filename-keyed digest for the password layout. Each recorded value was recomputed from its file and matches. Evidence now uses explicit `path` / `sha256` fields; no credential was involved, no scanner suppression or history rewrite. The exact follow-up check remains required.
