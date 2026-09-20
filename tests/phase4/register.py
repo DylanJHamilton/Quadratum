@@ -4,6 +4,12 @@ import csv,json,re,hashlib,collections
 ROOT=Path(__file__).resolve().parents[2]
 SCHEMA=re.compile(r'{%-?\s*schema\s*-?%}(.*?){%-?\s*endschema\s*-?%}',re.S)
 def family(name):
+ if name in ['blog-card', 'section-main-blog-single']:return '3 Collection / Discovery'
+ if name in ['forms-sections', 'frontend-form-logic', 'frontend-form-logic-form-sections']:return '6 Forms / Conversion'
+ if name in ['card-product', 'icon-social', 'q-social-micro-post-card', 'q-social-pinterest-card', 'q-social-pinterest-thumb', 'q-social-profile-icon']:return '7 Social / Third Party / Utilities'
+ if name in ['qtm-content-block-wrapper-end', 'qtm-content-block-wrapper-start', 'qtm-content-blocks', 'qtm-content-blocks-engine']:return '8 Theme Blocks'
+ if name in ['boxed-content-media', 'contrast-text', 'icon-sprite', 'icons', 'q-base.css', 'q-disclosure', 'q-spacing', 'qtm-section-surfaces', 'quadratum-tokens', 'section-slideshow', 'styles', 'tailwind', 'theme', 'theme-tokens', 'utilities', 'worm']:return '9 Snippet / Asset Closure'
+ if name == 'global-theme-vars':return '1 Global / Structural'
  if name in ['pb-bundle-card','interactive-content-helper-product-slider']:return '4 Product / Commerce'
  if name.startswith(('header','footer')) or name in ['global-popup','search-popup','search-controller','q-nav','search-form-static','search-form-predictive','predictive-search']:return '1 Global / Structural'
  if name.startswith(('form-','call-to-action-newsletter','call-to-action-quote')):return '6 Forms / Conversion'
