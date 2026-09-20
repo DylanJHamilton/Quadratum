@@ -1,0 +1,34 @@
+const assert=require('node:assert/strict'),f=require('./support/commerce.cjs');
+const files=['product-selling-plans.js','product-purchase-sync.js','product-gallery-options.js','product-wishlist.js'];
+function choose(w,root,a,b){root.querySelectorAll('[data-qtm-option]').forEach((group,i)=>{const value=[a,b][i],node=group.querySelector('select')||[...group.querySelectorAll('input')].find(n=>n.value===value);if(node.type==='radio')node.checked=true;else node.value=value;node.dispatchEvent(new w.Event('change',{bubbles:true}));});}
+(async()=>{
+  const {schema}=f.unpack('main-product-modern-variant');
+  const values=s=>s.options?.map(o=>o.value)||(s.type==='checkbox'?[false,true]:s.type==='range'?[s.min,s.max]:[]);
+  for(const setting of schema.settings)for(const value of values(setting))await f.render('main-product-modern-variant',{settings:{[setting.id]:value}});
+  for(const block of schema.blocks)for(const setting of block.settings)for(const value of values(setting))await f.render('main-product-modern-variant',{blocks:[{type:block.type,settings:{[setting.id]:value}}]});
+  for(const combo of [false,true])for(const picker of ['buttons','dropdown']){
+    const blocks=[{type:'title'},{type:'price'},{type:'sku_status'},{type:'variant_picker',settings:{picker}},{type:'quantity'},{type:'buy_buttons',settings:{show_dynamic_checkout:true}},{type:'wishlist',settings:{wishlist_mode:'variant',label_add:'Save it',label_remove:'Unsave it',icon_active:'+',icon_inactive:'-'}}];if(combo)blocks.push({type:'qty_buy_combo',settings:{show_dynamic_checkout:true}});
+    const d=f.dom(await f.render('main-product-modern-variant',{blocks,settings:{gallery_layout:'thumbnails'}})),w=d.window,root=w.document.querySelector('[data-modern-product]');
+    w.localStorage.setItem('qtm_wishlist_v1',JSON.stringify(['v:100','p:other']));f.boot(w,files);
+    const q=s=>root.querySelector(s),form=q('form');assert.equal(form.querySelectorAll('[name=id]').length,1);assert.equal(form.querySelectorAll('[name=quantity]').length,1);assert.equal(form.querySelectorAll('[name=add]').length,1);assert.equal(root.querySelectorAll('.q-dynamic-checkout').length,1);
+    assert(w.qtmWishlistStore().getState().items.some(item=>item.variant_id==='100'));assert.deepEqual(JSON.parse(w.localStorage.getItem('qtm_wishlist_v1')),['p:other']);
+    choose(w,root,'Large','Red');assert.equal(q('[name=id]').value,'');assert(q('[name=add]').disabled);assert(q('[data-wishlist-button]').disabled);assert.equal(form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true})),false);
+    choose(w,root,'Large','Blue');assert.equal(q('[name=id]').value,'100');assert.equal(q('[name=quantity]').value,'2');assert.equal(q('[data-purchase-sku]').textContent,'SKU100');assert.equal(q('[data-wishlist-button]').textContent.trim().replace(/\s+/g,' '),'+ Unsave it');
+    const plan=q('[name=selling_plan]');plan.value='90';plan.dispatchEvent(new w.Event('change',{bubbles:true}));assert.equal(q('[data-purchase-current]').textContent,'$15.00');assert.equal(q('[data-purchase-compare]').textContent,'$20.00');assert(!q('[data-purchase-compare]').hidden);
+    q('[name=quantity]').value='3';assert.equal(form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true})),false);q('[name=quantity]').value='4';assert.equal(form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true})),true);assert.equal(new w.FormData(form).get('selling_plan'),'90');
+    choose(w,root,'Small','Blue');assert(q('[name=add]').disabled);assert(q('.q-dynamic-checkout').hidden);assert.equal(plan.value,'');
+    w.history.replaceState({},'','?variant=10&selling_plan=45');w.dispatchEvent(new w.PopStateEvent('popstate'));assert.equal(q('[name=id]').value,'10');assert.equal(q('[data-purchase-current]').textContent,'$8.00');assert(q('[data-purchase-sku-wrap]').hidden);
+    q('[data-wishlist-button]').click();assert(w.qtmWishlistStore().getState().items.some(item=>item.variant_id==='10'));
+    q('[data-qtm-open-modal]').click();assert(q('dialog').open);q('[data-qtm-next]').click();assert(q('dialog img').alt);root.dispatchEvent(new w.CustomEvent('shopify:section:unload',{bubbles:true}));assert(!q('dialog').open);assert(q('video').dataset.paused);root.dispatchEvent(new w.CustomEvent('shopify:section:load',{bubbles:true}));choose(w,root,'Large','Blue');assert.equal(q('[name=id]').value,'100');d.window.close();
+  }
+  for(const blocks of [[],[{type:'buy_buttons'}],[{type:'quantity'},{type:'buy_buttons'}],[{type:'wishlist',settings:{wishlist_mode:'product'}}]]){
+    const d=f.dom(await f.render('main-product-modern-variant',{blocks}));f.boot(d.window,files);const q=s=>d.window.document.querySelector(s);assert(!q('[data-simple-fallback]').hidden,'missing picker retains native selector');assert.equal(d.window.document.querySelectorAll('[name=quantity]').length,1);
+    q('[name=id]').value='100';q('[name=id]').dispatchEvent(new d.window.Event('change',{bubbles:true}));assert.equal(q('[name=quantity]').value,'2');if(q('[data-wishlist-button]')){q('[data-wishlist-button]').click();assert.equal(d.window.qtmWishlistStore().getState().items[0].variant_id,null);}d.window.close();
+  }
+  const every=await f.render('main-product-modern-variant',{blocks:schema.blocks.map(b=>({type:b.type}))}),all=f.dom(every);assert.equal(all.window.document.querySelectorAll('[name=id]').length,1);assert.equal(all.window.document.querySelectorAll('[name=quantity]').length,1);const ids=[...all.window.document.querySelectorAll('[id]')].map(n=>n.id);assert.equal(ids.length,new Set(ids).size);all.window.close();
+  const required={...f.product,requires_selling_plan:true,variants:f.variants.map(v=>({...v,selling_plan_allocations:[]})),selected_or_first_available_variant:{...f.variants[0],selling_plan_allocations:[]}};
+  const blocked=f.dom(await f.render('main-product-modern-variant',{data:{product:required}}));f.boot(blocked.window,files);assert(blocked.window.document.querySelector('[name=add]').disabled);blocked.window.close();
+  const blank=await f.render('main-product-modern-variant',{data:{product:null}});assert(!blank.includes('data-modern-product'));
+  const two=f.dom(await f.render('main-product-modern-variant',{id:'modern'})+await f.render('main-product-simple',{id:'simple'}));f.boot(two.window,files);choose(two.window,two.window.document.querySelector('[data-modern-product]'),'Large','Blue');assert.equal(two.window.document.querySelector('[data-simple-product] [name=id]').value,'10');two.window.close();
+  console.log('PASS Modern Variant: every section/block setting and preset, combo/separate/absent purchase blocks; sparse/sold-out plans/quantity/prices/SKU; back/forward; legacy wishlist migration/custom labels/product-vs-variant mode; gallery/editor cleanup and Simple coexistence. Live acceptance queued.');
+})().catch(e=>{console.error(e);process.exitCode=1});

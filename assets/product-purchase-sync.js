@@ -77,6 +77,8 @@
         node.classList.toggle('q-badge--out', !variant?.available);
       });
       root.querySelectorAll('.q-sku').forEach(node => { node.textContent = `SKU: ${variant?.sku || ''}`; node.hidden = !variant?.sku; });
+      root.querySelectorAll('[data-purchase-sku]').forEach(node => { node.textContent = variant?.sku || ''; });
+      root.querySelectorAll('[data-purchase-sku-wrap]').forEach(node => { node.hidden = !variant?.sku; });
       form.querySelectorAll('[name="add"]').forEach(button => {
         button.disabled = !state.available;
         button.textContent = state.available ? 'Add to cart' : (variant && !variant.available ? 'Sold out' : 'Unavailable');

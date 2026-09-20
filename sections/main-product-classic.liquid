@@ -26,16 +26,24 @@
   assign s = section.settings
   assign p = product
 
-  if p == blank
-    break
-  endif
 
-  assign media_limit = s.media_limit | default: 8
+  assign media_limit = s.media_limit | default: 8 | at_least: 1 | at_most: 12
+  assign gallery_media = p.media | slice: 0, media_limit
+  assign product_form_id = 'ClassicProductForm-' | append: section.id
   assign tabs_mode = s.content_display_mode | default: 'tabs'
 
   assign current_variant = p.selected_or_first_available_variant
   if current_variant == blank
     assign current_variant = p.variants.first
+  endif
+
+  assign gallery_ids = gallery_media | map: 'id'
+  if current_variant.featured_media != blank
+    unless gallery_ids contains current_variant.featured_media.id
+      assign kept_media = media_limit | minus: 1
+      assign variant_media = p.media | where: 'id', current_variant.featured_media.id
+      assign gallery_media = gallery_media | slice: 0, kept_media | concat: variant_media
+    endunless
   endif
 
   assign section_aria = s.section_aria_label
@@ -58,15 +66,21 @@
     assign excerpt = p.description | strip_html | strip | truncate: 160
   endif
 
+  assign allocation = current_variant.selected_selling_plan_allocation
+  if allocation == blank and p.requires_selling_plan
+    assign allocation = current_variant.selling_plan_allocations.first
+  endif
+  assign purchase_price = allocation.price | default: current_variant.price
+  assign purchase_compare = allocation.compare_at_price | default: current_variant.compare_at_price
   assign is_on_sale = false
-  if current_variant.compare_at_price > current_variant.price
+  if purchase_compare > purchase_price
     assign is_on_sale = true
   endif
 
   assign sale_pct = 0
-  if is_on_sale and current_variant.compare_at_price > 0
-    assign diff = current_variant.compare_at_price | minus: current_variant.price
-    assign sale_pct = diff | times: 100 | divided_by: current_variant.compare_at_price
+  if is_on_sale and purchase_compare > 0
+    assign diff = purchase_compare | minus: purchase_price
+    assign sale_pct = diff | times: 100 | divided_by: purchase_compare
   endif
 
   assign media_bg = 'transparent'
@@ -77,6 +91,7 @@
   assign enable_lightbox = s.enable_lightbox
 -%}
 
+{% if p != blank %}
 {%- comment -%} Q ADD-ON: Wishlist + Variant UI assets (opt-in only) {%- endcomment -%}
 {%- if s.enable_wishlist -%}
   {{ 'product-wishlist.css' | asset_url | stylesheet_tag }}
@@ -88,7 +103,7 @@
 {%- endif -%}
 
 <section
-  id="q-pdp-{{ section.id }}" data-product-purchase-sync data-product-url="{{ p.url | escape }}"
+  id="q-pdp-{{ section.id }}" data-classic-product data-stacked-product-media data-product-purchase-sync data-product-url="{{ p.url | escape }}"
   class="
     q-pdp q-classic
     q-ui--{{ s.ui_surface_style | default: 'soft' }}
@@ -229,12 +244,12 @@
         <div class="q-pdp-media">
           <div class="q-pdp-media__thumbs" aria-label="Media thumbnails">
             {%- if s.thumb_placement_desktop != 'hidden' or s.thumb_placement_mobile != 'hidden' -%}
-              <div class="q-thumbs" role="list">
-                {%- for m in p.media limit: media_limit -%}
+              <div class="q-thumbs">
+                {%- for m in gallery_media -%}
                   <a
                     class="q-thumb"
                     href="#q-media-{{ section.id }}-{{ forloop.index }}"
-                    role="listitem"
+                    data-classic-thumb="{{ m.id }}"
                     aria-label="View media {{ forloop.index }}"
                   >
                     {%- if m.preview_image != blank -%}
@@ -255,14 +270,14 @@
           </div>
 
           <div class="q-pdp-media__viewer" aria-label="Media viewer">
-            {%- for m in p.media limit: media_limit -%}
+            {%- for m in gallery_media -%}
               {%- assign idx = forloop.index -%}
-              <div id="q-media-{{ section.id }}-{{ idx }}" class="q-media-item">
+              <div id="q-media-{{ section.id }}-{{ idx }}" data-classic-media="{{ m.id }}" class="q-media-item{% if m.id == current_variant.featured_media.id %} is-current{% elsif current_variant.featured_media == blank and forloop.first %} is-current{% endif %}">
                 {%- if m.media_type == 'image' and m.preview_image != blank -%}
                   {%- if enable_lightbox -%}
                     <a
                       class="q-media-link"
-                      href="#q-lb-{{ section.id }}-{{ idx }}"
+                      href="{{ m.preview_image | image_url: width: 2400 }}" data-classic-enlarge
                       aria-label="Open image {{ idx }} in a larger view"
                     >
                       <img
@@ -287,57 +302,38 @@
                     </div>
                   {%- endif -%}
                 {%- else -%}
-                  <div class="q-media-ph" role="img" aria-label="Media not supported yet">
-                    Media type not supported in MVP.
-                  </div>
+                  {{ m | media_tag: image_size: '1600x', controls: true, preload: 'none' }}
                 {%- endif -%}
               </div>
             {%- endfor -%}
           </div>
         </div>
 
+        <div class="q-media-item" data-classic-variant-media hidden>
+          {% if enable_lightbox %}<a class="q-media-link" data-classic-enlarge href="{{ current_variant.featured_image | default: p.featured_image | image_url: width: 2400 }}" aria-label="Enlarge selected variant image">{% endif %}
+          <img data-classic-variant-image width="1600" height="1600" alt="">
+          {% if enable_lightbox %}</a>{% endif %}
+        </div>
         {%- if enable_lightbox -%}
-          <div class="q-lightboxes" aria-hidden="true">
-            {%- for m in p.media limit: media_limit -%}
-              {%- assign idx = forloop.index -%}
-              {%- if m.media_type == 'image' and m.preview_image != blank -%}
-                {%- assign prev_idx = idx | minus: 1 -%}
-                {%- if prev_idx < 1 -%}{%- assign prev_idx = media_limit -%}{%- endif -%}
-                {%- assign next_idx = idx | plus: 1 -%}
-                {%- if next_idx > media_limit -%}{%- assign next_idx = 1 -%}{%- endif -%}
-
-                <div id="q-lb-{{ section.id }}-{{ idx }}" class="q-lb" aria-label="Image lightbox {{ idx }}">
-                  <a class="q-lb__overlay" href="#q-pdp-{{ section.id }}" aria-label="Close"></a>
-
-                  <div class="q-lb__dialog" role="dialog" aria-modal="true" aria-label="Enlarged image {{ idx }}">
-                    <a class="q-lb__close" href="#q-pdp-{{ section.id }}" aria-label="Close lightbox">×</a>
-
-                    <a class="q-lb__nav q-lb__prev" href="#q-lb-{{ section.id }}-{{ prev_idx }}" aria-label="Previous image">‹</a>
-
-                    <img
-                      src="{{ m.preview_image | image_url: width: 2400 }}"
-                      alt="{{ m.preview_image.alt | default: p.title | escape }}"
-                      loading="eager"
-                      width="{{ m.preview_image.width | default: 2400 }}"
-                      height="{{ m.preview_image.height | default: 2400 }}"
-                    >
-
-                    <a class="q-lb__nav q-lb__next" href="#q-lb-{{ section.id }}-{{ next_idx }}" aria-label="Next image">›</a>
-                  </div>
-                </div>
-              {%- endif -%}
-            {%- endfor -%}
-          </div>
+          <dialog class="q-lb" data-classic-lightbox aria-label="Product image viewer">
+            <button class="q-lb__overlay" data-classic-close type="button" tabindex="-1" aria-label="Close image viewer"></button>
+            <div class="q-lb__dialog">
+              <button class="q-lb__close" data-classic-close type="button" aria-label="Close image viewer">×</button>
+              <button class="q-lb__nav q-lb__prev" data-classic-prev type="button" aria-label="Previous image">‹</button>
+              <img data-classic-lightbox-image width="1600" height="1600" alt="">
+              <button class="q-lb__nav q-lb__next" data-classic-next type="button" aria-label="Next image">›</button>
+            </div>
+          </dialog>
         {%- endif -%}
       </div>
 
       <div class="q-pdp__summary" aria-label="{{ summary_aria | escape }}">
         <div class="q-summary">
           {%- if s.show_vendor and p.vendor != blank -%}
-            <div class="q-vendor">{{ p.vendor }}</div>
+            <div class="q-vendor">{{ p.vendor | escape }}</div>
           {%- endif -%}
 
-          <h1 class="q-title">{{ p.title }}</h1>
+          <h1 class="q-title">{{ p.title | escape }}</h1>
 
           {%- if s.enable_wishlist and s.wishlist_position == 'near_title' -%}
             {%- render 'product-wishlist-button',
@@ -350,8 +346,8 @@
           {%- endif -%}
 
           <div class="q-price" aria-live="polite" data-purchase-price>
-            <span data-purchase-current>{{ current_variant.price | money }}</span>
-            <s class="q-price__compare" data-purchase-compare {% unless current_variant.compare_at_price > current_variant.price %}hidden{% endunless %}>{{ current_variant.compare_at_price | money }}</s>
+            <span data-purchase-current>{{ purchase_price | money }}</span>
+            <s class="q-price__compare" data-purchase-compare {% unless purchase_compare > purchase_price %}hidden{% endunless %}>{{ purchase_compare | money }}</s>
           </div>
 
           {%- if s.enable_wishlist and s.wishlist_position == 'near_price' -%}
@@ -370,7 +366,7 @@
                 {%- if s.sale_badge_style == 'percent' and sale_pct > 0 -%}
                   Sale −{{ sale_pct }}%
                 {%- elsif s.sale_badge_style == 'amount' -%}
-                  Sale −{{ current_variant.compare_at_price | minus: current_variant.price | money }}
+                  Sale −{{ purchase_compare | minus: purchase_price | money }}
                 {%- else -%}
                   Sale
                 {%- endif -%}
@@ -383,22 +379,22 @@
               </span>
             {%- endif -%}
 
-            {%- if s.show_sku and current_variant.sku != blank -%}
-              <span class="q-sku">SKU: {{ current_variant.sku }}</span>
+            {%- if s.show_sku -%}
+              <span class="q-sku" {% if current_variant.sku == blank %}hidden{% endif %}>SKU: {{ current_variant.sku | escape }}</span>
             {%- endif -%}
           </div>
 
           {%- if s.show_excerpt and excerpt != blank -%}
-            <div class="q-excerpt">{{ excerpt }}</div>
+            <div class="q-excerpt">{{ excerpt | escape }}</div>
           {%- endif -%}
 
-          {%- form 'product', p, class: 'q-form', novalidate: 'novalidate' -%}
+          {%- form 'product', p, id: product_form_id, class: 'q-form', data-cart-drawer-add: '' -%}
             {% render 'product-selling-plans', product: p, id: section.id %}
             {%- if p.has_only_default_variant -%}
               <input type="hidden" name="id" value="{{ current_variant.id }}">
             {%- else -%}
               <div class="q-field">
-                <label class="q-label" for="q-variant-{{ section.id }}">{{ p.options.first | escape }}</label>
+                <label class="q-label" for="q-variant-{{ section.id }}">{{ p.options | join: ' / ' | escape }}</label>
                 <select id="q-variant-{{ section.id }}" name="id" class="q-select">
                   {%- for v in p.variants -%}
                     <option
@@ -406,7 +402,7 @@
                       {% if v.id == current_variant.id %}selected{% endif %}
 
                     >
-                      {{ v.title }} — {{ v.price | money }}{%- unless v.available -%} — Sold out{%- endunless -%}
+                      {{ v.title | escape }} — {{ v.price | money }}{%- unless v.available -%} — Sold out{%- endunless -%}
                     </option>
                   {%- endfor -%}
                 </select>
@@ -421,6 +417,8 @@
               {%- endif -%}
             {%- endif -%}
 
+            <p data-purchase-status role="status" aria-live="polite"></p>
+            <noscript><p>Choose a variant to refresh its purchase options:</p><ul>{% for variant in p.variants %}<li><a href="{{ variant.url | escape }}">{{ variant.title | escape }}</a></li>{% endfor %}</ul></noscript>
             <div class="q-atc">
               <div class="q-atc__qty">
                 <label class="q-label" for="q-qty-{{ section.id }}">Qty</label>
@@ -429,8 +427,11 @@
                   class="q-input"
                   type="number"
                   name="quantity"
-                  value="1"
-                  min="1"
+                  value="{{ current_variant.quantity_rule.min | default: 1 }}"
+                  min="{{ current_variant.quantity_rule.min | default: 1 }}"
+                  step="{{ current_variant.quantity_rule.increment | default: 1 }}"
+                  {% if current_variant.quantity_rule.max != blank %}max="{{ current_variant.quantity_rule.max }}"{% endif %}
+                  required
                   inputmode="numeric"
                 >
               </div>
@@ -439,7 +440,7 @@
                 type="submit"
                 class="q-btn"
                 name="add"
-                {% unless current_variant.available %}disabled{% endunless %}
+                {% if current_variant.available == false %}disabled{% elsif p.requires_selling_plan and allocation == blank %}disabled{% endif %}
               >
                 {%- if current_variant.available -%}Add to cart{%- else -%}Sold out{%- endif -%}
               </button>
@@ -456,21 +457,21 @@
             {%- endif -%}
 
             {%- if s.show_dynamic_checkout -%}
-              <div class="q-dynamic-checkout">
+              <div class="q-dynamic-checkout" {% if current_variant.available == false %}hidden{% elsif p.requires_selling_plan and allocation == blank %}hidden{% endif %}>
                 {{ form | payment_button }}
               </div>
             {%- endif -%}
 
             {%- if s.affirm_line != blank -%}
-              <div class="q-affirm">{{ s.affirm_line }}</div>
+              <div class="q-affirm">{{ s.affirm_line | escape }}</div>
             {%- endif -%}
 
             {%- if s.payments_note != blank -%}
-              <div class="q-payments-note">{{ s.payments_note }}</div>
+              <div class="q-payments-note">{{ s.payments_note | escape }}</div>
             {%- endif -%}
 
             {%- if s.policies_text != blank -%}
-              <div class="q-policies">{{ s.policies_text }}</div>
+              <div class="q-policies">{{ s.policies_text | escape }}</div>
             {%- endif -%}
 
             {%- if s.show_under_atc -%}
@@ -492,7 +493,7 @@
                           {%- assign alt = s[alt_key] -%}
                           <div class="q-under-banner">
                             {%- if href != blank -%}
-                              <a class="q-under-banner__link" href="{{ href }}" aria-label="{{ alt | default: 'Special offer' | escape }}">
+                              <a class="q-under-banner__link" href="{{ href | escape }}" aria-label="{{ alt | default: 'Special offer' | escape }}">
                                 <img
                                   src="{{ img | image_url: width: 1400 }}"
                                   alt="{{ alt | default: 'Special offer' | escape }}"
@@ -533,7 +534,7 @@
                           {%- if bimg != blank -%}
                             <div class="q-under-banner" {{ block.shopify_attributes }}>
                               {%- if block.settings.link != blank -%}
-                                <a class="q-under-banner__link" href="{{ block.settings.link }}" aria-label="{{ block.settings.alt | default: 'Special offer' | escape }}">
+                                <a class="q-under-banner__link" href="{{ block.settings.link | escape }}" aria-label="{{ block.settings.alt | default: 'Special offer' | escape }}">
                                   <img
                                     src="{{ bimg | image_url: width: 1400 }}"
                                     alt="{{ block.settings.alt | default: 'Special offer' | escape }}"
@@ -576,7 +577,7 @@
                           {%- assign talt = s[alt_key] -%}
                           <div class="q-trust__item">
                             {%- if thref != blank -%}
-                              <a class="q-trust__link" href="{{ thref }}" aria-label="{{ talt | default: 'Trust badge' | escape }}">
+                              <a class="q-trust__link" href="{{ thref | escape }}" aria-label="{{ talt | default: 'Trust badge' | escape }}">
                                 <img
                                   src="{{ timg | image_url: width: 520 }}"
                                   alt="{{ talt | default: 'Trust badge' | escape }}"
@@ -617,7 +618,7 @@
                           {%- if timgb != blank -%}
                             <div class="q-trust__item" {{ block.shopify_attributes }}>
                               {%- if block.settings.link != blank -%}
-                                <a class="q-trust__link" href="{{ block.settings.link }}" aria-label="{{ block.settings.alt | default: 'Trust badge' | escape }}">
+                                <a class="q-trust__link" href="{{ block.settings.link | escape }}" aria-label="{{ block.settings.alt | default: 'Trust badge' | escape }}">
                                   <img
                                     src="{{ timgb | image_url: width: 520 }}"
                                     alt="{{ block.settings.alt | default: 'Trust badge' | escape }}"
@@ -655,7 +656,7 @@
                   {%- if has_faq_blocks or s.faq_heading != blank -%}
                     <div class="q-faq" aria-label="Frequently asked questions">
                       {%- if s.faq_heading != blank -%}
-                        <div class="q-faq__heading">{{ s.faq_heading }}</div>
+                        <div class="q-faq__heading">{{ s.faq_heading | escape }}</div>
                       {%- endif -%}
 
                       {%- if has_faq_blocks -%}
@@ -664,7 +665,7 @@
                             {%- if block.type == 'faq_item' -%}
                               <details class="q-faq__item" {{ block.shopify_attributes }}>
                                 <summary class="q-faq__q">
-                                  {{ block.settings.question | default: 'Question' }}
+                                  {{ block.settings.question | default: 'Question' | escape }}
                                 </summary>
                                 <div class="q-faq__a">
                                   {{ block.settings.answer | default: '' }}
@@ -689,7 +690,7 @@
     <div class="q-pdp__content">
       {%- if section.blocks.size > 0 -%}
         {%- if tabs_mode == 'tabs' -%}
-          <div class="q-tabs" role="tablist" aria-label="Product content tabs">
+          <div class="q-tabs" role="group" aria-label="Product information">
             {%- assign first_tab_checked = false -%}
 
             {%- for block in section.blocks -%}
@@ -706,9 +707,9 @@
                     {%- unless first_tab_checked -%}checked{%- assign first_tab_checked = true -%}{%- endunless -%}
                   >
                   <label class="q-tab__label" for="q-tab-{{ section.id }}-{{ block.id }}">
-                    {{ tab_title }}
+                    {{ tab_title | escape }}
                   </label>
-                  <div class="q-tab__panel" {{ block.shopify_attributes }}>
+                  <div class="q-tab__panel" data-classic-tab-panel="{{ block.id }}" {{ block.shopify_attributes }}>
                     <div class="q-richtext">
                       {{ p.description }}
                     </div>
@@ -726,9 +727,9 @@
                     {%- unless first_tab_checked -%}checked{%- assign first_tab_checked = true -%}{%- endunless -%}
                   >
                   <label class="q-tab__label" for="q-tab-{{ section.id }}-{{ block.id }}">
-                    {{ tab_title }}
+                    {{ tab_title | escape }}
                   </label>
-                  <div class="q-tab__panel" {{ block.shopify_attributes }}>
+                  <div class="q-tab__panel" data-classic-tab-panel="{{ block.id }}" {{ block.shopify_attributes }}>
                     <div class="q-specs">
                       {%- for i in (1..6) -%}
                         {%- assign label_key = 'label_' | append: i -%}
@@ -741,7 +742,7 @@
                           {%- assign mf = p.metafields[ns][k] -%}
                           {%- if mf != blank -%}
                             <div class="q-spec">
-                              <div class="q-spec__k">{{ row_label | default: 'Spec' }}</div>
+                              <div class="q-spec__k">{{ row_label | default: 'Spec' | escape }}</div>
                               <div class="q-spec__v">{{ mf | metafield_tag }}</div>
                             </div>
                           {%- endif -%}
@@ -761,7 +762,7 @@
                   <label class="q-tab__label" for="q-tab-{{ section.id }}-{{ block.id }}">
                     Reviews
                   </label>
-                  <div class="q-tab__panel" {{ block.shopify_attributes }}>
+                  <div class="q-tab__panel" data-classic-tab-panel="{{ block.id }}" {{ block.shopify_attributes }}>
                     {%- render block -%}
                   </div>
 
@@ -778,7 +779,7 @@
                   {%- assign h = block.settings.heading -%}
                   {%- if h == blank -%}{%- assign h = 'Product Description' -%}{%- endif -%}
                   <div class="q-section" {{ block.shopify_attributes }}>
-                    <h2 class="q-h2">{{ h }}</h2>
+                    <h2 class="q-h2">{{ h | escape }}</h2>
                     <div class="q-richtext">
                       {{ p.description }}
                     </div>
@@ -794,7 +795,7 @@
                   {%- assign h = block.settings.heading -%}
                   {%- if h == blank -%}{%- assign h = 'Meta Data' -%}{%- endif -%}
                   <div class="q-section" {{ block.shopify_attributes }}>
-                    <h2 class="q-h2">{{ h }}</h2>
+                    <h2 class="q-h2">{{ h | escape }}</h2>
                     <div class="q-specs">
                       {%- for i in (1..6) -%}
                         {%- assign label_key = 'label_' | append: i -%}
@@ -807,7 +808,7 @@
                           {%- assign mf = p.metafields[ns][k] -%}
                           {%- if mf != blank -%}
                             <div class="q-spec">
-                              <div class="q-spec__k">{{ row_label | default: 'Spec' }}</div>
+                              <div class="q-spec__k">{{ row_label | default: 'Spec' | escape }}</div>
                               <div class="q-spec__v">{{ mf | metafield_tag }}</div>
                             </div>
                           {%- endif -%}
@@ -862,9 +863,9 @@
     #q-pdp-{{ section.id }} .q-thumb:focus-visible{ outline: 2px solid var(--q-thumb-bc-active); outline-offset: 2px; }
     #q-pdp-{{ section.id }} .q-thumb__ph{ width: 100%; height: 100%; display: block; }
 
-    /* Lightbox (NO JS, :target) */
-    #q-pdp-{{ section.id }} .q-lb{ position: fixed; inset: 0; z-index: 9999; display: none; }
-    #q-pdp-{{ section.id }} .q-lb:target{ display: block; }
+    /* Native dialog; image links remain navigable without JavaScript. */
+    #q-pdp-{{ section.id }} .q-lb{ position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; }
+    #q-pdp-{{ section.id }} .q-lb[open]{ display: block; }
     #q-pdp-{{ section.id }} .q-lb__overlay{ position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: block; }
     #q-pdp-{{ section.id }} .q-lb__dialog{ position: absolute; inset: 3vh 3vw; display: grid; place-items: center; padding: 1rem; }
     #q-pdp-{{ section.id }} .q-lb__dialog img{
@@ -1237,12 +1238,12 @@
 
       #q-pdp-{{ section.id }}.q-thumbs-desktop--left .q-pdp-media,
       #q-pdp-{{ section.id }}.q-thumbs-desktop--right .q-pdp-media{
-        grid-template-columns: var(--q-thumb-size) 1fr;
+        grid-template-columns: var(--q-thumb-size) minmax(0, 1fr);
         grid-template-areas: "thumbs viewer";
         gap: 0.9rem;
       }
       #q-pdp-{{ section.id }}.q-thumbs-desktop--right .q-pdp-media{
-        grid-template-columns: 1fr var(--q-thumb-size);
+        grid-template-columns: minmax(0, 1fr) var(--q-thumb-size);
         grid-template-areas: "viewer thumbs";
       }
 
@@ -1307,6 +1308,8 @@
       #q-pdp-{{ section.id }} .q-pdp-media__viewer{ display: block !important; }
       #q-pdp-{{ section.id }} .q-pdp-media__viewer .q-media-item{ display: none; }
       #q-pdp-{{ section.id }} .q-pdp-media__viewer .q-media-item:first-child{ display: block; }
+      #q-pdp-{{ section.id }} .q-pdp-media__viewer:has(.is-current) .q-media-item{ display: none; }
+      #q-pdp-{{ section.id }} .q-pdp-media__viewer .q-media-item.is-current{ display: block; }
       #q-pdp-{{ section.id }} .q-pdp-media__viewer:has(.q-media-item:target) .q-media-item{ display: none; }
       #q-pdp-{{ section.id }} .q-pdp-media__viewer:has(.q-media-item:target) .q-media-item:target{ display: block; }
 
@@ -1326,11 +1329,32 @@
       #q-pdp-{{ section.id }} .q-tab__radio:checked + .q-tab__label + .q-tab__panel{ display: block; }
     }
   </style>
-  {% render 'product-purchase-data', product: p, sale_badge_style: s.sale_badge_style %}
+  {% render 'product-purchase-data', product: p, sale_badge_style: s.sale_badge_style, include_image: true, include_media: true %}
 </section>
 
 <script src="{{ 'product-purchase-sync.js' | asset_url }}" defer></script>
+<script src="{{ 'product-stacked-media.js' | asset_url }}" defer></script>
 <style>#q-pdp-{{ section.id }} .q-atc button { min-height: 44px; } #q-pdp-{{ section.id }} [hidden] { display: none !important; }</style>
+<style>
+#q-pdp-{{ section.id }} { overflow-wrap: anywhere; }
+#q-pdp-{{ section.id }} :is(.q-pdp__media, .q-pdp__summary, .q-pdp-media, .q-pdp-media__viewer, .q-tab__panel) { min-width: 0; }
+#q-pdp-{{ section.id }} :is(button, a, summary):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+#q-pdp-{{ section.id }} .q-media-item :is(video, iframe, model-viewer) { width: 100%; max-width: 100%; aspect-ratio: 1; }
+#q-pdp-{{ section.id }} .q-thumb[aria-current="true"] { border-color: var(--q-thumb-bc-active); }
+#q-pdp-{{ section.id }} .q-richtext { overflow-x: auto; }
+#q-pdp-{{ section.id }} .q-richtext :is(img, video, iframe) { max-width: 100%; }
+#q-pdp-{{ section.id }} .q-richtext img { height: auto; }
+#q-pdp-{{ section.id }} [data-purchase-status]:empty { display: none; }
+#q-pdp-{{ section.id }} .q-lb::backdrop { background: rgba(0,0,0,.7); }
+#q-pdp-{{ section.id }} .q-lb__overlay { background: transparent; border: 0; width: 100%; height: 100%; }
+#q-pdp-{{ section.id }} .q-lb:not([open]) { display: none; }
+@media (max-width: 990px) {
+  #q-pdp-{{ section.id }}[data-classic-ready] .q-pdp-media__viewer .q-media-item { display: none; }
+  #q-pdp-{{ section.id }}[data-classic-ready] .q-pdp-media__viewer .q-media-item.is-current { display: block; }
+}
+@media (prefers-reduced-motion: reduce) { #q-pdp-{{ section.id }} .q-btn { transition: none; transform: none; } }
+</style>
+{% elsif request.design_mode %}<p>Select a product template to preview Main Product Classic.</p>{% endif %}
 {% schema %}
 {
   "name": "Main Product Classic",
@@ -1712,7 +1736,7 @@
       "label": "Variant UI style",
       "default": "default",
       "options": [
-        { "value": "default", "label": "Default (no-op)" },
+        { "value": "default", "label": "Default selector" },
         { "value": "swatches", "label": "Swatches" },
         { "value": "buttons", "label": "Buttons" },
         { "value": "dropdown", "label": "Dropdown" },

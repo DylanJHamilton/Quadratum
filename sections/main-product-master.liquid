@@ -1,50 +1,6 @@
 {%- comment -%}
-  Quadratum — Main Product Master (Canonical PDP Engine)
-  File: sections/main-product-master.liquid
-
-  PATCH NOTES (THIS EDIT)
-  ----------------------
-  PHASE 4 — GALLERY + STICKY + STACKED PREMIUM + CONTENT (NO REFACTOR / NO JS / NO NEW WRAPPERS)
-
-  4.1 Thumbnail placement (desktop + mobile)
-  - Add schema:
-      thumb_placement_desktop: below | above | left | right
-      thumb_placement_mobile:  below | above | hidden
-  - Add ONLY root classes:
-      q-thumbs-d-*
-      q-thumbs-m-*
-  - Implement via CSS using existing markup only:
-      .q-pdp-media
-      .q-pdp-media__viewer
-      .q-pdp-media__thumbs
-
-  4.2 Sticky target (desktop only, deterministic)
-  - Add schema:
-      desktop_sticky_target: summary | media | none
-  - Single source of truth: only ONE element gets .q-sticky on desktop
-  - Mobile always disables sticky (existing behavior preserved)
-  - Guardrails:
-      - Sticky disabled for stacked / stacked_summary_top / service_mode
-      - Sticky media additionally disabled for scroll_gallery_* (media column is already a scroll container)
-
-  4.3 Stacked premium pass (CSS only)
-  - Editorial spacing + subtle panel treatment for summary
-  - Better stage constraints (no billboard feel)
-  - No schema changes
-
-  4.4 Content completeness (pulled in from Phase 5 suggestions)
-  - Full product description rendered (HTML preserved) — NO truncation
-  - Optional below-the-fold content via:
-      A) metafield conventions (product.metafields.custom.pdp_*)
-      B) repeatable "Metafield block" (unlimited) — merchant chooses namespace/key
-  - Reviews via "@app" block (theme editor App block). No dependency on other section files.
-  - All additions are non-breaking if metafields/reviews are not present
-
-  EXTRA (Below-the-fold layout modes — NO JS)
-  - Add schema:
-      below_fold_layout: sectionized | tabbed | disabled
-  - Tabbed uses anchor + :target (no JS)
-  - Dynamic metafield blocks become tabs when tabbed mode is enabled
+  Quadratum — Main Product Master. Preserve layout/sticky/thumbnail modes and
+  native anchor content navigation; share native purchase and media lifecycle.
 {%- endcomment -%}
 
 {%- liquid
@@ -53,9 +9,20 @@
 -%}
 
 {%- if p == blank -%}
-  {%- comment -%}Safety: section rendered without product context.{%- endcomment -%}
+  {%- if request.design_mode -%}<p>Select a product template to preview Main Product Master.</p>{%- endif -%}
 {%- else -%}
   {%- liquid
+    assign current_variant = p.selected_or_first_available_variant | default: p.variants.first
+    assign allocation = current_variant.selected_selling_plan_allocation
+    if p.requires_selling_plan and allocation == blank
+      assign allocation = current_variant.selling_plan_allocations.first
+    endif
+    assign purchase_price = allocation.price | default: current_variant.price
+    assign purchase_compare = allocation.compare_at_price | default: current_variant.compare_at_price
+    assign can_purchase = current_variant.available
+    if p.requires_selling_plan and allocation == blank
+      assign can_purchase = false
+    endif
     assign layout_mode = s.layout_mode | default: 'classic'
 
     assign max_w = s.max_width | default: 'xl'
@@ -128,6 +95,16 @@
     endcase
 
     assign media_items = p.media | slice: 0, media_limit
+    assign selected_media = current_variant.featured_media
+    assign media_ids = media_items | map: 'id'
+    if selected_media != blank
+      unless media_ids contains selected_media.id
+        assign visible_count = media_limit | minus: 1
+        assign media_items = media_items | slice: 0, visible_count
+        assign selected_media_items = p.media | where: 'id', selected_media.id
+        assign media_items = media_items | concat: selected_media_items
+      endunless
+    endif
     assign media_count = media_items.size
 
     assign form_id = 'q-pdp-form-' | append: section.id
@@ -189,9 +166,6 @@
     if p.has_only_default_variant
       assign show_variant_ui = false
     endif
-    if p.options.size == 1 and p.options.first == 'Title'
-      assign show_variant_ui = false
-    endif
 
     comment
       Phase 4.4: Optional metafield-driven areas (NO required schema)
@@ -234,9 +208,9 @@
   -%}
 
   <section
-    id="q-pdp-{{ section.id }}" data-product-purchase-sync data-product-url="{{ p.url | escape }}"
+    id="q-pdp-{{ section.id }}" data-master-product data-stacked-product-media data-product-purchase-sync data-product-url="{{ p.url | escape }}"
     class="q-pdp-phase0 q-layout-{{ layout_mode }} q-thumbs-d-{{ thumbs_d }} q-thumbs-m-{{ thumbs_m }} q-below-{{ below_layout }}{% if sticky_ok_media %} q-sticky-media{% elsif sticky_ok_summary %} q-sticky-summary{% endif %}"
-    aria-label="{{ section_label }}"
+    aria-label="{{ section_label | escape }}"
     style="
       --q-max-width: {{ max_w_css }};
       --q-pad-y: {{ pad_y_css }};
@@ -246,7 +220,7 @@
   >
     <div class="q-pdp-phase0__inner">
       <div class="q-pdp-phase0__grid">
-        <div class="q-pdp-phase0__media{% if sticky_ok_media %} q-sticky{% endif %}" aria-label="{{ media_label }}">
+        <div class="q-pdp-phase0__media{% if sticky_ok_media %} q-sticky{% endif %}" aria-label="{{ media_label | escape }}">
           {%- if media_count == 0 -%}
             <div class="q-pdp-phase0__media-fallback" role="note">
               No media available
@@ -254,9 +228,10 @@
           {%- else -%}
             <div class="q-pdp-media" aria-label="Media gallery">
               <div class="q-pdp-media__viewer">
+                <div class="q-pdp-media__item" data-classic-variant-media hidden><img width="1600" height="1600" alt=""></div>
                 {%- for m in media_items -%}
                   {%- assign item_id = 'q-media-' | append: section.id | append: '-' | append: forloop.index0 -%}
-                  <div id="{{ item_id }}" class="q-pdp-media__item">
+                  <div id="{{ item_id }}" class="q-pdp-media__item" data-classic-media="{{ m.id }}">
                     {%- if m.media_type == 'image' -%}
                       {%- if forloop.first -%}
                         {%- liquid
@@ -277,9 +252,7 @@
                           loading: 'lazy', alt: qtm_image_alt }}
                       {%- endif -%}
                     {%- else -%}
-                      <div class="q-pdp-media__placeholder" role="note">
-                        Media type not enabled yet (Phase 1B)
-                      </div>
+                      {{ m | media_tag: controls: true, preload: 'metadata' }}
                     {%- endif -%}
                   </div>
                 {%- endfor -%}
@@ -288,7 +261,7 @@
               <div class="q-pdp-media__thumbs" aria-label="Media thumbnails">
                 {%- for m in media_items -%}
                   {%- assign href_id = '#q-media-' | append: section.id | append: '-' | append: forloop.index0 -%}
-                  <a class="q-pdp-media__thumb" href="{{ href_id }}" aria-label="Jump to media {{ forloop.index }}">
+                  <a class="q-pdp-media__thumb" data-classic-thumb="{{ m.id }}" href="{{ href_id }}" aria-label="Jump to media {{ forloop.index }}">
                     {%- if m.media_type == 'image' -%}
                       {%- liquid
                         assign qtm_image_alt = m.alt | default: p.title
@@ -298,7 +271,7 @@
                         | image_tag:
                         loading: 'lazy', alt: qtm_image_alt }}
                     {%- else -%}
-                      <span class="q-pdp-media__thumb-placeholder" aria-hidden="true">—</span>
+                      {{ m.preview_image | image_url: width: 240 | image_tag: loading: 'lazy', alt: m.alt }}
                     {%- endif -%}
                   </a>
                 {%- endfor -%}
@@ -307,19 +280,19 @@
           {%- endif -%}
         </div>
 
-        <div class="q-pdp-phase0__summary{% if sticky_ok_summary %} q-sticky{% endif %}" aria-label="{{ summary_label }}">
-          <h1 class="q-pdp-phase0__title">{{ p.title }}</h1>
+        <div class="q-pdp-phase0__summary{% if sticky_ok_summary %} q-sticky{% endif %}" aria-label="{{ summary_label | escape }}">
+          <h1 class="q-pdp-phase0__title">{{ p.title | escape }}</h1>
 
           {%- if p.vendor != blank and s.show_vendor -%}
-            <div class="q-pdp-phase0__vendor">{{ p.vendor }}</div>
+            <div class="q-pdp-phase0__vendor">{{ p.vendor | escape }}</div>
           {%- endif -%}
 
           <div class="q-pdp-phase0__price" data-purchase-price>
-            <span data-purchase-current>{{ p.selected_or_first_available_variant.price | money }}</span>
-            <s class="q-pdp-phase0__compare" data-purchase-compare {% unless p.selected_or_first_available_variant.compare_at_price > p.selected_or_first_available_variant.price %}hidden{% endunless %}>{{ p.selected_or_first_available_variant.compare_at_price | money }}</s>
+            <span data-purchase-current>{{ purchase_price | money }}</span>
+            <s class="q-pdp-phase0__compare" data-purchase-compare {% unless purchase_compare > purchase_price %}hidden{% endunless %}>{{ purchase_compare | money }}</s>
           </div>
 
-          {%- form 'product', p, id: form_id, novalidate: 'novalidate' -%}
+          {%- form 'product', p, id: form_id, data-cart-drawer-add: true -%}
             {% render 'product-selling-plans', product: p, id: section.id %}
             <div class="q-pdp-phase0__form">
               {%- comment -%}
@@ -334,27 +307,29 @@
                 <select id="q-variant-{{ section.id }}" name="id" class="q-pdp-phase0__select">
                   {%- for v in p.variants -%}
                     <option value="{{ v.id }}"
-                      {% if v == p.selected_or_first_available_variant %}selected{% endif %}
+                      {% if v.id == current_variant.id %}selected{% endif %}
                       >
-                      {{ v.title }} — {{ v.price | money }}{% unless v.available %} — Sold out{% endunless %}
+                      {{ v.title | escape }} — {{ v.price | money }}{% unless v.available %} — Sold out{% endunless %}
                     </option>
                   {%- endfor -%}
                 </select>
               </div>
 
               <label class="q-pdp-phase0__label" for="q-qty-{{ section.id }}">Quantity</label>
-              <input id="q-qty-{{ section.id }}" class="q-pdp-phase0__qty" type="number" name="quantity" min="1" value="1" inputmode="numeric">
+              <input id="q-qty-{{ section.id }}" class="q-pdp-phase0__qty" type="number" name="quantity" required min="{{ current_variant.quantity_rule.min | default: 1 }}" step="{{ current_variant.quantity_rule.increment | default: 1 }}" {% if current_variant.quantity_rule.max %}max="{{ current_variant.quantity_rule.max }}"{% endif %} value="{{ current_variant.quantity_rule.min | default: 1 }}" inputmode="numeric">
 
-              <button type="submit" name="add" class="q-pdp-phase0__btn" {% unless p.selected_or_first_available_variant.available %}disabled{% endunless %}>
-                {% if p.selected_or_first_available_variant.available %}Add to cart{% else %}Sold out{% endif %}
+              <button type="submit" name="add" class="q-pdp-phase0__btn" {% unless can_purchase %}disabled{% endunless %}>
+                {% if can_purchase %}Add to cart{% elsif current_variant.available %}Unavailable{% else %}Sold out{% endif %}
               </button>
 
               {%- if s.show_inventory -%}
-                <div class="q-pdp-phase0__inventory" role="status" aria-live="polite">
-                  Inventory messaging (Phase 0 placeholder)
+                <div class="q-pdp-phase0__inventory" data-purchase-availability role="status" aria-live="polite">
+                  {% if current_variant.available %}In stock{% else %}Sold out{% endif %}
                 </div>
               {%- endif -%}
             </div>
+            <p data-purchase-status role="status" aria-live="polite"></p>
+            <noscript><p>Choose a variant to refresh price and purchase options:</p>{% for v in p.variants %}<a href="{{ v.url | escape }}">{{ v.title | escape }}</a> {% endfor %}</noscript>
           {%- endform -%}
 
           {%- comment -%}
@@ -382,7 +357,7 @@
               If no :target, first panel stays visible by default.
             {%- endcomment -%}
 
-            <div class="q-pdp-tabs" role="tablist" aria-label="Product details tabs">
+            <div class="q-pdp-tabs" role="navigation" aria-label="Product details">
               {%- assign tabs_rendered = 0 -%}
 
               {%- if p.description != blank -%}
@@ -416,8 +391,12 @@
                   {%- if block.type == 'metafield' -%}
                     {%- assign mf_i = mf_i | plus: 1 -%}
                     {%- assign tab_label = block.settings.heading | default: 'More details' -%}
-                    {%- assign tabs_rendered = tabs_rendered | plus: 1 -%}
-                    <a class="q-pdp-tabs__tab" href="#qtab-mf-{{ section.id }}-{{ mf_i }}" aria-controls="qtab-mf-{{ section.id }}-{{ mf_i }}">{{ tab_label }}</a>
+                    {%- assign mf_ns = block.settings.namespace | default: 'custom' -%}
+                    {%- assign mf_key = block.settings.key | default: '' -%}
+                    {%- assign mf_obj = p.metafields[mf_ns][mf_key] -%}
+                    {%- if mf_obj != blank or block.settings.hide_if_blank == false -%}
+                      <a class="q-pdp-tabs__tab" href="#qtab-mf-{{ section.id }}-{{ mf_i }}" aria-controls="qtab-mf-{{ section.id }}-{{ mf_i }}">{{ tab_label | escape }}</a>
+                    {%- endif -%}
                   {%- endif -%}
                 {%- endfor -%}
               {%- endif -%}
@@ -489,7 +468,7 @@
                         endif
                       -%}
                       {%- if mf_obj != blank or mf_hide == false -%}
-                        <div id="qtab-mf-{{ section.id }}-{{ mf_i2 }}" class="q-pdp-pane q-pdp-pane--mf" role="region" aria-label="{{ mf_label }}" {{ block.shopify_attributes }}>
+                        <div id="qtab-mf-{{ section.id }}-{{ mf_i2 }}" class="q-pdp-pane q-pdp-pane--mf" role="region" data-master-block="{{ block.id }}" aria-label="{{ mf_label | escape }}" {{ block.shopify_attributes }}>
                           <div class="q-pdp-pane__content">
                             {%- if mf_obj != blank -%}
                               {%- if block.settings.render_mode == 'raw' -%}
@@ -499,30 +478,24 @@
                               {%- endif -%}
                             {%- else -%}
                               {%- if block.settings.empty_text != blank -%}
-                                <p>{{ block.settings.empty_text }}</p>
+                                <p>{{ block.settings.empty_text | escape }}</p>
                               {%- endif -%}
                             {%- endif -%}
                           </div>
                         </div>
                       {%- endif -%}
 
-                    {%- when '@app' -%}
-                      <div id="qtab-reviews-{{ section.id }}" class="q-pdp-pane q-pdp-pane--reviews" role="region" aria-label="Reviews" {{ block.shopify_attributes }}>
-                        <div class="q-pdp-pane__content">
-                          {% render block %}
-                        </div>
-                      </div>
                   {%- endcase -%}
                 {%- endfor -%}
               {%- endif -%}
 
-              {%- unless has_app_block -%}
+              {%- if has_app_block -%}
                 <div id="qtab-reviews-{{ section.id }}" class="q-pdp-pane q-pdp-pane--reviews" role="region" aria-label="Reviews">
-                  <div class="q-pdp-pane__content">
-                    <!-- Add an App block to this section to render reviews here -->
-                  </div>
+                  {%- for block in section.blocks -%}{%- if block.type == '@app' -%}
+                    <div class="q-pdp-pane__content" data-master-block="{{ block.id }}" {{ block.shopify_attributes }}>{% render block %}</div>
+                  {%- endif -%}{%- endfor -%}
                 </div>
-              {%- endunless -%}
+              {%- endif -%}
             </div>
 
           {%- else -%}
@@ -592,9 +565,9 @@
                     -%}
 
                     {%- if mf_obj != blank or mf_hide == false -%}
-                      <div class="q-pdp-below__block q-pdp-mf" {{ block.shopify_attributes }}>
+                      <div class="q-pdp-below__block q-pdp-mf" data-master-block="{{ block.id }}" {{ block.shopify_attributes }}>
                         {%- if mf_label != blank -%}
-                          <h2 class="q-pdp-below__title">{{ mf_label }}</h2>
+                          <h2 class="q-pdp-below__title">{{ mf_label | escape }}</h2>
                         {%- endif -%}
                         <div class="q-pdp-below__content">
                           {%- if mf_obj != blank -%}
@@ -605,7 +578,7 @@
                             {%- endif -%}
                           {%- else -%}
                             {%- if block.settings.empty_text != blank -%}
-                              <p>{{ block.settings.empty_text }}</p>
+                              <p>{{ block.settings.empty_text | escape }}</p>
                             {%- endif -%}
                           {%- endif -%}
                         </div>
@@ -613,7 +586,7 @@
                     {%- endif -%}
 
                   {%- when '@app' -%}
-                    <div class="q-pdp-below__block q-pdp-reviews" data-q-reviews {{ block.shopify_attributes }}>
+                    <div class="q-pdp-below__block q-pdp-reviews" data-q-reviews data-master-block="{{ block.id }}" {{ block.shopify_attributes }}>
                       <h2 class="q-pdp-below__title">Reviews</h2>
                       <div class="q-pdp-below__content">
                         {% render block %}
@@ -623,14 +596,7 @@
               {%- endfor -%}
             {%- endif -%}
 
-            {%- unless has_app_block -%}
-              <div class="q-pdp-below__block q-pdp-reviews" data-q-reviews>
-                <h2 class="q-pdp-below__title">Reviews</h2>
-                <div class="q-pdp-below__content">
-                  <!-- Add an App block to this section to render reviews here -->
-                </div>
-              </div>
-            {%- endunless -%}
+
           {%- endif -%}
         </div>
       {%- endif -%}
@@ -653,7 +619,7 @@
    ========================================= */
 #q-pdp-{{ section.id }} .q-pdp-phase0__grid{
   display:grid;
-  grid-template-columns: 1fr 420px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
   grid-template-areas: "media summary";
   gap: 1.5rem;
   align-items:start;
@@ -675,17 +641,17 @@
 }
 
 #q-pdp-{{ section.id }}.q-layout-media_focus .q-pdp-phase0__grid{
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 360px);
   grid-template-areas: "media summary";
 }
 
 #q-pdp-{{ section.id }}.q-layout-service_mode .q-pdp-phase0__grid{
-  grid-template-columns: 1fr 420px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
   grid-template-areas: "media summary";
 }
 
 #q-pdp-{{ section.id }}.q-layout-classic_reverse .q-pdp-phase0__grid{
-  grid-template-columns: 420px 1fr;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
   grid-template-areas: "summary media";
 }
 
@@ -697,12 +663,12 @@
 }
 
 #q-pdp-{{ section.id }}.q-layout-scroll_gallery_left .q-pdp-phase0__grid{
-  grid-template-columns: 1fr 420px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
   grid-template-areas: "media summary";
 }
 
 #q-pdp-{{ section.id }}.q-layout-scroll_gallery_right .q-pdp-phase0__grid{
-  grid-template-columns: 420px 1fr;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
   grid-template-areas: "summary media";
 }
 
@@ -958,7 +924,7 @@
    ========================================= */
 #q-pdp-{{ section.id }}.q-layout-stacked .q-pdp-phase0__inner,
 #q-pdp-{{ section.id }}.q-layout-stacked_summary_top .q-pdp-phase0__inner{
-  max-width: 980px;
+  max-width: min(980px, var(--q-max-width));
   margin-left: auto;
   margin-right: auto;
 }
@@ -1090,34 +1056,14 @@
    Custom colors only when enabled (Phase 3)
    + Typography overrides (Phase 3)
    ========================================= */
+#q-pdp-{{ section.id }} .q-pdp-phase0__title{font-size:{{ s.title_size }}px;line-height:1.1;}
+#q-pdp-{{ section.id }} .q-pdp-phase0__price{font-size:{{ s.price_size }}px;}
+#q-pdp-{{ section.id }} .q-pdp-phase0__label{font-size:{{ s.label_size }}px;}
+#q-pdp-{{ section.id }} .q-pdp-phase0__btn{font-size:{{ s.button_size }}px;}
 {%- if use_custom_colors -%}
   #q-pdp-{{ section.id }}{
     background: {{ s.bg_color }};
     color: {{ s.text_color }};
-  }
-
-  #q-pdp-{{ section.id }} .q-pdp-phase0__title{
-    font-size: {{ s.title_size }}px !important;
-    line-height: 1.1;
-  }
-
-  #q-pdp-{{ section.id }} .q-pdp-phase0__price,
-  #q-pdp-{{ section.id }} .q-pdp-phase0__current{
-    font-size: {{ s.price_size }}px !important;
-    color: {{ s.text_color }} !important;
-  }
-
-  #q-pdp-{{ section.id }} .q-pdp-phase0__compare{
-    color: {{ s.text_color }} !important;
-    opacity: .7;
-  }
-
-  #q-pdp-{{ section.id }} .q-pdp-phase0__label{
-    font-size: {{ s.label_size }}px !important;
-  }
-
-  #q-pdp-{{ section.id }} .q-pdp-phase0__btn{
-    font-size: {{ s.button_size }}px !important;
   }
 
   #q-pdp-{{ section.id }} .q-pdp-phase0__select,
@@ -1172,19 +1118,31 @@
     display: none;
   }
 }
+#q-pdp-{{ section.id }} [hidden]{display:none!important;}
+#q-pdp-{{ section.id }} :is(.q-pdp-phase0__summary,.q-pdp-below){overflow-wrap:anywhere;}
+#q-pdp-{{ section.id }} .q-pdp-phase0__price{flex-wrap:wrap;}
+#q-pdp-{{ section.id }} .q-pdp-phase0__btn:disabled{opacity:.6;cursor:not-allowed;}
+#q-pdp-{{ section.id }} :is(video,iframe,model-viewer,img){max-width:100%;}
+#q-pdp-{{ section.id }} :is(video,iframe,model-viewer){width:100%;}
+#q-pdp-{{ section.id }} :is(iframe,model-viewer){aspect-ratio:1;height:auto;}
+#q-pdp-{{ section.id }} .q-pdp-media__thumb[aria-current="true"]{outline:2px solid currentColor;outline-offset:-2px;}
+@media(min-width:991px){#q-pdp-{{ section.id }}.q-sticky-media.q-layout-classic_reverse .q-pdp-phase0__grid{grid-template-columns:minmax(0,420px) minmax(0,860px);}}
+@media(max-width:990px){#q-pdp-{{ section.id }}.q-layout-stacked_summary_top .q-pdp-phase0__grid{grid-template-areas:"summary" "media";}}
+@media(prefers-reduced-motion:reduce){#q-pdp-{{ section.id }} *{scroll-behavior:auto!important;transition:none!important;}}
     </style>
-    {% render 'product-purchase-data', product: p, sale_badge_style: s.sale_badge_style %}
+    {% render 'product-purchase-data', product: p, include_image: true, include_media: true %}
   </section>
 {%- endif -%}
 
 <script src="{{ 'product-purchase-sync.js' | asset_url }}" defer></script>
+<script src="{{ 'product-stacked-media.js' | asset_url }}" defer></script>
 {% schema %}
 {
   "name": "Main Product Master",
   "tag": "section",
   "class": "section q-main-product-master",
   "settings": [
-    { "type": "header", "content": "Phase 0 — Layout skeleton" },
+    { "type": "header", "content": "Product layout" },
     {
       "type": "select",
       "id": "layout_mode",
@@ -1216,7 +1174,7 @@
       ]
     },
 
-    { "type": "header", "content": "Phase 4 — Sticky + thumbnails" },
+    { "type": "header", "content": "Sticky content and thumbnails" },
     {
       "type": "select",
       "id": "desktop_sticky_target",
@@ -1253,9 +1211,9 @@
     },
 
     { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": false },
-    { "type": "checkbox", "id": "show_inventory", "label": "Show inventory messaging (placeholder)", "default": true },
+    { "type": "checkbox", "id": "show_inventory", "label": "Show availability", "default": true },
 
-    { "type": "header", "content": "Phase 1A — Media MVP" },
+    { "type": "header", "content": "Media gallery" },
     { "type": "range", "id": "media_limit", "label": "Media limit", "min": 1, "max": 12, "step": 1, "default": 8 },
     {
       "type": "select",
