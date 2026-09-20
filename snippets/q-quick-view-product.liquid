@@ -1,0 +1,46 @@
+{%- liquid
+  assign v = product.selected_or_first_available_variant | default: product.variants.first
+  assign image = v.featured_image | default: product.featured_image
+  assign allocation = v.selected_selling_plan_allocation
+  if allocation == blank and product.requires_selling_plan
+    assign allocation = v.selling_plan_allocations.first
+  endif
+  assign price = allocation.price | default: v.price
+  assign compare = allocation.compare_at_price | default: v.compare_at_price
+  assign available = v.available
+  if product.requires_selling_plan and allocation == blank
+    assign available = false
+  endif
+  assign form_id = 'QuickView-' | append: product.id
+-%}
+<div class="q-qv__grid" data-product-purchase-sync data-purchase-url="false" data-product-url="{{ product.url | escape }}">
+  <div class="q-qv__media">
+    <img data-purchase-image {% if image != blank %}src="{{ image | image_url: width: 1200 }}"{% else %}hidden{% endif %}
+      width="{{ image.width | default: 800 }}" height="{{ image.height | default: 800 }}" alt="{{ image.alt | default: product.title | escape }}" sizes="(min-width: 750px) 45vw, 90vw">
+    <div data-purchase-image-placeholder {% if image != blank %}hidden{% endif %}>{{ 'product-1' | placeholder_svg_tag }}</div>
+  </div>
+  <div class="q-qv__info">
+    {% if product.vendor != blank %}<div class="q-qv__kicker">{{ product.vendor | escape }}</div>{% endif %}
+    <h2 class="q-qv__title">{{ product.title | escape }}</h2>
+    <div class="q-qv__price"><span data-purchase-current>{{ price | money }}</span> <s data-purchase-compare {% unless compare > price %}hidden{% endunless %}>{{ compare | money }}</s></div>
+    <p data-purchase-availability>{% if v.available %}In stock{% else %}Sold out{% endif %}</p>
+    <p data-purchase-sku-wrap {% if v.sku == blank %}hidden{% endif %}>SKU: <span data-purchase-sku>{{ v.sku | escape }}</span></p>
+    <form id="{{ form_id }}" method="post" action="{{ routes.cart_add_url | escape }}" data-cart-drawer-add>
+      <label class="q-qv__label" {% if product.has_only_default_variant %}hidden{% endif %}>{{ product.options | join: ' / ' | escape }}
+        <select name="id">{% for variant in product.variants %}<option value="{{ variant.id }}" {% if variant.id == v.id %}selected{% endif %}>{{ variant.title | escape }}{% unless variant.available %} — Sold out{% endunless %}</option>{% endfor %}</select>
+      </label>
+      {% render 'product-selling-plans', product: product, id: form_id %}
+      <label class="q-qv__label">Quantity
+        <input name="quantity" type="number" required min="{{ v.quantity_rule.min | default: 1 }}" step="{{ v.quantity_rule.increment | default: 1 }}" value="{{ v.quantity_rule.min | default: 1 }}" {% if v.quantity_rule.max != blank %}max="{{ v.quantity_rule.max }}"{% endif %}>
+      </label>
+      <p data-purchase-status role="status"></p>
+      <div class="q-qv__actions">
+        <button class="q-qv__btn q-qv__btn--primary" name="add" type="submit" {% unless available %}disabled{% endunless %}>{% if available %}Add to cart{% elsif v.available %}Unavailable{% else %}Sold out{% endif %}</button>
+        <a class="q-qv__btn q-qv__btn--secondary" href="{{ product.url | escape }}">View full product</a>
+      </div>
+      <p data-cart-add-status role="status"></p>
+    </form>
+    {% if product.description != blank %}<div class="q-qv__micro">{{ product.description | strip_html | truncate: 220 | escape }}</div>{% endif %}
+  </div>
+  {% render 'product-purchase-data', product: product, include_image: true %}
+</div>

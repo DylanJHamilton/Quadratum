@@ -41,7 +41,7 @@
       select.dispatchEvent(new CustomEvent('qtm:selling-plan-change', { bubbles: true }));
     }
   }
-  window.qtmSellingPlans = { update };
+
   function each(scope, callback) {
     if (scope.matches?.(selector)) callback(scope);
     scope.querySelectorAll(selector).forEach(callback);
@@ -66,14 +66,16 @@
     if (event.target.form) each(event.target.form, update);
   });
   document.addEventListener('shopify:section:load', event => boot(event.target));
-  document.addEventListener('shopify:section:unload', event => {
-    each(event.target, select => {
+  function dispose(scope) {
+    each(scope, select => {
       const source = select.parentElement.querySelector('[data-selling-plan-variants]');
       if (source) sources.delete(source);
       selections.delete(select);
       retired.add(select);
     });
-  });
+  }
+  window.qtmSellingPlans = { update, boot, dispose };
+  document.addEventListener('shopify:section:unload', event => dispose(event.target));
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => boot(), { once: true });
   else boot();
 })();

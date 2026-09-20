@@ -1,7 +1,7 @@
 {%- liquid
   assign addon_count = 0
   for block in section.blocks
-    if block.type == 'addon_product' and block.settings.product != blank
+    if block.type == 'addon_product' and block.settings.product.selected_or_first_available_variant.available
       assign addon_count = addon_count | plus: 1
     endif
   endfor
@@ -21,10 +21,10 @@
 
           {%- if addon_variant != blank and addon_variant.available -%}
             <article class="qtm-cart-addon-card" {{ block.shopify_attributes }}>
-              <a href="{{ addon_product.url }}" class="qtm-cart-addon-card__media">
+              <a href="{{ addon_product.url | escape }}" class="qtm-cart-addon-card__media">
                 {%- if addon_product.featured_image -%}
                   {%- liquid
-                    assign qtm_image_alt = addon_product.featured_image.alt
+                    assign qtm_image_alt = addon_product.featured_image.alt | default: addon_product.title
                   -%}
                   {{ addon_product.featured_image
                     | image_url: width: 320
@@ -38,15 +38,16 @@
               </a>
 
               <div class="qtm-cart-addon-card__content">
+                {% if addon_variant.quantity_rule.min > 1 %}<p>Minimum quantity: {{ addon_variant.quantity_rule.min }}</p>{% endif %}
                 <h3 class="qtm-cart-addon-card__title">
-                  <a href="{{ addon_product.url }}">
-                    {{ block.settings.custom_label | default: addon_product.title }}
+                  <a href="{{ addon_product.url | escape }}">
+                    {{ block.settings.custom_label | default: addon_product.title | escape }}
                   </a>
                 </h3>
 
                 {%- if block.settings.custom_description != blank -%}
                   <div class="qtm-cart-addon-card__description">
-                    {{ block.settings.custom_description }}
+                    {{ block.settings.custom_description | escape }}
                   </div>
                 {%- endif -%}
 
@@ -54,18 +55,21 @@
                   {{ addon_variant.price | money }}
                 </div>
 
+                {% if addon_product.variants.size == 1 and addon_product.requires_selling_plan != true %}
                 <form
                   action="{{ routes.cart_add_url }}"
                   method="post"
                   enctype="multipart/form-data"
                   class="qtm-cart-addon-card__form"
-                  data-addon-form
+                  data-addon-form data-cart-drawer-add
                 >
+                  <input type="hidden" name="quantity" value="{{ addon_variant.quantity_rule.min | default: 1 }}">
                   <input type="hidden" name="id" value="{{ addon_variant.id }}">
                   <button type="submit" class="qtm-cart-addon-card__button">
                     Add to cart
                   </button>
                 </form>
+                {% else %}<a class="qtm-cart-addon-card__button" href="{{ addon_product.url | escape }}">Choose options</a>{% endif %}
               </div>
             </article>
           {%- endif -%}

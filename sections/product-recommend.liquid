@@ -9,24 +9,22 @@
 {%- liquid
   assign s = section.settings
 
-  if product == blank
-    break
-  endif
 
-  assign max_products = s.max_products | default: 4
+  assign max_products = s.max_products | default: 4 | at_least: 2 | at_most: 12
+  assign recommendations_limit = max_products | at_most: 10
   assign mode = s.mode | default: 'dynamic'
   assign layout = s.layout | default: 'grid'
   assign intent = s.intent | default: 'related'
 
   assign is_endpoint_render = false
-  if recommendations != blank
+  if recommendations.performed?
     assign is_endpoint_render = true
   endif
 
   assign recos_url = routes.product_recommendations_url
   assign recos_url = recos_url | append: '?section_id=' | append: section.id
   assign recos_url = recos_url | append: '&product_id=' | append: product.id
-  assign recos_url = recos_url | append: '&limit=' | append: max_products
+  assign recos_url = recos_url | append: '&limit=' | append: recommendations_limit
   assign recos_url = recos_url | append: '&intent=' | append: intent
 
   comment
@@ -85,6 +83,7 @@
   endif
 -%}
 
+{%- if product != blank -%}
 {%- if mode == 'dynamic' -%}
   <script src="{{ 'product-recommend.js' | asset_url }}" defer></script>
 {%- endif -%}
@@ -95,7 +94,7 @@
     assign rendered_count = 0
   -%}
 
-  {%- if mode == 'dynamic' and is_endpoint_render -%}
+  {%- if mode == 'dynamic' -%}
     {%- if recommendations.products_count > 0 -%}
       {%- for rp in recommendations.products -%}
         {%- if rendered_count >= max_products -%}{%- break -%}{%- endif -%}
@@ -174,7 +173,7 @@
         {%- assign token = '||' | append: mp.id | append: '||' -%}
         {%- if seen contains token -%}{%- continue -%}{%- endif -%}
         {%- assign seen = seen | append: token -%}
-        <div class="product-recommended__item">
+        <div class="product-recommended__item" {{ block.shopify_attributes }}>
           {% render 'product-card',
             product: mp,
             enable_quick_add: pr_enable_quick_add,
@@ -245,7 +244,7 @@
       {%- assign token = '||' | append: mp.id | append: '||' -%}
       {%- if seen contains token -%}{%- continue -%}{%- endif -%}
       {%- assign seen = seen | append: token -%}
-      <div class="product-recommended__item">
+      <div class="product-recommended__item" {{ block.shopify_attributes }}>
         {% render 'product-card',
           product: mp,
           enable_quick_add: pr_enable_quick_add,
@@ -278,18 +277,15 @@
     assign has_items = true
   endif
 
-  if mode == 'collection' or mode == 'manual'
-    if has_items == false
-      break
-    endif
-  endif
 -%}
 
+{%- if has_items or mode == 'dynamic' or request.design_mode -%}
 <section
   class="product-recommended"
-  id="product-recommended"
+  id="product-recommended-{{ section.id }}"
   data-section-id="{{ section.id }}"
-  style="{{ pr_style }}"
+  style="{{ pr_style | escape }} --cols-mobile: {{ s.columns_mobile }}; --cols-tablet: {{ s.columns_tablet }}; --cols-desktop: {{ s.columns_desktop }};"
+  {% unless has_items or request.design_mode %}hidden{% endunless %}
   {% if mode == 'dynamic' and is_endpoint_render == false %}data-dynamic="true"{% endif %}
 >
   {%- if s.title != blank or s.subheading != blank -%}
@@ -308,7 +304,7 @@
   {%- if layout == 'carousel' -%}
     <div
       class="product-recommended__items product-recommended__items--carousel"
-      {% if mode == 'dynamic' and is_endpoint_render == false %}data-recommendations-url="{{ recos_url }}"{% endif %}
+      {% if mode == 'dynamic' and is_endpoint_render == false %}data-recommendations-url="{{ recos_url | escape }}"{% endif %}
       aria-label="{{ s.title | default: 'Recommended products' | strip_html | escape }}"
       tabindex="0"
     >
@@ -318,7 +314,7 @@
     <div
       class="product-recommended__items product-recommended__items--grid"
       style="--cols-mobile: {{ s.columns_mobile }}; --cols-tablet: {{ s.columns_tablet }}; --cols-desktop: {{ s.columns_desktop }};"
-      {% if mode == 'dynamic' and is_endpoint_render == false %}data-recommendations-url="{{ recos_url }}"{% endif %}
+      {% if mode == 'dynamic' and is_endpoint_render == false %}data-recommendations-url="{{ recos_url | escape }}"{% endif %}
     >
       {{ items_markup }}
     </div>
@@ -353,16 +349,18 @@
       scroll-snap-type:x mandatory;
       -webkit-overflow-scrolling: touch;
       padding-bottom: .25rem;
-      outline: none;
+
     }
-    .product-recommended__item{
-      scroll-snap-align:start;
-      flex: 0 0 auto;
-      width: min(320px, 80%);
-    }
-    @media (min-width: 750px){
-      .product-recommended__item{ width: 280px; }
-    }
+    .product-recommended__items--carousel {--pr-cols:var(--cols-mobile,2);}
+    .product-recommended__items--carousel > .product-recommended__item{scroll-snap-align:start;flex:0 0 calc((100% - (var(--pr-cols) - 1)*1rem)/var(--pr-cols));}
+    @media(min-width:750px){.product-recommended__items--carousel{--pr-cols:var(--cols-tablet,3);}}
+    @media(min-width:990px){.product-recommended__items--carousel{--pr-cols:var(--cols-desktop,4);}}
+    .product-recommended__item{min-width:0;}
+    .product-recommended{min-width:0;overflow-wrap:anywhere;}
+    .product-recommended[hidden],.product-recommended [hidden]{display:none!important;}
+    .product-recommended :focus-visible{outline:2px solid currentColor;outline-offset:2px;}
+    .product-recommended__subheading :is(img,video,iframe){max-width:100%;}
+    @media(prefers-reduced-motion:reduce){.product-recommended *{scroll-behavior:auto!important;}}
 
     /* Scoped button styling controls (affects card CTAs only within this section) */
     .product-recommended .q-product-card__action,
@@ -373,7 +371,10 @@
       padding: var(--pr-btn-pad-y, 9px) var(--pr-btn-pad-x, 12px);
     }
   {% endstylesheet %}
+  {%- if request.design_mode and has_items == false -%}<p>Recommendations appear when related products or a fallback are available.</p>{%- endif -%}
 </section>
+{%- endif -%}
+{%- elsif request.design_mode -%}<p>Use this section on a product template to preview recommendations.</p>{%- endif -%}
 
 {% schema %}
 {
@@ -403,7 +404,7 @@
       "info": "Used when Mode is Collection, or as fallback when Dynamic returns no products."
     },
 
-    { "type": "range", "id": "max_products", "label": "Max products", "min": 2, "max": 12, "step": 1, "default": 4 },
+    { "type": "range", "id": "max_products", "label": "Max products", "info": "Dynamic recommendations return up to 10 products; manual and collection lists use this limit.", "min": 2, "max": 12, "step": 1, "default": 4 },
 
     {
       "type": "select",

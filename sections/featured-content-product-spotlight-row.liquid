@@ -83,9 +83,9 @@
   assign bg_fit = section.settings.bg_fit | default: 'cover'
   assign bg_position = section.settings.bg_position | default: 'center center'
   assign bg_overlay_color = section.settings.bg_overlay_color
-  assign bg_overlay_opacity = section.settings.bg_overlay_opacity | default: 25
+  assign bg_overlay_opacity = section.settings.bg_overlay_opacity | default: 25 | divided_by: 100.0
   assign bg_blur = section.settings.bg_blur | default: 0
-  assign bg_dim = section.settings.bg_dim | default: 0
+  assign bg_dim = section.settings.bg_dim | default: 0 | divided_by: 100.0
 
   assign density_class = 'q-density--compact'
   if density == 'comfortable'
@@ -102,9 +102,9 @@
   assign style_vars = style_vars | append: '--q-support-ratio:' | append: support_ratio | append: '%;'
   assign style_vars = style_vars | append: '--q-hover-overlay:' | append: hover_overlay_opacity | append: '%;'
   assign style_vars = style_vars | append: '--q-hero-max-h:' | append: hero_max_h | append: 'vh;'
-  assign style_vars = style_vars | append: '--q-bg-overlay:' | append: bg_overlay_opacity | append: '%;'
+  assign style_vars = style_vars | append: '--q-bg-overlay:' | append: bg_overlay_opacity | append: ';'
   assign style_vars = style_vars | append: '--q-bg-blur:' | append: bg_blur | append: 'px;'
-  assign style_vars = style_vars | append: '--q-bg-dim:' | append: bg_dim | append: '%;'
+  assign style_vars = style_vars | append: '--q-bg-dim:' | append: bg_dim | append: ';'
   assign style_vars = style_vars | append: '--q-bg-position:' | append: bg_position | append: ';'
 
   if title_style == 'coquette'
@@ -126,10 +126,7 @@
 
   assign feed_collection = blank
   if section.settings.collection != blank
-    assign feed_handle = section.settings.collection.handle | default: section.settings.collection
-    if feed_handle != blank
-      assign feed_collection = collections[feed_handle]
-    endif
+    assign feed_collection = section.settings.collection
   endif
 
   if source_mode == 'manual' and manual_count > 0
@@ -140,7 +137,9 @@
     assign all_col = collections['all']
     assign front_col = collections['frontpage']
 
-    if all_col != blank and all_col.products_count > 0
+    if feed_collection != blank and feed_collection.products_count > 0
+      assign items = feed_collection.products
+    elsif all_col != blank and all_col.products_count > 0
       assign items = all_col.products | sort: 'published_at' | reverse
     elsif front_col != blank and front_col.products_count > 0
       assign items = front_col.products | sort: 'published_at' | reverse
@@ -197,31 +196,32 @@
         >
       {%- elsif bg_mode == 'video' and bg_video != blank -%}
         <div class="q-spotlight__bg-media q-spotlight__bg-video" style="object-fit: {{ bg_fit }};">
-          {{ bg_video | video_tag: autoplay: true, loop: true, muted: true, controls: false, playsinline: true, preload: 'metadata' }}
+          {{ bg_video | video_tag: autoplay: false, loop: true, muted: true, controls: true, playsinline: true, preload: 'metadata' }}
         </div>
       {%- endif -%}
 
       <div class="q-spotlight__bg-dim"></div>
       <div class="q-spotlight__bg-overlay"{% if bg_overlay_color != blank %} style="background: {{ bg_overlay_color }};"{% endif %}></div>
     </div>
+    {% if bg_mode == 'video' %}<button type="button" class="q-spotlight__motion" data-spotlight-motion hidden aria-pressed="true">Play background video</button>{% endif %}
   {%- endif -%}
 
   <div class="q-spotlight__inner">
     {%- if show_header -%}
       <header class="q-spotlight__header">
         <div class="q-spotlight__head-left">
-          {%- if heading != blank -%}<h2 class="q-spotlight__heading">{{ heading }}</h2>{%- endif -%}
+          {%- if heading != blank -%}<h2 class="q-spotlight__heading">{{ heading | escape }}</h2>{%- endif -%}
           {%- if subheading != blank -%}<div class="q-spotlight__subheading">{{ subheading }}</div>{%- endif -%}
         </div>
         <div class="q-spotlight__head-right">
           {%- if view_all_url != blank -%}
-            <a class="q-spotlight__viewall" href="{{ view_all_url }}">{{ view_all_label }}</a>
+            <a class="q-spotlight__viewall" href="{{ view_all_url | escape }}">{{ view_all_label | escape }}</a>
           {%- endif -%}
         </div>
       </header>
     {%- endif -%}
 
-    {%- if using_placeholders -%}
+    {%- if using_placeholders and request.design_mode -%}
       <div class="q-spotlight__empty" role="status">
         <strong>No products available from “all” or “frontpage”.</strong>
         <div>Rendering placeholders so you can test layout on Pages.</div>
@@ -254,7 +254,7 @@
           </div>
 
           <div class="q-spotlight__support">
-            <div class="q-spotlight__support-inner" data-supporting-wrap>
+            <div class="q-spotlight__support-inner" data-supporting-wrap tabindex="0" aria-label="Supporting products">
               {%- for i in (1..placeholder_count) -%}
                 <div class="q-spotlight__support-item" data-supporting-item>
                   <div class="q-ph-card">
@@ -281,7 +281,7 @@
     {%- elsif hero == blank -%}
       <div class="q-spotlight__empty" role="status">
         <strong>No products found.</strong>
-        <div>Choose manual products or a collection, or ensure “all/frontpage” has products available.</div>
+        <div>{% if request.design_mode %}Choose products or a collection in the section settings.{% endif %}</div>
       </div>
 
     {%- else -%}
@@ -362,7 +362,7 @@
           </div>
 
           <div class="q-spotlight__support">
-            <div class="q-spotlight__support-inner" data-supporting-wrap>
+            <div class="q-spotlight__support-inner" data-supporting-wrap tabindex="0" aria-label="Supporting products">
               {%- for product in items_limited -%}
                 {%- if product.id == hero.id -%}{%- continue -%}{%- endif -%}
                 <div class="q-spotlight__support-item" data-supporting-item>
@@ -449,18 +449,18 @@
       inset:0;
       width:100%;
       height:100%;
-      object-fit: cover; /* fit comes from wrapper; video_tag uses <video> */
+      object-fit: {{ bg_fit }};
       object-position: var(--q-bg-position, center center);
     }
     [data-section-id="{{ sid }}"] .q-spotlight__bg-dim{
       position:absolute;
       inset:0;
-      background: rgba(0,0,0, calc(var(--q-bg-dim, 0%) / 100));
+      background: rgba(0,0,0, var(--q-bg-dim, 0));
     }
     [data-section-id="{{ sid }}"] .q-spotlight__bg-overlay{
       position:absolute;
       inset:0;
-      opacity: calc(var(--q-bg-overlay, 25%) / 100);
+      opacity: var(--q-bg-overlay, .25);
       background: rgba(255,255,255,0.0); /* overridden by inline style when set */
       mix-blend-mode: normal;
     }
@@ -479,10 +479,10 @@
     .q-spotlight__layout{ display:grid; gap: var(--q-gap, 1rem); align-items:start; }
     .q-spotlight__hero{ min-width: 0; }
     .q-spotlight__support{ min-width: 0; }
-    @media (min-width: 990px){ .q-spotlight__layout{ grid-template-columns: minmax(420px, 64%) minmax(260px, 36%); gap: var(--q-gap-lg, 1.25rem); } }
+    @media (min-width: 990px){ .q-spotlight__layout{ grid-template-columns: minmax(0, 64fr) minmax(0, 36fr); gap: var(--q-gap-lg, 1.25rem); } }
 
     /* Clamp hero media height (section-scoped). If your card uses a different media class, change selector. */
-    [data-section-id="{{ sid }}"] .q-spotlight__hero .q-card__media{
+    [data-section-id="{{ sid }}"] .q-spotlight__hero .q-product-card__media{
       max-height: var(--q-hero-max-h, 70vh);
       overflow:hidden;
     }
@@ -544,35 +544,16 @@
       max-width: 960px;
       margin-inline: auto;
     }
-    [data-spotlight] .q-spotlight__hero img{
-      object-fit: cover;
-    }
+
+    [data-section-id="{{ sid }}"] { overflow-wrap:anywhere; }
+    [data-section-id="{{ sid }}"] .q-spotlight__header { flex-wrap:wrap; }
+    [data-section-id="{{ sid }}"] [hidden] { display:none !important; }
+    [data-section-id="{{ sid }}"] .q-spotlight__motion { position:relative; z-index:3; margin:.5rem; }
+    [data-section-id="{{ sid }}"] :focus-visible { outline:2px solid currentColor; outline-offset:3px; }
+    @media (prefers-reduced-motion:reduce) { [data-section-id="{{ sid }}"] * { scroll-behavior:auto !important; transition:none !important; } }
   </style>
 
-  <script>
-    (() => {
-      const root = document.querySelector('[data-section-id="{{ sid }}"]');
-      if (!root) return;
-      if (root.getAttribute('data-supporting') !== 'carousel') return;
-
-      const wrap = root.querySelector('[data-supporting-wrap]');
-      const prev = root.querySelector('[data-prev]');
-      const next = root.querySelector('[data-next]');
-      if (!wrap) return;
-
-      const step = (dir) => {
-        const first = wrap.querySelector('[data-supporting-item]');
-        const w = first ? first.getBoundingClientRect().width : wrap.getBoundingClientRect().width;
-        const gap = parseFloat(getComputedStyle(wrap).gap || '0') || 0;
-        const delta = (w + gap) * dir;
-        try { wrap.scrollBy({ left: delta, behavior: 'smooth' }); }
-        catch(e){ wrap.scrollLeft = wrap.scrollLeft + delta; }
-      };
-
-      if (prev) prev.addEventListener('click', () => step(-1));
-      if (next) next.addEventListener('click', () => step(1));
-    })();
-  </script>
+  <script src="{{ 'product-spotlight.js' | asset_url }}" defer></script>
 </section>
 
 {% schema %}

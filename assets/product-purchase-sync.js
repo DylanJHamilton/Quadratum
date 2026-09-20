@@ -28,6 +28,7 @@
     let previousVariantId;
     function selectedVariant() { return variants.find(item => String(item.id) === selector.value); }
     function ownsURL() {
+      if (root.dataset.purchaseUrl === 'false') return false;
       const page = new URL(window.location.href);
       if (!root.dataset.productUrl) return /\/products\//.test(page.pathname);
       try {
@@ -162,10 +163,12 @@
   function boot(scope = document) { each(scope, init); }
   window.addEventListener('popstate', () => each(document, root => instances.get(root)?.restore()));
   document.addEventListener('shopify:section:load', event => boot(event.target));
-  document.addEventListener('shopify:section:unload', event => each(event.target, root => {
+  function dispose(scope) { each(scope, root => {
     instances.get(root)?.dispose();
     instances.delete(root);
-  }));
+  }); }
+  window.qtmProductPurchaseSync = { boot, dispose };
+  document.addEventListener('shopify:section:unload', event => dispose(event.target));
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => boot(), { once: true });
   else boot();
 })();

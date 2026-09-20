@@ -4,10 +4,11 @@ import csv,json,re,hashlib,collections
 ROOT=Path(__file__).resolve().parents[2]
 SCHEMA=re.compile(r'{%-?\s*schema\s*-?%}(.*?){%-?\s*endschema\s*-?%}',re.S)
 def family(name):
+ if name in ['pb-bundle-card','interactive-content-helper-product-slider']:return '4 Product / Commerce'
  if name.startswith(('header','footer')) or name in ['global-popup','search-popup','search-controller','q-nav','search-form-static','search-form-predictive','predictive-search']:return '1 Global / Structural'
  if name.startswith(('form-','call-to-action-newsletter','call-to-action-quote')):return '6 Forms / Conversion'
  if name.startswith(('3rd-party','social-media','maps-','account-')):return '7 Social / Third Party / Utilities'
- if name.startswith(('main-product','product-','feeds-product','featured-content-product')):return '4 Product / Commerce'
+ if name.startswith(('main-product','product-','feeds-product','featured-content-product','main-cart','section-main-cart','cart-','q-quick-view','section-product-')):return '4 Product / Commerce'
  if 'collection' in name or name.startswith(('main-search','feeds-','main-blog')):return '3 Collection / Discovery'
  if any(x in name for x in ['banner','call-to-action','hero']):return '2 Hero / Banner / CTA'
  return '5 Content / Interactive'
