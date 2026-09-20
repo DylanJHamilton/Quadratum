@@ -13,17 +13,18 @@
 
 {%- liquid
   assign p = product
-  if p == blank
-    break
-  endif
 
   assign v = p.selected_or_first_available_variant
-  assign has_one_variant = false
-  if p.variants.size == 1
-    assign has_one_variant = true
+  if v.available == false and p.available
+    for candidate in p.variants
+      if candidate.available
+        assign v = candidate
+        break
+      endif
+    endfor
   endif
 
-  assign featured = p.featured_media
+  assign featured = p.featured_media.preview_image
   if featured == blank
     assign featured = p.featured_image
   endif
@@ -31,6 +32,7 @@
   assign max_imgs = 8
 -%}
 
+{%- if p != blank and p.url != blank -%}
 <div class="qcmQv" data-qcm-qv-fragment data-qcm-qv-mode="slider">
   <div class="qcmQv__grid">
     <div class="qcmQv__media">
@@ -46,7 +48,7 @@
                   class="qcmQv__img qcmQv__img--slide"
                   src="{{ m | image_url: width: 1200 }}"
                   alt="{{ m.alt | default: p.title | escape }}"
-                  loading="eager"
+                  loading="eager" width="{{ m.width | default: 900 }}" height="{{ m.height | default: 900 }}"
                 >
                 {%- if count >= max_imgs -%}{%- break -%}{%- endif -%}
               {%- endif -%}
@@ -55,15 +57,15 @@
 
           {%- if count == 0 -%}
             {%- if featured != blank -%}
-              <img class="qcmQv__img qcmQv__img--slide" src="{{ featured | image_url: width: 1200 }}" alt="{{ featured.alt | default: p.title | escape }}" loading="eager">
+              <img class="qcmQv__img qcmQv__img--slide" src="{{ featured | image_url: width: 1200 }}" alt="{{ featured.alt | default: p.title | escape }}" loading="eager" width="{{ featured.width | default: 900 }}" height="{{ featured.height | default: 900 }}">
             {%- else -%}
               <div class="qcmQv__placeholder" aria-hidden="true"></div>
             {%- endif -%}
           {%- endif -%}
         </div>
 
-        <button class="qcmQv__arrow qcmQv__arrow--prev" type="button" data-qcm-qv-prev aria-label="Previous image">‹</button>
-        <button class="qcmQv__arrow qcmQv__arrow--next" type="button" data-qcm-qv-next aria-label="Next image">›</button>
+        {%- if count > 1 -%}<button class="qcmQv__arrow qcmQv__arrow--prev" type="button" data-qcm-qv-prev aria-label="Previous image">‹</button>
+        <button class="qcmQv__arrow qcmQv__arrow--next" type="button" data-qcm-qv-next aria-label="Next image">›</button>{%- endif -%}
       </div>
 
       {%- comment -%} HOVER MODE (first + second image) {%- endcomment -%}
@@ -75,66 +77,50 @@
         {%- endif -%}
       {%- endif -%}
 
-      <a class="qcmQv__hoverLink" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
+      <a class="qcmQv__hoverLink" href="{{ p.url | escape }}" aria-label="{{ p.title | escape }}">
         {%- if featured != blank -%}
-          <img class="qcmQv__img qcmQv__img--primary" src="{{ featured | image_url: width: 1200 }}" alt="{{ featured.alt | default: p.title | escape }}" loading="eager">
+          <img class="qcmQv__img qcmQv__img--primary" src="{{ featured | image_url: width: 1200 }}" alt="{{ featured.alt | default: p.title | escape }}" loading="eager" width="{{ featured.width | default: 900 }}" height="{{ featured.height | default: 900 }}">
         {%- else -%}
           <div class="qcmQv__placeholder" aria-hidden="true"></div>
         {%- endif -%}
 
         {%- if second_image != blank -%}
-          <img class="qcmQv__img qcmQv__img--second" src="{{ second_image | image_url: width: 1200 }}" alt="{{ second_image.alt | default: p.title | escape }}" loading="eager">
+          <img class="qcmQv__img qcmQv__img--second" src="{{ second_image | image_url: width: 1200 }}" alt="{{ second_image.alt | default: p.title | escape }}" loading="eager" width="{{ second_image.width | default: 900 }}" height="{{ second_image.height | default: 900 }}">
         {%- endif -%}
       </a>
     </div>
 
     <div class="qcmQv__info">
-      <h3 class="qcmQv__title"><a href="{{ p.url }}">{{ p.title }}</a></h3>
+      <h3 class="qcmQv__title"><a href="{{ p.url | escape }}">{{ p.title | escape }}</a></h3>
 
       {%- if v != blank -%}
         <div class="qcmQv__price">
           <span class="qcmQv__priceNow">{{ v.price | money }}</span>
-          {%- if v.compare_at_price > v.price -%}
-            <span class="qcmQv__priceWas"><s>{{ v.compare_at_price | money }}</s></span>
-          {%- endif -%}
+          <span class="qcmQv__priceWas" {% unless v.compare_at_price > v.price %}hidden{% endunless %}><s>{% if v.compare_at_price > v.price %}{{ v.compare_at_price | money }}{% endif %}</s></span>
         </div>
       {%- endif -%}
 
       {%- if p.description != blank -%}
         <div class="qcmQv__desc">
-          {{ p.description | strip_html | truncate: 260 }}
+          {{ p.description | strip_html | truncate: 260 | escape }}
         </div>
       {%- endif -%}
 
-      {%- if p.variants.size > 1 and v != blank -%}
-        <label class="qcmQv__label" for="QcmQvVar-{{ p.id }}">Options</label>
-        <select class="qcmQv__select" id="QcmQvVar-{{ p.id }}" data-qcm-qv-variant>
-          {%- for vr in p.variants -%}
-            <option value="{{ vr.id }}" {% if vr.id == v.id %}selected{% endif %} {% unless vr.available %}disabled{% endunless %}>
-              {{ vr.title }}
-            </option>
-          {%- endfor -%}
-        </select>
-      {%- endif -%}
-
       <div class="qcmQv__actions">
-        {%- comment -%} The collection section decides which buttons show via CSS/visibility {%- endcomment -%}
-
-        {%- if v != blank -%}
-          {%- form 'product', p, class: 'qcmQv__form', data-qcm-qv-form: 'true' -%}
-            <input type="hidden" name="id" value="{{ v.id }}" data-qcm-qv-id>
-            <button class="qcmQv__btn qcmQv__btn--atc" type="submit" name="add">Add to cart</button>
-          {%- endform -%}
-
-          {%- if p.variants.size == 1 and p.available -%}
-            {%- form 'product', p, class: 'qcmQv__form qcmQv__form--buy', data-qcm-qv-form: 'true' -%}
-              <input type="hidden" name="id" value="{{ v.id }}" data-qcm-qv-id>
-              <button class="qcmQv__btn qcmQv__btn--buy" type="submit" name="checkout">Buy now</button>
-            {%- endform -%}
-          {%- endif -%}
+        {%- if v != blank and p.requires_selling_plan != true -%}
+          <form class="qcmQv__form" method="post" action="{{ routes.cart_add_url }}" {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}>
+            {%- if p.variants.size > 1 -%}
+              <label class="qcmQv__label">Options
+                <select class="qcmQv__select" name="id" data-qcm-qv-variant>
+                  {%- for vr in p.variants -%}<option value="{{ vr.id }}" data-price="{{ vr.price | money | escape }}" data-compare="{% if vr.compare_at_price > vr.price %}{{ vr.compare_at_price | money | escape }}{% endif %}" {% if vr.id == v.id %}selected{% endif %} {% unless vr.available %}disabled{% endunless %}>{{ vr.title | escape }}</option>{%- endfor -%}
+                </select>
+              </label>
+            {%- else -%}<input type="hidden" name="id" value="{{ v.id }}">{%- endif -%}
+            <button class="qcmQv__btn qcmQv__btn--atc" type="submit" {% unless v.available %}disabled{% endunless %}>{% if v.available %}Add to cart{% else %}Sold out{% endif %}</button>
+          </form>
+          {%- if p.variants.size == 1 and v.available -%}<a class="qcmQv__btn qcmQv__btn--buy" href="{{ routes.cart_url }}/{{ v.id }}:1?checkout">Buy now</a>{%- endif -%}
         {%- endif -%}
-
-        <a class="qcmQv__btn qcmQv__btn--view" href="{{ p.url }}">View product</a>
+        <a class="qcmQv__btn qcmQv__btn--view" href="{{ p.url | escape }}">{% if p.requires_selling_plan %}Choose options{% else %}View product{% endif %}</a>
       </div>
 
       <div class="qcmQv__status" aria-live="polite" data-qcm-qv-status></div>
@@ -142,6 +128,7 @@
   </div>
 </div>
 
+{%- endif -%}
 {% schema %}
 { "name": "Collection Quick View", "settings": [], "presets": [{ "name": "Collection Modern Quick View" }] }
 {% endschema %}

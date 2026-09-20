@@ -32,7 +32,7 @@
   assign title_size = s.title_size | default: 'md'
 
   assign pagination_type = s.pagination_type | default: 'numbers'
-  assign per_page = s.products_per_page | default: 24
+  assign per_page = s.products_per_page | default: 24 | at_least: 1 | at_most: 60
 
   assign clear_all_url = collection.url
   if collection.sort_by != blank
@@ -223,7 +223,7 @@
   .main-collection-classic__sort-label{
     font-size: 0.9rem;
     color: var(--mcc-muted, rgba(0,0,0,.72)) !important;
-    white-space: nowrap;
+    white-space: normal;
   }
   .main-collection-classic__sort-select{
     width: 100%;
@@ -249,7 +249,7 @@
     color: var(--mcc-input-text, #111);
     cursor:pointer;
     user-select:none;
-    white-space: nowrap;
+    white-space: normal;
   }
 
   .main-collection-classic__layout{ display:block; min-width: 0; }
@@ -257,7 +257,7 @@
   .main-collection-classic__main{ min-width: 0; }
 
   @media (min-width: 990px){
-    .main-collection-classic--layout-two_column_sidebar .main-collection-classic__layout{
+    .main-collection-classic__layout--sidebar{
       display:grid;
       grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
       gap: 16px;
@@ -373,7 +373,7 @@
   }
   @media (min-width: 990px){
     .main-collection-classic__drawer--desktop .main-collection-classic__drawer-panel{ width: 100%; max-width: 100%; }
-    .main-collection-classic--layout-two_column_sidebar .main-collection-classic__drawer--mobile{ display:none; }
+
   }
 
   .main-collection-classic__active-filters-inner{
@@ -404,7 +404,7 @@
     padding: 7px 10px;
     text-decoration:none;
     font-size: .9rem;
-    white-space: nowrap;
+    white-space: normal;
   }
   .main-collection-classic__active-clear{
     color: var(--mcc-muted, rgba(0,0,0,.72)) !important;
@@ -475,6 +475,7 @@
     font-size: var(--mcc-price-size, 14px) !important;
     font-weight: var(--mcc-price-weight, 600) !important;
   }
+  .main-collection-classic .q-product-card__price-compare,
   .main-collection-classic .price__sale .price-item--regular,
   .main-collection-classic .price-item--regular{
     color: var(--mcc-compare-color, rgba(0,0,0,.55)) !important;
@@ -526,6 +527,10 @@
     .main-collection-classic__sort-select{ width: 100%; }
     .main-collection-classic__drawer-panel{ width: 92vw; }
   }
+  .main-collection-classic :where(input,select,button,a){ max-width:100%; }
+  .main-collection-classic :where(input,select,button,a):focus-visible{ outline:2px solid currentColor; outline-offset:3px; }
+  .main-collection-classic{ overflow-wrap:anywhere; }
+  .main-collection-classic__drawer-panel{ max-width:100%; }
 </style>
 
 {%- capture filters_markup -%}
@@ -533,7 +538,7 @@
     {%- for filter in collection.filters -%}
       {%- liquid
         assign filter_label_id = 'FilterLabel-' | append: section.id | append: '-' | append: forloop.index
-        assign filter_key = filter.label | handleize
+        assign filter_key = forloop.index
       -%}
 
       <fieldset class="main-collection-classic__filter" aria-labelledby="{{ filter_label_id }}">
@@ -549,7 +554,7 @@
                   assign input_id = 'Filter-' | append: section.id | append: '-' | append: filter_key | append: '-' | append: forloop.index
                 -%}
                 <label class="main-collection-classic__filter-option" for="{{ input_id }}">
-                  <input
+                  <input form="CollectionFilters-{{ section.id }}"
                     id="{{ input_id }}"
                     type="checkbox"
                     name="{{ value.param_name }}"
@@ -572,12 +577,12 @@
               assign bool_id = 'Filter-' | append: section.id | append: '-' | append: filter_key
             -%}
             <label class="main-collection-classic__filter-option" for="{{ bool_id }}">
-              <input
+              <input form="CollectionFilters-{{ section.id }}"
                 id="{{ bool_id }}"
                 type="checkbox"
-                name="{{ filter.param_name }}"
-                value="1"
-                {% if filter.active_values.size > 0 %}checked{% endif %}
+                name="{{ filter.true_value.param_name | escape }}"
+                value="{{ filter.true_value.value | escape }}"
+                {% if filter.true_value.active %}checked{% endif %}
               >
               <span class="main-collection-classic__filter-option-text">
                 {{ s.boolean_filter_label | escape }}
@@ -588,24 +593,24 @@
             <div class="main-collection-classic__price-range" role="group" aria-label="{{ filter.label | escape }}">
               <div class="main-collection-classic__price-field">
                 <label for="PriceMin-{{ section.id }}">{{ s.price_min_label | escape }}</label>
-                <input
+                <input form="CollectionFilters-{{ section.id }}"
                   id="PriceMin-{{ section.id }}"
                   name="{{ filter.min_value.param_name }}"
                   type="number"
-                  inputmode="numeric"
+                  inputmode="decimal" min="0" step="any" max="{{ filter.range_max | divided_by: 100.0 }}"
                   placeholder="0"
-                  {% if filter.min_value.value != blank %}value="{{ filter.min_value.value }}"{% endif %}
+                  {% if filter.min_value.value != blank %}value="{{ filter.min_value.value | divided_by: 100.0 }}"{% endif %}
                 >
               </div>
               <div class="main-collection-classic__price-field">
                 <label for="PriceMax-{{ section.id }}">{{ s.price_max_label | escape }}</label>
-                <input
+                <input form="CollectionFilters-{{ section.id }}"
                   id="PriceMax-{{ section.id }}"
                   name="{{ filter.max_value.param_name }}"
                   type="number"
-                  inputmode="numeric"
+                  inputmode="decimal" min="0" step="any" max="{{ filter.range_max | divided_by: 100.0 }}"
                   placeholder=""
-                  {% if filter.max_value.value != blank %}value="{{ filter.max_value.value }}"{% endif %}
+                  {% if filter.max_value.value != blank %}value="{{ filter.max_value.value | divided_by: 100.0 }}"{% endif %}
                 >
               </div>
             </div>
@@ -617,11 +622,11 @@
     {%- endfor -%}
 
     <div class="main-collection-classic__filters-actions">
-      <button type="submit" class="main-collection-classic__filters-apply" aria-label="Apply filters">
+      <button form="CollectionFilters-{{ section.id }}" type="submit" class="main-collection-classic__filters-apply" aria-label="Apply filters">
         {{ s.apply_filters_label | escape }}
       </button>
       {%- if s.show_clear_all -%}
-        <a class="main-collection-classic__filters-clear" href="{{ clear_all_url }}" aria-label="Clear all filters">
+        <a class="main-collection-classic__filters-clear" href="{{ clear_all_url | escape }}" aria-label="Clear all filters">
           {{ s.clear_all_label | escape }}
         </a>
       {%- endif -%}
@@ -657,7 +662,7 @@
           {%- for filter in collection.filters -%}
             {%- if filter.type == 'price_range' -%}
               {%- if filter.min_value.value != blank or filter.max_value.value != blank -%}
-                <a class="main-collection-classic__chip" href="{{ filter.url_to_remove }}" role="listitem" aria-label="Remove price filter">
+                <a class="main-collection-classic__chip" href="{{ filter.url_to_remove | escape }}" role="listitem" aria-label="Remove price filter">
                   {{ filter.label | escape }}:
                   {%- if filter.min_value.value != blank -%}{{ filter.min_value.value }}{%- else -%}0{%- endif -%}
                   –
@@ -675,7 +680,7 @@
         </div>
 
         {%- if s.show_clear_all -%}
-          <a class="main-collection-classic__active-clear" href="{{ clear_all_url }}" aria-label="Clear all filters">
+          <a class="main-collection-classic__active-clear" href="{{ clear_all_url | escape }}" aria-label="Clear all filters">
             {{ s.clear_all_label | escape }}
           </a>
         {%- endif -%}
@@ -684,10 +689,21 @@
   {%- endif -%}
 {%- endcapture -%}
 
+{%- liquid
+  assign show_desktop_sidebar = false
+  if filters_enabled and has_filters
+    if layout == 'two_column_sidebar' and s.filters_desktop_mode == 'sidebar'
+      assign show_desktop_sidebar = true
+    elsif layout == 'top_controls' and s.filters_desktop_mode == 'sidebar'
+      assign show_desktop_sidebar = true
+    endif
+  endif
+-%}
 {%- paginate collection.products by per_page -%}
+  {%- assign current_page_text = paginate.current_page | append: '' -%}
   <section
     class="main-collection-classic main-collection-classic--layout-{{ layout }}"
-    id="main-collection-classic"
+    id="MainCollectionClassic-{{ section.id }}"
     data-section-id="{{ section.id }}"
     data-pagination="{{ pagination_type }}"
     style="{{ mcc_style }}"
@@ -720,10 +736,14 @@
         </header>
       {%- endif -%}
 
-      <form class="main-collection-classic__form" method="get" action="{{ collection.url }}">
+      <form id="CollectionFilters-{{ section.id }}" method="get" action="{{ collection.url | escape }}">
+        {%- unless sorting_enabled and s.show_sort -%}<input type="hidden" name="sort_by" value="{{ collection.sort_by | default: collection.default_sort_by | escape }}">{%- endunless -%}
+        {%- unless show_desktop_sidebar or filters_enabled and has_filters and s.show_filters_button -%}{% render 'collection-query-fields', filters: collection.filters, keep_filters: true %}{%- endunless -%}
+      </form>
+      <div class="main-collection-classic__form">
         {%- if layout == 'top_controls' -%}
           <div class="main-collection-classic__controls main-collection-classic__controls--top" role="region" aria-label="Collection controls">
-            {%- if filters_enabled and has_filters and s.show_filters_button -%}
+            {%- if filters_enabled and has_filters and s.show_filters_button and show_desktop_sidebar == false -%}
               <details class="main-collection-classic__drawer">
                 <summary class="main-collection-classic__drawer-toggle" aria-label="Open filters">
                   {{ s.filters_button_label | escape }}
@@ -739,21 +759,21 @@
             {%- if sorting_enabled and s.show_sort -%}
               <div class="main-collection-classic__sort" role="group" aria-label="Sort products">
                 {%- if s.show_sort_label -%}
-                  <label class="main-collection-classic__sort-label" for="MainCollectionClassicSortTop">{{ s.sort_label | escape }}</label>
+                  <label class="main-collection-classic__sort-label" for="MainCollectionClassicSortTop-{{ section.id }}">{{ s.sort_label | escape }}</label>
                 {%- endif -%}
-                <select
-                  id="MainCollectionClassicSortTop"
+                <select form="CollectionFilters-{{ section.id }}"
+                  id="MainCollectionClassicSortTop-{{ section.id }}"
                   name="sort_by"
                   class="main-collection-classic__sort-select"
                   aria-label="Sort by"
                   onchange="this.form.submit()"
                 >
                   {%- for option in collection.sort_options -%}
-                    <option value="{{ option.value | escape }}" {% if option.value == collection.sort_by %}selected{% endif %}>
+                    <option value="{{ option.value | escape }}" {% if option.value == collection.sort_by or collection.sort_by == blank and option.value == collection.default_sort_by %}selected{% endif %}>
                       {{ option.name | escape }}
                     </option>
                   {%- endfor -%}
-                </select>
+                </select><button type="submit" form="CollectionFilters-{{ section.id }}" class="main-collection-classic__filters-apply">Apply sort</button>
               </div>
             {%- endif -%}
           </div>
@@ -761,17 +781,7 @@
           {{ active_filters_markup }}
         {%- endif -%}
 
-        <div class="main-collection-classic__layout">
-          {%- liquid
-            assign show_desktop_sidebar = false
-            if filters_enabled and has_filters
-              if layout == 'two_column_sidebar'
-                assign show_desktop_sidebar = true
-              elsif layout == 'top_controls' and s.filters_desktop_mode == 'sidebar'
-                assign show_desktop_sidebar = true
-              endif
-            endif
-          -%}
+        <div class="main-collection-classic__layout{% if show_desktop_sidebar %} main-collection-classic__layout--sidebar{% endif %}">
 
           {%- if show_desktop_sidebar -%}
             <aside class="main-collection-classic__sidebar" aria-label="Filters">
@@ -784,7 +794,7 @@
           <div class="main-collection-classic__main" aria-label="Collection results">
             {%- if layout == 'grid' or layout == 'two_column_sidebar' -%}
               <div class="main-collection-classic__controls" role="region" aria-label="Collection controls">
-                {%- if filters_enabled and has_filters and s.show_filters_button -%}
+                {%- if filters_enabled and has_filters and s.show_filters_button and show_desktop_sidebar == false -%}
                   <details class="main-collection-classic__drawer main-collection-classic__drawer--mobile">
                     <summary class="main-collection-classic__drawer-toggle" aria-label="Open filters">
                       {{ s.filters_button_label | escape }}
@@ -800,21 +810,21 @@
                 {%- if sorting_enabled and s.show_sort -%}
                   <div class="main-collection-classic__sort" role="group" aria-label="Sort products">
                     {%- if s.show_sort_label -%}
-                      <label class="main-collection-classic__sort-label" for="MainCollectionClassicSort">{{ s.sort_label | escape }}</label>
+                      <label class="main-collection-classic__sort-label" for="MainCollectionClassicSort-{{ section.id }}">{{ s.sort_label | escape }}</label>
                     {%- endif -%}
-                    <select
-                      id="MainCollectionClassicSort"
+                    <select form="CollectionFilters-{{ section.id }}"
+                      id="MainCollectionClassicSort-{{ section.id }}"
                       name="sort_by"
                       class="main-collection-classic__sort-select"
                       aria-label="Sort by"
                       onchange="this.form.submit()"
                     >
                       {%- for option in collection.sort_options -%}
-                        <option value="{{ option.value | escape }}" {% if option.value == collection.sort_by %}selected{% endif %}>
+                        <option value="{{ option.value | escape }}" {% if option.value == collection.sort_by or collection.sort_by == blank and option.value == collection.default_sort_by %}selected{% endif %}>
                           {{ option.name | escape }}
                         </option>
                       {%- endfor -%}
-                    </select>
+                    </select><button type="submit" form="CollectionFilters-{{ section.id }}" class="main-collection-classic__filters-apply">Apply sort</button>
                   </div>
                 {%- endif -%}
               </div>
@@ -901,11 +911,12 @@
               {%- if paginate.pages > 1 -%}
                 <nav class="main-collection-classic__pagination" role="navigation" aria-label="Pagination">
                   {%- if pagination_type == 'infinite_scroll' -%}
+                    {%- if paginate.previous -%}<a class="main-collection-classic__page-link" href="{{ paginate.previous.url | escape }}">{{ s.prev_label | escape }}</a>{%- endif -%}
                     {%- if paginate.next -%}
                       <a
                         class="main-collection-classic__page-link"
                         data-infinite-next
-                        href="{{ paginate.next.url }}"
+                        href="{{ paginate.next.url | escape }}"
                         rel="next"
                         aria-label="Load more products"
                       >
@@ -917,12 +928,12 @@
                   {%- elsif pagination_type == 'prev_next' -%}
                     <div class="main-collection-classic__pager">
                       {%- if paginate.previous -%}
-                        <a class="main-collection-classic__page-link" href="{{ paginate.previous.url }}" rel="prev" aria-label="Previous page">
+                        <a class="main-collection-classic__page-link" href="{{ paginate.previous.url | escape }}" rel="prev" aria-label="Previous page">
                           {{ s.prev_label | escape }}
                         </a>
                       {%- endif -%}
                       {%- if paginate.next -%}
-                        <a class="main-collection-classic__page-link" href="{{ paginate.next.url }}" rel="next" aria-label="Next page">
+                        <a class="main-collection-classic__page-link" href="{{ paginate.next.url | escape }}" rel="next" aria-label="Next page">
                           {{ s.next_label | escape }}
                         </a>
                       {%- endif -%}
@@ -931,19 +942,19 @@
                   {%- else -%}
                     <div class="main-collection-classic__pager" role="list" aria-label="Page list">
                       {%- if paginate.previous -%}
-                        <a class="main-collection-classic__page-link" href="{{ paginate.previous.url }}" rel="prev" aria-label="Previous page">
+                        <a class="main-collection-classic__page-link" href="{{ paginate.previous.url | escape }}" rel="prev" aria-label="Previous page">
                           {{ s.prev_label | escape }}
                         </a>
                       {%- endif -%}
 
                       {%- for part in paginate.parts -%}
                         {%- if part.is_link -%}
-                          <a class="main-collection-classic__page-link" href="{{ part.url }}" role="listitem" aria-label="Page {{ part.title | escape }}">
+                          <a class="main-collection-classic__page-link" href="{{ part.url | escape }}" role="listitem" aria-label="Page {{ part.title | escape }}">
                             {{ part.title }}
                           </a>
                         {%- else -%}
-                          {%- if part.title == '…' -%}
-                            <span aria-hidden="true">…</span>
+                          {%- if part.title != current_page_text -%}
+                            <span aria-hidden="true">{{ part.title | escape }}</span>
                           {%- else -%}
                             <span class="main-collection-classic__page-current" role="listitem" aria-current="page">
                               {{ part.title }}
@@ -953,7 +964,7 @@
                       {%- endfor -%}
 
                       {%- if paginate.next -%}
-                        <a class="main-collection-classic__page-link" href="{{ paginate.next.url }}" rel="next" aria-label="Next page">
+                        <a class="main-collection-classic__page-link" href="{{ paginate.next.url | escape }}" rel="next" aria-label="Next page">
                           {{ s.next_label | escape }}
                         </a>
                       {%- endif -%}
@@ -981,86 +992,10 @@
             {%- endif -%}
           </div>
         </div>
-      </form>
+      </div>
     </div>
 
-    {%- if pagination_type == 'infinite_scroll' -%}
-      <script>
-        (function(){
-          var root = document.getElementById('main-collection-classic');
-          if(!root) return;
-          if(root.dataset.pagination !== 'infinite_scroll') return;
-
-          var nextLink = root.querySelector('[data-infinite-next]');
-          var statusEl = root.querySelector('[data-infinite-status]');
-          var grid = root.querySelector('.main-collection-classic__grid');
-          if(!nextLink || !grid) return;
-
-          var loading = false;
-
-          function setStatus(msg){
-            if(statusEl) statusEl.textContent = msg || '';
-          }
-
-          async function loadNext(){
-            if(loading) return;
-            if(!nextLink || !nextLink.href) return;
-
-            loading = true;
-            setStatus('Loading…');
-
-            try{
-              var res = await fetch(nextLink.href, { credentials: 'same-origin' });
-              if(!res.ok) throw new Error('Request failed');
-
-              var html = await res.text();
-              var doc = new DOMParser().parseFromString(html, 'text/html');
-              var newGrid = doc.querySelector('#main-collection-classic .main-collection-classic__grid');
-              var newNext = doc.querySelector('#main-collection-classic [data-infinite-next]');
-
-              if(newGrid){
-                var items = newGrid.children;
-                for(var i=0;i<items.length;i++){
-                  grid.appendChild(items[i].cloneNode(true));
-                }
-              }
-
-              if(newNext && newNext.href){
-                nextLink.href = newNext.href;
-                setStatus('');
-              } else {
-                nextLink.remove();
-                nextLink = null;
-                setStatus('No more products.');
-                if(observer) observer.disconnect();
-              }
-            } catch(e){
-              setStatus('Could not load more. Please use pagination.');
-            } finally {
-              loading = false;
-            }
-          }
-
-          var observer = null;
-          if('IntersectionObserver' in window){
-            observer = new IntersectionObserver(function(entries){
-              entries.forEach(function(entry){
-                if(entry.isIntersecting){
-                  loadNext();
-                }
-              });
-            }, { rootMargin: '600px 0px' });
-
-            observer.observe(nextLink);
-          }
-
-          nextLink.addEventListener('click', function(e){
-            e.preventDefault();
-            loadNext();
-          });
-        })();
-      </script>
-    {%- endif -%}
+    <script src="{{ 'section-collection-simple.js' | asset_url }}" defer></script>
   </section>
 {%- endpaginate -%}
 
@@ -1152,6 +1087,7 @@
       "type": "select",
       "id": "filters_desktop_mode",
       "label": "Desktop filter layout",
+      "info": "Applies to Sidebar and Top controls layouts. Grid uses the Filters button.",
       "default": "sidebar",
       "options": [
         { "value": "sidebar", "label": "Sidebar (left column)" },

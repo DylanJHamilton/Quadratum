@@ -19,11 +19,9 @@
   assign desc_style = s.description_style | default: 'truncated'
 
   assign show_sort = s.show_sort
-  assign sort_style = s.sort_style | default: 'dropdown'
 
   assign show_count = s.show_result_count
   assign show_chips = s.show_active_filters
-  assign show_clear = s.show_clear_all
 
   assign count_val = blank
   if show_count
@@ -41,40 +39,6 @@
     assign sticky = true
   endif
 
-  assign qs = request.query_string | default: ''
-  assign qs_parts = qs | split: '&'
-
-  assign qs_no_sort = ''
-  for part in qs_parts
-    if part == blank
-      continue
-    endif
-    assign key = part | split: '=' | first
-    if key == 'sort_by'
-      continue
-    endif
-    if qs_no_sort == blank
-      assign qs_no_sort = part
-    else
-      assign qs_no_sort = qs_no_sort | append: '&' | append: part
-    endif
-  endfor
-
-  assign base_url = request.path
-  assign base_q = qs_no_sort
-
-  assign clear_url = results_url
-  if is_search_context and terms_q != blank
-    assign clear_url = clear_url | append: '?q=' | append: terms_q | url_encode
-  endif
-  if sort_by != blank
-    if clear_url contains '?'
-      assign clear_url = clear_url | append: '&sort_by=' | append: sort_by | url_encode
-    else
-      assign clear_url = clear_url | append: '?sort_by=' | append: sort_by | url_encode
-    endif
-  endif
-
   assign active_count = 0
   if filters != blank
     for f in filters
@@ -88,12 +52,12 @@
 <div class="qcm__toolbar{% if sticky %} is-sticky{% endif %}">
   <div class="qcm__toolbarLeft">
     {%- if show_title -%}
-      <h1 class="qcm__title">{{ results_title }}</h1>
+      <h1 class="qcm__title">{{ results_title | escape }}</h1>
     {%- endif -%}
 
     {%- if show_desc and results_description != blank -%}
       <p class="qcm__desc{% if desc_style == 'full' %} is-full{% endif %}">
-        {{ results_description | strip_html }}
+        {{ results_description | strip_html | escape }}
       </p>
     {%- endif -%}
 
@@ -104,7 +68,7 @@
 
   <div class="qcm__toolbarRight">
     {%- if has_filters and filter_mode == 'drawer' -%}
-      <button class="qcm__btn qcm__btn--ghost" type="button" data-qcm-open-drawer>
+      <button class="qcm__btn qcm__btn--ghost" type="button" data-qcm-drawer-open hidden aria-expanded="false">
         Filters{% if active_count > 0 %} ({{ active_count }}){% endif %}
       </button>
     {%- endif -%}
@@ -124,86 +88,18 @@
     {%- endif -%}
 
     {%- if is_search_context and s.enable_search_tools -%}
-      <div class="qcm__searchWithin">
-        <input class="qcm__input" type="search" placeholder="{{ s.search_within_label }}" data-qcm-searchwithin>
-      </div>
+      <form class="qcm__searchWithin" method="get" action="{{ routes.search_url | escape }}">
+        <input type="hidden" name="type" value="product">
+        <input class="qcm__input" type="search" name="q" aria-label="Search products" value="{{ terms_q | escape }}" placeholder="{{ s.search_within_label | escape }}">
+        <button class="qcm__btn" type="submit">Search</button>
+      </form>
     {%- endif -%}
 
-    {%- if show_sort and sort_options != blank and sort_options.size > 0 -%}
-      <div class="qcm__sort">
-        {%- if sort_style == 'dropdown' -%}
-          <form method="get" action="{{ results_url }}">
-            {%- if is_search_context and terms_q != blank -%}
-              <input type="hidden" name="q" value="{{ terms_q | escape }}">
-            {%- endif -%}
-            {%- if qs_no_sort != blank -%}
-              {%- assign preserved = qs_no_sort | split: '&' -%}
-              {%- for kv in preserved -%}
-                {%- assign k = kv | split: '=' | first -%}
-                {%- assign v = kv | split: '=' | last -%}
-                {%- if k != blank and k != 'q' -%}
-                  <input type="hidden" name="{{ k | escape }}" value="{{ v | escape }}">
-                {%- endif -%}
-              {%- endfor -%}
-            {%- endif -%}
+    {%- if show_sort -%}{% render 'collection-modern-sort', section: section, s: s, sort_options: sort_options, sort_by: sort_by, default_sort_by: default_sort_by, filters: filters, results_url: results_url, is_search_context: is_search_context, terms_q: terms_q %}{%- endif -%}
 
-            <label class="visually-hidden" for="QcmSort-{{ section.id }}">Sort</label>
-            <select id="QcmSort-{{ section.id }}" name="sort_by" onchange="this.form.submit()">
-              {%- for opt in sort_options -%}
-                <option value="{{ opt.value }}" {% if opt.value == sort_by %}selected{% endif %}>{{ opt.name }}</option>
-              {%- endfor -%}
-            </select>
-          </form>
-        {%- else -%}
-          <div class="qcm__sortPills" role="list">
-            {%- for opt in sort_options -%}
-              {%- liquid
-                assign pill_url = base_url
-                if base_q != blank
-                  assign pill_url = pill_url | append: '?' | append: base_q | append: '&sort_by=' | append: opt.value | url_encode
-                else
-                  assign pill_url = pill_url | append: '?sort_by=' | append: opt.value | url_encode
-                endif
-              -%}
-              <a class="qcm__pill{% if opt.value == sort_by %} is-active{% endif %}" href="{{ pill_url }}" {% if opt.value == sort_by %}aria-current="true"{% endif %}>
-                {{ opt.name }}
-              </a>
-            {%- endfor -%}
-          </div>
-        {%- endif -%}
-      </div>
-    {%- endif -%}
-
-    <a class="qcm__btn qcm__btn--ghost qcm__undo" href="#" hidden data-qcm-undo>Undo</a>
   </div>
 
-  {%- if show_chips and filters != blank -%}
-    {%- assign any_active = false -%}
-    {%- for f in filters -%}
-      {%- if f.active_values != blank and f.active_values.size > 0 -%}
-        {%- assign any_active = true -%}
-        {%- break -%}
-      {%- endif -%}
-    {%- endfor -%}
-
-    {%- if any_active -%}
-      <div class="qcm__chips" aria-label="Active filters">
-        {%- for f in filters -%}
-          {%- if f.active_values != blank -%}
-            {%- for v in f.active_values -%}
-              <a class="qcm__chip" href="{{ v.url_to_remove }}">
-                {{ f.label }}: {{ v.label }} <span aria-hidden="true">×</span>
-              </a>
-            {%- endfor -%}
-          {%- endif -%}
-        {%- endfor -%}
-
-        {%- if show_clear -%}
-          <a class="qcm__btn qcm__btn--link" href="{{ clear_url }}">Clear all</a>
-        {%- endif -%}
-      </div>
-    {%- endif -%}
-  {%- endif -%}
+  {%- if show_chips -%}{% render 'collection-modern-active-filters', filters: filters, s: s, results_url: results_url, is_search_context: is_search_context, terms_q: terms_q, sort_by: sort_by %}{%- endif -%}
 </div>
 
 {% render 'collection-modern-quick-filters',

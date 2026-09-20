@@ -23,12 +23,12 @@
 
 {%- liquid
   assign a = article
-  if a == blank
-    break
-  endif
 
-  assign heading_level = heading_level | default: 3
-  assign cta_label = cta_label | default: 'Read more'
+  assign heading_level = heading_level | default: 3 | plus: 0 | at_least: 1 | at_most: 6
+  if cta_label == nil
+    assign cta_label = 'Read more'
+  endif
+  assign show_cta = show_cta | default: true, allow_false: true
 
   assign show_image = show_image
   assign show_author = show_author
@@ -42,18 +42,25 @@
   assign minutes = 0
   if show_read_time
     assign wc = a.content | strip_html | strip | split: ' ' | size
-    assign minutes = wc | divided_by: 200
+    assign minutes = wc | plus: 199 | divided_by: 200
     if minutes < 1
       assign minutes = 1
     endif
   endif
 
+  assign has_meta = false
+  if show_date
+    assign has_meta = true
+  elsif show_author and a.author != blank
+    assign has_meta = true
+  endif
   assign img = a.image
 -%}
 
-<article class="q-blogcard">
+{%- if a != blank and a.url != blank -%}
+<article class="q-blogcard{% unless show_image and img != blank %} q-blogcard--no-image{% endunless %}">
   {%- if show_image and img != blank -%}
-    <a class="q-blogcard__media" href="{{ a.url }}" aria-label="{{ a.title | escape }}">
+    <a class="q-blogcard__media" href="{{ a.url | escape }}" aria-label="{{ a.title | escape }}">
       {{ img | image_url: width: 1200 | image_tag:
         loading: 'lazy',
         widths: '240, 360, 540, 720, 900, 1200',
@@ -67,18 +74,18 @@
     {%- if show_tags and a.tags != blank -%}
       <div class="q-blogcard__tags" aria-label="Tags">
         {%- for t in a.tags limit: 3 -%}
-          <span class="q-blogcard__tag">{{ t }}</span>
+          <span class="q-blogcard__tag">{{ t | escape }}</span>
         {%- endfor -%}
       </div>
     {%- endif -%}
 
     {%- case heading_level -%}
-      {%- when 1 -%}<h1 class="q-blogcard__title"><a href="{{ a.url }}">{{ a.title }}</a></h1>
-      {%- when 2 -%}<h2 class="q-blogcard__title"><a href="{{ a.url }}">{{ a.title }}</a></h2>
-      {%- when 3 -%}<h3 class="q-blogcard__title"><a href="{{ a.url }}">{{ a.title }}</a></h3>
-      {%- when 4 -%}<h4 class="q-blogcard__title"><a href="{{ a.url }}">{{ a.title }}</a></h4>
-      {%- when 5 -%}<h5 class="q-blogcard__title"><a href="{{ a.url }}">{{ a.title }}</a></h5>
-      {%- else -%}<h6 class="q-blogcard__title"><a href="{{ a.url }}">{{ a.title }}</a></h6>
+      {%- when 1 -%}<h1 class="q-blogcard__title"><a href="{{ a.url | escape }}">{{ a.title | escape }}</a></h1>
+      {%- when 2 -%}<h2 class="q-blogcard__title"><a href="{{ a.url | escape }}">{{ a.title | escape }}</a></h2>
+      {%- when 3 -%}<h3 class="q-blogcard__title"><a href="{{ a.url | escape }}">{{ a.title | escape }}</a></h3>
+      {%- when 4 -%}<h4 class="q-blogcard__title"><a href="{{ a.url | escape }}">{{ a.title | escape }}</a></h4>
+      {%- when 5 -%}<h5 class="q-blogcard__title"><a href="{{ a.url | escape }}">{{ a.title | escape }}</a></h5>
+      {%- else -%}<h6 class="q-blogcard__title"><a href="{{ a.url | escape }}">{{ a.title | escape }}</a></h6>
     {%- endcase -%}
 
     {%- if show_author or show_date or show_read_time -%}
@@ -87,11 +94,11 @@
           <time datetime="{{ a.published_at | date: '%Y-%m-%d' }}">{{ a.published_at | date: format: 'abbreviated_date' }}</time>
         {%- endif -%}
         {%- if show_author and a.author != blank -%}
-          <span class="q-blogcard__sep" aria-hidden="true">•</span>
-          <span>{{ a.author }}</span>
+          {% if show_date %}<span class="q-blogcard__sep" aria-hidden="true">•</span>{% endif %}
+          <span>{{ a.author | escape }}</span>
         {%- endif -%}
         {%- if show_read_time -%}
-          <span class="q-blogcard__sep" aria-hidden="true">•</span>
+          {% if has_meta %}<span class="q-blogcard__sep" aria-hidden="true">•</span>{% endif %}
           <span>{{ minutes }} min read</span>
         {%- endif -%}
       </div>
@@ -103,15 +110,17 @@
         {%- assign ex = a.excerpt_or_content | strip_html | strip | truncatewords: 24, '…' -%}
       {%- endif -%}
       {%- if ex != blank -%}
-        <div class="q-blogcard__excerpt rte">{{ ex }}</div>
+        <div class="q-blogcard__excerpt">{{ ex | escape }}</div>
       {%- endif -%}
     {%- endif -%}
 
+    {% if show_cta and cta_label != blank %}
     <div class="q-blogcard__cta">
-      <a class="q-blogcard__link" href="{{ a.url }}">
-        {{ cta_label }}
+      <a class="q-blogcard__link" href="{{ a.url | escape }}">
+        {{ cta_label | escape }}
       </a>
     </div>
+    {% endif %}
   </div>
 
   <style>
@@ -168,5 +177,10 @@
       content: "→";
       opacity: .8;
     }
+    .q-blogcard, .q-blogcard * { box-sizing: border-box; min-width: 0; overflow-wrap: anywhere; }
+    .q-blogcard a:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+    .q-blogcard__link { white-space: normal; max-width: 100%; }
   </style>
 </article>
+
+{%- endif -%}

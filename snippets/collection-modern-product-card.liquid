@@ -5,9 +5,6 @@
 
 {%- liquid
   assign p = product
-  if p == blank
-    break
-  endif
 
   assign show_vendor     = s.show_vendor
   assign show_price      = s.show_price
@@ -45,7 +42,7 @@
     endif
   endif
 
-  assign featured = p.featured_media
+  assign featured = p.featured_media.preview_image
   if featured == blank
     assign featured = p.featured_image
   endif
@@ -60,7 +57,7 @@
     endif
   endif
 
-  assign ratio_style = ''
+  assign ratio_style = 'aspect-ratio: ' | append: featured.aspect_ratio | append: ';'
   if image_ratio == 'square'
     assign ratio_style = 'aspect-ratio: 1 / 1;'
   elsif image_ratio == 'portrait'
@@ -70,25 +67,26 @@
   endif
 
   assign disable_other_ctas = false
-  if show_buy_now and has_one_variant and p.available
+  if show_buy_now and has_one_variant and p.available and p.requires_selling_plan != true
     assign disable_other_ctas = true
   endif
 -%}
 
+{%- if p != blank and p.url != blank -%}
 <article
   class="qcmc"
   data-qcmc
   data-media-mode="{{ media_mode }}"
-  data-product-handle="{{ p.handle }}"
-  data-product-url="{{ p.url }}"
+  data-product-handle="{{ p.handle | escape }}"
+  data-product-url="{{ p.url | escape }}"
   data-product-title="{{ p.title | escape }}"
   data-product-id="{{ p.id }}"
-  {%- if v != blank -%}data-variant-id="{{ v.id }}"{%- endif -%}
+  {% if v != blank %}data-variant-id="{{ v.id }}"{% endif %}
 >
   <div class="qcmc__media" style="{{ ratio_style }}">
     {%- if show_badges -%}
       {%- if on_sale or sold_out -%}
-        <div class="qcmc__badges" aria-hidden="true">
+        <div class="qcmc__badges">
           {%- if on_sale -%}
             <span class="qcmc__badge qcmc__badge--sale">Sale</span>
           {%- endif -%}
@@ -101,9 +99,9 @@
 
     {%- if media_mode == 'slider' -%}
       <div class="qcmc__slider" data-qcmc-slider data-qcmc-index="0">
-        <a class="qcmc__mediaLink" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
+        <a class="qcmc__mediaLink" href="{{ p.url | escape }}" aria-label="{{ p.title | escape }}">
           <div class="qcmc__track" data-qcmc-track>
-            {%- assign slide_limit = s.slider_image_limit | default: 5 -%}
+            {%- assign slide_limit = s.slider_image_limit | default: 5 | at_least: 1 | at_most: 8 -%}
             {%- assign slide_count = 0 -%}
             {%- if p.media != blank -%}
               {%- for m in p.media -%}
@@ -113,7 +111,7 @@
                     class="qcmc__img qcmc__img--slide"
                     src="{{ m | image_url: width: 900 }}"
                     alt="{{ m.alt | default: p.title | escape }}"
-                    loading="lazy"
+                    loading="lazy" width="{{ m.width | default: 900 }}" height="{{ m.height | default: 900 }}"
                   >
                   {%- if slide_count >= slide_limit -%}{%- break -%}{%- endif -%}
                 {%- endif -%}
@@ -122,7 +120,7 @@
 
             {%- if slide_count == 0 -%}
               {%- if featured != blank -%}
-                <img class="qcmc__img qcmc__img--slide" src="{{ featured | image_url: width: 900 }}" alt="{{ featured.alt | default: p.title | escape }}" loading="lazy">
+                <img class="qcmc__img qcmc__img--slide" src="{{ featured | image_url: width: 900 }}" alt="{{ featured.alt | default: p.title | escape }}" loading="lazy" width="{{ featured.width | default: 900 }}" height="{{ featured.height | default: 900 }}">
               {%- else -%}
                 <div class="qcmc__img qcmc__img--placeholder" aria-hidden="true"></div>
               {%- endif -%}
@@ -130,19 +128,19 @@
           </div>
         </a>
 
-        <button class="qcmc__arrow qcmc__arrow--prev" type="button" data-qcmc-prev aria-label="Previous image">‹</button>
-        <button class="qcmc__arrow qcmc__arrow--next" type="button" data-qcmc-next aria-label="Next image">›</button>
+        {%- if slide_count > 1 -%}<button class="qcmc__arrow qcmc__arrow--prev" type="button" data-qcmc-prev aria-label="Previous image">‹</button>
+        <button class="qcmc__arrow qcmc__arrow--next" type="button" data-qcmc-next aria-label="Next image">›</button>{%- endif -%}
       </div>
     {%- else -%}
-      <a class="qcmc__mediaLink" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
+      <a class="qcmc__mediaLink" href="{{ p.url | escape }}" aria-label="{{ p.title | escape }}">
         {%- if featured != blank -%}
-          <img class="qcmc__img qcmc__img--primary" src="{{ featured | image_url: width: 900 }}" alt="{{ featured.alt | default: p.title | escape }}" loading="lazy">
+          <img class="qcmc__img qcmc__img--primary" src="{{ featured | image_url: width: 900 }}" alt="{{ featured.alt | default: p.title | escape }}" loading="lazy" width="{{ featured.width | default: 900 }}" height="{{ featured.height | default: 900 }}">
         {%- else -%}
           <div class="qcmc__img qcmc__img--placeholder" aria-hidden="true"></div>
         {%- endif -%}
 
         {%- if second_image != blank -%}
-          <img class="qcmc__img qcmc__img--second" src="{{ second_image | image_url: width: 900 }}" alt="{{ second_image.alt | default: p.title | escape }}" loading="lazy">
+          <img class="qcmc__img qcmc__img--second" src="{{ second_image | image_url: width: 900 }}" alt="{{ second_image.alt | default: p.title | escape }}" loading="lazy" width="{{ second_image.width | default: 900 }}" height="{{ second_image.height | default: 900 }}">
         {%- endif -%}
       </a>
     {%- endif -%}
@@ -150,11 +148,11 @@
 
   <div class="qcmc__body">
     {%- if show_vendor and p.vendor != blank -%}
-      <div class="qcmc__vendor">{{ p.vendor }}</div>
+      <div class="qcmc__vendor">{{ p.vendor | escape }}</div>
     {%- endif -%}
 
     <h3 class="qcmc__title">
-      <a href="{{ p.url }}">{{ p.title }}</a>
+      <a href="{{ p.url | escape }}">{{ p.title | escape }}</a>
     </h3>
 
     {%- if show_price and v != blank -%}
@@ -168,29 +166,22 @@
 
     <div class="qcmc__actions">
       {%- if disable_other_ctas -%}
-        <button
-          type="button"
-          class="qcmc__btn"
-          data-qcm-buy-now
-          data-variant-id="{{ v.id }}"
-        >
-          {{ buy_label }}
-        </button>
+        <a class="qcmc__btn" href="{{ routes.cart_url }}/{{ v.id }}:1?checkout">{{ buy_label | escape }}</a>
       {%- else -%}
         {%- if show_quick_add -%}
-          {%- if has_one_variant and v != blank -%}
-            {%- form 'product', p, class: 'qcmc__form' -%}
+          {%- if has_one_variant and v != blank and p.requires_selling_plan != true -%}
+            <form class="qcmc__form" method="post" action="{{ routes.cart_add_url }}" {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}>
               <input type="hidden" name="id" value="{{ v.id }}">
-              <button class="qcmc__btn" type="submit" name="add">{{ add_label }}</button>
-            {%- endform -%}
+              <button class="qcmc__btn" type="submit" name="add" {% unless v.available %}disabled{% endunless %}>{{ add_label | escape }}</button>
+            </form>
           {%- else -%}
-            <a class="qcmc__btn qcmc__btn--ghost" href="{{ p.url }}">{{ opts_label }}</a>
+            <a class="qcmc__btn qcmc__btn--ghost" href="{{ p.url | escape }}">{{ opts_label | escape }}</a>
           {%- endif -%}
         {%- endif -%}
 
         {%- if s.enable_quick_view -%}
           <button type="button" class="qcmc__btn qcmc__btn--ghost" data-qcm-quick-view>
-            {{ s.quick_view_label | default: 'Quick view' }}
+            {{ s.quick_view_label | default: 'Quick view' | escape }}
           </button>
         {%- endif -%}
 
@@ -201,12 +192,13 @@
             data-qcm-compare-toggle
             data-label-select="{{ s.compare_label | default: 'Select' | escape }}"
             data-label-selected="{{ s.compare_selected_label | default: 'Selected' | escape }}"
-            aria-label="{{ s.compare_label | default: 'Select' }}: {{ p.title | escape }}"
+            aria-label="{{ s.compare_label | default: 'Select' | escape }}: {{ p.title | escape }}"
           >
-            {{ s.compare_label | default: 'Select' }}
+            {{ s.compare_label | default: 'Select' | escape }}
           </button>
         {%- endif -%}
       {%- endif -%}
     </div>
   </div>
 </article>
+{%- endif -%}

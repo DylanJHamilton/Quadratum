@@ -34,6 +34,8 @@
   endif
 
   if use_alt
+    assign is_search_context = false
+    assign terms_q = ''
     assign c = s.alt_collection
     assign products = c.products
     assign filters = c.filters
@@ -64,10 +66,16 @@
     assign results_description = c.description
   endif
 
+  assign results_count = c.products_count
+  if is_search_context
+    assign results_count = search.results_count
+  endif
+  assign sort_by = sort_by | default: default_sort_by
+
   assign layout = s.layout_preset | default: 'modern_grid'
   assign filter_mode = s.filter_presentation | default: 'sidebar'
   assign pagination_style = s.pagination_style | default: 'numbered'
-  assign per_page = s.products_per_page | default: 24
+  assign per_page = s.products_per_page | default: 24 | at_least: 1 | at_most: 50
 
   assign scope_id = section.id
   assign root_id = 'QtmCollectionModern-' | append: scope_id
@@ -107,7 +115,7 @@
 
 <section
   id="{{ root_id }}"
-  class="q-collection-modern q-collection-simple qcm layout-{{ layout }} cardstyle-{{ s.card_style }} density-{{ s.card_density }} hover-{{ s.hover_effects }} reveal-{{ s.reveal_animation }} scheme-{{ s.color_scheme }}"
+  class="q-collection-modern q-collection-simple qcm layout-{{ layout }} cardstyle-{{ s.card_style }} density-{{ s.card_density }} hover-{{ s.hover_effects }} reveal-off scheme-{{ s.color_scheme }}"
   data-section-id="{{ scope_id }}"
   data-layout="{{ layout }}"
   data-pagination-style="{{ pagination_style }}"
@@ -157,6 +165,7 @@
       s: s,
       is_search_context: is_search_context,
       results_title: results_title,
+      results_count: results_count,
       results_url: results_url,
       results_description: results_description,
       terms_q: terms_q,
@@ -202,7 +211,7 @@
             placement: 'drawer'
           %}
 
-          <noscript>
+          <div data-qcm-drawer-fallback>
             <details class="qcm__drawer-noscript">
               <summary class="qcm__btn">Filters</summary>
               {% render 'collection-simple-facets',
@@ -218,7 +227,7 @@
                 placement: 'drawer_noscript'
               %}
             </details>
-          </noscript>
+          </div>
         {%- endif -%}
 
         {%- paginate products by per_page -%}
@@ -237,19 +246,15 @@
                 {%- for item in products -%}
                   {%- liquid
                     assign p = item
-                    if is_search_context
-                      if item.object_type != 'product'
-                        continue
-                      endif
-                      assign p = item
-                    endif
                   -%}
 
                   <div class="qcm__item" data-qcm-item>
-                    {%- if card_engine == 'modern_card' -%}
+                    {%- if is_search_context and item.object_type != 'product' -%}
+                      <a href="{{ item.url | escape }}">{{ item.title | escape }}</a>
+                    {%- elsif card_engine == 'modern_card' -%}
                       {% render 'collection-simple-product-card', product: p, s: s, section: section %}
                     {%- else -%}
-                      {% render 'product-card', product: p %}
+                      {% render 'product-card', product: p, show_price: s.show_price, show_vendor: s.show_vendor, show_badges: s.show_badges, badge_sale: true, enable_quick_add: s.show_quick_add, primary_cta_label: s.add_to_cart_label, label_select_options: s.choose_options_label %}
                     {%- endif -%}
                   </div>
                 {%- endfor -%}
@@ -268,7 +273,7 @@
             <div class="qcm__empty" role="status">
               <p class="qcm__emptyTitle">No products found.</p>
               {%- if s.show_clear_all -%}
-                <a class="qcm__btn qcm__btn--link" href="{{ results_url }}">Clear all filters</a>
+                <a class="qcm__btn qcm__btn--link" href="{% render 'section-collection-modern-utils', results_url: results_url, is_search_context: is_search_context, terms_q: terms_q, sort_by: sort_by %}">Clear all filters</a>
               {%- endif -%}
             </div>
           {%- endif -%}
@@ -339,11 +344,11 @@
     {
       "type": "select",
       "id": "card_engine",
-      "label": "Card engine",
+      "label": "Card engine", "info": "Modern card styles, ratings, image ratio and Buy now apply to the Modern card engine.",
       "default": "default_theme_card",
       "options": [
         { "value": "default_theme_card", "label": "Default theme card" },
-        { "value": "modern_card", "label": "Modern (collection-modern-product-card)" }
+        { "value": "modern_card", "label": "Modern card" }
       ]
     },
     {
@@ -415,7 +420,7 @@
     { "type": "checkbox", "id": "show_vendor", "label": "Show vendor", "default": false },
     { "type": "checkbox", "id": "show_price", "label": "Show price", "default": true },
     { "type": "checkbox", "id": "show_badges", "label": "Show badges (sale/sold out)", "default": true },
-    { "type": "checkbox", "id": "show_rating", "label": "Show rating placeholder", "default": false },
+    { "type": "checkbox", "id": "show_rating", "label": "Show product rating", "default": false },
     { "type": "checkbox", "id": "show_quick_add", "label": "Show quick add", "default": false },
     { "type": "checkbox", "id": "show_second_image", "label": "Second image on hover", "default": true },
 
@@ -461,7 +466,7 @@
     },
     { "type": "text", "id": "add_to_cart_label", "label": "Add to cart label", "default": "Add to cart" },
     { "type": "text", "id": "choose_options_label", "label": "Choose options label", "default": "Choose options" },
-    { "type": "checkbox", "id": "show_buy_now", "label": "Show Buy now (single-variant only)", "default": false },
+    { "type": "checkbox", "id": "show_buy_now", "label": "Show Buy now (single-variant only)", "info": "Replaces quick add when quick add is enabled. Products requiring a selling plan link to their product page.", "default": false },
     { "type": "text", "id": "buy_now_label", "label": "Buy now label", "default": "Buy now" },
 
     { "type": "header", "content": "Pagination" },
