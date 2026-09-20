@@ -53,7 +53,7 @@ function fixture(n,id){
  console.log('PASS search popup: input focus, outside containment, Tab wrap and opener restoration.');
  const engine=new Liquid({root:['snippets'],extname:'.liquid'});
  const renderDrawer=id=>engine.parseAndRender(source('snippets/header-marketplace-category-drawer.liquid'),{section_id:id,section_settings:{},search_display:'inline_static',settings:{},routes:{root_url:'/',search_url:'/search'}});
- const html=await renderDrawer('one')+await renderDrawer('two');const h=dom(html);assert.equal(new Set([...h.window.document.querySelectorAll('input')].map(e=>e.id)).size,2);h.window.close();
+ const html=await renderDrawer('one')+await renderDrawer('two');const h=dom(html);assert.equal(new Set([...h.window.document.querySelectorAll('input[type=search]')].map(e=>e.id)).size,2);h.window.close();
  for(const word of ['two','three','four','five']){
   const s=source('sections/footer-'+word+'.liquid');assert.match(s,/form 'customer', id: newsletter_form_id/);
  }

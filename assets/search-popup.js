@@ -24,6 +24,7 @@
 
     function closePopup() {
       window.clearTimeout(focusTimer);
+      popup.dispatchEvent(new CustomEvent('qtm:search-close', { bubbles: true }));
       popup.hidden = true;
       popup.setAttribute('aria-hidden', 'true');
       document.body.classList.remove('qtm-search-popup-open');
@@ -74,7 +75,7 @@
         if (first && event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
         else if (last && !event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
       }
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
         event.preventDefault();
         closePopup();
       }
