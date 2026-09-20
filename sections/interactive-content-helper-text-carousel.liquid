@@ -1,32 +1,32 @@
-{% if section.blocks.size == 0 %}
+{%- liquid
+  assign items = section.blocks | where: 'type', 'item'
+  assign count = 0
+  for block in items
+    assign label = block.settings.label | strip
+    if label != blank
+      assign count = count | plus: 1
+    endif
+  endfor
+-%}
+{% if count == 0 %}
   {% render 'section-empty-state', section: section %}
 {% else %}
 {%- comment -%}
   Quadratum — Interactive · Text Carousel
   File: sections/interactive-content-helper-text-carousel.liquid
 
-  v1 (Plan B): Continuous marquee / ticker (NO JS)
-  - Default: marquee (continuous, off-canvas, sale-strip feel)
-  - Optional: carousel (engine slides) via shared contract data attributes
-  - No JS
-  - Premium defaults; token-driven via scoped CSS vars
+  Native CSS ticker with a persistent checkbox pause and reduced-motion/editor fallback.
+  Carousel mode opts into the existing shared engine; saved settings remain local.
 {%- endcomment -%}
 
 {%- liquid
   assign sid = section.id
   assign s = section.settings
 
-  assign items = section.blocks | where: 'type', 'item'
-  assign count = items.size
-  if count == 0
-    break
-  endif
-
   assign show_header = s.show_header
 
   assign layout = s.layout | default: 'single_line'
   assign alignment = s.alignment | default: 'center'
-  assign transition_style = s.transition_style | default: 'slide'
   assign motion_mode = s.motion_mode | default: 'marquee'
 
   assign slides_d = s.slides_desktop | default: 1
@@ -60,11 +60,6 @@
     assign show_dots = false
   endif
 
-  assign aria_live = 'off'
-  if announce_changes and autoplay and motion_mode == 'carousel'
-    assign aria_live = 'polite'
-  endif
-
   assign use_custom_colors = s.use_custom_colors
 
   assign max_width = s.max_width | default: 'full'
@@ -79,45 +74,53 @@
   assign marquee_direction = s.marquee_direction | default: 'left'
 -%}
 
+{% if motion_mode == 'carousel' %}<script src="{{ 'interactive-content-carousel-media.js' | asset_url }}" defer></script>{% endif %}
 <section
   class="q-section q-text-carousel q-tc-layout--{{ layout }} q-tc-align--{{ alignment }} q-tc-motion--{{ motion_mode }} q-tc-maxw--{{ max_width }}{% if pause_on_hover %} q-tc-pause-hover{% endif %}"
-  data-section-id="{{ sid }}"
+  data-section-id="{{ sid }}" data-design-mode="{{ request.design_mode }}"
   role="region"
   aria-label="{{ aria_label | escape }}"
   style="
-    --q-tc-pad-y: var(--q-space-{{ pad_y }}, 32px);
-    --q-tc-pad-x: var(--q-space-{{ pad_x }}, 20px);
+    --q-tc-space-xs: var(--q-space-xs, 8px);
+    --q-tc-space-sm: var(--q-space-sm, 16px);
+    --q-tc-space-md: var(--q-space-md, 24px);
+    --q-tc-space-lg: var(--q-space-lg, 32px);
+    --q-tc-pad-y: var(--q-tc-space-{{ pad_y }});
+    --q-tc-pad-x: var(--q-tc-space-{{ pad_x }});
 
     --q-tc-bg: {% if use_custom_colors %}{{ s.bg_color }}{% else %}transparent{% endif %};
     --q-tc-fg: {% if use_custom_colors %}{{ s.text_color }}{% else %}currentColor{% endif %};
-    --q-tc-muted: {% if use_custom_colors %}{{ s.muted_text_color }}{% else %}rgba(0,0,0,0.70){% endif %};
-    --q-tc-accent: {% if use_custom_colors %}{{ s.accent_color }}{% else %}currentColor{% endif %};
-    --q-tc-surface: {% if use_custom_colors %}{{ s.surface_color }}{% else %}rgba(0,0,0,0.04){% endif %};
-    --q-tc-border: {% if use_custom_colors %}{{ s.border_color }}{% else %}rgba(0,0,0,0.10){% endif %};
+    --q-tc-muted: {% if use_custom_colors %}{{ s.muted_text_color }}{% else %}var(--c-muted, currentColor){% endif %};
+    --q-tc-accent: {% if use_custom_colors %}{{ s.accent_color }}{% else %}var(--c-accent, currentColor){% endif %};
+    --q-tc-surface: {% if use_custom_colors %}{{ s.surface_color }}{% else %}var(--c-surface, rgba(0,0,0,0.04)){% endif %};
+    --q-tc-border: {% if use_custom_colors %}{{ s.border_color }}{% else %}color-mix(in srgb, currentColor 15%, transparent){% endif %};
 
     --q-tc-label-fs: {{ s.label_size }}px;
     --q-tc-label-fw: {{ s.label_weight }};
     --q-tc-subtext-fs: {{ s.subtext_size }}px;
-    --q-tc-subtext-op: {{ s.subtext_opacity }}%;
+    --q-tc-subtext-op: {{ s.subtext_opacity }};
     --q-tc-meta-fs: {{ s.meta_size }}px;
-    --q-tc-meta-op: {{ s.meta_opacity }}%;
+    --q-tc-meta-op: {{ s.meta_opacity }};
     --q-tc-lettersp: {{ s.letter_spacing }}em;
 
     --q-tc-card-radius: {{ card_radius }}px;
     --q-tc-card-bw: {{ s.card_border_width }}px;
-    --q-tc-card-shadow: {{ s.card_shadow | default: '0' }};
+    --q-tc-card-shadow: {{ s.card_shadow | default: 'none' | escape }};
 
     --q-tc-badge-radius: {{ badge_radius }}px;
     --q-tc-badge-bw: {{ s.badge_border_width }}px;
-    --q-tc-badge-pad-y: var(--q-space-{{ s.badge_pad_y }}, 8px);
-    --q-tc-badge-pad-x: var(--q-space-{{ s.badge_pad_x }}, 12px);
+    --q-tc-badge-pad-y: var(--q-tc-space-{{ s.badge_pad_y }});
+    --q-tc-badge-pad-x: var(--q-tc-space-{{ s.badge_pad_x }});
 
     --q-tc-control-size: {{ s.control_size }}px;
     --q-tc-control-radius: {{ control_radius }}px;
     --q-tc-control-bw: {{ s.control_border_width }}px;
     --q-tc-dot-size: {{ s.dot_size }}px;
-    --q-tc-dot-scale: {{ s.dot_active_scale }}%;
+    --q-tc-dot-scale: {{ s.dot_active_scale }};
 
+    --q-tc-spv-d: {{ slides_d }};
+    --q-tc-spv-t: {{ slides_t }};
+    --q-tc-spv-m: {{ slides_m }};
     --q-tc-marquee-speed: {{ marquee_speed }}s;
     --q-tc-marquee-dir: {% if marquee_direction == 'right' %}reverse{% else %}normal{% endif %};
   "
@@ -128,10 +131,10 @@
       {%- if show_header -%}
         <header class="q-text-carousel__header">
           {%- if s.kicker != blank -%}
-            <p class="q-text-carousel__kicker">{{ s.kicker }}</p>
+            <p class="q-text-carousel__kicker">{{ s.kicker | escape }}</p>
           {%- endif -%}
           {%- if s.title != blank -%}
-            <h2 class="q-text-carousel__title">{{ s.title }}</h2>
+            <h2 class="q-text-carousel__title">{{ s.title | escape }}</h2>
           {%- endif -%}
           {%- if s.subtitle != blank -%}
             <div class="q-text-carousel__subtitle rte">{{ s.subtitle }}</div>
@@ -140,36 +143,36 @@
       {%- endif -%}
 
       {%- if motion_mode == 'marquee' -%}
-        <div class="q-tc-marquee" aria-live="off">
-          <div class="q-tc-marquee__viewport">
-            <div class="q-tc-marquee__track" data-q-tc-marquee-track>
-              <div class="q-tc-marquee__group">
-                {%- for block in items -%}
-                  {%- assign b = block.settings -%}
-                  {%- if b.label == blank -%}{%- continue -%}{%- endif -%}
-                  <div class="q-tc-item" {{ block.shopify_attributes }}>
-                    {%- if layout == 'badge_strip' -%}
-                      <span class="q-tc-badge">{{ b.label }}</span>
-                    {%- else -%}
-                      <span class="q-tc-line">{{ b.label }}</span>
-                    {%- endif -%}
-                  </div>
-                {%- endfor -%}
-              </div>
-
-              <div class="q-tc-marquee__group" aria-hidden="true">
-                {%- for block in items -%}
-                  {%- assign b = block.settings -%}
-                  {%- if b.label == blank -%}{%- continue -%}{%- endif -%}
-                  <div class="q-tc-item">
-                    {%- if layout == 'badge_strip' -%}
-                      <span class="q-tc-badge">{{ b.label }}</span>
-                    {%- else -%}
-                      <span class="q-tc-line">{{ b.label }}</span>
-                    {%- endif -%}
-                  </div>
-                {%- endfor -%}
-              </div>
+        <div class="q-tc-marquee{% if count > 1 %} q-tc-marquee--moving{% endif %}" aria-live="off">
+          {% if count > 1 %}
+            <input type="checkbox" class="q-tc-pause-check" id="TextTickerPause-{{ sid }}" aria-controls="TextTicker-{{ sid }}">
+            <label class="q-tc-pause-label" for="TextTickerPause-{{ sid }}">Pause ticker</label>
+          {% endif %}
+          <div class="q-tc-marquee__viewport" id="TextTicker-{{ sid }}">
+            <div class="q-tc-marquee__track">
+              {%- for copy in (1..2) -%}
+                <div class="q-tc-marquee__group" {% if copy == 2 %}aria-hidden="true" inert{% endif %}>
+                  {%- for block in items -%}
+                    {%- assign b = block.settings -%}
+                    {%- if b.label == blank -%}{%- continue -%}{%- endif -%}
+                    <div class="q-tc-item" {% if copy == 1 %}{{ block.shopify_attributes }}{% endif %}>
+                      {% if layout == 'card' %}
+                        <div class="q-tc-card">
+                          <div class="q-tc-card__label">{{ b.label | escape }}</div>
+                          {% if b.subtext != blank %}<div class="q-tc-card__subtext">{{ b.subtext | escape }}</div>{% endif %}
+                          {% if b.meta != blank %}<div class="q-tc-card__meta">{{ b.meta | escape }}</div>{% endif %}
+                        </div>
+                      {% else %}
+                        <div class="q-tc-linewrap">
+                          {% if layout == 'badge_strip' %}<span class="q-tc-badge">{{ b.label | escape }}</span>{% else %}<span class="q-tc-line">{{ b.label | escape }}</span>{% endif %}
+                          {% if b.subtext != blank %}<span class="q-tc-subtext">{{ b.subtext | escape }}</span>{% endif %}
+                          {% if b.meta != blank %}<span class="q-tc-meta">{{ b.meta | escape }}</span>{% endif %}
+                        </div>
+                      {% endif %}
+                    </div>
+                  {%- endfor -%}
+                </div>
+              {%- endfor -%}
             </div>
           </div>
         </div>
@@ -177,62 +180,51 @@
       {%- else -%}
         <div
           class="q-tc-carousel"
-          {%- if should_init -%}
-            data-q-carousel
-            data-carousel
-            data-loop="{{ loop }}"
-            data-autoplay="{{ autoplay }}"
+          {% if should_init %}
+            data-q-carousel-engine="shared"
+            data-loop="{{ loop }}" data-autoplay="{{ autoplay }}"
             data-autoplay-speed="{{ s.autoplay_speed }}"
-            data-pause-on-hover="{{ pause_on_hover }}"
-            data-show-arrows="{{ show_arrows }}"
-            data-show-dots="{{ show_dots }}"
-
-            data-slides-desktop="{{ slides_d }}"
-            data-slides-tablet="{{ slides_t }}"
-            data-slides-mobile="{{ slides_m }}"
-
-            data-q-slides-desktop="{{ slides_d }}"
-            data-q-slides-tablet="{{ slides_t }}"
-            data-q-slides-mobile="{{ slides_m }}"
-          {%- endif -%}
-          aria-roledescription="carousel"
-          aria-live="{{ aria_live }}"
+            data-pause-hover="{{ pause_on_hover }}" data-pause-focus="true"
+            data-show-arrows="{{ show_arrows }}" data-show-dots="{{ show_dots }}"
+            data-announce="{{ announce_changes }}"
+          {% endif %}
+          role="region" aria-roledescription="carousel" aria-label="{{ aria_label | escape }}"
         >
           {%- if should_init and show_arrows -%}
             <div class="q-tc-controls">
-              <button type="button" class="q-tc-btn" aria-label="Previous message" data-q-carousel-prev data-carousel-prev>
+              <button type="button" class="q-tc-btn" aria-label="Previous message" data-q-carousel-prev hidden>
                 <span aria-hidden="true">‹</span>
               </button>
-              <button type="button" class="q-tc-btn" aria-label="Next message" data-q-carousel-next data-carousel-next>
+              <button type="button" class="q-tc-btn" aria-label="Next message" data-q-carousel-next hidden>
                 <span aria-hidden="true">›</span>
               </button>
             </div>
           {%- endif -%}
 
-          <div class="q-tc-track" data-q-carousel-track data-q-carousel-viewport data-carousel-track data-carousel-viewport tabindex="0">
-            <ul class="q-tc-slides" role="list">
+          <div class="q-tc-track q-carousel__viewport" tabindex="0" aria-label="Messages">
+            <ul class="q-tc-slides q-carousel__track" role="list">
               {%- for block in items -%}
                 {%- assign b = block.settings -%}
                 {%- if b.label == blank -%}{%- continue -%}{%- endif -%}
-                <li class="q-tc-slide" role="listitem" {{ block.shopify_attributes }}>
+                <li class="q-tc-slide q-carousel__slide" role="listitem" {{ block.shopify_attributes }}>
                   {%- if layout == 'card' -%}
                     <div class="q-tc-card">
-                      <div class="q-tc-card__label">{{ b.label }}</div>
+                      <div class="q-tc-card__label">{{ b.label | escape }}</div>
                       {%- if b.subtext != blank -%}
-                        <div class="q-tc-card__subtext">{{ b.subtext }}</div>
+                        <div class="q-tc-card__subtext">{{ b.subtext | escape }}</div>
                       {%- endif -%}
                       {%- if b.meta != blank -%}
-                        <div class="q-tc-card__meta">{{ b.meta }}</div>
+                        <div class="q-tc-card__meta">{{ b.meta | escape }}</div>
                       {%- endif -%}
                     </div>
                   {%- else -%}
                     <div class="q-tc-linewrap">
-                      <span class="q-tc-line">{{ b.label }}</span>
+                      {% if layout == 'badge_strip' %}<span class="q-tc-badge">{{ b.label | escape }}</span>{% else %}<span class="q-tc-line">{{ b.label | escape }}</span>{% endif %}
                       {%- if b.subtext != blank -%}
-                        <span class="q-tc-subtext">{{ b.subtext }}</span>
+                        <span class="q-tc-subtext">{{ b.subtext | escape }}</span>
                       {%- endif -%}
                       {%- if b.meta != blank -%}
-                        <span class="q-tc-meta">{{ b.meta }}</span>
+                        <span class="q-tc-meta">{{ b.meta | escape }}</span>
                       {%- endif -%}
                     </div>
                   {%- endif -%}
@@ -242,8 +234,9 @@
           </div>
 
           {%- if should_init and show_dots -%}
-            <div class="q-tc-dots" data-q-carousel-dots data-carousel-dots aria-label="Carousel pagination"></div>
+            <div class="q-tc-dots" data-q-carousel-dots aria-label="Carousel pagination" hidden></div>
           {%- endif -%}
+          {% if should_init and autoplay %}<button type="button" class="q-tc-pause" data-q-carousel-pause hidden aria-pressed="false">Pause rotation</button>{% endif %}
         </div>
       {%- endif -%}
 
@@ -257,7 +250,7 @@
       overflow: hidden;
     }
 
-    .q-text-carousel__outer{ padding: var(--q-tc-pad-y) var(--q-tc-pad-x); }
+    .q-text-carousel__outer{ padding: var(--q-tc-pad-y) min(var(--q-tc-pad-x), 6vw); }
     .q-text-carousel__inner{ margin: 0 auto; width: 100%; }
 
     .q-tc-maxw--full .q-text-carousel__inner{ max-width: none; }
@@ -299,10 +292,7 @@
     .q-tc-marquee__track{
       display: flex;
       align-items: center;
-      gap: 28px;
-      will-change: transform;
-      animation: qtc-marquee var(--q-tc-marquee-speed, 14s) linear infinite;
-      animation-direction: var(--q-tc-marquee-dir, normal);
+      width: max-content; gap: 0;
     }
 
     /* ✅ FIX: no liquid inside CSS — class toggles pause on hover */
@@ -314,7 +304,7 @@
       display: inline-flex;
       align-items: center;
       gap: 28px;
-      min-width: max-content;
+      flex: 0 0 auto; padding-inline-end: 28px;
     }
     .q-tc-item{
       display: inline-flex;
@@ -382,8 +372,10 @@
       min-width: 0;
     }
 
-    .q-tc-slide{ flex: 0 0 100%; min-width: 0; }
-    .q-tc-layout--card .q-tc-slide{ flex-basis: clamp(260px, 60vw, 520px); }
+    .q-text-carousel{ --q-tc-spv: var(--q-tc-spv-m); }
+    .q-tc-slide{ flex: 0 0 calc((100% - 14px * (var(--q-tc-spv) - 1)) / var(--q-tc-spv)); min-width: 0; scroll-snap-align: start; }
+    @media (min-width: 750px){ .q-text-carousel{ --q-tc-spv: var(--q-tc-spv-t); } }
+    @media (min-width: 990px){ .q-text-carousel{ --q-tc-spv: var(--q-tc-spv-d); } }
 
     .q-tc-card{
       border-radius: var(--q-tc-card-radius, 16px);
@@ -402,17 +394,17 @@
     .q-tc-card__subtext{
       margin-top: 6px;
       font-size: var(--q-tc-subtext-fs, 14px);
-      opacity: calc(var(--q-tc-subtext-op, 85%) / 100);
+      opacity: calc(var(--q-tc-subtext-op, 85) / 100);
     }
     .q-tc-card__meta{
       margin-top: 8px;
       font-size: var(--q-tc-meta-fs, 12px);
-      opacity: calc(var(--q-tc-meta-op, 75%) / 100);
+      opacity: calc(var(--q-tc-meta-op, 75) / 100);
     }
 
     .q-tc-controls{
-      position: absolute;
-      inset: 0;
+      position: relative;
+      margin-bottom: 10px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -448,7 +440,7 @@
       cursor: pointer;
     }
     .q-tc-dots button[aria-current="true"]{
-      transform: scale(calc(var(--q-tc-dot-scale, 125%) / 100));
+      transform: scale(calc(var(--q-tc-dot-scale, 125) / 100));
       background: rgba(0,0,0,0.70);
     }
 
@@ -456,8 +448,47 @@
       .q-tc-line, .q-tc-layout--badge_strip .q-tc-badge{
         font-size: clamp(16px, 4.8vw, var(--q-tc-label-fs, 22px));
       }
-      .q-tc-marquee__track,
-      .q-tc-marquee__group{ gap: 18px; }
+      .q-tc-marquee__group{ gap: 18px; padding-inline-end: 18px; }
+    }
+    .q-text-carousel [hidden]{ display: none !important; }
+    .q-text-carousel{ overflow-wrap: anywhere; }
+    .q-text-carousel :is(button, input, [tabindex]):focus-visible{ outline: 2px solid var(--q-tc-accent); outline-offset: 2px; }
+    .q-text-carousel .q-tc-track{ scroll-snap-type: x mandatory; }
+    .q-text-carousel .q-tc-linewrap{ display: flex; flex-wrap: wrap; gap: .5em; align-items: center; justify-content: center; }
+    .q-text-carousel.q-tc-align--left .q-tc-linewrap{ justify-content: flex-start; }
+    .q-text-carousel.q-tc-align--center .q-tc-card{ text-align: center; }
+    .q-text-carousel :is(.q-tc-subtext,.q-tc-card__subtext){ color: var(--q-tc-muted); font-size: var(--q-tc-subtext-fs); opacity: calc(var(--q-tc-subtext-op) / 100); }
+    .q-text-carousel :is(.q-tc-meta,.q-tc-card__meta){ color: var(--q-tc-muted); font-size: var(--q-tc-meta-fs); opacity: calc(var(--q-tc-meta-op) / 100); }
+    .q-text-carousel .q-tc-slide .q-tc-badge{ white-space: normal; }
+    .q-text-carousel .q-tc-dots button{ min-width: 24px; min-height: 24px; background: transparent; display: grid; place-items: center; }
+    .q-text-carousel .q-tc-dots button::before{ content: ''; width: var(--q-tc-dot-size); height: var(--q-tc-dot-size); background: var(--q-tc-muted); border-radius: 50%; }
+    .q-text-carousel .q-tc-dots button[aria-current="true"]{ background: transparent; transform: none; }
+    .q-text-carousel .q-tc-dots button[aria-current="true"]::before{ background: var(--q-tc-accent); transform: scale(calc(var(--q-tc-dot-scale) / 100)); }
+    .q-text-carousel .q-tc-pause{ display: block; margin: 12px auto 0; padding: 8px 14px; background: var(--q-tc-surface); color: inherit; border: 1px solid var(--q-tc-border); border-radius: var(--q-tc-control-radius); }
+    .q-text-carousel .q-tc-pause-check{ margin: 8px 4px 8px 0; accent-color: var(--q-tc-accent); }
+    .q-text-carousel .q-tc-pause-label{ cursor: pointer; }
+    .q-text-carousel .q-tc-marquee--moving .q-tc-marquee__track{ animation: qtc-marquee var(--q-tc-marquee-speed) linear infinite; animation-direction: var(--q-tc-marquee-dir); }
+    .q-text-carousel .q-tc-pause-check:checked ~ .q-tc-marquee__viewport .q-tc-marquee__track,
+    .q-text-carousel .q-tc-marquee:focus-within .q-tc-marquee__track{ animation-play-state: paused; }
+    .q-text-carousel .q-tc-marquee:not(.q-tc-marquee--moving) .q-tc-marquee__track,
+    .q-text-carousel[data-design-mode="true"] .q-tc-marquee__track{ animation: none; width: 100%; transform: none; }
+    .q-text-carousel .q-tc-marquee:not(.q-tc-marquee--moving) .q-tc-marquee__group,
+    .q-text-carousel[data-design-mode="true"] .q-tc-marquee__group{ flex-wrap: wrap; max-width: 100%; min-width: 0; padding: 0; }
+    .q-text-carousel .q-tc-marquee:not(.q-tc-marquee--moving) .q-tc-item,
+    .q-text-carousel[data-design-mode="true"] .q-tc-item,
+    .q-text-carousel[data-design-mode="true"] .q-tc-badge,
+    .q-text-carousel .q-tc-marquee:not(.q-tc-marquee--moving) .q-tc-badge{ white-space: normal; max-width: 100%; }
+    .q-text-carousel .q-tc-marquee:not(.q-tc-marquee--moving) [aria-hidden="true"],
+    .q-text-carousel[data-design-mode="true"] .q-tc-marquee [aria-hidden="true"],
+    .q-text-carousel[data-design-mode="true"] :is(.q-tc-pause-check,.q-tc-pause-label){ display: none; }
+    .q-text-carousel:dir(rtl) .q-tc-marquee__track{ direction: ltr; }
+    .q-text-carousel:dir(rtl) .q-tc-item{ direction: rtl; }
+    .q-text-carousel:dir(rtl) .q-tc-btn span{ display: inline-block; transform: scaleX(-1); }
+    @media (prefers-reduced-motion: reduce){
+      .q-text-carousel .q-tc-marquee__track{ width: 100%; }
+      .q-text-carousel .q-tc-marquee__group{ flex-wrap: wrap; max-width: 100%; min-width: 0; padding: 0; }
+      .q-text-carousel .q-tc-item, .q-text-carousel .q-tc-badge{ white-space: normal; max-width: 100%; }
+      .q-text-carousel .q-tc-marquee [aria-hidden="true"], .q-text-carousel :is(.q-tc-pause-check,.q-tc-pause-label){ display: none; }
     }
   </style>
 </section>
@@ -520,16 +551,6 @@
         { "value": "center", "label": "Center" }
       ]
     },
-    {
-      "type": "select",
-      "id": "transition_style",
-      "label": "Transition style (carousel mode)",
-      "default": "slide",
-      "options": [
-        { "value": "slide", "label": "Slide" },
-        { "value": "fade", "label": "Fade (if supported by engine)" }
-      ]
-    },
 
     { "type": "header", "content": "Carousel behavior (engine mode)" },
     { "type": "range", "id": "slides_desktop", "label": "Slides per view (desktop)", "min": 1, "max": 3, "step": 1, "default": 1 },
@@ -545,7 +566,7 @@
 
     { "type": "header", "content": "A11y" },
     { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Key messages carousel" },
-    { "type": "checkbox", "id": "announce_changes", "label": "Announce slide changes (screen readers)", "default": false },
+    { "type": "checkbox", "id": "announce_changes", "label": "Announce manual slide changes", "info": "Automatic rotation is not announced.", "default": false },
 
     { "type": "header", "content": "Layout controls" },
     {
@@ -616,7 +637,7 @@
     { "type": "header", "content": "Card / badge styling" },
     { "type": "range", "id": "card_radius", "label": "Card radius (px)", "min": 0, "max": 28, "step": 1, "default": 16 },
     { "type": "range", "id": "card_border_width", "label": "Card border width (px)", "min": 0, "max": 4, "step": 1, "default": 1 },
-    { "type": "text", "id": "card_shadow", "label": "Card shadow token (advanced)", "default": "0" },
+    { "type": "text", "id": "card_shadow", "label": "Card shadow token (advanced)", "default": "none" },
 
     {
       "type": "select",
@@ -679,9 +700,9 @@
       "type": "item",
       "name": "Item",
       "settings": [
-        { "type": "text", "id": "label", "label": "Label", "default": "🚚 Shipping now FREE — Limited time" },
-        { "type": "text", "id": "subtext", "label": "Subtext", "default": "Built for speed without cutting corners." },
-        { "type": "text", "id": "meta", "label": "Meta", "default": "Verified" }
+        { "type": "text", "id": "label", "label": "Label", "default": "Your message" },
+        { "type": "text", "id": "subtext", "label": "Subtext" },
+        { "type": "text", "id": "meta", "label": "Meta" }
       ]
     }
   ],

@@ -1,4 +1,5 @@
-{% if section.blocks.size == 0 %}
+{% assign items = section.blocks | where: 'type', 'item' %}
+{% if items.size == 0 %}
   {% render 'section-empty-state', section: section %}
 {% else %}
 {%- comment -%}
@@ -7,15 +8,15 @@
 
   Dependencies:
     - snippets/q-gallery-item.liquid
-    - assets/intractive-content-gallery.css
+    - assets/interactive-content-gallery.css
     - assets/interactive-content-gallery.js
 {%- endcomment -%}
 
 {{ 'interactive-content-gallery.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'interactive-content-carousel-media.js' | asset_url }}" defer></script>
 <script src="{{ 'interactive-content-gallery.js' | asset_url }}" defer="defer"></script>
 
 {%- liquid
-  assign items = section.blocks | where: 'type', 'item'
   assign count = items.size
 
   assign mode = section.settings.layout_mode
@@ -38,7 +39,7 @@
 
   assign caption_style = section.settings.caption_style
   assign caption_default_color = '#ffffff'
-  if caption_style == 'below'
+  if caption_style == 'below_image'
     assign caption_default_color = 'var(--q-gallery-text, inherit)'
   endif
   assign caption_hover = section.settings.show_caption_on_hover
@@ -49,7 +50,7 @@
 
   assign acc_visible = section.settings.accordion_items_visible_desktop
   assign acc_mode = section.settings.accordion_expand_mode
-  assign acc_default = section.settings.accordion_default_active
+  assign acc_default = section.settings.accordion_default_active | at_least: 1 | at_most: count
   assign acc_min_w = section.settings.accordion_min_width
   assign acc_mobile = section.settings.accordion_mobile_behavior
 
@@ -72,7 +73,6 @@
 
     {% assign caption_overlay_alpha = section.settings.overlay_opacity | divided_by: 100.0 %}
     --q-gallery-overlay: {{ section.settings.overlay_color | color_modify: 'alpha', caption_overlay_alpha }};
-    --q-gallery-overlay-o: {{ section.settings.overlay_opacity | times: 0.01 }};
 
     --q-gallery-title-lines: {{ title_lines }};
     --q-gallery-desc-lines: {{ desc_lines }};
@@ -131,14 +131,16 @@
         {%- if mode == 'carousel' -%}
           <div
             class="q-gallery__carousel q-carousel"
-            data-q-carousel
-            data-carousel-loop="{{ section.settings.carousel_loop }}"
-            data-carousel-autoplay="{{ section.settings.carousel_autoplay }}"
-            data-carousel-autoplay-seconds="{{ section.settings.carousel_autoplay_seconds }}"
-            data-carousel-arrows="{{ section.settings.carousel_arrows }}"
-            data-carousel-dots="{{ section.settings.carousel_dots }}"
+            data-q-carousel-engine="shared"
+            data-loop="{{ section.settings.carousel_loop }}"
+            data-autoplay="{{ section.settings.carousel_autoplay }}"
+            data-autoplay-speed="{{ section.settings.carousel_autoplay_seconds | times: 1000 }}"
+            data-show-arrows="{{ section.settings.carousel_arrows }}"
+            data-show-dots="{{ section.settings.carousel_dots }}"
+            data-pause-hover="true" data-pause-focus="true"
+            role="region" aria-roledescription="carousel" aria-label="{{ section.settings.heading | default: 'Gallery' | escape }}"
           >
-            <div class="q-gallery__track" data-q-carousel-track>
+            <div class="q-gallery__track q-carousel__viewport q-carousel__track" tabindex="0" aria-label="Gallery images">
               {%- for block in items -%}
                 {%- render 'q-gallery-item',
                   section: section,
@@ -153,20 +155,20 @@
             </div>
 
             {%- if section.settings.carousel_arrows -%}
-              <button class="q-gallery__nav q-gallery__nav--prev" type="button" aria-label="Previous" data-q-carousel-prev></button>
-              <button class="q-gallery__nav q-gallery__nav--next" type="button" aria-label="Next" data-q-carousel-next></button>
+              <button class="q-gallery__nav q-gallery__nav--prev" type="button" aria-label="Previous" data-q-carousel-prev hidden></button>
+              <button class="q-gallery__nav q-gallery__nav--next" type="button" aria-label="Next" data-q-carousel-next hidden></button>
             {%- endif -%}
 
             {%- if section.settings.carousel_dots -%}
-              <div class="q-gallery__dots" data-q-carousel-dots aria-label="Carousel pagination"></div>
+              <div class="q-gallery__dots" data-q-carousel-dots aria-label="Carousel pagination" hidden></div>
             {%- endif -%}
+            {%- if section.settings.carousel_autoplay -%}<button type="button" class="q-gallery__pause" data-q-carousel-pause hidden aria-pressed="false">Pause rotation</button>{%- endif -%}
           </div>
 
         {%- elsif mode == 'image_accordion' -%}
-          <div class="q-gallery__accordion" role="list">
+          <div class="q-gallery__accordion{% if acc_mobile == 'carousel' %} is-mobile-carousel{% endif %}" role="list" tabindex="0" aria-label="Gallery panels">
             {%- for block in items -%}
               {%- assign idx1 = forloop.index -%}
-              {%- if idx1 > acc_visible -%}{% break %}{%- endif -%}
               {%- render 'q-gallery-item',
                 section: section,
                 block: block,
@@ -215,19 +217,18 @@
     </div>
 
     {%- if enable_lightbox -%}
-      <div class="q-gallery__lightbox" hidden data-q-lightbox>
-        <div class="q-gallery__lightbox-backdrop" data-q-lightbox-close tabindex="-1" aria-hidden="true"></div>
-        <div class="q-gallery__lightbox-panel" role="dialog" aria-modal="true" aria-label="Image viewer">
-          <button class="q-gallery__lightbox-close" type="button" aria-label="Close" data-q-lightbox-close></button>
-          <button class="q-gallery__lightbox-nav q-gallery__lightbox-nav--prev" type="button" aria-label="Previous" data-q-lightbox-prev></button>
-          <button class="q-gallery__lightbox-nav q-gallery__lightbox-nav--next" type="button" aria-label="Next" data-q-lightbox-next></button>
-
+      <dialog class="q-gallery__lightbox" data-q-lightbox aria-label="Image viewer">
+        <div class="q-gallery__lightbox-panel">
+          <button class="q-gallery__lightbox-close" type="button" aria-label="Close image viewer" data-q-lightbox-close></button>
+          <button class="q-gallery__lightbox-nav q-gallery__lightbox-nav--prev" type="button" aria-label="Previous image" data-q-lightbox-prev></button>
+          <button class="q-gallery__lightbox-nav q-gallery__lightbox-nav--next" type="button" aria-label="Next image" data-q-lightbox-next></button>
           <figure class="q-gallery__lightbox-figure">
-            <img class="q-gallery__lightbox-img" alt="" data-q-lightbox-img>
+            <img class="q-gallery__lightbox-img" alt="" width="1" height="1" data-q-lightbox-img>
             <figcaption class="q-gallery__lightbox-cap" data-q-lightbox-cap></figcaption>
           </figure>
+          <p class="sr-only" data-q-lightbox-status role="status" aria-live="polite"></p>
         </div>
-      </div>
+      </dialog>
     {%- endif -%}
   </section>
 {%- endif -%}
@@ -308,7 +309,6 @@
 
     { "type": "header", "content": "Click behavior" },
     { "type": "checkbox", "id": "enable_lightbox", "label": "Enable lightbox", "default": false },
-    { "type": "checkbox", "id": "lightbox_show_thumbnails", "label": "Lightbox thumbnails (future)", "default": false },
     { "type": "checkbox", "id": "lightbox_loop", "label": "Lightbox loops", "default": true },
     {
       "type": "select",
@@ -333,7 +333,7 @@
     { "type": "range", "id": "slides_mobile", "label": "Slides per view (mobile)", "min": 1, "max": 3, "step": 1, "default": 1 },
 
     { "type": "header", "content": "Image accordion (accordion mode)" },
-    { "type": "range", "id": "accordion_items_visible_desktop", "label": "Visible items (desktop)", "min": 2, "max": 8, "step": 1, "default": 4 },
+    { "type": "range", "id": "accordion_items_visible_desktop", "label": "Visible items (desktop)", "info": "Extra panels remain reachable by scrolling.", "min": 2, "max": 8, "step": 1, "default": 4 },
     {
       "type": "select",
       "id": "accordion_expand_mode",

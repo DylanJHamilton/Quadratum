@@ -169,7 +169,7 @@
     goTo(page, announce = false) {
       this.index = clamp(page, 0, this.targets.length - 1);
       this.stopMedia();
-      if (announce) this.status.textContent = `Page ${this.index + 1} of ${this.targets.length}`;
+      if (announce && this.root.dataset.announce !== 'false') this.status.textContent = `Page ${this.index + 1} of ${this.targets.length}`;
       this.viewport.scrollTo({ left: this.targets[this.index] * (this.rtl ? -1 : 1), behavior: this.motion.matches ? 'auto' : 'smooth' });
       this.syncControls();
       this.syncAutoplay();
