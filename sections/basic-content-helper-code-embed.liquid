@@ -10,7 +10,7 @@
 
   Notes:
   - Meaningful non-blank defaults for kicker/title/description
-  - Demo embed renders immediately on add
+  - Blank new embeds show an editor-only setup notice
   - Hide entirely if embed_code is blank (design mode notice only)
 {%- endcomment -%}
 
@@ -18,7 +18,8 @@
   assign s = section.settings
 
   assign has_embed = false
-  if s.embed_code != blank
+  assign embed_content = s.embed_code | default: '' | strip
+  if embed_content != blank
     assign has_embed = true
   endif
 
@@ -63,14 +64,9 @@
       assign ratio_pct = s.aspect_ratio_custom | append: '%'
   endcase
 
-  if has_embed == false
-    if request.design_mode
-      echo '<div style="max-width:' | append: maxw | append: 'px;margin:0 auto;padding:12px 16px;border:1px dashed currentColor;border-radius:12px;opacity:.8;">Add embed code to display this section.</div>'
-    endif
-    break
-  endif
 -%}
 
+{%- if has_embed -%}
 <section
   class="q-content-embed q-frame-{{ s.frame_style }} q-mode-{{ s.embed_mode }}"
   style="
@@ -93,12 +89,12 @@
     --q-ratio-pct: {{ ratio_pct }};
 
     {% if s.use_custom_colors %}
-      --q-bg: {{ s.bg_color }};
-      --q-text: {{ s.text_color }};
-      --q-muted: {{ s.muted_text_color }};
-      --q-accent: {{ s.accent_color }};
-      --q-surface: {{ s.surface_color }};
-      --q-border: {{ s.border_color }};
+      {% if s.bg_color != blank %}--q-bg: {{ s.bg_color }};{% endif %}
+      {% if s.text_color != blank %}--q-text: {{ s.text_color }};{% endif %}
+      {% if s.muted_text_color != blank %}--q-muted: {{ s.muted_text_color }};{% endif %}
+      {% if s.accent_color != blank %}--q-accent: {{ s.accent_color }};{% endif %}
+      {% if s.surface_color != blank %}--q-surface: {{ s.surface_color }};{% endif %}
+      {% if s.border_color != blank %}--q-border: {{ s.border_color }};{% endif %}
     {% endif %}
   "
 >
@@ -140,14 +136,16 @@
 
   <style>
     /* Scoped styling — section-only */
-    #shopify-section-{{ section.id }}.shopify-section,
-    #shopify-section-{{ section.id }} {
+    #shopify-section-{{ section.id }} .q-content-embed {
+      box-sizing: border-box;
+      overflow-wrap: anywhere;
       background: var(--q-bg, var(--q-section-bg, transparent));
-      color: var(--q-text, var(--q-section-text, inherit));
+      color: var(--q-text, var(--q-section-text, var(--c-text, inherit)));
     }
 
     #shopify-section-{{ section.id }} .q-content-embed__outer {
-      padding: var(--q-pad-y) var(--q-pad-x);
+      box-sizing: border-box;
+      padding: var(--q-pad-y) min(var(--q-pad-x), 6vw);
     }
 
     #shopify-section-{{ section.id }} .q-content-embed__inner {
@@ -168,7 +166,7 @@
       font-size: var(--q-kicker-size);
       font-weight: var(--q-kicker-weight);
       letter-spacing: 0.02em;
-      color: var(--q-muted, var(--q-section-muted, currentColor));
+      color: var(--q-muted, var(--q-section-muted, var(--c-muted, currentColor)));
       opacity: 0.9;
     }
 
@@ -182,17 +180,18 @@
 
     #shopify-section-{{ section.id }} .q-content-embed__desc {
       font-size: var(--q-desc-size);
-      color: var(--q-muted, var(--q-section-muted, currentColor));
+      color: var(--q-muted, var(--q-section-muted, var(--c-muted, currentColor)));
       opacity: 0.95;
     }
 
     /* Frame */
     #shopify-section-{{ section.id }} .q-content-embed__frame {
-      background: var(--q-surface, var(--q-section-surface, transparent));
-      border: var(--q-frame-border-w) solid var(--q-border, var(--q-section-border, currentColor));
+      background: var(--q-surface, var(--q-section-surface, var(--c-surface, transparent)));
+      border: var(--q-frame-border-w) solid var(--q-border, var(--q-section-border, color-mix(in srgb, currentColor 20%, transparent)));
       border-radius: var(--q-frame-radius);
       box-shadow: var(--q-frame-shadow);
-      padding: var(--q-frame-pad);
+      box-sizing: border-box;
+      padding: min(var(--q-frame-pad), 6vw);
       min-width: 0;
       max-width: 100%;
       overflow: hidden;
@@ -245,7 +244,7 @@
       inset: 0;
       width: 100%;
       height: 100%;
-      overflow: hidden;
+      overflow-y: auto;
     }
     #shopify-section-{{ section.id }} .q-content-embed__ratio .q-content-embed__embed iframe {
       width: 100%;
@@ -265,11 +264,14 @@
 
     @media (max-width: 749px) {
       #shopify-section-{{ section.id }} .q-content-embed__outer {
-        padding: calc(var(--q-pad-y) * 0.75) calc(var(--q-pad-x) * 0.75);
+        padding: calc(var(--q-pad-y) * 0.75) min(calc(var(--q-pad-x) * 0.75), 6vw);
       }
     }
   </style>
 </section>
+{%- else -%}
+  {% render 'section-empty-state', section: section, message: 'Add embed code to display this section.' %}
+{%- endif -%}
 
 {% schema %}
 {
@@ -284,7 +286,7 @@
       "type": "richtext",
       "id": "description",
       "label": "Description",
-      "default": "<p>Use this section to place third-party widgets inside a premium frame. Replace the demo embed with your provider’s code.</p>"
+      "default": "<p>Use this section to place third-party content inside a frame. Add your provider’s embed code.</p>"
     },
 
     { "type": "header", "content": "Embed" },
@@ -292,8 +294,7 @@
       "type": "textarea",
       "id": "embed_code",
       "label": "Embed code",
-      "info": "Paste your third-party embed code (iframe/script/html). If empty, this section will hide.",
-      "default": "<iframe title=\"Demo embed\" src=\"https://www.youtube.com/embed/dQw4w9WgXcQ\" loading=\"lazy\" referrerpolicy=\"strict-origin-when-cross-origin\" allowfullscreen></iframe>"
+      "info": "Paste your provider’s iframe, script or HTML. Give iframes a descriptive title. Empty sections hide on the storefront. Provider behavior must be checked after editor reloads."
     },
     {
       "type": "select",
