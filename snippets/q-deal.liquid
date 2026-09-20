@@ -3,11 +3,11 @@
   File: snippets/q-deal.liquid
 
   Contract:
-  {% render 'q-deal', section: section, block: block, mode: 'hero'|'card', bg_mode: bg_mode, now_ts: now_ts %}
+  {% render 'q-deal', section: section, block: block, mode: 'hero'|'card', bg_mode: bg_mode, now_day: now_day %}
 
   Notes:
   - This snippet MUST output markup directly. No capture shim.
-  - Promo-first, but can render product-card if block.settings.product exists (once schema supports it).
+  - Optional product cards reuse the existing shared purchase contract.
 {%- endcomment -%}
 
 {%- liquid
@@ -20,19 +20,17 @@
     assign cta = 'Learn more'
   endif
 
-  assign start_raw = block.settings.start_date | strip
-  assign end_raw   = block.settings.end_date | strip
-
-  assign end_ts = blank
-  if end_raw != blank
-    assign end_ts = end_raw | date: '%s'
-    if end_ts != blank
-      assign end_ts = end_ts | plus: 0
-    endif
+  assign end_raw = block.settings.end_date | strip
+  assign end_date = end_raw | append: ' 00:00:00' | date: '%Y-%m-%d'
+  assign end_day = 0
+  if end_raw != blank and end_date == end_raw
+    assign end_day = end_raw | remove: '-' | plus: 0
   endif
-
+  if now_day == blank
+    assign now_day = 'now' | date: '%Y%m%d' | plus: 0
+  endif
   assign show_expiry = false
-  if end_ts != blank and end_ts >= now_ts
+  if end_day > 0 and end_day >= now_day
     assign show_expiry = true
   endif
 
@@ -54,10 +52,6 @@
   assign pad_y = block.settings.pad_y
   assign pad_x = block.settings.pad_x
 
-  comment
-    Product support (only works once the Deal block schema includes a `product` picker).
-    Shopify stores product setting as a product object, so we can use it directly.
-  endcomment
   assign deal_product = block.settings.product
   assign has_product = false
   if deal_product != blank
@@ -133,26 +127,26 @@
 
   <div class="q-promo__content">
     {%- if badge != blank -%}
-      <div class="q-promo__badge">{{ badge }}</div>
+      <div class="q-promo__badge">{{ badge | escape }}</div>
     {%- endif -%}
 
     {%- if title != blank -%}
-      <h3 class="q-promo__title">{{ title }}</h3>
+      <h3 class="q-promo__title">{{ title | escape }}</h3>
     {%- endif -%}
 
     {%- if desc != blank -%}
-      <p class="q-promo__desc">{{ desc }}</p>
+      <p class="q-promo__desc">{{ desc | escape }}</p>
     {%- endif -%}
 
     {%- if show_expiry -%}
       <p class="q-promo__expiry">
-        {{ expiry_label }} {{ end_raw | date: "%B %e, %Y" }}
+        {{ expiry_label | escape }} {{ end_raw | append: " 00:00:00" | date: "%B %e, %Y" | escape }}
       </p>
     {%- endif -%}
 
     {%- if href != blank -%}
       <div class="q-promo__actions">
-        <a class="q-promo__btn" href="{{ href }}">{{ cta }}</a>
+        <a class="q-promo__btn" href="{{ href | escape }}">{{ cta | escape }}</a>
       </div>
     {%- endif -%}
   </div>
@@ -164,8 +158,8 @@
       border-radius: var(--q-promos-radius, 16px);
       border: var(--q-promos-border-w, 1px) solid var(--q-promos-border-color, rgba(0,0,0,.12));
       overflow: hidden;
-      background: var(--q-promos-card-bg, rgba(255,255,255,0.06));
-      color: var(--q-promos-card-fg, inherit);
+      background: var(--q-promo-bg, var(--q-promos-card-bg, rgba(255,255,255,0.06)));
+      color: var(--q-promo-fg, var(--q-promos-card-fg, inherit));
       box-shadow: 0 var(--q-promos-shadow-y, 10px) var(--q-promos-shadow-blur, 28px) rgba(0,0,0,var(--q-promos-shadow-alpha, .12));
     }
 

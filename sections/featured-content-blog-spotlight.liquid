@@ -62,7 +62,7 @@
   endif
 
   assign has_view_all = false
-  if show_view_all and resolved_view_all_link != blank
+  if show_view_all and resolved_view_all_link != blank and view_all_label != blank
     assign has_view_all = true
   endif
 
@@ -76,44 +76,49 @@ if show_header
   endif
 endif
 
-  comment
-    Collect article handles (manual preserves block order; auto preserves newest order).
-  endcomment
-  assign handles_csv = ''
+  assign candidates = blog_obj.articles
+  if source_mode == 'manual'
+    assign candidates = section.blocks
+  endif
+  assign resolved_count = 0
+  assign featured_card = ''
 -%}
-
-{%- if source_mode == 'manual' -%}
-  {%- for block in section.blocks -%}
-    {%- assign a = block.settings.article -%}
-    {%- if a != blank -%}
-      {%- if handles_csv != blank -%}{%- assign handles_csv = handles_csv | append: ',' -%}{%- endif -%}
-      {%- assign handles_csv = handles_csv | append: a.handle -%}
-    {%- endif -%}
+{%- capture article_cards -%}
+  {%- for candidate in candidates -%}
+    {%- liquid
+      assign a = candidate
+      assign editor_attributes = ''
+      if source_mode == 'manual'
+        assign a = candidate.settings.article
+        assign editor_attributes = candidate.shopify_attributes
+      elsif resolved_count >= auto_limit
+        break
+      endif
+      if a == blank or a.url == blank
+        continue
+      endif
+      if source_mode != 'manual' and tag_filter != blank
+        unless a.tags contains tag_filter
+          continue
+        endunless
+      endif
+      assign excerpt = a.excerpt_or_content | strip_html | strip | truncatewords: excerpt_words, '…'
+      assign card_label = section.settings.cta_label_supporting
+      if layout_style == 'featured' and resolved_count == 0
+        assign card_label = section.settings.cta_label_featured
+      endif
+    -%}
+    {%- capture card -%}
+      <div class="q-bhs__item{% if layout_style == 'scroll' %} q-bhs__slide{% endif %}" {{ editor_attributes }}>
+        {% render 'blog-card', article: a, heading_level: 3, show_image: show_image, show_author: show_author, show_date: show_date, show_read_time: show_read_time, show_tags: show_tags, show_excerpt: show_excerpt, excerpt_text: excerpt, cta_label: card_label %}
+      </div>
+    {%- endcapture -%}
+    {%- if layout_style == 'featured' and resolved_count == 0 -%}
+      {%- assign featured_card = card -%}
+    {%- else -%}{{ card }}{%- endif -%}
+    {%- assign resolved_count = resolved_count | plus: 1 -%}
   {%- endfor -%}
-{%- else -%}
-  {%- if blog_obj != blank -%}
-    {%- assign picked = 0 -%}
-    {%- for a in blog_obj.articles -%}
-      {%- if picked >= auto_limit -%}{%- break -%}{%- endif -%}
-
-      {%- if tag_filter != blank -%}
-        {%- unless a.tags contains tag_filter -%}
-          {%- continue -%}
-        {%- endunless -%}
-      {%- endif -%}
-
-      {%- if handles_csv != blank -%}{%- assign handles_csv = handles_csv | append: ',' -%}{%- endif -%}
-      {%- assign handles_csv = handles_csv | append: a.handle -%}
-      {%- assign picked = picked | plus: 1 -%}
-    {%- endfor -%}
-  {%- endif -%}
-{%- endif -%}
-
-{%- assign handles = handles_csv | split: ',' -%}
-{%- assign has_articles = false -%}
-{%- if handles_csv != blank and handles.size > 0 -%}
-  {%- assign has_articles = true -%}
-{%- endif -%}
+{%- endcapture -%}
 
 {%- capture section_vars -%}
   --q-bhs-pad-y: {{ section.settings.pad_y }}px;
@@ -137,7 +142,7 @@ endif
   --q-bhs-card-border-w: {{ section.settings.card_border_w }}px;
 
   --q-bhs-title-fs: {{ section.settings.title_fs }}px;
-  --q-bhs-title-lh: {{ section.settings.title_lh }};
+  --q-bhs-title-lh: {{ section.settings.title_lh | divided_by: 10.0 }};
   --q-bhs-title-fs-featured: {{ section.settings.title_fs_featured }}px;
 
   --q-bhs-meta-fs: {{ section.settings.meta_fs }}px;
@@ -155,9 +160,9 @@ endif
   --q-bhs-cta-pad-x: {{ section.settings.cta_pad_x }}px;
   --q-bhs-cta-border-w: {{ section.settings.cta_border_w }}px;
 
-  --q-bhs-featured-split: {{ section.settings.featured_split }}%;
+  --q-bhs-featured-split: {{ section.settings.featured_split }};
   --q-bhs-scroll-col: {{ section.settings.scroll_card_min }}px;
-  --q-bhs-scroll-peek: {{ section.settings.scroll_peek }}%;
+  --q-bhs-scroll-peek: {{ section.settings.scroll_peek }};
 
   {%- if use_custom_colors -%}
     --q-bhs-bg: {{ section.settings.color_background }};
@@ -178,17 +183,17 @@ endif
   {%- endif -%}
 {%- endcapture -%}
 
-<section class="q-bhs q-bhs--density-{{ density }} q-bhs--cta-{{ section.settings.cta_style }}" style="{{ section_vars | strip | strip_newlines }}">
+<section class="q-bhs q-bhs--density-{{ density }} q-bhs--cta-{{ section.settings.cta_style }}" style="{{ section_vars | strip | strip_newlines | escape }}">
   <div class="q-bhs__inner">
     {%- if show_section_header -%}
       <header class="q-bhs__header q-bhs__header--{{ section.settings.header_align }}">
         <div class="q-bhs__headcopy">
           {%- if section.settings.kicker != blank -%}
-            <p class="q-bhs__kicker">{{ section.settings.kicker }}</p>
+            <p class="q-bhs__kicker">{{ section.settings.kicker | escape }}</p>
           {%- endif -%}
 
           {%- if section.settings.heading != blank -%}
-            <h2 class="q-bhs__heading">{{ section.settings.heading }}</h2>
+            <h2 class="q-bhs__heading">{{ section.settings.heading | escape }}</h2>
           {%- endif -%}
 
           {%- if section.settings.subheading != blank -%}
@@ -198,70 +203,32 @@ endif
 
         {%- if has_view_all -%}
           <div class="q-bhs__globalCta">
-            <a class="q-bhs__viewAll" href="{{ resolved_view_all_link }}">{{ view_all_label }}</a>
+            <a class="q-bhs__viewAll" href="{{ resolved_view_all_link | escape }}">{{ view_all_label | escape }}</a>
           </div>
         {%- endif -%}
       </header>
     {%- endif -%}
 
-    {%- if has_articles -%}
-      {%- if layout_style == 'featured' -%}
-        {%- assign first_handle = handles[0] -%}
-        {%- assign featured_article = articles[first_handle] -%}
-
-        <div class="q-bhs__layout q-bhs__layout--featured">
-          {%- if featured_article != blank -%}
-            <div class="q-bhs__featured">
-              {% render 'blog-card', article: featured_article, heading_level: 2, show_image: show_image, show_author: show_author, show_date: show_date, show_read_time: show_read_time, show_tags: show_tags, show_excerpt: show_excerpt, excerpt_text: featured_article.excerpt_or_content, truncatewords: excerpt_words, cta_label: section.settings.cta_label_featured %}
-            </div>
-          {%- endif -%}
-
-          {%- if handles.size > 1 -%}
-            <div class="q-bhs__supporting">
-              {%- for h in handles offset: 1 -%}
-                {%- assign a = articles[h] -%}
-                {%- if a == blank -%}{%- continue -%}{%- endif -%}
-                <div class="q-bhs__item">
-                  {% render 'blog-card', article: a, heading_level: 3, show_image: show_image, show_author: show_author, show_date: show_date, show_read_time: show_read_time, show_tags: show_tags, show_excerpt: show_excerpt, excerpt_text: a.excerpt_or_content, truncatewords: excerpt_words, cta_label: section.settings.cta_label_supporting %}
-                </div>
-              {%- endfor -%}
-            </div>
-          {%- endif -%}
+    {%- if resolved_count > 0 -%}
+      {% if layout_style == 'featured' %}
+        <div class="q-bhs__layout q-bhs__layout--featured{% if resolved_count == 1 %} q-bhs__layout--single{% endif %}">
+          <div class="q-bhs__featured">{{ featured_card }}</div>
+          {% if resolved_count > 1 %}<div class="q-bhs__supporting">{{ article_cards }}</div>{% endif %}
         </div>
-
-      {%- elsif layout_style == 'scroll' -%}
-        <div class="q-bhs__layout q-bhs__layout--scroll">
-          <div class="q-bhs__scroller" role="region" aria-label="{{ section.settings.heading | escape }}">
-            {%- for h in handles -%}
-              {%- assign a = articles[h] -%}
-              {%- if a == blank -%}{%- continue -%}{%- endif -%}
-              <div class="q-bhs__slide">
-                {% render 'blog-card', article: a, heading_level: 3, show_image: show_image, show_author: show_author, show_date: show_date, show_read_time: show_read_time, show_tags: show_tags, show_excerpt: show_excerpt, excerpt_text: a.excerpt_or_content, truncatewords: excerpt_words, cta_label: section.settings.cta_label_supporting %}
-              </div>
-            {%- endfor -%}
-          </div>
-        </div>
-
-      {%- else -%}
-        <div class="q-bhs__layout q-bhs__layout--grid">
-          {%- for h in handles -%}
-            {%- assign a = articles[h] -%}
-            {%- if a == blank -%}{%- continue -%}{%- endif -%}
-            <div class="q-bhs__gridItem">
-              {% render 'blog-card', article: a, heading_level: 3, show_image: show_image, show_author: show_author, show_date: show_date, show_read_time: show_read_time, show_tags: show_tags, show_excerpt: show_excerpt, excerpt_text: a.excerpt_or_content, truncatewords: excerpt_words, cta_label: section.settings.cta_label_supporting %}
-            </div>
-          {%- endfor -%}
-        </div>
-      {%- endif -%}
+      {% elsif layout_style == 'scroll' %}
+        <div class="q-bhs__layout q-bhs__layout--scroll"><div class="q-bhs__scroller" tabindex="0" role="region" aria-label="{{ section.settings.heading | default: 'Blog articles' | escape }}">{{ article_cards }}</div></div>
+      {% else %}
+        <div class="q-bhs__layout q-bhs__layout--grid">{{ article_cards }}</div>
+      {% endif %}
 
     {%- else -%}
       <div class="q-bhs__empty">
         <div class="q-bhs__emptyCard">
-          <p class="q-bhs__kicker">{{ section.settings.kicker | default: 'From the blog' }}</p>
-          <h3 class="q-bhs__emptyHeading">{{ section.settings.empty_heading }}</h3>
-          <p class="q-bhs__emptyText">{{ section.settings.empty_text }}</p>
+          <p class="q-bhs__kicker">{{ section.settings.kicker | default: 'From the blog' | escape }}</p>
+          <h3 class="q-bhs__emptyHeading">{{ section.settings.empty_heading | escape }}</h3>
+          <p class="q-bhs__emptyText">{{ section.settings.empty_text | escape }}</p>
           {%- if has_view_all -%}
-            <a class="q-bhs__viewAll" href="{{ resolved_view_all_link }}">{{ view_all_label }}</a>
+            <a class="q-bhs__viewAll" href="{{ resolved_view_all_link | escape }}">{{ view_all_label | escape }}</a>
           {%- endif -%}
         </div>
       </div>
@@ -328,7 +295,7 @@ endif
       text-decoration:none;
       font-weight:600;
       color: var(--q-bhs-accent, currentColor);
-      white-space:nowrap;
+      white-space:normal;
     }
     .q-bhs__viewAll:hover{ text-decoration:underline; }
 
@@ -365,7 +332,7 @@ endif
     .q-bhs__scroller{
       display:grid;
       grid-auto-flow: column;
-      grid-auto-columns: minmax(var(--q-bhs-scroll-col, 280px), 1fr);
+      grid-auto-columns: minmax(min(100%, var(--q-bhs-scroll-col, 280px)), 1fr);
       gap: var(--q-bhs-gap, 16px);
       overflow-x:auto;
       padding-bottom: 6px;
@@ -375,7 +342,7 @@ endif
     .q-bhs__slide{ scroll-snap-align: start; }
     @media (max-width: 749px){
       .q-bhs__scroller{
-        grid-auto-columns: minmax(calc(var(--q-bhs-scroll-peek, 78) * 1%), 1fr);
+        grid-auto-columns: calc(var(--q-bhs-scroll-peek, 78) * 1%);
       }
     }
 
@@ -466,6 +433,11 @@ endif
     }
     .q-bhs__emptyHeading{ margin: 6px 0 8px 0; font-size: 18px; line-height: 1.2; }
     .q-bhs__emptyText{ margin: 0; color: var(--q-bhs-muted, currentColor); max-width: 70ch; }
+    .q-bhs { min-width: 0; overflow-wrap: anywhere; }
+    .q-bhs__header { flex-wrap: wrap; }
+    .q-bhs__headcopy, .q-bhs__item, .q-bhs__featured, .q-bhs__supporting { min-width: 0; }
+    .q-bhs .q-bhs__layout--single { grid-template-columns: minmax(0, 1fr); }
+    .q-bhs :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
   </style>
 </section>
 
