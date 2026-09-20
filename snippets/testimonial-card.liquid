@@ -28,14 +28,19 @@
     assign has_avatar = true
   endif
 
+  assign rating_num = rating | plus: 0
   assign has_rating = false
-  if show_rating and rating and rating > 0
+  if show_rating and rating_num > 0 and rating_num <= 5
     assign has_rating = true
   endif
 
   assign has_badge = false
   if show_badge and platform != blank and platform != 'none'
     assign has_badge = true
+  endif
+
+  if platform == 'custom' and custom_badge_label == blank and custom_badge_icon == blank
+    assign has_badge = false
   endif
 
   assign context_text = ''
@@ -60,13 +65,14 @@
   endif
 
   assign fp = featured_product
+  assign fp_image = fp.featured_media.preview_image | default: fp.featured_image
 -%}
 
 <figure class="q-tm q-tm--{{ v }} q-tm-align--{{ a }}">
   {%- if has_quote -%}
     <blockquote class="q-tm__quote">
       <span class="q-tm__quote-mark" aria-hidden="true">“</span>
-      <span class="q-tm__quote-text">{{ quote }}</span>
+      <div class="q-tm__quote-text">{% if quote_is_richtext %}{{ quote }}{% else %}{{ quote | escape | newline_to_br }}{% endif %}</div>
     </blockquote>
   {%- endif -%}
 
@@ -76,6 +82,7 @@
         class="q-tm__avatar"
         src="{{ avatar | image_url: width: 120 }}"
         alt="{% if has_name %}{{ name | escape }}{% else %}Customer{% endif %}"
+        width="{{ avatar.width }}" height="{{ avatar.height }}"
         loading="lazy"
       >
     {%- endif -%}
@@ -90,13 +97,12 @@
     </div>
 
     {%- if has_rating -%}
-      {%- assign rating_num = rating | plus: 0 -%}
-      <div class="q-tm__rating" aria-label="{{ rating_num }} out of 5 stars">
+      <div class="q-tm__rating" role="img" aria-label="{{ rating_num }} out of 5 stars">
         <div class="q-tm__stars" style="--q-rating: {{ rating_num }};">
           <span class="q-tm__stars-bg" aria-hidden="true">★★★★★</span>
           <span class="q-tm__stars-fg" aria-hidden="true">★★★★★</span>
         </div>
-        <span class="q-tm__rating-num">{{ rating_num }}</span>
+        <span class="q-tm__rating-num" aria-hidden="true">{{ rating_num }}</span>
       </div>
     {%- endif -%}
 
@@ -107,15 +113,16 @@
             class="q-tm__badge-icon"
             src="{{ custom_badge_icon | image_url: width: 48 }}"
             alt=""
+            width="{{ custom_badge_icon.width }}" height="{{ custom_badge_icon.height }}"
             loading="lazy"
           >
         {%- endif -%}
 
         <span class="q-tm__badge-text">
           {%- if platform == 'custom' -%}
-            {{ custom_badge_label | default: 'Verified' | escape }}
+            {{ custom_badge_label | default: 'Source' | escape }}
           {%- else -%}
-            {{ platform | capitalize }}
+            {{ platform | capitalize | escape }}
           {%- endif -%}
         </span>
       </div>
@@ -129,16 +136,17 @@
       <div class="q-tm__featured">
         <div class="q-tm__featured-line">
           <span class="q-tm__featured-label">Featured:</span>
-          <a class="q-tm__featured-link" href="{{ fp.url }}">{{ fp.title | escape }}</a>
+          <a class="q-tm__featured-link" href="{{ fp.url | escape }}">{{ fp.title | escape }}</a>
         </div>
 
         {%- if show_featured_product_preview -%}
-          <a class="q-tm__fp" href="{{ fp.url }}">
-            {%- if fp.featured_media != blank -%}
+          <a class="q-tm__fp" href="{{ fp.url | escape }}">
+            {%- if fp_image != blank -%}
               <img
                 class="q-tm__fp-media"
-                src="{{ fp.featured_media | image_url: width: 220 }}"
+                src="{{ fp_image | image_url: width: 220 }}"
                 alt="{{ fp.title | escape }}"
+                width="{{ fp_image.width }}" height="{{ fp_image.height }}"
                 loading="lazy"
               >
             {%- endif -%}
@@ -161,6 +169,7 @@
 
 <style>
   .q-tm{
+    margin: 0; min-width: 0; max-width: 100%; box-sizing: border-box; overflow-wrap: anywhere;
     background: var(--q-tm-surface, transparent);
     border: var(--q-tm-border-w, 1px) solid var(--q-tm-border, transparent);
     border-radius: var(--q-tm-radius, 16px);
@@ -175,7 +184,7 @@
   .q-tm__quote{
     margin: 0 0 1.1em;
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
     gap: .35em;
     align-items: start;
   }
@@ -186,7 +195,10 @@
     opacity: .55;
     transform: translateY(-.05em);
   }
-  .q-tm__quote-text{ display: inline; }
+  .q-tm__quote-text{ min-width: 0; }
+  .q-tm__quote-text > :first-child{ margin-top: 0; }
+  .q-tm__quote-text > :last-child{ margin-bottom: 0; }
+  .q-tm a:focus-visible{ outline: 2px solid currentColor; outline-offset: 3px; }
 
   .q-tm--featured .q-tm__quote-text{
     font-size: var(--q-tm-quote-fs-featured, 1.75rem);
@@ -206,6 +218,7 @@
   }
 
   .q-tm__avatar{
+    max-width: 100%; flex-shrink: 0;
     width: var(--q-tm-avatar, 44px);
     height: var(--q-tm-avatar, 44px);
     border-radius: var(--q-tm-avatar-radius, 999px);
@@ -217,7 +230,7 @@
     display: flex;
     flex-direction: column;
     gap: .1em;
-    min-width: 160px;
+    min-width: min(100%, 160px); max-width: 100%;
   }
   .q-tm__name{
     font-size: var(--q-tm-name-fs, 15px);
@@ -305,7 +318,7 @@
 
   .q-tm__fp{
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
     gap: .7em;
     align-items: center;
     text-decoration: none;

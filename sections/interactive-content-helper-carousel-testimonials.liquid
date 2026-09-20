@@ -1,29 +1,31 @@
-{% if section.blocks.size == 0 %}
+{%- liquid
+  assign testimonial_blocks = section.blocks | where: 'type', 'testimonial'
+  assign count = 0
+  for block in testimonial_blocks
+    assign quote_text = block.settings.quote | strip_html | strip
+    if quote_text != blank
+      assign count = count | plus: 1
+    endif
+  endfor
+-%}
+{% if count == 0 %}
   {% render 'section-empty-state', section: section %}
 {% else %}
 {% comment %}
   Quadratum — Interactive · Carousel — Testimonials & Reviews
-  File: sections/interactive-content-helper-carousel-testimonials-reviews.liquid
+  File: sections/interactive-content-helper-carousel-testimonials.liquid
 
   Uses the SAME canonical carousel engine as Media/Logos:
   - assets/interactive-content-carousel-media.js
 
   Section-specific styling:
-  - assets/interactive-content-carousel-testimonials-reviews.css
+  - assets/interactive-content-carousel-testimonials.css
 
   Dependency:
-  - snippets/testimonial-card.liquid (DO NOT MODIFY)
+  - snippets/testimonial-card.liquid (shared; reviewed with both hosts)
 {% endcomment %}
 
 {%- liquid
-  assign blocks = section.blocks | where: 'type', 'testimonial'
-  assign count = blocks.size
-  if count == 0
-    break
-  endif
-
-  assign layout = section.settings.layout
-
   assign show_header = section.settings.show_header
   assign source_label = section.settings.source_label
   assign heading = section.settings.heading
@@ -70,7 +72,7 @@
 
 
 <section
-  class="q-trust-carousel q-trust-carousel--{{ layout }}"
+  class="q-trust-carousel"
   style="
     --q-tr-maxw: {{ section.settings.max_width }}px;
     --q-tr-pad-y: {{ section.settings.pad_y }}px;
@@ -109,16 +111,16 @@
   <div class="q-tr-inner">
     {%- if show_header -%}
       <header class="q-tr-header">
-        {%- if source_label != blank -%}<div class="q-tr-source">{{ source_label }}</div>{%- endif -%}
-        {%- if heading != blank -%}<h2 class="q-tr-heading">{{ heading }}</h2>{%- endif -%}
-        {%- if subheading != blank -%}<p class="q-tr-subheading">{{ subheading }}</p>{%- endif -%}
+        {%- if source_label != blank -%}<div class="q-tr-source">{{ source_label | escape }}</div>{%- endif -%}
+        {%- if heading != blank -%}<h2 class="q-tr-heading">{{ heading | escape }}</h2>{%- endif -%}
+        {%- if subheading != blank -%}<p class="q-tr-subheading">{{ subheading | escape }}</p>{%- endif -%}
       </header>
     {%- endif -%}
 
     <div
-      class="q-carousel q-tr-shell"
+      class="q-carousel q-tr-shell" role="region" aria-roledescription="carousel" aria-label="{{ heading | default: 'Testimonials' | escape }}"
       {% if should_init %}
-        data-q-carousel
+        data-q-carousel-engine="shared"
         data-loop="{{ loop }}"
         data-autoplay="{{ autoplay }}"
         data-autoplay-speed="{{ autoplay_speed }}"
@@ -132,13 +134,21 @@
       <div class="q-tr-viewport-wrap">
         <div class="q-carousel__viewport" tabindex="0" aria-label="Testimonials carousel">
           <div class="q-carousel__track">
-            {%- for block in blocks -%}
+            {%- for block in testimonial_blocks -%}
+              {%- assign quote_text = block.settings.quote | strip_html | strip -%}
+              {%- if quote_text == blank -%}{%- continue -%}{%- endif -%}
               {%- liquid
                 assign quote = block.settings.quote
                 assign name = block.settings.name
                 assign role = block.settings.role_or_location
                 assign rating = block.settings.rating
                 assign avatar = block.settings.avatar_image
+                unless show_avatar
+                  assign avatar = ''
+                endunless
+                unless show_role
+                  assign role = ''
+                endunless
 
                 assign platform = block.settings.platform
                 assign custom_badge_label = block.settings.platform_label
@@ -147,26 +157,14 @@
                 assign url = block.settings.link_to_full_review
                 assign aria = block.settings.link_aria_label
 
-                assign slide_tag = 'div'
-                if make_link and url != blank
-                  assign slide_tag = 'a'
-                endif
               -%}
 
-              <{{ slide_tag }}
-                class="q-carousel__slide q-tr-slide"
-                {% if slide_tag == 'a' %}
-                  href="{{ url }}"
-                  aria-label="{{ aria | default: 'Read full review' }}"
-                {% else %}
-                  role="group"
-                {% endif %}
-                {{ block.shopify_attributes }}
-              >
+              <div class="q-carousel__slide q-tr-slide" role="group" {{ block.shopify_attributes }}>
                 {% render 'testimonial-card',
                   variant: 'standard',
                   align: section.settings.align,
                   quote: quote,
+                  quote_is_richtext: true,
                   name: name,
                   role: role,
                   avatar: avatar,
@@ -180,7 +178,8 @@
                   show_featured_product: false,
                   show_featured_product_preview: false
                 %}
-              </{{ slide_tag }}>
+                {% if make_link and url != blank %}<a class="q-tr-review-link" href="{{ url | escape }}" aria-label="{{ aria | default: 'Read full review' | escape }}">Read full review</a>{% endif %}
+              </div>
             {%- endfor -%}
           </div>
         </div>
@@ -188,17 +187,20 @@
 
       {%- if should_init and show_arrows -%}
         <div class="q-carousel__arrows" aria-hidden="false">
-          <button class="q-carousel__btn q-carousel__btn--prev" type="button" aria-label="Previous testimonial" data-q-carousel-prev>
+          <button class="q-carousel__btn q-carousel__btn--prev" type="button" aria-label="Previous testimonial" data-q-carousel-prev hidden>
             <span aria-hidden="true">‹</span>
           </button>
-          <button class="q-carousel__btn q-carousel__btn--next" type="button" aria-label="Next testimonial" data-q-carousel-next>
+          <button class="q-carousel__btn q-carousel__btn--next" type="button" aria-label="Next testimonial" data-q-carousel-next hidden>
             <span aria-hidden="true">›</span>
           </button>
         </div>
       {%- endif -%}
 
       {%- if should_init and show_dots -%}
-        <div class="q-carousel__dots" data-q-carousel-dots></div>
+        <div class="q-carousel__dots" data-q-carousel-dots hidden></div>
+      {%- endif -%}
+      {%- if should_init and autoplay -%}
+        <button type="button" class="q-carousel__pause" data-q-carousel-pause hidden aria-pressed="false">Pause rotation</button>
       {%- endif -%}
     </div>
   </div>
@@ -221,16 +223,6 @@
     { "type": "header", "content": "Layout" },
     {
       "type": "select",
-      "id": "layout",
-      "label": "Layout",
-      "default": "single",
-      "options": [
-        { "value": "single", "label": "Single" },
-        { "value": "two_up", "label": "Two-up" }
-      ]
-    },
-    {
-      "type": "select",
       "id": "align",
       "label": "Card alignment",
       "default": "left",
@@ -245,7 +237,7 @@
     { "type": "checkbox", "id": "show_platform_badge", "label": "Show platform badge", "default": false },
     { "type": "checkbox", "id": "show_avatar", "label": "Show avatar", "default": true },
     { "type": "checkbox", "id": "show_role_or_location", "label": "Show role/location", "default": true },
-    { "type": "checkbox", "id": "show_link_to_full_review", "label": "Make cards link to full review", "default": false },
+    { "type": "checkbox", "id": "show_link_to_full_review", "label": "Show link to full review", "default": false },
 
     { "type": "header", "content": "Carousel settings" },
     { "type": "range", "id": "slides_per_view_desktop", "label": "Desktop slides per view", "min": 1, "max": 3, "step": 1, "default": 1 },
@@ -262,7 +254,7 @@
     { "type": "checkbox", "id": "pause_on_focus", "label": "Pause on focus", "default": true },
 
     { "type": "header", "content": "Arrow positioning" },
-    { "type": "range", "id": "arrows_gutter_px", "label": "Arrow gutter outside content (px)", "min": 0, "max": 140, "step": 4, "default": 64 },
+    { "type": "range", "id": "arrows_gutter_px", "label": "Arrow gutter outside content (px)", "info": "On phones, arrows move below the carousel to preserve content width.", "min": 0, "max": 140, "step": 4, "default": 64 },
     { "type": "range", "id": "arrows_inset_px", "label": "Arrow inset from section edges (px)", "min": 0, "max": 80, "step": 4, "default": 24 },
 
     { "type": "header", "content": "Layout & framing" },
@@ -287,17 +279,17 @@
       "type": "testimonial",
       "name": "Testimonial",
       "settings": [
-        { "type": "richtext", "id": "quote", "label": "Quote", "default": "<p>We swapped to Quadratum and immediately saw higher add-to-carts. It’s fast, clean, and feels premium.</p>" },
-        { "type": "text", "id": "name", "label": "Name", "default": "Jordan M." },
-        { "type": "text", "id": "role_or_location", "label": "Role/location", "default": "Verified customer" },
+        { "type": "richtext", "id": "quote", "label": "Quote", "info": "Enter an authentic review. Empty quotes are not displayed." },
+        { "type": "text", "id": "name", "label": "Name" },
+        { "type": "text", "id": "role_or_location", "label": "Role/location" },
         { "type": "image_picker", "id": "avatar_image", "label": "Avatar image" },
-        { "type": "range", "id": "rating", "label": "Rating", "min": 0, "max": 5, "step": 1, "default": 5 },
+        { "type": "range", "id": "rating", "label": "Rating", "min": 0, "max": 5, "step": 1, "default": 0 },
 
         {
           "type": "select",
           "id": "platform",
           "label": "Platform",
-          "default": "google",
+          "default": "none",
           "options": [
             { "value": "google", "label": "Google" },
             { "value": "facebook", "label": "Facebook" },
@@ -307,7 +299,7 @@
             { "value": "none", "label": "None" }
           ]
         },
-        { "type": "text", "id": "platform_label", "label": "Custom badge label (platform = custom)", "default": "Verified" },
+        { "type": "text", "id": "platform_label", "label": "Custom badge label (platform = custom)", "default": "Source" },
         { "type": "image_picker", "id": "platform_icon", "label": "Custom badge icon (platform = custom)" },
 
         { "type": "url", "id": "link_to_full_review", "label": "Link to full review" },

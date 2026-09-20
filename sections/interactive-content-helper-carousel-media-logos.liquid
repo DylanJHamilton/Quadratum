@@ -1,4 +1,5 @@
-{% if section.blocks.size == 0 %}
+{% assign carousel_blocks = section.blocks | where: 'type', 'slide' %}
+{% if carousel_blocks.size == 0 %}
   {% render 'section-empty-state', section: section %}
 {% else %}
 {% comment %}
@@ -18,11 +19,7 @@
 {% endcomment %}
 
 {%- liquid
-  assign blocks = section.blocks | where: 'type', 'slide'
-  assign count = blocks.size
-  if count == 0
-    break
-  endif
+  assign count = carousel_blocks.size
 
   assign type = section.settings.carousel_type
 
@@ -52,8 +49,10 @@
   assign pause_focus = section.settings.pause_on_focus
 
   assign should_init = true
-  if count == 1 and autoplay == false and show_arrows == false and show_dots == false
-    assign should_init = false
+  if count < 2
+    assign show_arrows = false
+    assign show_dots = false
+    assign autoplay = false
   endif
 
   assign use_custom = section.settings.use_custom_colors
@@ -110,15 +109,15 @@
   <div class="q-ml-inner">
     {%- if show_header -%}
       <header class="q-ml-header">
-        {%- if heading != blank -%}<h2 class="q-ml-heading">{{ heading }}</h2>{%- endif -%}
-        {%- if subheading != blank -%}<p class="q-ml-subheading">{{ subheading }}</p>{%- endif -%}
+        {%- if heading != blank -%}<h2 class="q-ml-heading">{{ heading | escape }}</h2>{%- endif -%}
+        {%- if subheading != blank -%}<p class="q-ml-subheading">{{ subheading | escape }}</p>{%- endif -%}
       </header>
     {%- endif -%}
 
     <div
-      class="q-carousel"
+      class="q-carousel" role="region" aria-roledescription="carousel" aria-label="{{ heading | default: 'Media and logos' | escape }}"
       {% if should_init %}
-        data-q-carousel
+        data-q-carousel-engine="shared"
         data-loop="{{ loop }}"
         data-autoplay="{{ autoplay }}"
         data-autoplay-speed="{{ autoplay_speed }}"
@@ -132,7 +131,7 @@
     >
       <div class="q-carousel__viewport" tabindex="0" aria-label="Carousel">
         <div class="q-carousel__track">
-          {%- for block in blocks -%}
+          {%- for block in carousel_blocks -%}
             {%- liquid
               assign img = block.settings.image
               assign url = block.settings.link_url
@@ -143,7 +142,7 @@
               assign embed = block.settings.video_embed_code
               assign vurl = block.settings.video_url
 
-              assign alt_logo = block.settings.logo_alt_label
+              assign alt_logo = block.settings.logo_alt_label | default: img.alt | default: caption
 
               assign is_video = false
               if type == 'media'
@@ -174,8 +173,8 @@
             <{{ slide_tag }}
               class="q-carousel__slide"
               {% if slide_tag == 'a' %}
-                href="{{ url }}"
-                aria-label="{{ aria | default: 'Open link' }}"
+                href="{{ url | escape }}"
+                aria-label="{{ aria | default: caption | default: alt_logo | default: 'Open link' | escape }}"
               {% else %}
                 role="group"
               {% endif %}
@@ -192,7 +191,7 @@
                         alt: alt_logo
                     }}
                   {%- else -%}
-                    <div class="q-ml-logo q-ml-logo--placeholder" aria-label="{{ alt_logo }}"></div>
+                    <div class="q-ml-logo q-ml-logo--placeholder" aria-label="{{ alt_logo | escape }}"></div>
                   {%- endif -%}
 
                 {%- else -%}
@@ -216,20 +215,21 @@
                       </div>
                     {%- else -%}
                       <div class="q-ml-media q-ml-media--video" data-q-carousel-video>
-                        <div class="q-ml-ratio">
+                        <button type="button" class="q-ml-video-load" data-q-carousel-play hidden aria-label="{{ aria | default: caption | default: 'Play video' | escape }}">
+                          {%- if img != blank -%}{{ img | image_url: width: 1800 | image_tag: class: 'q-ml-image', loading: 'lazy', alt: '' }}{%- endif -%}
+                          <span>Play video</span>
+                        </button>
+                        <template>
                           {%- if embed != blank -%}
                             <div class="q-ml-embed">{{ embed }}</div>
                           {%- elsif vurl != blank -%}
-                            <iframe
-                              class="q-ml-embed"
-                              src="{{ vurl }}"
-                              loading="lazy"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowfullscreen
-                              title="{{ aria | default: 'Video' }}"
-                            ></iframe>
+                            <iframe class="q-ml-embed" src="{{ vurl | escape }}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen title="{{ aria | default: caption | default: 'Video' | escape }}"></iframe>
                           {%- endif -%}
-                        </div>
+                        </template>
+                        <noscript>
+                          {%- if vurl != blank -%}<a href="{{ vurl | escape }}">Watch video</a>
+                          {%- else -%}<div class="q-ml-ratio"><div class="q-ml-embed">{{ embed }}</div></div>{%- endif -%}
+                        </noscript>
                       </div>
                     {%- endif -%}
                   {%- else -%}
@@ -249,7 +249,7 @@
                   {%- endif -%}
 
                   {%- if caption != blank -%}
-                    <div class="q-ml-caption">{{ caption }}</div>
+                    <div class="q-ml-caption">{{ caption | escape }}</div>
                   {%- endif -%}
                 {%- endif -%}
               </div>
@@ -260,17 +260,20 @@
 
       {%- if should_init and show_arrows -%}
         <div class="q-carousel__arrows" aria-hidden="false">
-          <button class="q-carousel__btn q-carousel__btn--prev" type="button" aria-label="Previous slide" data-q-carousel-prev>
+          <button class="q-carousel__btn q-carousel__btn--prev" type="button" aria-label="Previous slide" data-q-carousel-prev hidden>
             <span aria-hidden="true">‹</span>
           </button>
-          <button class="q-carousel__btn q-carousel__btn--next" type="button" aria-label="Next slide" data-q-carousel-next>
+          <button class="q-carousel__btn q-carousel__btn--next" type="button" aria-label="Next slide" data-q-carousel-next hidden>
             <span aria-hidden="true">›</span>
           </button>
         </div>
       {%- endif -%}
 
       {%- if should_init and show_dots -%}
-        <div class="q-carousel__dots" data-q-carousel-dots></div>
+        <div class="q-carousel__dots" data-q-carousel-dots hidden></div>
+      {%- endif -%}
+      {%- if autoplay -%}
+        <button type="button" class="q-carousel__pause" data-q-carousel-pause hidden aria-pressed="false">Pause rotation</button>
       {%- endif -%}
     </div>
   </div>
@@ -326,7 +329,7 @@
     { "type": "checkbox", "id": "pause_on_focus", "label": "Pause on focus", "default": true },
 
     { "type": "header", "content": "Arrows positioning" },
-    { "type": "range", "id": "arrows_inset_px", "label": "Arrows inset from edges (px)", "min": 0, "max": 80, "step": 2, "default": 28 },
+    { "type": "range", "id": "arrows_inset_px", "label": "Arrows inset from edges (px)", "info": "On phones, arrows move below the carousel to preserve content width.", "min": 0, "max": 80, "step": 2, "default": 28 },
     { "type": "range", "id": "arrows_offset_y_px", "label": "Arrows vertical offset (px)", "info": "Negative moves up, positive moves down.", "min": -60, "max": 60, "step": 2, "default": 0 },
 
     { "type": "header", "content": "Logos mode constraints" },
@@ -367,7 +370,7 @@
       "settings": [
         { "type": "image_picker", "id": "image", "label": "Image", "info": "For video teaser (linked video), this is the poster image." },
         { "type": "url", "id": "link_url", "label": "Link URL" },
-        { "type": "text", "id": "link_aria_label", "label": "Link aria-label", "default": "Open link" },
+        { "type": "text", "id": "link_aria_label", "label": "Link aria-label" },
         { "type": "text", "id": "caption", "label": "Caption (media)" },
 
         {
@@ -380,10 +383,10 @@
             { "value": "video_embed", "label": "Video embed" }
           ]
         },
-        { "type": "textarea", "id": "video_embed_code", "label": "Video embed code" },
-        { "type": "url", "id": "video_url", "label": "Video URL (fallback)"},
+        { "type": "textarea", "id": "video_embed_code", "label": "Video embed code", "info": "Loads when a shopper chooses Play video. Playback stops when the slide leaves view." },
+        { "type": "url", "id": "video_url", "label": "Video embed URL (fallback)", "info": "Use the provider embed URL. To link to a normal video page, use Link URL instead."},
 
-        { "type": "text", "id": "logo_alt_label", "label": "Logo alt label (logos)", "default": "Acme Co." }
+        { "type": "text", "id": "logo_alt_label", "label": "Image or logo alt label" }
       ]
     }
   ],
