@@ -1,0 +1,21 @@
+const assert=require('node:assert/strict'),f=require('./support/commerce.cjs');
+const {JSDOM}=require('jsdom');
+const settings=Object.assign({},...JSON.parse(f.read('config/settings_schema.json')).map(group=>f.defaults(group.settings)));
+f.engine.registerFilter('font_face',()=> '/* Shopify font-face fixture adapter */');
+f.engine.registerFilter('script_tag',src=>'<script src="'+src+'"></script>');
+function forms(source){return source.replace(/{%-?\s*form\s+[^%]+%}/g,'<form method="post" action="/contact">').replace(/{%-?\s*endform\s*-?%}/g,'</form>');}
+async function render(layout,overrides={},design=false){
+ const source=f.read('layout/'+layout+'.liquid').replace(/{%-?\s*section\s+'([^']+)'\s*-?%}/g,'<div data-platform-section="$1"></div>').replace("{% render 'global-popup' %}",forms(f.read('snippets/global-popup.liquid')));
+ const context={page_title:'Page',content_for_layout:'<p>Native template fixture</p>',content_for_header:'<meta name="shopify-fixture" content="platform">',content_for_footer:'',canonical_url:'https://shop.test/fr/',shop:{name:'Shop <safe>',description:'A store'},settings:{...settings,enable_ajax_cart_drawer:false,enable_search_popup:false,popup_show_newsletter_form:false,custom_css:'.merchant-proof { color: #123456; }',...overrides},request:{locale:{iso_code:'fr'},origin:'https://shop.test',design_mode:design},form:{},routes:{root_url:'/fr/',search_url:'/fr/search',cart_url:'/fr/cart'}};
+ return f.engine.parseAndRender(source,context,{globals:context});
+}
+(async()=>{
+ for(const layout of ['theme','password'])for(const enabled of [false,true]){
+  const html=await render(layout,{popup_enable:enabled,popup_editor_preview:false});
+  const rawHead=html.split('</head>')[0];assert.doesNotMatch(rawHead,/<(?:div|form|button|section|main)\b/,'head has no misplaced popup/body markup');
+  const d=new JSDOM(html),doc=d.window.document;assert.equal(doc.querySelectorAll('style[data-quadratum-theme-tokens]').length,1,'one native token/utility wrapper');assert.equal(doc.querySelectorAll('#QuadratumGlobalPopup').length,layout==='theme'&&enabled?1:0);assert.equal(doc.querySelectorAll('head > meta[name="shopify-fixture"]').length,1);const tokenStyle=doc.querySelector('[data-quadratum-theme-tokens]');assert.equal(tokenStyle.parentElement,doc.head);assert.doesNotMatch(tokenStyle.textContent,/<\/?script>/,'inert script text cannot corrupt the CSS rule that follows');assert.match(tokenStyle.textContent,/--c-bg:/);assert.match(tokenStyle.textContent,/\.container\s*\{/);assert.match(tokenStyle.textContent,/\.merchant-proof/);const before=[...doc.head.children];assert.ok(before.indexOf(doc.querySelector('link[href="/assets/theme.css"]'))<before.indexOf(tokenStyle),'compiled CSS precedes native overrides as in the existing normal layout');assert.ok(before.indexOf(tokenStyle)<before.indexOf(doc.querySelector('link[href="/assets/styles.css"]')));assert.equal(doc.querySelector('main').textContent.trim(),'Native template fixture');d.window.close();
+ }
+ const editor=await render('theme',{popup_enable:false,popup_editor_preview:true},true);let d=f.dom(editor);assert.equal(d.window.document.querySelectorAll('#QuadratumGlobalPopup').length,1,'editor preview still uses the dedicated body host');assert.equal(d.window.document.querySelector('#QuadratumGlobalPopup').closest('head'),null);d.window.close();
+ d=f.dom(await render('theme',{popup_enable:true,popup_type:'promotion',popup_editor_preview:false,popup_trigger:'delay',popup_delay_seconds:0,popup_frequency:'always',popup_show_on_mobile:true,popup_show_on_desktop:true}));const w=d.window;w.Shopify={designMode:false};f.boot(w,['global-popup.js']);assert.equal(w.document.querySelectorAll('[data-qtm-popup]').length,1,'existing controller owns one actual layout host');w.document.querySelector('[data-qtm-popup-close]').click();assert.equal(w.document.querySelector('[data-qtm-popup]').getAttribute('aria-hidden'),'true');d.window.close();
+ console.log('PASS actual normal/password layout sources: head-only token wrapper after compiled CSS, one dedicated body popup or none, native editor preview, existing controller boot, merchant CSS, no inert script inside CSS. Header/footer section bodies, customer forms/font-face use explicit platform adapters; their independent suites remain required.');
+})().catch(e=>{console.error(e);process.exitCode=1});
