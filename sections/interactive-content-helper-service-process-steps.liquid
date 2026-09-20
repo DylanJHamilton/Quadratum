@@ -1,4 +1,5 @@
-{% if section.blocks.size == 0 %}
+{% assign steps = section.blocks | where: 'type', 'step' %}
+{% if steps.size == 0 %}
   {% render 'section-empty-state', section: section %}
 {% else %}
 {%- comment -%}
@@ -14,11 +15,7 @@
 {%- endcomment -%}
 
 {%- liquid
-  assign steps = section.blocks | where: 'type', 'step'
   assign steps_count = steps.size
-  if steps_count == 0
-    break
-  endif
 
   assign layout = section.settings.layout | default: 'horizontal_steps'
   assign show_numbers = section.settings.show_numbers
@@ -26,7 +23,7 @@
   assign equal_height_cards = section.settings.equal_height_cards
 
   assign enable_progress_bar = section.settings.enable_progress_bar
-  assign raw_current = section.settings.current_step_index | default: 0 | plus: 0
+  assign raw_current = section.settings.current_step_index | default: 0 | plus: 0 | floor
   assign has_current = false
   if raw_current > 0
     assign has_current = true
@@ -44,8 +41,8 @@
     assign current_idx = 0
   endif
 
-  assign title = section.settings.title | default: 'How it works'
-  assign subtitle = section.settings.subtitle | default: '<p>A simple step-by-step process.</p>'
+  assign title = section.settings.title | default: ''
+  assign subtitle = section.settings.subtitle | default: ''
 
   assign progress_label = section.settings.progress_label | default: 'Progress'
   assign show_progress_meta = section.settings.show_progress_meta
@@ -116,12 +113,14 @@
   "
 >
   <div class="q-howitworks__inner">
+    {% if title != blank or subtitle != blank %}
     <header class="q-howitworks__header">
-      <h2 class="q-howitworks__title">{{ title | escape }}</h2>
-      <div class="q-howitworks__subtitle rte">
+      {% if title != blank %}<h2 class="q-howitworks__title">{{ title | escape }}</h2>{% endif %}
+      {% if subtitle != blank %}<div class="q-howitworks__subtitle rte">
         {{ subtitle }}
-      </div>
+      </div>{% endif %}
     </header>
+    {% endif %}
 
     {%- if enable_progress_bar and has_current and steps_count > 1 -%}
       <div class="q-howitworks__progress" aria-label="{{ progress_label | escape }}">
@@ -135,9 +134,11 @@
         <div
           class="q-howitworks__progressbar"
           role="progressbar"
-          aria-valuemin="1"
+          aria-label="{{ progress_label | escape }}"
+          aria-valuemin="0"
           aria-valuemax="{{ steps_count }}"
           aria-valuenow="{{ current_idx }}"
+          aria-valuetext="Step {{ current_idx }} of {{ steps_count }}"
         >
           <div class="q-howitworks__progressbar-fill" style="width: {{ progress_pct }}%;"></div>
         </div>
@@ -146,7 +147,7 @@
 
     <ol
       class="q-steps{% if equal_height_cards %} q-steps--equal{% endif %}{% if is_single %} q-steps--single{% endif %}"
-      aria-label="{{ title | escape }}"
+      aria-label="{{ title | default: 'How it works' | escape }}"
     >
       {%- for block in steps -%}
         {%- liquid
@@ -202,7 +203,7 @@
           endif
 
           assign cta_url = block.settings.cta_url
-          assign cta_label = block.settings.cta_label | default: 'Learn more'
+          assign cta_label = block.settings.cta_label | default: ''
         -%}
 
         <li
@@ -212,14 +213,14 @@
         >
           <article class="q-step__card">
             {%- if has_image -%}
-              <div class="q-step__media" aria-hidden="true">
+              <div class="q-step__media">
                 {{ block.settings.image
                   | image_url: width: 1400
-                  | image_tag: loading: 'lazy', widths: '360, 540, 720, 900, 1200, 1400', sizes: '(min-width: 990px) 33vw, (min-width: 750px) 50vw, 100vw', alt: '' }}
+                  | image_tag: loading: 'lazy', widths: '360, 540, 720, 900, 1200, 1400', sizes: '(min-width: 990px) 33vw, (min-width: 750px) 50vw, 100vw', alt: block.settings.image.alt }}
               </div>
             {%- endif -%}
 
-            <div class="q-step__top">
+            <div class="q-step__top{% unless show_indicator %} q-step__top--plain{% endunless %}">
               {%- if show_indicator -%}
                 <div class="q-step__indicator" aria-hidden="true">
                   {%- if use_icon and has_icon -%}
@@ -233,18 +234,18 @@
               {%- endif -%}
 
               <div class="q-step__head">
-                <h3 class="q-step__title">{{ block.settings.title | default: 'Step title' | escape }}</h3>
+                {% if block.settings.title != blank %}<h3 class="q-step__title">{{ block.settings.title | escape }}</h3>{% endif %}
               </div>
             </div>
 
             <div class="q-step__content">
-              <div class="q-step__desc rte">
-                {{ block.settings.description | default: '<p>Short explanation of this step.</p>' }}
-              </div>
+              {% if block.settings.description != blank %}<div class="q-step__desc rte">
+                {{ block.settings.description }}
+              </div>{% endif %}
 
-              {%- if cta_url != blank -%}
+              {%- if cta_url != blank and cta_label != blank -%}
                 <div class="q-step__cta">
-                  <a class="q-btn" href="{{ cta_url }}">
+                  <a class="q-btn" href="{{ cta_url | escape }}">
                     {{ cta_label | escape }}
                   </a>
                 </div>
@@ -257,27 +258,28 @@
   </div>
 
   <style>
-    .q-howitworks {
+    #shopify-section-{{ section.id }} .q-howitworks {
       background: var(--q-steps-section-bg);
       color: var(--q-steps-text);
       width: 100%;
+      overflow-wrap: anywhere;
     }
 
-    .q-howitworks__inner { width: 100%; }
+    #shopify-section-{{ section.id }} .q-howitworks__inner { width: 100%; }
 
-    .q-howitworks__header { margin-bottom: 1rem; }
-    .q-howitworks__title {
+    #shopify-section-{{ section.id }} .q-howitworks__header { margin-bottom: 1rem; }
+    #shopify-section-{{ section.id }} .q-howitworks__title {
       font-size: var(--q-steps-title-size);
       line-height: 1.15;
       margin: 0 0 .5rem 0;
     }
-    .q-howitworks__subtitle {
+    #shopify-section-{{ section.id }} .q-howitworks__subtitle {
       font-size: var(--q-steps-body-size);
       color: var(--q-steps-muted);
     }
 
-    .q-howitworks__progress { margin: 0 0 1rem 0; }
-    .q-howitworks__progress-top {
+    #shopify-section-{{ section.id }} .q-howitworks__progress { margin: 0 0 1rem 0; }
+    #shopify-section-{{ section.id }} .q-howitworks__progress-top {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
@@ -286,31 +288,31 @@
       font-size: var(--q-steps-body-size);
       color: var(--q-steps-muted);
     }
-    .q-howitworks__progressbar {
+    #shopify-section-{{ section.id }} .q-howitworks__progressbar {
       height: var(--q-steps-progress-height);
       border-radius: calc(var(--q-steps-progress-height) * 0.75);
       background: var(--q-steps-progress-track);
       overflow: hidden;
       position: relative;
     }
-    .q-howitworks__progressbar-fill {
+    #shopify-section-{{ section.id }} .q-howitworks__progressbar-fill {
       height: 100%;
       background: var(--q-steps-progress-fill);
       width: 0%;
     }
 
-    .q-steps {
+    #shopify-section-{{ section.id }} .q-steps {
       list-style: none;
       margin: 0;
       padding: 0;
       display: grid;
-      grid-template-columns: 1fr; /* mobile: always vertical stack */
+      grid-template-columns: minmax(0, 1fr); /* mobile: always vertical stack */
       gap: var(--q-steps-gap);
     }
 
-    .q-step { position: relative; }
+    #shopify-section-{{ section.id }} .q-step { position: relative; min-width:0; }
 
-    .q-step__card {
+    #shopify-section-{{ section.id }} .q-step__card {
       background: var(--q-steps-card-bg);
       border: var(--q-steps-border-width) solid var(--q-steps-card-border);
       border-radius: var(--q-steps-card-radius);
@@ -321,16 +323,16 @@
     }
 
     /* Shadow strength mapping (0..5) */
-    .q-howitworks {
+    #shopify-section-{{ section.id }} .q-howitworks {
       --q-steps-shadow-y: calc(var(--q-steps-card-shadow-strength) * 2px);
       --q-steps-shadow-blur: calc(var(--q-steps-card-shadow-strength) * 10px);
       --q-steps-shadow-alpha: calc(var(--q-steps-card-shadow-strength) * 0.05);
     }
-    .q-step__card {
+    #shopify-section-{{ section.id }} .q-step__card {
       box-shadow: 0 var(--q-steps-shadow-y) var(--q-steps-shadow-blur) rgba(0,0,0,var(--q-steps-shadow-alpha));
     }
 
-    .q-step__media {
+    #shopify-section-{{ section.id }} .q-step__media {
       width: 100%;
       aspect-ratio: var(--q-steps-media-aspect);
       overflow: hidden;
@@ -338,23 +340,23 @@
       border-top-left-radius: var(--q-steps-media-radius);
       border-top-right-radius: var(--q-steps-media-radius);
     }
-    .q-step__media img {
+    #shopify-section-{{ section.id }} .q-step__media img {
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: block;
     }
 
-    .q-step__top {
+    #shopify-section-{{ section.id }} .q-step__top {
       display: grid;
-      grid-template-columns: auto 1fr;
+      grid-template-columns: auto minmax(0, 1fr);
       gap: .9rem;
       align-items: center;
       padding: 1rem 1rem .25rem 1rem;
       min-width: 0;
     }
 
-    .q-step__indicator {
+    #shopify-section-{{ section.id }} .q-step__indicator {
       width: var(--q-steps-indicator-size);
       height: var(--q-steps-indicator-size);
       border-radius: 999px;
@@ -366,36 +368,36 @@
       flex: 0 0 auto;
     }
 
-    .q-step__number {
+    #shopify-section-{{ section.id }} .q-step__number {
       font-size: calc(var(--q-steps-indicator-size) * 0.42);
       line-height: 1;
       font-weight: 700;
     }
 
-    .q-step__icon img {
+    #shopify-section-{{ section.id }} .q-step__icon img {
       width: calc(var(--q-steps-indicator-size) * 0.58);
       height: calc(var(--q-steps-indicator-size) * 0.58);
       object-fit: contain;
       display: block;
     }
 
-    .q-step__title {
+    #shopify-section-{{ section.id }} .q-step__title {
       font-size: calc(var(--q-steps-body-size) * 1.2);
       line-height: 1.25;
       margin: 0;
     }
 
-    .q-step__content {
+    #shopify-section-{{ section.id }} .q-step__content {
       padding: .25rem 1rem 1rem 1rem;
       min-width: 0;
     }
 
-    .q-step__desc { font-size: var(--q-steps-body-size); color: var(--q-steps-muted); }
+    #shopify-section-{{ section.id }} .q-step__desc { font-size: var(--q-steps-body-size); color: var(--q-steps-muted); }
 
     /* Button */
-    .q-step__cta { margin-top: .85rem; }
+    #shopify-section-{{ section.id }} .q-step__cta { margin-top: .85rem; }
 
-    .q-btn {
+    #shopify-section-{{ section.id }} .q-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -408,36 +410,39 @@
       border: 1px solid transparent;
       transition: background-color .15s ease, color .15s ease, border-color .15s ease;
       min-width: 0;
+      max-width: 100%;
+      min-height: 44px;
+      white-space: normal;
     }
 
     /* Variants, all driven by variables */
-    .q-howitworks[data-button-style="solid"] .q-btn {
+    #shopify-section-{{ section.id }} .q-howitworks[data-button-style="solid"] .q-btn {
       background: var(--q-steps-btn-bg);
       color: var(--q-steps-btn-text);
       border-color: var(--q-steps-btn-border);
     }
-    .q-howitworks[data-button-style="solid"] .q-btn:hover,
-    .q-howitworks[data-button-style="solid"] .q-btn:focus-visible {
+    #shopify-section-{{ section.id }} .q-howitworks[data-button-style="solid"] .q-btn:hover,
+    #shopify-section-{{ section.id }} .q-howitworks[data-button-style="solid"] .q-btn:focus-visible {
       background: var(--q-steps-btn-bg-hover);
       color: var(--q-steps-btn-text-hover);
       border-color: var(--q-steps-btn-border-hover);
-      outline: none;
+
     }
 
-    .q-howitworks[data-button-style="outline"] .q-btn {
+    #shopify-section-{{ section.id }} .q-howitworks[data-button-style="outline"] .q-btn {
       background: transparent;
       color: var(--q-steps-btn-text);
       border-color: var(--q-steps-btn-border);
     }
-    .q-howitworks[data-button-style="outline"] .q-btn:hover,
-    .q-howitworks[data-button-style="outline"] .q-btn:focus-visible {
+    #shopify-section-{{ section.id }} .q-howitworks[data-button-style="outline"] .q-btn:hover,
+    #shopify-section-{{ section.id }} .q-howitworks[data-button-style="outline"] .q-btn:focus-visible {
       background: var(--q-steps-btn-bg-hover);
       color: var(--q-steps-btn-text-hover);
       border-color: var(--q-steps-btn-border-hover);
-      outline: none;
+
     }
 
-    .q-howitworks[data-button-style="link"] .q-btn {
+    #shopify-section-{{ section.id }} .q-howitworks[data-button-style="link"] .q-btn {
       background: transparent;
       color: var(--q-steps-accent);
       border-color: transparent;
@@ -446,72 +451,80 @@
       text-decoration: underline;
       text-underline-offset: .2em;
     }
-    .q-howitworks[data-button-style="link"] .q-btn:hover,
-    .q-howitworks[data-button-style="link"] .q-btn:focus-visible {
-      color: var(--q-steps-btn-text-hover);
-      outline: none;
+    #shopify-section-{{ section.id }} .q-howitworks[data-button-style="link"] .q-btn:hover,
+    #shopify-section-{{ section.id }} .q-howitworks[data-button-style="link"] .q-btn:focus-visible {
+      color: var(--q-steps-accent);
+      text-decoration-thickness: 2px;
+
     }
 
     /* State styling (process mode) */
-    .q-step--completed .q-step__indicator {
+    #shopify-section-{{ section.id }} .q-step--completed .q-step__indicator {
       background: color-mix(in srgb, var(--q-steps-accent) 14%, transparent);
     }
-    .q-step--current .q-step__indicator {
+    #shopify-section-{{ section.id }} .q-step--current .q-step__indicator {
       background: color-mix(in srgb, var(--q-steps-accent) 22%, transparent);
     }
 
     /* Tablet: max 2 columns */
     @media (min-width: 750px) {
-      .q-howitworks[data-layout="horizontal_steps"] .q-steps {
+      #shopify-section-{{ section.id }} .q-howitworks[data-layout="horizontal_steps"] .q-steps {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
-      .q-howitworks[data-layout="vertical_steps"] .q-steps {
-        grid-template-columns: 1fr;
+      #shopify-section-{{ section.id }} .q-howitworks[data-layout="vertical_steps"] .q-steps {
+        grid-template-columns: minmax(0, 1fr);
       }
-      .q-howitworks[data-layout="zigzag"] .q-steps {
-        grid-template-columns: 1fr;
+      #shopify-section-{{ section.id }} .q-howitworks[data-layout="zigzag"] .q-steps {
+        grid-template-columns: minmax(0, 1fr);
       }
     }
 
     /* Desktop: selected layout applies */
     @media (min-width: 990px) {
-      .q-howitworks[data-layout="horizontal_steps"] .q-steps {
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      #shopify-section-{{ section.id }} .q-howitworks[data-layout="horizontal_steps"] .q-steps {
+        grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
       }
-      .q-howitworks[data-layout="vertical_steps"] .q-steps {
-        grid-template-columns: 1fr;
+      #shopify-section-{{ section.id }} .q-howitworks[data-layout="vertical_steps"] .q-steps {
+        grid-template-columns: minmax(0, 1fr);
       }
-      .q-howitworks[data-layout="zigzag"] .q-steps {
+      #shopify-section-{{ section.id }} .q-howitworks[data-layout="zigzag"] .q-steps {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         column-gap: calc(var(--q-steps-gap) * 1.25);
         row-gap: var(--q-steps-gap);
       }
-      .q-howitworks[data-layout="zigzag"] .q-step:nth-child(odd) { grid-column: 1; }
-      .q-howitworks[data-layout="zigzag"] .q-step:nth-child(even) { grid-column: 2; }
+      #shopify-section-{{ section.id }} .q-howitworks[data-layout="zigzag"] .q-step:nth-child(odd) { grid-column: 1; }
+      #shopify-section-{{ section.id }} .q-howitworks[data-layout="zigzag"] .q-step:nth-child(even) { grid-column: 2; }
     }
 
     /* Equal height cards (grid modes) */
-    .q-steps--equal .q-step { align-self: stretch; }
-    .q-steps--equal .q-step__card { height: 100%; }
+    #shopify-section-{{ section.id }} .q-steps--equal .q-step { align-self: stretch; }
+    #shopify-section-{{ section.id }} .q-steps--equal .q-step__card { height: 100%; }
 
     /* Connectors: only when it reads as a process (has_current) and 2+ steps and not single */
-    .q-howitworks[data-has-current="true"] .q-steps:not(.q-steps--single) .q-step::after { content: ""; }
+    #shopify-section-{{ section.id }} .q-howitworks[data-has-current="true"] .q-steps:not(.q-steps--single) .q-step::after { content: ""; }
 
     @media (min-width: 990px) {
-      .q-howitworks[data-has-current="true"][data-layout="horizontal_steps"] .q-steps:not(.q-steps--single) .q-step::after {
+      #shopify-section-{{ section.id }} .q-howitworks[data-has-current="true"][data-layout="horizontal_steps"] .q-steps:not(.q-steps--single) .q-step::after {
         position: absolute;
         top: calc((var(--q-steps-indicator-size) / 2) + 1.35rem);
-        right: calc(var(--q-steps-gap) * -0.35);
+        inset-inline-end: calc(var(--q-steps-gap) * -0.35);
         width: calc(var(--q-steps-gap) * 0.7);
         height: var(--q-steps-connector-thickness);
         background: var(--q-steps-connector);
         opacity: 0.45;
         transform: translateY(-50%);
       }
-      .q-howitworks[data-has-current="true"][data-layout="horizontal_steps"] .q-steps:not(.q-steps--single) .q-step:last-child::after {
+      #shopify-section-{{ section.id }} .q-howitworks[data-has-current="true"][data-layout="horizontal_steps"] .q-steps:not(.q-steps--single) .q-step:last-child::after {
         display: none;
       }
     }
+    #shopify-section-{{ section.id }} .q-howitworks, #shopify-section-{{ section.id }} .q-howitworks *{box-sizing:border-box}
+    #shopify-section-{{ section.id }} .q-step__head{min-width:0}
+    #shopify-section-{{ section.id }} .q-step__top--plain{grid-template-columns:minmax(0,1fr)}
+    #shopify-section-{{ section.id }} .q-howitworks a:focus-visible{outline:2px solid var(--q-steps-accent);outline-offset:3px}
+    #shopify-section-{{ section.id }} .q-howitworks .rte > :first-child{margin-top:0}
+    #shopify-section-{{ section.id }} .q-howitworks .rte > :last-child{margin-bottom:0}
+    @media(prefers-reduced-motion:reduce){#shopify-section-{{ section.id }} .q-howitworks .q-btn{transition:none}}
   </style>
 </section>
 
@@ -551,7 +564,7 @@
 
     { "type": "header", "content": "Progress" },
     { "type": "checkbox", "id": "enable_progress_bar", "label": "Enable progress bar", "default": false },
-    { "type": "number", "id": "current_step_index", "label": "Current step index (1-based, 0 = not set)", "default": 0 },
+    { "type": "number", "id": "current_step_index", "label": "Current step index (1-based, 0 = not set)", "info": "Display-only process progress. This does not track customer orders or workflow completion.", "default": 0 },
     { "type": "text", "id": "progress_label", "label": "Progress label", "default": "Progress" },
     { "type": "checkbox", "id": "show_progress_meta", "label": "Show progress text", "default": true },
 
@@ -587,7 +600,7 @@
       ]
     },
     { "type": "color", "id": "button_bg", "label": "Button background", "default": "#111111" },
-    { "type": "color", "id": "button_text", "label": "Button text", "default": "#ffffff" },
+    { "type": "color", "id": "button_text", "label": "Button text", "info": "Choose a color that contrasts with the card for outline buttons. Link-style text uses the accent color.", "default": "#ffffff" },
     { "type": "color", "id": "button_border", "label": "Button border", "default": "#111111" },
     { "type": "color", "id": "button_bg_hover", "label": "Button background (hover)", "default": "#000000" },
     { "type": "color", "id": "button_text_hover", "label": "Button text (hover)", "default": "#ffffff" },
