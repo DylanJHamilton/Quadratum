@@ -2,15 +2,19 @@
 
 {%- liquid
   assign layout = settings.search_results_layout | default: 'grid'
-  assign per_page = settings.search_results_per_page | default: 16
+  assign per_page = settings.search_results_per_page | default: 16 | at_least: 1 | at_most: 50
+  assign form_type = settings.search_default_form_type | default: 'predictive'
+  assign use_predictive = false
+  if form_type == 'predictive' and settings.enable_predictive_search != false
+    assign use_predictive = true
+  endif
   assign show_products = settings.search_src_products
   assign show_articles = settings.search_src_articles
   assign show_pages = settings.search_src_pages
   assign show_collections = settings.search_src_collections
   assign empty_message = settings.search_empty_message | default: 'No results found. Try searching for something else.'
-  assign page_placeholder = settings.search_page_placeholder | default: 'Search products, articles, and pages'
+  assign page_placeholder = settings.search_page_placeholder | default: settings.search_placeholder | default: 'Search products, articles, and pages'
   assign submit_label = settings.search_submit_label | default: 'Search'
-  assign view_all_label = settings.search_view_all_label | default: 'View all results'
   assign section_padding_top = settings.section_padding_top | default: 48
   assign section_padding_bottom = settings.section_padding_bottom | default: 48
   assign button_radius = settings.button_radius | default: 12
@@ -254,6 +258,15 @@
       aspect-ratio: 4 / 3;
     }
   }
+  #QtmMainSearch-{{ section.id }}, #QtmMainSearch-{{ section.id }} * { box-sizing: border-box; min-width: 0; overflow-wrap: anywhere; }
+  #QtmMainSearch-{{ section.id }} :is(input, button, a):focus-visible { outline: 2px solid var(--qtm-search-accent); outline-offset: -3px; }
+  #QtmMainSearch-{{ section.id }} .qtm-search-result--no-image .qtm-search-result__media { display: none; }
+  #QtmMainSearch-{{ section.id }} .qtm-search-result--no-image .qtm-search-result__link { grid-template-columns: 1fr; }
+  #QtmMainSearch-{{ section.id }} .qtm-search__actions { flex-wrap: wrap; }
+  @media (min-width: 768px) {
+    #QtmMainSearch-{{ section.id }} .qtm-search-results--list .q-product-card { display: grid; grid-template-columns: 160px minmax(0, 1fr); align-items: start; }
+    #QtmMainSearch-{{ section.id }} .qtm-search-results--list .q-product-card__media::before { padding-top: 100%; }
+  }
 </style>
 
 <section id="QtmMainSearch-{{ section.id }}">
@@ -273,14 +286,14 @@
         </div>
       {%- endif -%}
 
-      {%- if settings.search_mode == 'predictive' -%}
+      {%- if use_predictive -%}
         <div class="qtm-search__predictive">
           {% assign predictive_input_id = 'QtmSearchPredictiveInput-' | append: section.id %}
           {% assign predictive_panel_id = 'QtmSearchPredictivePanel-' | append: section.id %}
-          {% render 'predictive-search', context: 'search-page', input_id: predictive_input_id, panel_id: predictive_panel_id, placeholder: settings.search_page_placeholder %}
+          {% render 'predictive-search', context: 'search-page', input_id: predictive_input_id, panel_id: predictive_panel_id, placeholder: page_placeholder %}
         </div>
       {%- else -%}
-        <form class="qtm-search__form" action="{{ routes.search_url }}" method="get" role="search">
+        <form class="qtm-search__form" action="{{ routes.search_url | escape }}" method="get" role="search">
           <div class="qtm-search__field">
             <label class="qtm-search__label" for="QtmSearchInput-{{ section.id }}">Search store</label>
             <input
@@ -295,7 +308,7 @@
           </div>
 
           <div class="qtm-search__actions">
-            <button class="button" type="submit">{{ submit_label }}</button>
+            <button class="button" type="submit">{{ submit_label | escape }}</button>
           </div>
         </form>
       {%- endif -%}
@@ -311,8 +324,7 @@
                 {%- when 'product' -%}
                   {%- if show_products -%}
                     <div class="qtm-search-result qtm-search-result--product">
-                      {%- if layout == 'grid' -%}
-                        {%- render 'product-card',
+                      {%- render 'product-card',
                           product: result,
                           card_preset: 'catalog',
                           media_mode: 'single',
@@ -351,20 +363,14 @@
                           label_select_options: 'Select options',
                           label_sold_out: 'Sold out'
                         -%}
-                      {%- else -%}
-                        {%- render 'collection-simple-product-card',
-                          product: result,
-                          s: section.settings
-                        -%}
-                      {%- endif -%}
                     </div>
                   {%- endif -%}
 
                 {%- when 'article' -%}
                   {%- if show_articles -%}
-                    <article class="qtm-search-result qtm-search-result--article{% if layout == 'list' %} qtm-search-result--list-card{% endif %}">
+                    <article class="qtm-search-result qtm-search-result--article{% if result.image == blank %} qtm-search-result--no-image{% endif %}{% if layout == 'list' %} qtm-search-result--list-card{% endif %}">
                       <div class="qtm-search-result__card">
-                        <a class="qtm-search-result__link" href="{{ result.url }}">
+                        <a class="qtm-search-result__link" href="{{ result.url | escape }}">
                           <div class="qtm-search-result__media">
                             {%- if result.image != blank -%}
                               {{
@@ -380,11 +386,11 @@
                           </div>
                           <div class="qtm-search-result__body">
                             <span class="qtm-search-result__type">Article</span>
-                            <h2 class="qtm-search-result__title">{{ result.title }}</h2>
+                            <h2 class="qtm-search-result__title">{{ result.title | escape }}</h2>
                             {%- if result.excerpt != blank -%}
-                              <p class="qtm-search-result__excerpt">{{ result.excerpt | strip_html | truncate: 160 }}</p>
+                              <p class="qtm-search-result__excerpt">{{ result.excerpt | strip_html | truncate: 160 | escape }}</p>
                             {%- elsif result.content != blank -%}
-                              <p class="qtm-search-result__excerpt">{{ result.content | strip_html | truncate: 160 }}</p>
+                              <p class="qtm-search-result__excerpt">{{ result.content | strip_html | truncate: 160 | escape }}</p>
                             {%- endif -%}
                           </div>
                         </a>
@@ -396,12 +402,12 @@
                   {%- if show_pages -%}
                     <article class="qtm-search-result qtm-search-result--page">
                       <div class="qtm-search-result__card">
-                        <a class="qtm-search-result__link" href="{{ result.url }}">
+                        <a class="qtm-search-result__link" href="{{ result.url | escape }}">
                           <div class="qtm-search-result__body">
                             <span class="qtm-search-result__type">Page</span>
-                            <h2 class="qtm-search-result__title">{{ result.title }}</h2>
+                            <h2 class="qtm-search-result__title">{{ result.title | escape }}</h2>
                             {%- if result.content != blank -%}
-                              <p class="qtm-search-result__excerpt">{{ result.content | strip_html | truncate: 180 }}</p>
+                              <p class="qtm-search-result__excerpt">{{ result.content | strip_html | truncate: 180 | escape }}</p>
                             {%- endif -%}
                           </div>
                         </a>
@@ -411,9 +417,9 @@
 
                 {%- when 'collection' -%}
                   {%- if show_collections -%}
-                    <article class="qtm-search-result qtm-search-result--collection{% if layout == 'list' %} qtm-search-result--list-card{% endif %}">
+                    <article class="qtm-search-result qtm-search-result--collection{% if result.featured_image == blank %} qtm-search-result--no-image{% endif %}{% if layout == 'list' %} qtm-search-result--list-card{% endif %}">
                       <div class="qtm-search-result__card">
-                        <a class="qtm-search-result__link" href="{{ result.url }}">
+                        <a class="qtm-search-result__link" href="{{ result.url | escape }}">
                           <div class="qtm-search-result__media">
                             {%- if result.featured_image != blank -%}
                               {{
@@ -429,9 +435,9 @@
                           </div>
                           <div class="qtm-search-result__body">
                             <span class="qtm-search-result__type">Collection</span>
-                            <h2 class="qtm-search-result__title">{{ result.title }}</h2>
+                            <h2 class="qtm-search-result__title">{{ result.title | escape }}</h2>
                             {%- if result.description != blank -%}
-                              <p class="qtm-search-result__excerpt">{{ result.description | strip_html | truncate: 180 }}</p>
+                              <p class="qtm-search-result__excerpt">{{ result.description | strip_html | truncate: 180 | escape }}</p>
                             {%- endif -%}
                           </div>
                         </a>
@@ -451,38 +457,13 @@
         {%- else -%}
           <div class="qtm-search__empty">
             <h2>No results</h2>
-            <p>{{ empty_message }}</p>
-
-            {%- if settings.search_mode == 'predictive' -%}
-              <div class="qtm-search__predictive">
-                {% assign predictive_input_id = 'QtmSearchEmptyPredictiveInput-' | append: section.id %}
-          {% assign predictive_panel_id = 'QtmSearchEmptyPredictivePanel-' | append: section.id %}
-          {% render 'predictive-search', context: 'search-page-empty', input_id: predictive_input_id, panel_id: predictive_panel_id, placeholder: settings.search_page_placeholder %}
-              </div>
-            {%- else -%}
-              <form class="qtm-search__form" action="{{ routes.search_url }}" method="get" role="search">
-                <div class="qtm-search__field">
-                  <label class="qtm-search__label" for="QtmSearchEmptyInput-{{ section.id }}">Search store</label>
-                  <input
-                    id="QtmSearchEmptyInput-{{ section.id }}"
-                    class="qtm-search__input"
-                    type="search"
-                    name="q"
-                    placeholder="{{ page_placeholder | escape }}"
-                    aria-label="Search store"
-                  >
-                </div>
-                <div class="qtm-search__actions">
-                  <button class="button" type="submit">{{ submit_label }}</button>
-                </div>
-              </form>
-            {%- endif -%}
+            <p>{{ empty_message | escape }}</p>
 
             {%- if settings.search_empty_recommendations -%}
               <div class="qtm-search__empty-actions">
-                <a class="qtm-search__chip" href="{{ routes.all_products_collection_url }}">Browse all products</a>
-                <a class="qtm-search__chip" href="/blogs/news">Read articles</a>
-                <a class="qtm-search__chip" href="{{ routes.root_url }}">{{ view_all_label }}</a>
+                <a class="qtm-search__chip" href="{{ routes.all_products_collection_url | escape }}">Browse all products</a>
+                {% if blogs['news'].url != blank %}<a class="qtm-search__chip" href="{{ blogs['news'].url | escape }}">Read articles</a>{% endif %}
+                <a class="qtm-search__chip" href="{{ routes.root_url | escape }}">Home</a>
               </div>
             {%- endif -%}
           </div>
@@ -502,26 +483,4 @@
     }
   ]
 }
-{% endschema %}{%- comment -%}
-
-This file has been rewritten to preserve the original behavior.
-
----
-Changes:
-- from: "{% render 'predictive-search',\r\n            context: 'search-page',\r\n
-    \           input_id: 'QtmSearchPredictiveInput-' | append: section.id,\r\n            panel_id:
-    'QtmSearchPredictivePanel-' | append: section.id,\r\n            placeholder:
-    settings.search_page_placeholder\r\n          %}"
-  to: "{% render 'predictive-search', context: 'search-page', input_id: 'QtmSearchPredictiveInput-',
-    append: section.id, panel_id: 'QtmSearchPredictivePanel-', placeholder: settings.search_page_placeholder
-    %}"
-  position: 8399..8600
-- from: "{% render 'predictive-search',\r\n                  context: 'search-page-empty',\r\n
-    \                 input_id: 'QtmSearchEmptyPredictiveInput-' | append: section.id,\r\n
-    \                 panel_id: 'QtmSearchEmptyPredictivePanel-' | append: section.id,\r\n
-    \                 placeholder: settings.search_page_placeholder\r\n                %}"
-  to: "{% render 'predictive-search', context: 'search-page-empty', input_id: 'QtmSearchEmptyPredictiveInput-',
-    append: section.id, panel_id: 'QtmSearchEmptyPredictivePanel-', placeholder: settings.search_page_placeholder
-    %}"
-  position: 17438..17655
-{%- endcomment -%}
+{% endschema %}
