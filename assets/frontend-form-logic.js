@@ -54,7 +54,7 @@
     const conditional = Array.from(form.querySelectorAll('[data-cond="1"]'));
     const originalConditions = new Map(conditional.map(el => [el, { hidden: el.hidden, classHidden: el.classList.contains('is-hidden') }]));
     const nativeType = named(form, 'form_type')[0]?.value;
-    const native = nativeType === 'contact' || nativeType === 'customer';
+    const native = form.dataset.qDestination !== 'custom_endpoint' && (nativeType === 'contact' || nativeType === 'customer');
     const steps = host.dataset.template === 'steps' && !window.Shopify?.designMode
       ? Array.from(form.querySelectorAll('[data-q-step], .q-step')).filter(el => el.childElementCount > 0) : [];
     const stepStates = new Map(steps.map(el => [el, { hidden: el.hidden, inert: el.inert, active: el.classList.contains('is-active') }]));

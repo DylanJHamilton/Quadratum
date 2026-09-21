@@ -4,6 +4,11 @@
         assign field_key = block.id
         assign input_id = 'qf-' | append: id | append: '-' | append: field_key
         assign field_type = b.field_type | default: 'text'
+        assign file_link = false
+        if field_type == 'file' and native_form
+          assign field_type = 'url'
+          assign file_link = true
+        endif
         assign name_attr = b.name_attr | strip
         if name_attr == blank or name_attr == 'contact[field]'
           assign name_attr = 'contact[field-' | append: field_key | append: ']'
@@ -12,6 +17,9 @@
           if field_type == 'email' and primary_email
             assign name_attr = 'contact[email]'
           else
+            if name_attr == 'contact[email]'
+              assign name_attr = 'contact[email-' | append: field_key | append: ']'
+            endif
             assign name_start = name_attr | slice: 0, 8
             unless name_start == 'contact['
               assign name_attr = 'contact[' | append: name_attr | append: ']'
@@ -25,6 +33,9 @@
           assign required = true
         endif
         assign value = b.default_value | default: ''
+        if file_link
+          assign value = ''
+        endif
         assign field_name = name_attr | remove_first: 'contact[' | remove: ']'
         if shopify_form.errors and shopify_form[field_name] != nil
           assign value = shopify_form[field_name]
@@ -33,8 +44,15 @@
         if help_txt != blank
           assign descriptions = input_id | append: '-help ' | append: descriptions
         endif
+        if file_link
+          assign file_help_id = input_id | append: '-file-help'
+          assign descriptions = descriptions | append: ' ' | append: file_help_id
+        endif
         assign lines = b.options | newline_to_br | split: '<br />'
       -%}
+      {% if native_form and field_type == 'password' %}
+        {% if request.design_mode %}<p class="q-help" {{ block.shopify_attributes }}>Password fields require a custom endpoint and are not collected by this Shopify contact or signup form.</p>{% endif %}
+      {% else %}
       <div class="q-field{% if b.width == 'half' %} half{% endif %}" data-q-field data-required="{{ required }}" data-source-name="{{ b.name_attr | escape }}"
         {% if b.condition_enable %}data-cond="1" data-cond-field="{{ b.condition_field | escape }}" data-cond-operator="{{ b.condition_operator | escape }}" data-cond-value="{{ b.condition_value | escape }}"{% endif %}
         {{ block.shopify_attributes }}>
@@ -65,7 +83,7 @@
             </label>
           {%- when 'select' -%}
             <label class="q-label" for="{{ input_id }}">{{ label_txt | escape }}{% if required %} *{% endif %}</label>
-            <select id="{{ input_id }}" class="q-select" name="{{ name_attr | escape }}" aria-describedby="{{ descriptions }}"{% if required %} required{% endif %}>
+            <select id="{{ input_id }}" class="q-select" name="{{ name_attr | escape }}" aria-describedby="{{ descriptions }}"{% if select_arrow == blank %} style="appearance:auto;background-image:none"{% endif %}{% if required %} required{% endif %}>
               <option value="">{{ b.placeholder | default: 'Choose an option' | escape }}</option>
               {% for line in lines %}
                 {% assign option_line = line | strip %}
@@ -97,6 +115,8 @@
         {%- endcase -%}
         {% unless field_type == 'hidden' or field_type == 'html' %}
           {% if help_txt != blank %}<p id="{{ input_id }}-help" class="q-help">{{ help_txt | escape }}</p>{% endif %}
+          {% if file_link %}<p id="{{ file_help_id }}" class="q-help">Provide a link to your file.</p>{% endif %}
           <p id="{{ input_id }}-err" class="q-error"></p>
         {% endunless %}
       </div>
+      {% endif %}

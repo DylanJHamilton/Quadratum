@@ -14,6 +14,11 @@ const base=f.engine.options.fs,engine=new Liquid({root:'snippets',extname:'.liqu
 for(const[name,fn]of Object.entries(f.engine.filters))engine.registerFilter(name,fn);
 engine.registerFilter('script_tag',x=>'<script src="'+x+'"></script>');
 engine.registerFilter('default_errors',x=>'<ul data-platform-errors>'+Object.keys(x||{}).map(k=>'<li>'+k+'</li>').join('')+'</ul>');
+const escape=x=>String(x??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+engine.registerFilter('image_tag',(url,...args)=>{const attrs=Object.fromEntries(args.filter(Array.isArray));return '<img src="'+escape(url)+'" width="800" height="600" '+Object.entries(attrs).filter(([key])=>!['widths','sizes'].includes(key)).map(([key,value])=>key+'="'+escape(value)+'"').join(' ')+'>';});
+engine.registerFilter('color_modify',(color,property,value)=>{if(property!=='alpha')throw new Error('Unexpected color adapter');const hex=String(color||'#000000').replace('#','');const full=hex.length===3?hex.split('').map(x=>x+x).join(''):hex;return 'rgba('+[0,2,4].map(i=>parseInt(full.slice(i,i+2),16)||0).join(',')+','+value+')';});
+// Native contrast filter adapter for fixture hex colors; Shopify owns real color parsing.
+engine.registerFilter('color_contrast',(one,two)=>{const l=color=>{let hex=String(color).replace('#','');if(hex.length===3)hex=hex.split('').map(x=>x+x).join('');const c=[0,2,4].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(x=>x<=0.04045?x/12.92:((x+0.055)/1.055)**2.4);return c[0]*0.2126+c[1]*0.7152+c[2]*0.0722};const a=l(one),b=l(two);return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)});
 const globals={settings:Object.assign({},...JSON.parse(f.read('config/settings_schema.json')).map(g=>f.defaults(g.settings))),request:{design_mode:false},routes:{root_url:'/fr/',search_url:'/fr/search',predictive_search_url:'/fr/search/suggest'},form:{}};
 const field=(id,type,settings={})=>({id,type:'field',settings:{field_type:type,name_attr:'contact[field]',label:'Field <safe>',...settings},shopify_attributes:'data-editor-block="'+id+'"'});
 async function snippet(name,opts={}){return engine.parseAndRender(platform(f.read('snippets/'+name+'.liquid')),{id:'one',settings:{destination:'shopify_contact'},blocks:[],...opts},{globals:{...globals,...opts.globals}});}

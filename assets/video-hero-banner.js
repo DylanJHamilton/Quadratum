@@ -10,7 +10,7 @@
     const events = new AbortController();
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const mobile = window.matchMedia(root.dataset.videoHeroMobileQuery || '(max-width: 749px)');
-    let paused = motion.matches;
+    let paused = motion.matches || !!window.Shopify?.designMode;
     const videos = root.querySelectorAll('video');
     const frames = root.querySelectorAll('iframe[data-video-hero-src]');
     function playback() {

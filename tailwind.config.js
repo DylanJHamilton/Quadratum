@@ -34,7 +34,7 @@ export default {
   plugins: [typography],
   safelist: [
     // Retain the existing utility after removing an unrelated captcha string.
-    'invisible',
+    'invisible','text-input',
     // Preserve existing free-text spacing choices when hosts resolve their tokens natively.
     'md:px-0','md:px-12','md:px-16','md:px-2','md:px-20','md:px-24',
     'md:px-3','md:px-32','md:px-4','md:px-5','md:py-0','md:py-10',
