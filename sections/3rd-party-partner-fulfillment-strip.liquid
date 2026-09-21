@@ -1,8 +1,8 @@
 {% comment %}
   Quadratum — 3rd Party · Fulfilled By Partner Product Strip (Theme-only)
-  File: sections/third-party-fulfilled-by-partner-strip.liquid
+  File: sections/3rd-party-partner-fulfillment-strip.liquid
 
-  • Native Shopify collection + optional tag filter (with safe fallback)
+  • Native Shopify collection + strict optional tag filter over a bounded native preview
   • Styled with Quadratum tokens (no bare HTML look)
   • No external JS / no API calls / no new snippets/assets
   • Layouts: strip | carousel (scroll-snap) | grid
@@ -11,72 +11,72 @@
 {%- assign s = section.settings -%}
 
 {%- liquid
-  assign should_render = false
-  if s.enable_section == true
-    assign should_render = true
+  assign base_collection = s.collection
+  if s.collection != blank and s.collection.handle == blank
+    assign base_collection = collections[s.collection]
   endif
-
-  assign collection_handle = ''
-  if s.collection != blank
-    assign collection_handle = s.collection.handle | default: s.collection
-  endif
-
-  assign base_collection = blank
-  if collection_handle != blank
-    assign base_collection = collections[collection_handle]
-  endif
-
   assign tag_filter = s.filter_tag | default: '' | strip
-  assign max_items = s.max_items | default: 4
-
+  assign max_items = s.max_items | default: 4 | at_least: 2 | at_most: 12
+  assign preview_products = base_collection.products | slice: 0, 50
+  assign sorted_products = preview_products
+  assign native_sort = ''
+  case s.sort_order
+    when 'price_asc'
+      assign sorted_products = preview_products | sort: 'price'
+      assign native_sort = 'price-ascending'
+    when 'price_desc'
+      assign sorted_products = preview_products | sort: 'price' | reverse
+      assign native_sort = 'price-descending'
+    when 'created_desc'
+      assign sorted_products = preview_products | sort: 'created_at' | reverse
+      assign native_sort = 'created-descending'
+    when 'best_selling'
+      assign native_sort = 'best-selling'
+  endcase
   assign has_products = false
-  if base_collection != blank and base_collection.products_count > 0
-    assign has_products = true
-  endif
-
-  assign tag_match_count = 0
-  if has_products and tag_filter != blank
-    for p in base_collection.products
-      if p.tags contains tag_filter
-        assign tag_match_count = tag_match_count | plus: 1
-      endif
-      if tag_match_count > 0
-        break
-      endif
-    endfor
-  endif
-
-  assign use_tag_filter = false
-  if tag_filter != blank and tag_match_count > 0
-    assign use_tag_filter = true
-  endif
-
-  assign sorted_products = blank
-  if base_collection != blank
-    assign sorted_products = base_collection.products
-
-    case s.sort_order
-      when 'price_asc'
-        assign sorted_products = base_collection.products | sort: 'price'
-      when 'price_desc'
-        assign sorted_products = base_collection.products | sort: 'price' | reverse
-      when 'created_desc'
-        assign sorted_products = base_collection.products | sort: 'created_at' | reverse
-      else
-        assign sorted_products = base_collection.products
-    endcase
-  endif
-
-  assign view_all_url = blank
-  if s.show_view_all_link == true
+  for item in sorted_products
+    if tag_filter == blank or item.tags contains tag_filter
+      assign has_products = true
+      break
+    endif
+  endfor
+  assign view_all_url = ''
+  if s.show_view_all_link and s.view_all_label != blank
     if s.view_all_url_mode == 'custom'
-      if s.view_all_custom_url != blank
-        assign view_all_url = s.view_all_custom_url
+      assign view_all_url = s.view_all_custom_url
+    elsif base_collection.url != blank
+      assign view_all_url = base_collection.url
+      if tag_filter != blank
+        assign tag_handle = tag_filter | handleize
+        if tag_handle != blank
+          assign view_all_url = view_all_url | append: '/' | append: tag_handle
+        else
+          assign view_all_url = ''
+        endif
       endif
-    else
-      if base_collection != blank
-        assign view_all_url = base_collection.url
+      if native_sort != blank and view_all_url != blank
+        assign view_all_url = view_all_url | append: '?sort_by=' | append: native_sort
       endif
+    endif
+  endif
+  assign has_header = false
+  if s.kicker != blank or s.heading != blank or s.body != blank or s.shipping_note != blank or s.partner_name != blank
+    assign has_header = true
+  endif
+  if s.show_partner_logo and s.partner_logo != blank
+    assign has_header = true
+  endif
+  assign show_partner = false
+  if s.partner_name != blank
+    assign show_partner = true
+  endif
+  if s.show_partner_logo and s.partner_logo != blank
+    assign show_partner = true
+  endif
+  assign should_render = false
+  if s.enable_section
+    if has_products or view_all_url != blank or request.design_mode
+      assign should_render = true
     endif
   endif
 -%}
@@ -85,7 +85,7 @@
 <section
   id="fulfilled-strip-{{ section.id }}"
   class="q-section q-section--products q-section--bg-{{ s.background_style }} q-section--layout-{{ s.layout_style }} q-section--align-{{ s.alignment }} q-fulfilled-strip"
-  aria-label="{{ s.aria_label | escape }}"
+  aria-label="{{ s.aria_label | default: s.heading | default: 'Partner products' | escape }}"
   data-q-section="fulfilled-by-partner"
 >
   <style>
@@ -101,9 +101,10 @@
 
     #fulfilled-strip-{{ section.id }} .q-section__inner{
       margin-inline: auto;
-      padding-inline: var(--q-fs-pad-x);
+      padding-inline: min(var(--q-fs-pad-x),8vw);
+      box-sizing:border-box;
       padding-block: var(--q-fs-pad-y);
-      max-width: var(--q-container-lg, 1200px);
+      max-width: var(--container-lg,1152px);
     }
 
     #fulfilled-strip-{{ section.id }} .q-section__header{ margin-bottom: 1rem; }
@@ -119,7 +120,7 @@
 
     #fulfilled-strip-{{ section.id }} .q-heading--section{
       margin: 0;
-      font-size: var(--q-heading-2-fs, clamp(1.55rem, 2.3vw, 2.15rem));
+      font-size: var(--fs-h2,clamp(1.55rem,2.3vw,2.15rem));
       line-height: 1.12;
       letter-spacing: -0.01em;
     }
@@ -145,14 +146,14 @@
       font-size: 0.95rem;
       opacity: 0.9;
       line-height: 1.2;
-      white-space: nowrap;
+      white-space: normal;
     }
 
     #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__body{
       margin-top: 0.85rem;
       max-width: 80ch;
-      font-size: var(--q-body-fs, 1.02rem);
-      line-height: var(--q-body-lh, 1.7);
+      font-size: var(--fs-body,1.02rem);
+      line-height: var(--lh-body,1.7);
       opacity: 0.92;
     }
     #fulfilled-strip-{{ section.id }}.q-section--align-center .q-fulfilled-strip__body{ margin-inline: auto; }
@@ -172,7 +173,7 @@
 
     #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products--strip{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit,minmax(min(100%,220px),1fr));
     }
 
     #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products--grid{
@@ -200,15 +201,17 @@
       border-radius: var(--q-fs-radius);
     }
 
-    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__card{ min-width: 72%; scroll-snap-align: start; }
-    @media (min-width: 750px){ #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__card{ min-width: 40%; } }
-    @media (min-width: 990px){ #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__card{ min-width: 28%; } }
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__card{ min-width:0; max-width:100%; scroll-snap-align:start; }
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products--carousel>.q-fulfilled-strip__card{flex:0 0 72%;}
+    @media (min-width: 750px){ #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products--carousel>.q-fulfilled-strip__card{flex-basis:40%;} }
+    @media (min-width: 990px){ #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products--carousel>.q-fulfilled-strip__card{flex-basis:28%;} }
 
     #fulfilled-strip-{{ section.id }} .q-product-card{
       position: relative;
       border-radius: var(--q-fs-radius);
       border: 1px solid var(--q-fs-border);
-      background: var(--q-surface, #fff);
+      background:var(--c-bg,#fff);
+      color:var(--c-text,#111);
       box-shadow: var(--q-fs-shadow);
       overflow: hidden;
       height: 100%;
@@ -270,7 +273,8 @@
     #fulfilled-strip-{{ section.id }} .q-product-card__link:focus-visible{
       outline: 2px solid currentColor;
       outline-offset: 3px;
-      border-radius: calc(var(--q-fs-radius) - 2px);
+      border-radius:max(0px,calc(var(--q-fs-radius) - 2px));
+      outline-offset:-3px;
     }
 
     #fulfilled-strip-{{ section.id }} .q-product-card:hover .q-product-card__img{ transform: scale(1.03); }
@@ -294,7 +298,7 @@
     #fulfilled-strip-{{ section.id }} .q-badge--partner{
       position: absolute;
       top: 0.65rem;
-      left: 0.65rem;
+      inset-inline-start:0.65rem;
       z-index: 2;
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
@@ -323,9 +327,24 @@
       background: var(--q-fs-soft);
       opacity: 0.85;
     }
+
+    #fulfilled-strip-{{ section.id }}{min-width:0;overflow-wrap:anywhere;font-family:var(--font-body,inherit);}
+    #fulfilled-strip-{{ section.id }}.q-section--align-left .q-section__header,#fulfilled-strip-{{ section.id }}.q-section--align-left .q-section__footer{text-align:start;}
+    #fulfilled-strip-{{ section.id }} .q-heading,#fulfilled-strip-{{ section.id }} .q-product-card__title{font-family:var(--font-head,inherit);text-transform:var(--tt-head,none);}
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__partner{max-width:100%;box-sizing:border-box;}
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__partner-name,#fulfilled-strip-{{ section.id }} .q-fulfilled-strip__logo-wrap{min-width:0;}
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__logo-wrap{max-width:50%;}
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__partner-logo{max-width:100%;object-fit:contain;}
+    #fulfilled-strip-{{ section.id }} .q-product-card__link,#fulfilled-strip-{{ section.id }} .q-product-card__info{min-width:0;box-sizing:border-box;}
+    #fulfilled-strip-{{ section.id }} .q-badge--partner{max-width:calc(100% - 1.3rem);box-sizing:border-box;overflow-wrap:anywhere;background:var(--c-bg,#fff);color:var(--c-text,#111);}
+    #fulfilled-strip-{{ section.id }} .q-product-card:focus-within{outline:2px solid currentColor;outline-offset:3px;}
+    #fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products--carousel{scroll-padding-inline:4px;padding:4px 4px 8px;}
+    @media(max-width:479.98px){#fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products--grid{grid-template-columns:minmax(0,1fr);}}
+    @media(prefers-reduced-motion:reduce){#fulfilled-strip-{{ section.id }} .q-fulfilled-strip__products--carousel{scroll-behavior:auto;scroll-snap-type:none;}}
   </style>
 
   <div class="q-section__inner">
+    {%- if has_header -%}
     <div class="q-section__header q-section__header--{{ s.alignment }}">
       {%- if s.kicker != blank -%}
         <p class="q-kicker">{{ s.kicker | escape }}</p>
@@ -335,13 +354,15 @@
         <h2 class="q-heading q-heading--section">{{ s.heading | escape }}</h2>
       {%- endif -%}
 
-      {%- if s.show_partner_logo and s.partner_logo != blank -%}
-        {%- assign partner_alt = s.partner_name | default: 'Partner logo' | strip | escape -%}
+      {%- if show_partner -%}
         <div class="q-fulfilled-strip__partner">
-          {{ s.partner_logo | image_url: width: 160 | image_tag: loading: 'lazy', class: 'q-fulfilled-strip__partner-logo', alt: partner_alt }}
-          {%- if s.partner_name != blank -%}
-            <span class="q-fulfilled-strip__partner-name">{{ s.partner_name | escape }}</span>
+          {%- if s.show_partner_logo and s.partner_logo != blank -%}
+            {%- assign partner_alt = s.partner_logo.alt | default: s.partner_name | default: 'Partner logo' -%}
+            <span class="q-fulfilled-strip__logo-wrap"{% if s.partner_name != blank %} aria-hidden="true"{% endif %}>
+              {{ s.partner_logo | image_url: width: 160 | image_tag: loading: 'lazy', class: 'q-fulfilled-strip__partner-logo', alt: partner_alt }}
+            </span>
           {%- endif -%}
+          {%- if s.partner_name != blank -%}<span class="q-fulfilled-strip__partner-name">{{ s.partner_name | escape }}</span>{%- endif -%}
         </div>
       {%- endif -%}
 
@@ -356,20 +377,21 @@
       {%- endif -%}
     </div>
 
+    {%- endif -%}
     {%- if has_products -%}
       <div class="q-section__body">
         <div
           class="q-fulfilled-strip__products q-fulfilled-strip__products--{{ s.layout_style }}"
           {% if s.layout_style == 'carousel' %}tabindex="0"{% endif %}
           role="list"
-          aria-label="{{ s.aria_label | escape }}"
+          aria-label="{{ s.aria_label | default: s.heading | default: 'Partner products' | escape }}"
         >
           {%- assign shown = 0 -%}
           {%- for product in sorted_products -%}
             {%- if shown >= max_items -%}{%- break -%}{%- endif -%}
 
             {%- assign include_product = true -%}
-            {%- if use_tag_filter -%}
+            {%- if tag_filter != blank -%}
               {%- if product.tags contains tag_filter -%}
                 {%- assign include_product = true -%}
               {%- else -%}
@@ -379,10 +401,21 @@
 
             {%- if include_product -%}
               {%- assign shown = shown | plus: 1 -%}
-              {%- assign img_alt = product.featured_image.alt | default: product.title | strip | escape -%}
+              {%- assign img_alt = product.featured_image.alt | default: product.title | strip -%}
 
+              {%- liquid
+                assign price_variant = product.selected_or_first_available_variant | default: product.variants.first
+                assign current_price = product.price
+                assign compare_price = 0
+                assign product_link = product.url
+                if price_variant != blank
+                  assign current_price = price_variant.price
+                  assign compare_price = price_variant.compare_at_price | default: 0
+                  assign product_link = price_variant.url | default: product.url
+                endif
+              -%}
               <article class="q-product-card q-fulfilled-strip__card" role="listitem">
-                <a class="q-product-card__link" href="{{ product.url }}">
+                <a class="q-product-card__link" href="{{ product_link | escape }}">
                   <div class="q-product-card__media">
                     {%- if s.fulfilled_badge_text != blank -%}
                       <span class="q-badge q-badge--partner">{{ s.fulfilled_badge_text | escape }}</span>
@@ -405,10 +438,10 @@
                     <h3 class="q-product-card__title">{{ product.title | escape }}</h3>
 
                     <div class="q-product-card__price">
-                      {%- if product.compare_at_price_max > product.price -%}
-                        <span class="q-product-card__compare">{{ product.compare_at_price_max | money }}</span>
+                      {%- if compare_price > current_price -%}
+                        <span class="q-product-card__compare">{{ compare_price | money }}</span>
                       {%- endif -%}
-                      <span class="q-product-card__current">{{ product.price | money }}</span>
+                      <span class="q-product-card__current">{{ current_price | money }}</span>
                     </div>
                   </div>
                 </a>
@@ -418,20 +451,25 @@
         </div>
       </div>
     {%- elsif request.design_mode -%}
-      <div class="q-fulfilled-strip__placeholder">
-        <strong>Setup required:</strong> Select a collection (and optional tag) to display products.
+      <div class="q-fulfilled-strip__placeholder" role="status">
+        <strong>Setup required:</strong> Select a collection with matching products. This preview checks at most the first 50 native products; an unmatched tag never substitutes other products.
       </div>
     {%- endif -%}
 
-    {%- if view_all_url != blank and has_products -%}
+    {%- if request.design_mode and s.sort_order == 'best_selling' -%}
+      <p role="status">Best selling uses the collection order in this preview. Set the selected collection’s default sort to Best selling; the collection link applies the requested sort to the full catalog.</p>
+    {%- endif -%}
+    {%- if view_all_url != blank -%}
       <div class="q-section__footer q-fulfilled-strip__footer">
-        <a href="{{ view_all_url }}" class="q-link q-link--inline">
+        <a href="{{ view_all_url | escape }}" class="q-link q-link--inline">
           {{ s.view_all_label | escape }}
         </a>
       </div>
     {%- endif -%}
   </div>
 </section>
+{%- elsif request.design_mode -%}
+  <p role="status">Partner products: enable the section and select a collection with matching products.</p>
 {%- endif -%}
 
 {% schema %}
@@ -440,14 +478,15 @@
   "tag": "section",
   "class": "q-section q-fulfilled-strip",
   "settings": [
+    { "type": "paragraph", "content": "A native collection preview, not fulfillment integration. Use a collection/tag containing only the intended partner products and enter accurate delivery copy. Filtering and local price/date sorting inspect at most the first 50 products supplied by Shopify. The collection link opens the full tagged/sorted catalog; Shopify can redirect unused tags." },
     { "type": "checkbox", "id": "enable_section", "label": "Enable section", "default": true },
     { "type": "text", "id": "aria_label", "label": "Section aria-label", "default": "Fulfilled by partner product strip" },
 
     { "type": "header", "content": "Content" },
     { "type": "text", "id": "kicker", "label": "Kicker", "default": "Fulfilled by partner" },
-    { "type": "text", "id": "heading", "label": "Heading", "default": "Fast-shipping items from our partners" },
-    { "type": "richtext", "id": "body", "label": "Body text", "default": "<p>These products ship directly from our partner network for faster delivery and reliable fulfillment.</p>" },
-    { "type": "text", "id": "shipping_note", "label": "Shipping note", "default": "Ships directly from our partner locations." },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Explore our partner selection" },
+    { "type": "richtext", "id": "body", "label": "Body text", "default": "<p>Browse this selection and check individual product pages for current delivery information.</p>" },
+    { "type": "text", "id": "shipping_note", "label": "Shipping note", "default": "See each product’s delivery details." },
 
     { "type": "header", "content": "Partner labeling" },
     { "type": "text", "id": "partner_name", "label": "Partner / network name", "default": "Our fulfillment partners" },
@@ -457,16 +496,17 @@
 
     { "type": "header", "content": "Products source" },
     { "type": "collection", "id": "collection", "label": "Product collection" },
-    { "type": "text", "id": "filter_tag", "label": "Filter by product tag (optional)", "default": "fast-ship" },
+    { "type": "text", "id": "filter_tag", "label": "Filter by product tag (optional)" },
     { "type": "range", "id": "max_items", "label": "Max products to show", "min": 2, "max": 12, "step": 1, "default": 4 },
     {
       "type": "select",
       "id": "sort_order",
-      "label": "Sort order (fallback)",
+      "label": "Preview sort order",
+      "info": "Price/newest sorts apply within the preview. Best selling requires the collection’s native order to be Best selling.",
       "default": "collection_default",
       "options": [
         { "value": "collection_default", "label": "Collection default" },
-        { "value": "best_selling", "label": "Best selling" },
+        { "value": "best_selling", "label": "Best selling (collection order)" },
         { "value": "price_asc", "label": "Price, low to high" },
         { "value": "price_desc", "label": "Price, high to low" },
         { "value": "created_desc", "label": "Newest first" }
@@ -509,7 +549,7 @@
 
     { "type": "header", "content": "View all link" },
     { "type": "checkbox", "id": "show_view_all_link", "label": "Show \"View all\" link", "default": true },
-    { "type": "text", "id": "view_all_label", "label": "\"View all\" label", "default": "View all partner products" },
+    { "type": "text", "id": "view_all_label", "label": "\"View all\" label", "default": "Browse the collection" },
     {
       "type": "select",
       "id": "view_all_url_mode",

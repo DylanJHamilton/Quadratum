@@ -1,6 +1,6 @@
 {% comment %}
   Quadratum — 3P / Ops: Fulfillment Workflow Timeline
-  File: sections/3p-fulfillment-timeline.liquid
+  File: sections/3rd-party-shipping-explainer.liquid
 
   • Pure content timeline (no forms, no integrations)
   • Layouts: horizontal (desktop) / vertical / stacked
@@ -14,9 +14,9 @@
 {%- if s.enable_section -%}
   {%- assign steps = section.blocks | where: 'type', 'timeline_step' -%}
 
-  {%- assign max_w = '72rem' -%}
-  {%- if s.max_width == 'sm' -%}{%- assign max_w = '48rem' -%}{%- endif -%}
-  {%- if s.max_width == 'md' -%}{%- assign max_w = '60rem' -%}{%- endif -%}
+  {%- assign max_w = 'var(--container-lg,1152px)' -%}
+  {%- if s.max_width == 'sm' -%}{%- assign max_w = 'var(--container-sm,720px)' -%}{%- endif -%}
+  {%- if s.max_width == 'md' -%}{%- assign max_w = 'var(--container-md,960px)' -%}{%- endif -%}
 
   {%- assign card_shadow = s.card_shadow | default: 'md' -%}
   {%- assign shadow_css = '0 10px 30px rgba(0,0,0,.08)' -%}
@@ -24,10 +24,32 @@
   {%- if card_shadow == 'sm' -%}{%- assign shadow_css = '0 6px 18px rgba(0,0,0,.08)' -%}{%- endif -%}
   {%- if card_shadow == 'lg' -%}{%- assign shadow_css = '0 16px 44px rgba(0,0,0,.12)' -%}{%- endif -%}
 
+  {%- liquid
+    assign step_count = 0
+    for block in steps
+      if block.settings.step_title != blank or block.settings.step_body != blank
+        assign step_count = step_count | plus: 1
+      elsif s.show_step_duration and block.settings.step_duration != blank
+        assign step_count = step_count | plus: 1
+      endif
+    endfor
+    assign has_header = false
+    if s.kicker != blank or s.heading != blank or s.body != blank
+      assign has_header = true
+    endif
+    if s.show_lead_time and s.lead_time_value != blank
+      assign has_header = true
+    endif
+    assign connector_mode = s.connector_style
+    if s.layout_variant == 'stacked'
+      assign connector_mode = 'none'
+    endif
+  -%}
+  {%- if has_header or step_count > 0 -%}
 <section
   id="q-ft-{{ section.id }}"
   class="q-section q-section--bg-{{ s.background_style }} q-fulfillment-timeline q-fulfillment-timeline--{{ s.layout_variant }}"
-  aria-label="{{ s.aria_label | escape }}"
+  aria-label="{{ s.aria_label | default: s.heading | default: 'Fulfillment steps' | escape }}"
 >
   <div
     class="q-section__inner q-fulfillment-timeline__inner q-align-{{ s.align }}"
@@ -59,50 +81,64 @@
     "
   >
     {%- if s.show_divider -%}
-      <div class="q-section__divider"></div>
+      <hr class="q-section__divider">
     {%- endif -%}
 
+    {%- if has_header -%}
     <header class="q-fulfillment-timeline__header">
-      <p class="q-kicker">{{ s.kicker | escape }}</p>
-      <h2 class="q-heading q-heading--section">{{ s.heading | escape }}</h2>
-      <div class="q-text q-text--muted">{{ s.body }}</div>
+      {%- if s.kicker != blank -%}<p class="q-kicker">{{ s.kicker | escape }}</p>{%- endif -%}
+      {%- if s.heading != blank -%}<h2 class="q-heading q-heading--section">{{ s.heading | escape }}</h2>{%- endif -%}
+      {%- if s.body != blank -%}<div class="q-text q-text--muted">{{ s.body }}</div>{%- endif -%}
 
       {%- if s.show_lead_time and s.lead_time_value != blank -%}
         <div class="q-ft-pill" role="note">
-          <span class="q-ft-pill__label">{{ s.lead_time_label | escape }}</span>
+          {%- if s.lead_time_label != blank -%}<span class="q-ft-pill__label">{{ s.lead_time_label | escape }}</span>{%- endif -%}
           <span class="q-ft-pill__value">{{ s.lead_time_value | escape }}</span>
         </div>
       {%- endif -%}
     </header>
+    {%- endif -%}
 
-    {%- if steps.size > 0 -%}
-      <div class="q-timeline-wrap">
-        <ol class="q-timeline q-timeline--connect-{{ s.connector_style }}" role="list">
+    {%- if step_count > 0 -%}
+      <div class="q-timeline-wrap"{% if s.layout_variant == 'horizontal' and step_count > 1 %} tabindex="0" role="region" aria-label="{{ s.aria_label | default: 'Fulfillment steps' | escape }}"{% endif %}>
+        <ol class="q-timeline q-timeline--connect-{{ connector_mode }}" role="list">
+          {%- assign step_index = 0 -%}
           {%- for block in steps -%}
-            {%- assign b = block.settings -%}
+            {%- liquid
+              assign b = block.settings
+              assign include_step = false
+              if b.step_title != blank or b.step_body != blank
+                assign include_step = true
+              elsif s.show_step_duration and b.step_duration != blank
+                assign include_step = true
+              endif
+            -%}
+            {%- if include_step -%}
+            {%- assign step_index = step_index | plus: 1 -%}
             <li
               class="q-timeline__item{% if b.is_key_step %} q-timeline__item--highlight{% endif %}"
-              aria-label="{{ s.sr_label_prefix | escape }} {{ forloop.index }}: {{ b.step_title | escape }}"
+              aria-label="{{ s.sr_label_prefix | default: 'Fulfillment step' | escape }} {{ step_index }}{% if b.step_title != blank %}: {{ b.step_title | escape }}{% endif %}"
               {{ block.shopify_attributes }}
             >
               <div class="q-timeline__index" aria-hidden="true">
                 {%- if s.show_step_index -%}
-                  <span class="q-timeline__badge">{{ forloop.index }}</span>
+                  <span class="q-timeline__badge">{{ step_index }}</span>
                 {%- else -%}
                   <span class="q-timeline__dot"></span>
                 {%- endif -%}
               </div>
 
               <div class="q-timeline__card">
-                <h3 class="q-heading q-heading--sm q-timeline__title">{{ b.step_title | escape }}</h3>
+                {%- if b.step_title != blank -%}<h3 class="q-heading q-heading--sm q-timeline__title">{{ b.step_title | escape }}</h3>{%- endif -%}
 
                 {%- if s.show_step_duration and b.step_duration != blank -%}
                   <p class="q-timeline__duration">{{ b.step_duration | escape }}</p>
                 {%- endif -%}
 
-                <div class="q-text q-timeline__body">{{ b.step_body }}</div>
+                {%- if b.step_body != blank -%}<div class="q-text q-timeline__body">{{ b.step_body }}</div>{%- endif -%}
               </div>
             </li>
+            {%- endif -%}
           {%- endfor -%}
         </ol>
       </div>
@@ -115,8 +151,9 @@
     #q-ft-{{ section.id }} .q-fulfillment-timeline__inner{
       max-width: var(--q-ft-max);
       margin: 0 auto;
-      padding: var(--q-ft-pad-y) var(--q-ft-pad-x);
-      color: var(--q-ft-text);
+      padding:var(--q-ft-pad-y) min(var(--q-ft-pad-x),8vw);
+      color:var(--q-section-fg,var(--c-text,#111));
+      box-sizing:border-box;
     }
     #q-ft-{{ section.id }} .q-align-center{ text-align:center; }
     #q-ft-{{ section.id }} .q-align-center .q-ft-pill{ margin-left:auto; margin-right:auto; }
@@ -125,10 +162,10 @@
       gap: 10px;
       margin-bottom: var(--q-ft-gap);
     }
-    #q-ft-{{ section.id }} .q-kicker{ margin:0; color: var(--q-ft-muted); font-weight: 600; }
+    #q-ft-{{ section.id }} .q-kicker{ margin:0; color:var(--q-section-muted,var(--c-muted,#6b7280)); font-weight: 600; }
     #q-ft-{{ section.id }} .q-heading{ margin:0; }
     #q-ft-{{ section.id }} .q-text{ margin:0; }
-    #q-ft-{{ section.id }} .q-text--muted{ color: var(--q-ft-muted); }
+    #q-ft-{{ section.id }} .q-text--muted{color:var(--q-section-muted,var(--c-muted,#6b7280));}
 
     /* ===== Lead time pill (premium, not default HTML) ===== */
     #q-ft-{{ section.id }} .q-ft-pill{
@@ -168,7 +205,7 @@
     /* vertical item layout */
     #q-ft-{{ section.id }} .q-timeline__item{
       display: grid;
-      grid-template-columns: var(--q-ft-marker) 1fr;
+      grid-template-columns:var(--q-ft-marker) minmax(0,1fr);
       column-gap: var(--q-ft-gap-sm);
       align-items: start;
       position: relative;
@@ -207,11 +244,11 @@
     #q-ft-{{ section.id }} .q-timeline--connect-dots .q-timeline__item:not(:last-child)::before{
       content:"";
       position: absolute;
-      left: calc(var(--q-ft-marker) / 2);
+      inset-inline-start:calc((var(--q-ft-marker) - var(--q-ft-rail-w)) / 2);
       top: var(--q-ft-marker);
       bottom: calc(var(--q-ft-gap) * -1);
       width: var(--q-ft-rail-w);
-      transform: translateX(-50%);
+      transform:none;
       background: var(--q-ft-rail);
       z-index: 1;
     }
@@ -249,7 +286,7 @@
     /* highlight step */
     #q-ft-{{ section.id }} .q-timeline__item--highlight .q-timeline__card{
       border-color: var(--q-ft-accent-border);
-      background: var(--q-ft-accent-bg);
+      background:linear-gradient(var(--q-ft-accent-bg),var(--q-ft-accent-bg)),var(--q-ft-card-bg);
     }
     #q-ft-{{ section.id }} .q-timeline__item--highlight .q-timeline__badge{
       border-color: var(--q-ft-accent-border);
@@ -260,7 +297,7 @@
       gap: var(--q-ft-gap-sm);
     }
     #q-ft-{{ section.id }}.q-fulfillment-timeline--stacked .q-timeline__item{
-      grid-template-columns: 1fr;
+      grid-template-columns:minmax(0,1fr);
     }
     #q-ft-{{ section.id }}.q-fulfillment-timeline--stacked .q-timeline__index{
       width: auto;
@@ -283,46 +320,28 @@
         grid-auto-columns: minmax(240px, 1fr);
         gap: var(--q-ft-gap-sm);
         display: grid;
-        padding-top: 46px; /* room for badges + rail */
+        padding-top:0;
         position: relative;
       }
 
-      /* horizontal rail ONLY here (prevents full-viewport bleed) */
-      #q-ft-{{ section.id }}.q-fulfillment-timeline--horizontal .q-timeline--connect-line::before,
-      #q-ft-{{ section.id }}.q-fulfillment-timeline--horizontal .q-timeline--connect-dots::before{
-        content:"";
-        position:absolute;
-        left: calc(var(--q-ft-marker) / 2);
-        right: calc(var(--q-ft-marker) / 2);
-        top: calc(46px - (var(--q-ft-marker) / 2));
-        height: var(--q-ft-rail-w);
-        background: var(--q-ft-rail);
-        z-index: 1;
+      /* Each connector joins adjacent badge centers, including in RTL. */
+      #q-ft-{{ section.id }}.q-fulfillment-timeline--horizontal .q-timeline--connect-line .q-timeline__item:not(:last-child)::before,
+      #q-ft-{{ section.id }}.q-fulfillment-timeline--horizontal .q-timeline--connect-dots .q-timeline__item:not(:last-child)::before{
+        content:"";position:absolute;inset-inline-start:50%;top:calc((var(--q-ft-marker) - var(--q-ft-rail-w)) / 2);bottom:auto;
+        width:calc(100% + var(--q-ft-gap-sm));height:var(--q-ft-rail-w);transform:none;background:var(--q-ft-rail);z-index:1;
       }
-      #q-ft-{{ section.id }}.q-fulfillment-timeline--horizontal .q-timeline--connect-dots::before{
-        background: repeating-linear-gradient(
-          to right,
-          var(--q-ft-rail) 0px,
-          var(--q-ft-rail) 10px,
-          transparent 10px,
-          transparent 18px
-        );
+      #q-ft-{{ section.id }}.q-fulfillment-timeline--horizontal .q-timeline--connect-dots .q-timeline__item:not(:last-child)::before{
+        background:repeating-linear-gradient(to right,var(--q-ft-rail) 0px,var(--q-ft-rail) 10px,transparent 10px,transparent 18px);
       }
-      #q-ft-{{ section.id }}.q-fulfillment-timeline--horizontal .q-timeline--connect-none::before{ content:none !important; }
 
       /* horizontal items: badge above card */
       #q-ft-{{ section.id }}.q-fulfillment-timeline--horizontal .q-timeline__item{
-        grid-template-columns: 1fr;
+        grid-template-columns:minmax(0,1fr);
         grid-template-rows: auto 1fr;
         row-gap: 12px;
       }
       #q-ft-{{ section.id }}.q-fulfillment-timeline--horizontal .q-timeline__index{
         margin: 0 auto;
-      }
-
-      /* hide vertical connectors in horizontal layout */
-      #q-ft-{{ section.id }}.q-fulfillment-timeline--horizontal .q-timeline__item::before{
-        content:none !important;
       }
 
       /* nicer scrollbar */
@@ -335,8 +354,26 @@
         background: transparent;
       }
     }
+
+    #q-ft-{{ section.id }}{min-width:0;overflow-wrap:anywhere;font-family:var(--font-body,inherit);}
+    #q-ft-{{ section.id }} .q-align-left{text-align:start;}
+    #q-ft-{{ section.id }} .q-heading{font-family:var(--font-head,inherit);text-transform:var(--tt-head,none);}
+    #q-ft-{{ section.id }} .q-heading--section{font-size:var(--fs-h2,2rem);}
+    #q-ft-{{ section.id }} .q-timeline__title{font-size:var(--fs-h4,1.2rem);}
+    #q-ft-{{ section.id }} .q-section__divider{border:0;border-top:1px solid var(--q-ft-rail);margin:0 0 var(--q-ft-gap);}
+    #q-ft-{{ section.id }} .q-ft-pill{max-width:100%;box-sizing:border-box;flex-wrap:wrap;}
+    #q-ft-{{ section.id }} .q-ft-pill span{min-width:0;}
+    #q-ft-{{ section.id }} .q-timeline-wrap{min-width:0;max-width:100%;}
+    #q-ft-{{ section.id }} .q-timeline__item{min-width:0;}
+    #q-ft-{{ section.id }} .q-timeline__card,#q-ft-{{ section.id }} .q-timeline__badge{color:var(--q-ft-text);}
+    #q-ft-{{ section.id }} .q-timeline-wrap:focus-visible,#q-ft-{{ section.id }} a:focus-visible{outline:2px solid currentColor;outline-offset:3px;}
   </style>
 </section>
+  {%- elsif request.design_mode -%}
+    <p role="status">Shipping explainer: add introductory content or a visible timeline step.</p>
+  {%- endif -%}
+{%- elsif request.design_mode -%}
+  <p role="status">Shipping explainer: enable the section to show its content.</p>
 {%- endif -%}
 
 
@@ -345,6 +382,7 @@
   "name": "3P - Fulfillment Timeline",
   "class": "q-section-wrap q-section-wrap--fulfillment-timeline",
   "settings": [
+    { "type": "paragraph", "content": "Static content only. Enter your actual fulfillment steps and current estimates; no shipping system updates these values automatically. Header colors follow the chosen theme surface; the color controls below apply to cards and their details." },
     { "type": "checkbox", "id": "enable_section", "label": "Enable section", "default": true },
     { "type": "text", "id": "aria_label", "label": "Section aria-label", "default": "Fulfillment workflow timeline" },
 
@@ -354,7 +392,7 @@
 
     { "type": "checkbox", "id": "show_lead_time", "label": "Show current typical lead time", "default": true },
     { "type": "text", "id": "lead_time_label", "label": "Lead time label", "default": "Current typical lead time" },
-    { "type": "text", "id": "lead_time_value", "label": "Lead time value", "default": "4–6 weeks from order to delivery" },
+    { "type": "text", "id": "lead_time_value", "label": "Lead time value" },
 
     { "type": "select", "id": "layout_variant", "label": "Timeline layout", "default": "horizontal",
       "options": [
@@ -392,7 +430,7 @@
     { "type": "checkbox", "id": "show_step_index", "label": "Show step numbers", "default": true },
     { "type": "checkbox", "id": "show_step_duration", "label": "Show per-step timeframe", "default": true },
 
-    { "type": "select", "id": "connector_style", "label": "Connector style", "default": "line",
+    { "type": "select", "id": "connector_style", "info": "Vertical and horizontal layouts only; Stacked always omits connectors.", "label": "Connector style", "default": "line",
       "options": [
         { "value": "line", "label": "Solid line between steps" },
         { "value": "dots", "label": "Dotted connector" },
@@ -416,8 +454,8 @@
     { "type": "color", "id": "card_bg", "label": "Card background", "default": "#ffffff" },
     { "type": "color", "id": "card_border_color", "label": "Card border color", "default": "#e5e7eb" },
     { "type": "color", "id": "rail_color", "label": "Connector color", "default": "#d1d5db" },
-    { "type": "color", "id": "text_color", "label": "Text color", "default": "#111111" },
-    { "type": "color", "id": "muted_text_color", "label": "Muted text color", "default": "#6b7280" },
+    { "type": "color", "id": "text_color", "label": "Card text color", "default": "#111111" },
+    { "type": "color", "id": "muted_text_color", "label": "Card secondary text color", "default": "#6b7280" },
     { "type": "color", "id": "accent_color", "label": "Highlight accent color", "default": "#111827" }
   ],
   "blocks": [
@@ -428,7 +466,7 @@
       "settings": [
         { "type": "text", "id": "step_title", "label": "Step title", "default": "Order placed" },
         { "type": "richtext", "id": "step_body", "label": "Step description", "default": "<p>Describe what happens in this step.</p>" },
-        { "type": "text", "id": "step_duration", "label": "Estimated timeframe", "default": "1–2 business days" },
+        { "type": "text", "id": "step_duration", "label": "Estimated timeframe" },
         { "type": "checkbox", "id": "is_key_step", "label": "Highlight this step", "default": false }
       ]
     }
@@ -438,11 +476,11 @@
       "name": "3rd Party - Fulfillment Workflow Timeline",
       "category": "3rd Party Integrations",
       "blocks": [
-        { "type": "timeline_step", "settings": { "step_title": "Order placed", "step_duration": "Same day", "step_body": "<p>Once your order is submitted, it enters our fulfillment queue and you’ll receive a confirmation with the next steps.</p>", "is_key_step": false } },
-        { "type": "timeline_step", "settings": { "step_title": "Order review & confirmation", "step_duration": "1–2 business days", "step_body": "<p>We review details like options, delivery location, and any special requirements. If anything needs clarification, we’ll reach out.</p>", "is_key_step": false } },
-        { "type": "timeline_step", "settings": { "step_title": "Production & preparation", "step_duration": "2–4 weeks", "step_body": "<p>Your build is produced or prepared for shipment. Lead time varies by season, customization level, and current production volume.</p>", "is_key_step": true } },
-        { "type": "timeline_step", "settings": { "step_title": "Shipping & transit", "step_duration": "3–7 business days", "step_body": "<p>Once the item ships, it moves through carrier transit. Timing can vary by distance, route availability, and weather conditions.</p>", "is_key_step": false } },
-        { "type": "timeline_step", "settings": { "step_title": "Delivery & setup", "step_duration": "Scheduled with you", "step_body": "<p>We coordinate delivery timing based on your location and access needs. For larger items, site readiness can affect the final delivery window.</p>", "is_key_step": false } }
+        { "type": "timeline_step", "settings": { "step_title": "Order placed", "step_duration": "", "step_body": "<p>Check your order confirmation for details and next steps.</p>", "is_key_step": false } },
+        { "type": "timeline_step", "settings": { "step_title": "Order review & confirmation", "step_duration": "", "step_body": "<p>Review your order details and contact the store with any questions.</p>", "is_key_step": false } },
+        { "type": "timeline_step", "settings": { "step_title": "Production & preparation", "step_duration": "", "step_body": "<p>Preparation times can vary by product and order requirements.</p>", "is_key_step": true } },
+        { "type": "timeline_step", "settings": { "step_title": "Shipping & transit", "step_duration": "", "step_body": "<p>Carrier transit times can vary by destination and service.</p>", "is_key_step": false } },
+        { "type": "timeline_step", "settings": { "step_title": "Delivery & setup", "step_duration": "", "step_body": "<p>See your delivery information for any access or setup requirements.</p>", "is_key_step": false } }
       ]
     }
   ]
