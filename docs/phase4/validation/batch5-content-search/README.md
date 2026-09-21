@@ -1,0 +1,1 @@
+Content Predictive Search actual-source and scoped lifecycle evidence. Shared Search Contracts rerun passes. API/settings/locale/currency, browser, AT and editor acceptance remain queued after Batch 9. Theme Check debt remains unsuppressed.
