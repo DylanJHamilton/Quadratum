@@ -45,5 +45,5 @@ if path.exists():
 hashes=[{'path':row['File'],'sha256':row.pop('SHA256')} for row in rows]
 (path.parent/'component-source-hashes.json').write_text(json.dumps(hashes,indent=2)+'\n')
 with path.open('w',newline='') as f:
- w=csv.DictWriter(f,fieldnames=rows[0]);w.writeheader();w.writerows(rows)
+ w=csv.DictWriter(f,fieldnames=rows[0],lineterminator="\n");w.writeheader();w.writerows(rows)
 print(json.dumps({'components':len(rows),'types':dict(collections.Counter(r['Type'] for r in rows)),'schema_errors':[r['File'] for r in rows if r['Schema Valid'].startswith('ERROR')],'reviewed':sum(r['Final Disposition']!='NOT REVIEWED' for r in rows)},indent=2))
