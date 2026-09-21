@@ -9,7 +9,9 @@ export default {
     "./snippets/**/*.liquid",
     "./blocks/**/*.liquid",
     "./templates/**/*.json",
-    "./assets/**/*.js"
+    "./assets/**/*.js",
+    // Vendor runtime uses its own shadow styles, not theme utilities.
+    "!./assets/q-model-viewer.min.js"
   ],
   theme: {
     extend: {
