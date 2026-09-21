@@ -1,4 +1,5 @@
-{% if section.blocks.size == 0 %}
+{%- assign blocks_people = section.blocks | where: 'type', 'person' -%}
+{% if blocks_people.size == 0 %}
   {% render 'section-empty-state', section: section %}
 {% else %}
 {%- comment -%}
@@ -13,7 +14,7 @@
     - featured_plus_grid (one featured hero + grid below)
   - Edge cases:
     - 1 person renders as a single “hero” profile (no empty grid)
-    - No photo -> initials avatar with aria-label
+    - No photo -> decorative initials beside the person’s name
     - No socials -> no empty row
 {%- endcomment -%}
 
@@ -21,12 +22,8 @@
   assign sid = section.id
   assign s = section.settings
 
-  assign blocks_people = section.blocks | where: 'type', 'person'
   assign total = blocks_people.size
 
-  if total == 0
-    break
-  endif
 
   assign layout = s.layout | default: 'grid'
 
@@ -42,7 +39,10 @@
 
   assign use_custom_colors = s.use_custom_colors
 
-  assign max_width = s.max_width | default: 1200
+  assign max_width = s.max_width | default: 100 | at_most: 100
+  if max_width == 0
+    assign max_width = 100
+  endif
   assign pad_y = s.pad_y | default: 56
   assign bg_mode = s.background | default: 'transparent'
 
@@ -58,7 +58,7 @@
 
   assign shadow_strength = s.card_shadow_strength | default: 2
 
-  assign featured_block = blank
+  assign featured_block = blocks_people.first
   if layout == 'featured_plus_grid'
     for b in blocks_people
       if b.settings.featured
@@ -66,9 +66,6 @@
         break
       endif
     endfor
-    if featured_block == blank
-      assign featured_block = blocks_people.first
-    endif
   endif
 -%}
 
@@ -84,8 +81,8 @@
 
 {%- capture q_section_bg -%}
   {%- case bg_mode -%}
-    {%- when 'subtle' -%}var(--q-surface-subtle, var(--color-background, transparent))
-    {%- when 'card' -%}var(--q-surface-card, var(--color-background, transparent))
+    {%- when 'subtle' -%}var(--q-surface-subtle, var(--c-surface, #f6f7f8))
+    {%- when 'card' -%}var(--q-surface-card, var(--c-bg, #fff))
     {%- else -%}transparent
   {%- endcase -%}
 {%- endcapture -%}
@@ -93,16 +90,16 @@
 {%- capture q_shadow -%}
   {%- case shadow_strength -%}
     {%- when 0 -%}none
-    {%- when 1 -%}var(--q-shadow-1, var(--shadow-1, none))
-    {%- when 2 -%}var(--q-shadow-2, var(--shadow-2, none))
-    {%- when 3 -%}var(--q-shadow-3, var(--shadow-3, none))
-    {%- else -%}var(--q-shadow-2, var(--shadow-2, none))
+    {%- when 1 -%}var(--q-shadow-1, var(--shadow-1, 0 2px 6px rgb(0 0 0 / .08)))
+    {%- when 2 -%}var(--q-shadow-2, var(--shadow-2, 0 6px 18px rgb(0 0 0 / .12)))
+    {%- when 3 -%}var(--q-shadow-3, var(--shadow-3, 0 12px 32px rgb(0 0 0 / .16)))
+    {%- else -%}var(--q-shadow-2, var(--shadow-2, 0 6px 18px rgb(0 0 0 / .12)))
   {%- endcase -%}
 {%- endcapture -%}
 
 <section
   class="q-people q-people--{{ sid }}"
-  aria-label="{{ title | escape }}"
+  aria-label="{{ title | default: 'Team members' | escape }}"
   style="
     --q-people-max: {{ max_width }}%;
     --q-people-py: {{ pad_y }}px;
@@ -117,6 +114,8 @@
     --q-people-avatar: {{ avatar_size }}px;
     --q-people-shadow: {{ q_shadow | strip }};
     --q-people-bio-lines: {{ bio_lines }};
+    --q-people-card-radius: {{ s.card_radius }}px;
+    --q-people-icon-size: {{ s.icon_size }}px;
   "
 >
   {%- if use_custom_colors -%}
@@ -124,7 +123,6 @@
       #shopify-section-{{ section.id }} .q-people--{{ sid }}{
         --q-people-card-bg: {{ s.card_bg }};
         --q-people-card-border: {{ s.card_border }};
-        --q-people-card-radius: {{ s.card_radius }}px;
         --q-people-name-color: {{ s.name_color }};
         --q-people-role-color: {{ s.role_color }};
         --q-people-bio-color: {{ s.bio_color }};
@@ -132,7 +130,6 @@
         --q-people-avatar-bg: {{ s.avatar_bg }};
         --q-people-avatar-fg: {{ s.avatar_fg }};
         --q-people-photo-bg: {{ s.photo_bg }};
-        --q-people-icon-size: {{ s.icon_size }}px;
       }
     </style>
   {%- endif -%}
@@ -140,6 +137,8 @@
   <style>
     #shopify-section-{{ section.id }} .q-people--{{ sid }}{
       background: var(--q-people-bg);
+      color: var(--c-text, #111);
+      overflow-wrap: anywhere;
       padding-block: var(--q-people-py);
     }
 
@@ -178,41 +177,24 @@
       gap: var(--q-people-gap);
     }
 
+    #shopify-section-{{ section.id }} .q-people--{{ sid }},
+    #shopify-section-{{ section.id }} .q-people--{{ sid }} *{ box-sizing: border-box; }
     #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-people__grid{
+      --q-people-columns: var(--q-people-cols-m);
       display: grid;
       gap: var(--q-people-gap);
-      grid-template-columns: repeat(var(--q-people-cols-m), minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--q-people-min-card), calc((100% - (var(--q-people-columns) - 1) * var(--q-people-gap)) / var(--q-people-columns)))), 1fr));
     }
-
+    #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-people__grid > li{ min-width: 0; }
     @media (min-width: 750px){
-      #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-people__grid{
-        grid-template-columns: repeat(var(--q-people-cols-t), minmax(0, 1fr));
-      }
-    }
-
-    @media (min-width: 990px){
-      #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-people__grid{
-        grid-template-columns: repeat(var(--q-people-cols-d), minmax(0, 1fr));
-      }
-    }
-
-    /* Enforce minimum card width without hard breakpoints */
-    #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-people__grid{
-      grid-template-columns: repeat(var(--q-people-cols-m), minmax(min(var(--q-people-min-card), 100%), 1fr));
-    }
-    @media (min-width: 750px){
-      #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-people__grid{
-        grid-template-columns: repeat(var(--q-people-cols-t), minmax(min(var(--q-people-min-card), 100%), 1fr));
-      }
+      #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-people__grid{ --q-people-columns: var(--q-people-cols-t); }
     }
     @media (min-width: 990px){
-      #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-people__grid{
-        grid-template-columns: repeat(var(--q-people-cols-d), minmax(min(var(--q-people-min-card), 100%), 1fr));
-      }
+      #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-people__grid{ --q-people-columns: var(--q-people-cols-d); }
     }
 
     #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-person{
-      background: var(--q-people-card-bg, var(--q-surface-card, var(--color-background, transparent)));
+      background: var(--q-people-card-bg, var(--q-surface-card, var(--c-bg, #fff)));
       border: 1px solid var(--q-people-card-border, var(--q-border, rgba(0,0,0,.08)));
       border-radius: var(--q-people-card-radius, var(--q-radius-lg, 18px));
       box-shadow: var(--q-people-shadow);
@@ -224,7 +206,7 @@
 
     #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-person__media{
       position: relative;
-      background: var(--q-people-photo-bg, var(--q-surface-subtle, transparent));
+      background: var(--q-people-photo-bg, var(--q-surface-subtle, var(--c-surface, #f6f7f8)));
       aspect-ratio: var(--q-people-photo-aspect);
       overflow: hidden;
     }
@@ -242,17 +224,18 @@
       display: grid;
       place-items: center;
       color: var(--q-people-avatar-fg, var(--q-heading-color, currentColor));
-      background: var(--q-people-avatar-bg, var(--q-surface-subtle, transparent));
+      background: var(--q-people-avatar-bg, var(--q-surface-subtle, var(--c-surface, #f6f7f8)));
     }
 
     #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-person__avatar-inner{
-      width: calc(var(--q-people-avatar) * 1.6);
-      height: calc(var(--q-people-avatar) * 1.6);
+      width: min(100%, calc(var(--q-people-avatar) * 1.6));
+      height: auto;
+      aspect-ratio: 1;
       border-radius: 999px;
       display: grid;
       place-items: center;
       border: 1px solid var(--q-people-card-border, var(--q-border, rgba(0,0,0,.08)));
-      background: var(--q-people-card-bg, var(--q-surface-card, transparent));
+      background: var(--q-people-avatar-bg, var(--q-surface-subtle, var(--c-surface, #f6f7f8)));
       font-weight: var(--q-people-name-weight, 650);
       letter-spacing: var(--q-tracking-tight, -0.01em);
       font-size: calc(var(--q-people-avatar) * 0.55);
@@ -300,14 +283,19 @@
     #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-person__bio > *:last-child{ margin-bottom: 0; }
 
     {%- if bio_clamp -%}
-    #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-person__bio{
+    #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-person__bio--clamp{
       display: -webkit-box;
       -webkit-line-clamp: var(--q-people-bio-lines);
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
+    #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-person__bio--clamp:hover,
+    #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-person__bio--clamp:focus-within{
+      display: block; -webkit-line-clamp: unset; overflow: visible;
+    }
     {%- endif -%}
 
+    #shopify-section-{{ section.id }} .q-people--{{ sid }} :focus-visible{ outline: 2px solid currentColor; outline-offset: 3px; }
     #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-person__links{
       display: flex;
       flex-wrap: wrap;
@@ -322,6 +310,8 @@
       text-decoration: none;
       color: var(--q-people-link-color, var(--q-link-color, currentColor));
       font-size: var(--q-people-link-size, .95rem);
+      max-width: 100%;
+      min-width: 0;
       line-height: 1.2;
       border-radius: 999px;
       padding: 8px 10px;
@@ -362,7 +352,7 @@
 
     /* Single-person intentional “hero” */
     #shopify-section-{{ section.id }} .q-people--{{ sid }} .q-people__solo .q-person{
-      max-width: min(var(--q-people-max), 920px);
+      max-width: min(100%, 920px);
       margin-inline: auto;
     }
   </style>
@@ -442,25 +432,7 @@
     {%- endif -%}
   </div>
 
-  {%- comment -%}
-    Inline render helper (no external snippet dependency).
-    We use `render` with a named snippet-like block via `capture` + `render` is not possible.
-    So we implement as an inline "pseudo-snippet" using `render` ONLY if a real snippet exists.
-    To keep this file self-contained, we implement the card markup here via `liquid` include pattern:
-    We'll define it using the `liquid` tag and re-call via `render` is not possible.
-
-    Therefore: we provide a tiny local fallback by duplicating markup in-place via a `liquid` variable.
-    (Shopify doesn't allow defining a snippet inside a section.)
-  {%- endcomment -%}
 </section>
-
-{%- comment -%}
-  CARD MARKUP (duplicated via `liquid` blocks above using render 'q-people-card')
-  IMPORTANT:
-  - If you do NOT have snippets/q-people-card.liquid, create it using the markup below.
-  - If you already have a people card snippet system, map these fields accordingly.
-{%- endcomment -%}
-
 
 {% endif %}
 {% schema %}
@@ -510,7 +482,7 @@
       "step": 1,
       "default": 1
     },
-    { "type":"range","id":"min_card_width","label":"Minimum card width","min":180,"max":520,"step":4,"default":260,"unit":"px" },
+    { "type":"range","id":"min_card_width","label":"Minimum card width","info":"Columns reduce when needed to respect this width; a single card always fits the container.","min":180,"max":520,"step":4,"default":260,"unit":"px" },
     {
       "type": "range",
       "id": "card_gap",
@@ -564,11 +536,12 @@
       "type": "range",
       "id": "max_width",
       "label": "Max width",
+      "info": "Percentage of section width. Zero uses full width.",
       "min": 0,
       "max": 100,
       "step": 1,
       "default": 100,
-      "unit": "px"
+      "unit": "%"
     },
     {
       "type": "range",
@@ -646,6 +619,7 @@
       "type": "checkbox",
       "id": "bio_clamp",
       "label": "Clamp bios in grid cards",
+      "info": "Expand by hovering or focusing the bio. Featured profiles always show the full bio.",
       "default": true
     },
     {
