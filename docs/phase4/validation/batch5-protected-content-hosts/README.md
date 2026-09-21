@@ -1,0 +1,1 @@
+Protected content host evidence. Three affected suites and native schema/reference/merchant checks pass; CSS output unchanged. Explicit content_for projection and limited actual row dependency fixtures do not approve Theme Blocks. All 102 retain their Batch 8 reviews. Live acceptance queued after Batch 9; Theme Check debt remains.
