@@ -1,111 +1,145 @@
-{% comment %}
-  Quadratum — Form: Site Search / Finder (with optional Predictive Search)
-  File: sections/form-site-search.liquid
-  Root: .q-form.q-form--site-search
-{% endcomment %}
+{% comment %}Native GET search/finder with optional scoped predictive and price-band enhancement.{% endcomment %}
 
-{{ 'forms-sections.css' | asset_url | stylesheet_tag }}
 
 {%- assign s = section.settings -%}
 {%- assign g = settings -%}
+{%- liquid
+  assign root_path = routes.root_url | append: '/' | replace: '//', '/'
+  assign target = s.nav_target | strip
+  assign target_valid = false
+  assign target_first = target | slice: 0, 1
+  assign target_pair = target | slice: 0, 2
+  assign target_encoded = target | url_encode
+  if target_first == '/' and target_pair != '//'
+    assign target_valid = true
+  endif
+  if target contains '?' or target contains '#' or target contains ' ' or target_encoded contains '%5C' or target_encoded contains '%0A' or target_encoded contains '%0D' or target_encoded contains '%09'
+    assign target_valid = false
+  endif
+  if target == '/search' or target == blank or target_valid == false
+    assign target = routes.search_url
+  else
+    assign root_length = root_path | size
+    assign target_prefix = target | slice: 0, root_length
+    assign target_with_slash = target | append: '/'
+    if root_path != '/' and target_prefix != root_path and target_with_slash != root_path
+      assign target = target | remove_first: '/'
+      assign target = root_path | append: target
+    endif
+  endif
+  assign fallback_type = 'product,article,page'
+  if s.scope_default == 'product' or s.scope_default == 'article' or s.scope_default == 'page'
+    assign fallback_type = s.scope_default
+  endif
+  assign predictive_sources = s.predictive_sources | default: 'products,collections,articles,pages' | downcase | remove: ' ' | split: ','
+  assign predictive_limit = s.predictive_limit | default: 5 | at_least: 1 | at_most: 10
+  assign predictive_scope = 'all'
+  case s.scope_default
+    when 'product'
+      assign predictive_scope = 'products_only'
+    when 'collection'
+      assign predictive_scope = 'collections_only'
+    when 'article'
+      assign predictive_scope = 'articles_only'
+    when 'page'
+      assign predictive_scope = 'pages_only'
+  endcase
+  assign form_surface_color = s.form_bg | default: g.bg_base | default: '#ffffff'
+-%}
+{%- if predictive_search.performed -%}
+  {% render 'form-search-results', predictive_search: predictive_search, sources: predictive_sources, limit: predictive_limit, blocks: section.blocks, target: target, fallback_type: fallback_type %}
+{%- else -%}
+{{ 'forms-sections.css' | asset_url | stylesheet_tag }}
+{% if s.mode == 'predictive' %}<script src="{{ 'interactive-content-search.js' | asset_url }}" defer></script>{% endif %}
+{% if s.mode == 'finder' and s.enable_price %}<script src="{{ 'form-search.js' | asset_url }}" defer></script>{% endif %}
+{%- capture form_surface_text -%}{% render 'contrast-text', background: form_surface_color, preferred: g.text_base %}{%- endcapture -%}
+{%- capture form_input_text -%}{% render 'contrast-text', background: '#ffffff', preferred: g.text_base %}{%- endcapture -%}
 
-{%- assign BTN_default   = g.button_variant_default | default: 'solid' -%}
-{%- assign _btn_choice   = s.button_variant | default: 'inherit' -%}
-{%- assign _btn_variant  = BTN_default -%}
-{%- if _btn_choice != 'inherit' and _btn_choice != blank -%}{%- assign _btn_variant = _btn_choice -%}{%- endif -%}
+
+{%- assign btn_default   = g.button_variant_default | default: 'solid' -%}
+{%- assign btn_choice   = s.button_variant | default: 'inherit' -%}
+{%- assign btn_variant  = btn_default -%}
+{%- if btn_choice != 'inherit' and btn_choice != blank -%}{%- assign btn_variant = btn_choice -%}{%- endif -%}
 {%- assign btn_mode_class = 'q-btn--solid' -%}
-{%- if _btn_variant == 'outline' -%}{%- assign btn_mode_class = 'q-btn--outline' -%}{%- endif -%}
-{%- if _btn_variant == 'ghost' -%}{%- assign btn_mode_class = 'q-btn--ghost' -%}{%- endif -%}
+{%- if btn_variant == 'outline' -%}{%- assign btn_mode_class = 'q-btn--outline' -%}{%- endif -%}
+{%- if btn_variant == 'ghost' -%}{%- assign btn_mode_class = 'q-btn--ghost' -%}{%- endif -%}
 
 {%- assign visibility_classes = '' -%}
-{%- if s.hide_on_mobile -%}{%- assign visibility_classes = visibility_classes | append: ' hidden md:block q-hide-mobile' -%}{%- endif -%}
-{%- if s.hide_on_desktop -%}{%- assign visibility_classes = visibility_classes | append: ' md:hidden q-hide-desktop' -%}{%- endif -%}
+{%- if s.hide_on_mobile and request.design_mode == false -%}{%- assign visibility_classes = visibility_classes | append: ' hide-mobile' -%}{%- endif -%}
+{%- if s.hide_on_desktop and request.design_mode == false -%}{%- assign visibility_classes = visibility_classes | append: ' hide-desktop' -%}{%- endif -%}
 
-{%- assign anchor = s.anchor_id -%}
+{%- assign anchor = s.anchor_id | strip -%}
 {%- if anchor == blank -%}{%- assign anchor = 'section-' | append: section.id -%}{%- endif -%}
 
-{%- assign C_primary     = g.color_primary | default: '#2563eb' -%}
-{%- assign C_bg_base     = g.bg_base       | default: '#ffffff' -%}
-{%- assign C_bg_contrast = g.bg_contrast   | default: '#f6f7f8' -%}
-{%- assign C_text_base   = g.text_base     | default: '#111111' -%}
-{%- assign C_text_muted  = g.text_muted    | default: '#6b7280' -%}
-{%- assign BTN_radius    = g.button_radius | default: 12 -%}
-{%- assign BTN_bw        = g.button_border_width | default: 1 -%}
-{%- assign BTN_hover_op  = g.button_hover_opacity | default: 92 -%}
-{%- assign BTN_active    = g.button_active_scale  | default: 98 -%}
+{%- assign c_primary     = g.color_primary | default: '#2563eb' -%}
+{%- assign c_bg_base     = g.bg_base       | default: '#ffffff' -%}
+{%- assign c_bg_contrast = g.bg_contrast   | default: '#f6f7f8' -%}
+{%- assign c_text_base   = g.text_base     | default: '#111111' -%}
+{%- assign c_text_muted  = g.text_muted    | default: '#6b7280' -%}
+{%- assign btn_radius    = g.button_radius | default: 12 -%}
+{%- assign btn_bw        = g.button_border_width | default: 1 -%}
+{%- assign btn_hover_op  = g.button_hover_opacity | default: 92 -%}
+{%- assign btn_active    = g.button_active_scale  | default: 98 -%}
 
-{%- capture empty_links_json -%}
-[
-{%- assign first=true -%}
-{%- for block in section.blocks -%}
-  {%- if block.type == 'quick_link' -%}
-    {%- unless first -%},{%- endunless -%}
-    {%- assign first = false -%}
-    {"label": {{ block.settings.label | default: '' | json }}, "url": {{ block.settings.url | default: '#' | json }}}
-  {%- endif -%}
-{%- endfor -%}
-]
-{%- endcapture -%}
-
+{%- capture automatic_button_text -%}{% render 'contrast-text', background: c_primary, preferred: g.text_on_color %}{%- endcapture -%}
 <style>
-  /* IMPORTANT: target the actual section id (anchor) */
-  #{{ anchor }}{
+  .q-form-scope-{{ section.id }}{
     --q-pad-y: {{ s.padding_y | default: 40 }}px;
     --q-pad-x: {{ s.padding_x | default: 24 }}px;
     --q-card-br: {{ s.card_radius | default: 14 }}px;
     --q-card-shadow: {% case s.card_shadow %}{% when 0 %}none{% when 1 %}0 1px 2px rgba(0,0,0,.06){% when 3 %}0 2px 4px rgba(0,0,0,.08), 0 16px 40px rgba(0,0,0,.12){% else %}0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.08){% endcase %};
-    --q-text: {{ C_text_base }};
-    --q-muted: {{ C_text_muted }};
-    --q-bg: {{ s.bg_color | default: C_bg_contrast }};
-    --q-btn-bg: {{ C_primary }};
-    --q-btn-fg: {{ g.text_on_color | default: '#ffffff' }};
-    --q-btn-bdr: {{ C_text_base }};
-    --q-btn-bw: {{ BTN_bw }}px;
-    --q-btn-br: {{ BTN_radius }}px;
-    --q-btn-hover-op: {{ BTN_hover_op }};
-    --q-btn-active-scale: {{ BTN_active | divided_by: 100.0 }};
-    --q-form-bg: {{ s.form_bg | default: C_bg_base }};
+    --q-text: {{ c_text_base }};
+    --q-muted: {{ c_text_muted }};
+    --q-bg: {{ s.bg_color | default: c_bg_contrast }};
+    --q-btn-bg: {{ c_primary }};
+    --q-btn-fg: {{ automatic_button_text | strip }};
+    --q-btn-bdr: {{ c_text_base }};
+    --q-btn-bw: {{ btn_bw }}px;
+    --q-btn-br: {{ btn_radius }}px;
+    --q-btn-hover-op: {{ btn_hover_op }};
+    --q-btn-active-scale: {{ btn_active | divided_by: 100.0 }};
+    --q-form-bg: {{ s.form_bg | default: c_bg_base }};
     --q-input-br: {{ s.input_radius | default: 10 }}px;
     --q-input-bdr: {{ s.input_border | default: '#e5e7eb' }};
     --q-panel-bg: #fff;
     --q-panel-bdr: #e5e7eb;
   }
 
-  #{{ anchor }}[data-surface="frameless"] .q-card{ background:transparent!important; box-shadow:none!important; padding:0!important; border-radius:0!important; }
-  #{{ anchor }}[data-template="inline"] .q-card{ padding:0; background:transparent; box-shadow:none; }
-  #{{ anchor }}[data-template="inline"] .q-fields{ display:flex; gap:8px; align-items:stretch; flex-wrap:wrap; }
-  #{{ anchor }}[data-template="inline"] .q-field{ margin:0; min-width: 220px; }
+  .q-form-scope-{{ section.id }}[data-surface="frameless"] .q-card{ background:transparent!important; box-shadow:none!important; padding:0!important; border-radius:0!important; }
+  .q-form-scope-{{ section.id }}[data-template="inline"] .q-card{ padding:0; background:transparent; box-shadow:none; }
+  .q-form-scope-{{ section.id }}[data-template="inline"] .q-fields{ display:flex; gap:8px; align-items:stretch; flex-wrap:wrap; }
+  .q-form-scope-{{ section.id }}[data-template="inline"] .q-field{ margin:0; min-width:0; }
 
-  #{{ anchor }} .q-grid{ display:grid; gap:24px; }
+  .q-form-scope-{{ section.id }} .q-grid{ display:grid; gap:24px; }
   @media (min-width: 768px){
-    #{{ anchor }} .q-grid.split-left  { grid-template-columns: 1.1fr 1fr; }
-    #{{ anchor }} .q-grid.split-right { grid-template-columns: 1fr 1.1fr; }
+    .q-form-scope-{{ section.id }} .q-grid.split-left  { grid-template-columns: 1.1fr 1fr; }
+    .q-form-scope-{{ section.id }} .q-grid.split-right { grid-template-columns: 1fr 1.1fr; }
   }
 
   /* Predictive UI */
-  #{{ anchor }} .q-predictive{ position:relative; }
-  #{{ anchor }} .q-panel{
+  .q-form-scope-{{ section.id }} .q-predictive{ position:relative; }
+  .q-form-scope-{{ section.id }} .q-panel{
     position:absolute; left:0; right:0; top:100%; margin-top:6px; z-index:50;
     background: var(--q-panel-bg); border:1px solid var(--q-panel-bdr); border-radius: 12px;
     box-shadow: 0 8px 22px rgba(0,0,0,.1);
-    display:none; max-height: 420px; overflow:auto;
+    display:block; max-height:min(420px,60vh); overflow:auto;
     padding: 12px;
   }
-  #{{ anchor }} .q-panel.is-open{ display:block; }
+  .q-form-scope-{{ section.id }} [hidden]{display:none !important;}
 
-  #{{ anchor }} .q-group{ padding: 8px 0; }
-  #{{ anchor }} .q-group-title{ font-size:.825rem; color: var(--q-muted); padding:6px 4px; }
+  .q-form-scope-{{ section.id }} .q-group{ padding: 8px 0; }
+  .q-form-scope-{{ section.id }} .q-group-title{ font-size:.825rem; color: var(--q-muted); padding:6px 4px; }
 
   /* Items wrapper (this is what we grid — NOT .q-group itself) */
-  #{{ anchor }} .q-items{ display:grid; gap:8px; }
+  .q-form-scope-{{ section.id }} .q-items{ display:grid; gap:8px; }
 
   /* Product group becomes a grid */
-  #{{ anchor }} .q-group[data-type="products"] .q-items{
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  .q-form-scope-{{ section.id }} .q-group[data-type="products"] .q-items{
+    grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
     gap: 14px;
   }
 
-  #{{ anchor }} .q-item{
+  .q-form-scope-{{ section.id }} .q-item{
     display:flex; gap:10px; align-items:center;
     padding:10px 10px;
     border-radius: 10px;
@@ -115,34 +149,34 @@
     background: #fff;
     transition: box-shadow .12s ease, transform .12s ease, border-color .12s ease;
   }
-  #{{ anchor }} .q-item:hover{
+  .q-form-scope-{{ section.id }} .q-item:hover{
     box-shadow: 0 6px 18px rgba(0,0,0,.10);
     transform: translateY(-1px);
     border-color: rgba(0,0,0,.10);
   }
-  #{{ anchor }} .q-item:focus-visible{
+  .q-form-scope-{{ section.id }} .q-item:focus-visible{
     outline: 2px solid var(--q-btn-bg, #2563eb);
     outline-offset: 2px;
   }
 
   /* Product cards stack vertically */
-  #{{ anchor }} .q-group[data-type="products"] .q-item{
+  .q-form-scope-{{ section.id }} .q-group[data-type="products"] .q-item{
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
     padding: 10px;
   }
 
-  #{{ anchor }} .q-item-thumb{
+  .q-form-scope-{{ section.id }} .q-item-thumb{
     width:40px; height:40px; border-radius:8px; object-fit:cover; flex:0 0 auto; background:#f3f4f6;
   }
-  #{{ anchor }} .q-group[data-type="products"] .q-item-thumb{
+  .q-form-scope-{{ section.id }} .q-group[data-type="products"] .q-item-thumb{
     width:100%; height:auto; aspect-ratio: 1 / 1; margin:0; border-radius: 8px;
   }
 
-  #{{ anchor }} .q-item-content{ min-width:0; width:100%; }
-  #{{ anchor }} .q-item-title{ font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  #{{ anchor }} .q-group[data-type="products"] .q-item-title{
+  .q-form-scope-{{ section.id }} .q-item-content{ min-width:0; width:100%; }
+  .q-form-scope-{{ section.id }} .q-item-title{ font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .q-form-scope-{{ section.id }} .q-group[data-type="products"] .q-item-title{
     white-space: normal;
     display:-webkit-box;
     -webkit-line-clamp: 2;
@@ -150,31 +184,65 @@
     overflow:hidden;
     min-height: 2.5em;
   }
-  #{{ anchor }} .q-item-sub{ font-size:.85rem; color: var(--q-muted); }
-  #{{ anchor }} .q-group[data-type="products"] .q-item-sub{ font-weight:600; color: var(--q-btn-bg, #2563eb); }
+  .q-form-scope-{{ section.id }} .q-item-sub{ font-size:.85rem; color: var(--q-muted); }
+  .q-form-scope-{{ section.id }} .q-group[data-type="products"] .q-item-sub{ font-weight:600; color: var(--q-btn-bg, #2563eb); }
 
-  #{{ anchor }} .is-hidden{ display:none!important; }
+  .q-form-scope-{{ section.id }} .is-hidden{ display:none!important; }
 
   @media (max-width: 360px){
-    #{{ anchor }} .q-group[data-type="products"] .q-items{ grid-template-columns: repeat(2, 1fr); }
+    .q-form-scope-{{ section.id }} .q-group[data-type="products"] .q-items{ grid-template-columns: minmax(0, 1fr); }
   }
+  .q-form-scope-{{ section.id }}{min-width:0;overflow-wrap:anywhere;}
+  .q-form-scope-{{ section.id }} .q-wrap,.q-form-scope-{{ section.id }} .q-wrap-full{box-sizing:border-box;}
+  .q-form-scope-{{ section.id }} .q-card,.q-form-scope-{{ section.id }} .q-surface,.q-form-scope-{{ section.id }} .q-grid>*{min-width:0;max-width:100%;}
+  .q-form-scope-{{ section.id }} .q-field{min-width:0;max-width:100%;text-align:start;}
+  .q-form-scope-{{ section.id }} .q-radio{width:auto;max-width:100%;text-align:start;overflow-wrap:anywhere;}
+  .q-form-scope-{{ section.id }} .q-radio span{min-width:0;}
+  .q-form-scope-{{ section.id }} :is(button,a,input,select,textarea):focus-visible{outline:2px solid currentColor;outline-offset:3px;}
+  .q-form-scope-{{ section.id }} [data-q-submit]{grid-column:1 / -1;max-width:100%;}
+  @media(max-width:767.98px){.q-form-scope-{{ section.id }}.hide-mobile{display:none;}}
+  @media(min-width:768px){.q-form-scope-{{ section.id }}.hide-desktop{display:none;}}
+  @media(prefers-reduced-motion:reduce){.q-form-scope-{{ section.id }} .q-btn{transition:none;}}
+
+  .q-form-scope-{{ section.id }} .q-card,.q-form-scope-{{ section.id }} .q-surface{--q-text:{{ form_surface_text | strip }};--q-muted:{{ form_surface_text | strip }};}
+  .q-form-scope-{{ section.id }}[data-surface="frameless"] .q-card,.q-form-scope-{{ section.id }}[data-surface="frameless"] .q-surface{--q-text:{{ g.text_base | default: '#111111' }};--q-muted:{{ g.text_muted | default: '#6b7280' }};}
+  .q-form-scope-{{ section.id }} input.q-input,.q-form-scope-{{ section.id }} select.q-select,.q-form-scope-{{ section.id }} textarea.q-textarea{color:{{ form_input_text | strip }};box-sizing:border-box;max-width:100%;}
+  .q-form-scope-{{ section.id }}{--q-btn-hover-op:{{ g.button_hover_opacity | default: 92 }};--q-btn-active-scale:{{ g.button_active_scale | default: 98 | divided_by: 100.0 }};}
+  {% if g.font_heading %}.q-form-scope-{{ section.id }} .q-head :is(h2,h3){font-family:{{ g.font_heading.family }},{{ g.font_heading.fallback_families }};}{% endif %}
+  .q-form-scope-{{ section.id }}[data-template="inline"] .q-card{--q-text:{{ g.text_base | default: '#111111' }};--q-muted:{{ g.text_muted | default: '#6b7280' }};}
+  .q-form-scope-{{ section.id }} .q-wrap{margin:0 auto;padding-inline:min(var(--q-pad-x),8vw);max-width:{% if s.container_mode == 'full' or g.style_kit == 'full' %}100%{% elsif g.style_kit == 'wide' %}var(--q-cont-xl,1440px){% else %}var(--q-cont-lg,1152px){% endif %};}
+  .q-form-scope-{{ section.id }} .q-search-query{flex:1 1 min(320px,100%);}
+  .q-form-scope-{{ section.id }} .q-search-filter{flex:1 1 min(180px,100%);}
+  .q-form-scope-{{ section.id }} .q-search-submit{flex:0 1 auto;align-self:end;}
+  .q-form-scope-{{ section.id }} .q-btn{max-width:100%;white-space:normal;}
+  .q-form-scope-{{ section.id }} .q-panel{--q-text:{{ form_input_text | strip }};--q-muted:{{ form_input_text | strip }};color:{{ form_input_text | strip }};box-sizing:border-box;max-width:100%;}
+  .q-form-scope-{{ section.id }} .q-panel .q-item-sub{color:inherit;}
+  .q-form-scope-{{ section.id }} .q-item-content>span{display:block;}
+  .q-form-scope-{{ section.id }} .q-search-links{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;}
+  .q-form-scope-{{ section.id }}:focus-within{z-index:5;}
+  @media(prefers-reduced-motion:reduce){.q-form-scope-{{ section.id }} .q-item{transition:none;transform:none;}}
 </style>
 
-<section
-  id="{{ anchor }}"
-  class="q-form q-form--site-search{{ visibility_classes }}"
+<section data-q-form-search
+  {% if s.mode == 'predictive' %}data-qps-host{% endif %}
+  data-section-id="{{ section.id | escape }}"
+  data-suggest-url="{{ routes.predictive_search_url | escape }}"
+  data-min-chars="{{ s.predictive_minchars | default: 2 | escape }}"
+  data-debounce="{{ s.predictive_debounce | default: 160 | escape }}"
+  data-scope="{{ predictive_scope | escape }}"
+  data-max="{{ predictive_limit | escape }}"
+  data-limit-products="{% if predictive_sources contains 'products' %}{{ predictive_limit }}{% else %}0{% endif %}"
+  data-limit-collections="{% if predictive_sources contains 'collections' %}{{ predictive_limit }}{% else %}0{% endif %}"
+  data-limit-articles="{% if predictive_sources contains 'articles' %}{{ predictive_limit }}{% else %}0{% endif %}"
+  data-limit-pages="{% if predictive_sources contains 'pages' %}{{ predictive_limit }}{% else %}0{% endif %}"
+  data-close-on-escape="true"
+  id="{{ anchor | escape }}"
+  class="q-form-scope-{{ section.id }} q-form q-form--site-search{{ visibility_classes }}"
   role="region"
-  aria-label="{{ s.aria_label | default: 'Site search' }}"
-  data-template="{{ s.template_style | default: 'inline' }}"
-  data-surface="{{ s.surface_style | default: 'card' }}"
-  data-mode="{{ s.mode | default: 'basic' }}"
-  data-scope-default="{{ s.scope_default | default: 'all' }}"
-  data-target="{{ s.nav_target | default: '/search' }}"
-  data-predictive-sources="{{ s.predictive_sources | default: 'products,collections,articles,pages' | escape }}"
-  data-predictive-limit="{{ s.predictive_limit | default: 5 }}"
-  data-predictive-minchars="{{ s.predictive_minchars | default: 2 }}"
-  data-predictive-debounce="{{ s.predictive_debounce | default: 160 }}"
-  data-empty-links='{{ empty_links_json | strip | escape }}'
+  aria-label="{{ s.aria_label | default: 'Site search' | escape }}"
+  data-template="{{ s.template_style | default: 'inline' | escape }}"
+  data-surface="{{ s.surface_style | default: 'card' | escape }}"
+  data-mode="{{ s.mode | default: 'basic' | escape }}"
 >
   <div class="q-bleed">
     <div class="q-bg" aria-hidden="true">
@@ -195,112 +263,122 @@
     </div>
 
     <div class="q-layer">
-      <div class="q-wrap" style="max-width: {% if s.container_mode == 'full' %}100%{% else %}var(--q-cont-lg, 1152px){% endif %}; padding: 0 var(--q-pad-x);">
-        <div class="q-grid{% if s.template_style == 'split' and s.split_media_side == 'left' %} split-left{% elsif s.template_style == 'split' and s.split_media_side == 'right' %} split-right{% endif %}">
+      <div class="q-wrap">
+        <div class="q-grid{% if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'left' %} split-left{% elsif s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'right' %} split-right{% endif %}">
           {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'left' -%}
             <div class="q-media-card">
-              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
+              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: s.split_image.alt }}
             </div>
           {%- endif -%}
 
           <div class="q-card" data-q-form-card>
             <header class="q-head">
-              {%- if s.kicker != blank -%}<p class="q-kicker">{{ s.kicker }}</p>{%- endif -%}
-              {%- assign H = s.heading_level | default: 'h3' -%}
+              {%- if s.kicker != blank -%}<p class="q-kicker">{{ s.kicker | escape }}</p>{%- endif -%}
+              {%- assign heading_tag = s.heading_level | default: 'h3' -%}
               {%- if s.heading != blank -%}
-                {%- if H == 'h2' -%}<h2 class="q-heading">{{ s.heading }}</h2>{%- else -%}<h3 class="q-heading">{{ s.heading }}</h3>{%- endif -%}
+                {%- if heading_tag == 'h2' -%}<h2 class="q-heading">{{ s.heading | escape }}</h2>{%- else -%}<h3 class="q-heading">{{ s.heading | escape }}</h3>{%- endif -%}
               {%- endif -%}
-              {%- if s.subheading != blank -%}<p class="q-sub">{{ s.subheading }}</p>{%- endif -%}
+              {%- if s.subheading != blank -%}<p class="q-sub">{{ s.subheading | escape }}</p>{%- endif -%}
             </header>
 
-            <form class="q-form q-predictive" role="search" novalidate>
+            <form class="q-form q-predictive" role="search" method="get" action="{{ target | escape }}">
+              <input type="hidden" name="options[prefix]" value="last">
               <div class="q-fields">
-                <div class="q-field" style="min-width:260px; flex:1 1 320px;">
-                  <label class="q-label" for="{{ section.id }}-q">{{ s.query_label | default: 'Search' }}</label>
-                  <input
-                    id="{{ section.id }}-q"
-                    class="q-input"
-                    type="search"
-                    name="q"
-                    placeholder="{{ s.query_placeholder | default: 'Search products, articles, and more' }}"
-                    autocomplete="off"
-                    aria-expanded="false"
-                    aria-controls="{{ section.id }}-panel"
-                    aria-autocomplete="list"
-                    role="combobox"
-                  />
-                  {%- if s.help_text != blank -%}<p class="q-help">{{ s.help_text }}</p>{%- endif -%}
+                <div class="q-field q-search-query">
+                  <label class="q-label" for="qfs-{{ section.id }}-q">{{ s.query_label | default: 'Search' | escape }}</label>
+                  <input id="qfs-{{ section.id }}-q" class="q-input" type="search" name="q" value="{{ search.terms | escape }}" placeholder="{{ s.query_placeholder | default: 'Search products, articles, and more' | escape }}"
+                    {% if s.mode == 'predictive' %}data-qps-input autocomplete="off" role="combobox" aria-haspopup="dialog" aria-expanded="false" aria-controls="qfs-{{ section.id }}-panel" aria-autocomplete="list"{% endif %}
+                    {% if s.help_text != blank %}aria-describedby="qfs-{{ section.id }}-help"{% endif %}>
+                  {% if s.help_text != blank %}<p id="qfs-{{ section.id }}-help" class="q-help">{{ s.help_text | escape }}</p>{% endif %}
                 </div>
-
-                {%- if s.show_scope -%}
-                <div class="q-field" style="min-width:160px; flex:0 0 200px;">
-                  <label class="q-label" for="{{ section.id }}-scope">{{ s.scope_label | default: 'Scope' }}</label>
-                  <select id="{{ section.id }}-scope" class="q-select" name="type">
-                    <option value="all" {% if s.scope_default == 'all' %}selected{% endif %}>All</option>
-                    <option value="product" {% if s.scope_default == 'product' %}selected{% endif %}>Products</option>
-                    <option value="collection" {% if s.scope_default == 'collection' %}selected{% endif %}>Collections</option>
-                    <option value="article" {% if s.scope_default == 'article' %}selected{% endif %}>Articles</option>
-                    <option value="page" {% if s.scope_default == 'page' %}selected{% endif %}>Pages</option>
-                  </select>
-                </div>
-                {%- endif -%}
-
-                {%- if s.mode == 'finder' and s.enable_category -%}
-                <div class="q-field" style="min-width:160px; flex:0 0 200px;">
-                  <label class="q-label" for="{{ section.id }}-cat">{{ s.category_label | default: 'Category' }}</label>
-                  {%- assign cat_opts = s.category_options | default: "all|All\nmens|Men\nwomens|Women\naccessories|Accessories" | newline_to_br | split: '<br />' -%}
-                  <select id="{{ section.id }}-cat" class="q-select" name="cat">
-                    <option value="">{{ s.category_placeholder | default: 'Any' }}</option>
-                    {%- for opt in cat_opts -%}
-                      {%- assign p = opt | split: '|' -%}
-                      <option value="{{ p.first | strip | escape }}">{{ p.last | default: p.first | strip }}</option>
-                    {%- endfor -%}
-                  </select>
-                </div>
-                {%- endif -%}
-
-                {%- if s.mode == 'finder' and s.enable_price -%}
-                <div class="q-field" style="min-width:160px; flex:0 0 200px;">
-                  <label class="q-label" for="{{ section.id }}-price">{{ s.price_label | default: 'Price' }}</label>
-                  {%- assign price_opts = s.price_options | default: "<50|Under $50\n50-150|$50–$150\n150+|$150+" | newline_to_br | split: '<br />' -%}
-                  <select id="{{ section.id }}-price" class="q-select" name="price">
-                    <option value="">{{ s.price_placeholder | default: 'Any' }}</option>
-                    {%- for opt in price_opts -%}
-                      {%- assign p = opt | split: '|' -%}
-                      <option value="{{ p.first | strip | escape }}">{{ p.last | default: p.first | strip }}</option>
-                    {%- endfor -%}
-                  </select>
-                </div>
-                {%- endif -%}
-
-                {%- if s.mode == 'finder' and s.enable_tag -%}
-                <div class="q-field" style="min-width:160px; flex:0 0 200px;">
-                  <label class="q-label" for="{{ section.id }}-tag">{{ s.tag_label | default: 'Tag' }}</label>
-                  {%- assign tag_opts = s.tag_options | default: "bestseller|Best sellers\nnew|New arrivals\ngift|Gifts" | newline_to_br | split: '<br />' -%}
-                  <select id="{{ section.id }}-tag" class="q-select" name="tag">
-                    <option value="">{{ s.tag_placeholder | default: 'Any' }}</option>
-                    {%- for opt in tag_opts -%}
-                      {%- assign p = opt | split: '|' -%}
-                      <option value="{{ p.first | strip | escape }}">{{ p.last | default: p.first | strip }}</option>
-                    {%- endfor -%}
-                  </select>
-                </div>
-                {%- endif -%}
-
-                <div class="q-field" style="align-self:end;">
-                  <label class="q-label is-hidden" for="{{ section.id }}-submit">Submit</label>
-                  <button id="{{ section.id }}-submit" type="submit" class="q-btn {{ btn_mode_class }}">{{ s.button_label | default: 'Search' }}</button>
+                {% if s.show_scope %}
+                  <div class="q-field q-search-filter">
+                    <label class="q-label" for="qfs-{{ section.id }}-scope">Scope</label>
+                    <select id="qfs-{{ section.id }}-scope" class="q-select" name="type" data-qps-scope style="appearance:auto;background-image:none;">
+                      <option value="product,article,page" data-resource-type="all"{% if s.scope_default == 'all' or s.scope_default == 'collection' and s.mode != 'predictive' %} selected{% endif %}>All</option>
+                      <option value="product" data-resource-type="product"{% if s.scope_default == 'product' %} selected{% endif %}>Products</option>
+                      {% if s.mode == 'predictive' %}<option value="product,article,page" data-resource-type="collection"{% if s.scope_default == 'collection' %} selected{% endif %}>Collections (suggestions)</option>{% endif %}
+                      <option value="article" data-resource-type="article"{% if s.scope_default == 'article' %} selected{% endif %}>Articles</option>
+                      <option value="page" data-resource-type="page"{% if s.scope_default == 'page' %} selected{% endif %}>Pages</option>
+                    </select>
+                  </div>
+                {% else %}<input type="hidden" name="type" value="{{ fallback_type }}">{% endif %}
+                {% if s.mode == 'finder' %}
+                  {% assign filter_keys = 'category,tag' | split: ',' %}
+                  {% for key in filter_keys %}
+                    {% assign enabled_key = 'enable_' | append: key %}
+                    {% assign options_key = key | append: '_options' %}
+                    {% assign label_key = key | append: '_label' %}
+                    {% assign placeholder_key = key | append: '_placeholder' %}
+                    {% assign parameter = 'filter.p.tag' %}
+                    {% if key == 'category' %}{% assign parameter = 'filter.p.t.category' %}{% endif %}
+                    {% if s[enabled_key] and s[options_key] != blank %}
+                      <div class="q-field q-search-filter">
+                        <label class="q-label" for="qfs-{{ section.id }}-{{ key }}">{% if s[label_key] != blank %}{{ s[label_key] | escape }}{% else %}{{ key | capitalize | escape }}{% endif %}</label>
+                        <select id="qfs-{{ section.id }}-{{ key }}" class="q-select" name="{{ parameter }}" style="appearance:auto;background-image:none;">
+                          <option value="">{{ s[placeholder_key] | default: 'Any' | escape }}</option>
+                          {% assign options = s[options_key] | newline_to_br | split: '<br />' %}
+                          {% for option in options %}
+                            {% assign pair = option | split: '|' %}
+                            {% assign option_value = pair.first | strip %}
+                            {% if option_value == blank %}{% continue %}{% endif %}
+                            {% assign active = false %}
+                            {% for filter in search.filters %}{% if filter.param_name == parameter %}{% for value in filter.active_values %}{% if value.value == option_value %}{% assign active = true %}{% endif %}{% endfor %}{% endif %}{% endfor %}
+                            <option value="{{ option_value | escape }}"{% if active %} selected{% endif %}>{{ pair.last | default: pair.first | strip | escape }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                    {% elsif s[enabled_key] and request.design_mode %}<p class="q-help">Configure {{ key }} options with the enabled Shopify filter's exact values.</p>{% endif %}
+                  {% endfor %}
+                  {% if s.enable_price %}
+                    {% assign min_price = blank %}{% assign max_price = blank %}
+                    {% for filter in search.filters %}
+                      {% if filter.type == 'price_range' %}
+                        {% if filter.min_value.value != nil %}{% assign min_price = filter.min_value.value | divided_by: 100.0 %}{% endif %}
+                        {% if filter.max_value.value != nil %}{% assign max_price = filter.max_value.value | divided_by: 100.0 %}{% endif %}
+                      {% endif %}
+                    {% endfor %}
+                    <div class="q-field q-search-filter" data-price-shortcut hidden>
+                      <label class="q-label" for="qfs-{{ section.id }}-price">{{ s.price_label | default: 'Price range' | escape }}</label>
+                      <select id="qfs-{{ section.id }}-price" class="q-select" data-price-band style="appearance:auto;background-image:none;">
+                        <option value="">{{ s.price_placeholder | default: 'Any' | escape }}</option>
+                        {% assign price_options = s.price_options | newline_to_br | split: '<br />' %}
+                        {% for option in price_options %}{% assign pair = option | split: '|' %}{% assign option_value = pair.first | strip %}{% if option_value == blank %}{% continue %}{% endif %}<option value="{{ option_value | escape }}">{{ pair.last | default: pair.first | strip | escape }}</option>{% endfor %}
+                      </select>
+                    </div>
+                    <div class="q-field q-search-filter">
+                      <label class="q-label" for="qfs-{{ section.id }}-min">Minimum price ({{ shop.currency | escape }})</label>
+                      <input id="qfs-{{ section.id }}-min" class="q-input" type="number" inputmode="decimal" min="0" step="0.01" name="filter.v.price.gte" value="{{ min_price }}">
+                    </div>
+                    <div class="q-field q-search-filter">
+                      <label class="q-label" for="qfs-{{ section.id }}-max">Maximum price ({{ shop.currency | escape }})</label>
+                      <input id="qfs-{{ section.id }}-max" class="q-input" type="number" inputmode="decimal" min="0" step="0.01" name="filter.v.price.lte" value="{{ max_price }}">
+                    </div>
+                  {% endif %}
+                {% endif %}
+                <div class="q-field q-search-submit">
+                  <button type="submit" class="q-btn {{ btn_mode_class }}">{{ s.button_label | default: 'Search' | escape }}</button>
                 </div>
               </div>
-
-              <div id="{{ section.id }}-panel" class="q-panel" role="listbox" aria-label="Search suggestions"></div>
-              <div class="q-live" aria-live="polite"></div>
+              {% if s.mode == 'predictive' %}
+                <div id="qfs-{{ section.id }}-panel" class="q-panel" data-qps-panel hidden role="dialog" aria-label="Search suggestions"><div data-qps-panel-inner></div></div>
+                <p class="q-live" data-qps-status role="status" aria-live="polite"></p>
+                {% if predictive_sources contains 'collections' %}<p class="q-help">Collections appear in suggestions; full search does not include collections.</p>{% endif %}
+              {% endif %}
             </form>
+            <div class="q-search-links">
+              {% for block in section.blocks %}
+                {% if block.type == 'quick_link' and block.settings.url != blank and block.settings.label != blank %}<a href="{{ block.settings.url | escape }}" {{ block.shopify_attributes }}>{{ block.settings.label | escape }}</a>{% endif %}
+              {% endfor %}
+            </div>
+            {% if request.design_mode and target_valid == false and s.nav_target != blank %}<p class="q-help">Use a store-relative target path without query parameters; this form currently uses the localized search page.</p>{% endif %}
+            {% if request.design_mode and s.mode == 'finder' %}<p class="q-help">Enable matching Shopify category, tag and price filters in Search &amp; Discovery. Filter values and price bands must match your catalog and shop currency.</p>{% endif %}
+
           </div>
 
           {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'right' -%}
             <div class="q-media-card">
-              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
+              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: s.split_image.alt }}
             </div>
           {%- endif -%}
         </div>
@@ -308,262 +386,10 @@
     </div>
   </div>
 
-  <script>
-  (() => {
-    const rootEl = document.getElementById('{{ anchor }}');
-    if (!rootEl) return;
-
-    const mode = rootEl.getAttribute('data-mode') || 'basic';
-    const defaultScope = rootEl.getAttribute('data-scope-default') || 'all';
-    const navTarget = rootEl.getAttribute('data-target') || '/search';
-
-    const formEl = rootEl.querySelector('form.q-form');
-    if (!formEl) return;
-
-    const queryInput = formEl.querySelector('input[name="q"]');
-    const scopeSelect = formEl.querySelector('select[name="type"]');
-    const panelEl = formEl.querySelector('.q-panel');
-    const emptyLinks = JSON.parse(rootEl.getAttribute('data-empty-links') || '[]');
-
-    const categorySelect = formEl.querySelector('select[name="cat"]');
-    const priceSelect = formEl.querySelector('select[name="price"]');
-    const tagSelect = formEl.querySelector('select[name="tag"]');
-
-    const sourcesCsv = (rootEl.getAttribute('data-predictive-sources') || '').toLowerCase();
-    const allowedSources = sourcesCsv.split(',').map(s => s.trim()).filter(Boolean);
-    const limitPerSource = parseInt(rootEl.getAttribute('data-predictive-limit') || '5', 10);
-    const minChars = parseInt(rootEl.getAttribute('data-predictive-minchars') || '2', 10);
-    const debounceMs = parseInt(rootEl.getAttribute('data-predictive-debounce') || '160', 10);
-
-    function buildSearchUrl() {
-      const q = (queryInput?.value || '').trim();
-      const url = new URL(navTarget, window.location.origin);
-      if (q) url.searchParams.set('q', q);
-
-      const scopeVal = scopeSelect ? (scopeSelect.value || defaultScope) : defaultScope;
-      if (scopeVal && scopeVal !== 'all') url.searchParams.set('type', scopeVal);
-
-      if (categorySelect && categorySelect.value) url.searchParams.set('cat', categorySelect.value);
-
-      if (priceSelect && priceSelect.value) {
-        const val = priceSelect.value;
-        if (val.includes('-')) {
-          const [lo, hi] = val.split('-');
-          url.searchParams.set('filter.v.price.gte', lo);
-          url.searchParams.set('filter.v.price.lte', hi.replace('+',''));
-        } else if (val.endsWith('+')) {
-          url.searchParams.set('filter.v.price.gte', val.replace('+',''));
-        } else if (val.startsWith('<')) {
-          url.searchParams.set('filter.v.price.lte', val.replace('<',''));
-        }
-      }
-
-      if (tagSelect && tagSelect.value) url.searchParams.set('tag', tagSelect.value);
-      return url.toString();
-    }
-
-    formEl.addEventListener('submit', (ev) => {
-      ev.preventDefault();
-      try {
-        window.dataLayer = window.dataLayer || [];
-        window.dataLayer.push({
-          event: 'search_submit',
-          mode,
-          scope: scopeSelect ? scopeSelect.value : defaultScope,
-          location: '{{ s.template_style | default: "inline" }}',
-          query_length: (queryInput?.value || '').trim().length
-        });
-      } catch(e){}
-      window.location.href = buildSearchUrl();
-    });
-
-    if (mode === 'predictive' && queryInput && panelEl) {
-      let activeIndex = -1;
-      let flatItems = [];
-      const controllerState = { currentAbort: null, lastQuery: '' };
-
-      const closePanel = () => {
-        panelEl.classList.remove('is-open');
-        panelEl.innerHTML = '';
-        queryInput.setAttribute('aria-expanded', 'false');
-        activeIndex = -1;
-        flatItems = [];
-      };
-      const openPanel = () => {
-        panelEl.classList.add('is-open');
-        queryInput.setAttribute('aria-expanded', 'true');
-      };
-
-      let debounceTimer = null;
-      const debounced = (fn, wait) => (...args) => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => fn(...args), wait);
-      };
-
-      const buildEndpoint = (q) => {
-        const url = new URL('/search/suggest.json', window.location.origin);
-        url.searchParams.set('q', q);
-
-        const resTypes = [];
-        if (allowedSources.includes('products')) resTypes.push('product');
-        if (allowedSources.includes('collections')) resTypes.push('collection');
-        if (allowedSources.includes('articles')) resTypes.push('article');
-        if (allowedSources.includes('pages')) resTypes.push('page');
-
-        url.searchParams.set('resources[type]', resTypes.join(',') || 'product');
-        url.searchParams.set('resources[limit]', String(limitPerSource));
-        url.searchParams.set('section_id', 'predictive-search');
-        return url.toString();
-      };
-
-      const renderPanel = (payload) => {
-        const groups = [];
-        flatItems = [];
-
-        const pushGroup = (title, typeKey, items, mapFn) => {
-          if (!items || !items.length) return;
-          const mapped = items.map(mapFn);
-          flatItems.push(...mapped);
-          groups.push({ title, typeKey, items: mapped });
-        };
-
-        pushGroup('Products', 'products', payload?.resources?.results?.products, (p) => ({
-          type:'product', id:p.id, url:p.url, title:p.title, sub:p.price || '', image:p.image
-        }));
-        pushGroup('Collections', 'collections', payload?.resources?.results?.collections, (c) => ({
-          type:'collection', id:c.id, url:c.url, title:c.title, sub:(c.products_count||0)+' items', image:c.image
-        }));
-        pushGroup('Articles', 'articles', payload?.resources?.results?.articles, (a) => ({
-          type:'article', id:a.id, url:a.url, title:a.title, sub:a.author||'', image:a.image
-        }));
-        pushGroup('Pages', 'pages', payload?.resources?.results?.pages, (p) => ({
-          type:'page', id:p.id, url:p.url, title:p.title, sub:'', image:p.image
-        }));
-
-        if (!groups.length) {
-          panelEl.innerHTML = `
-            <div class="q-group" data-type="empty">
-              <div class="q-group-title">No matches</div>
-              <div class="q-items">
-                ${emptyLinks.map(l => `
-                  <a class="q-item" role="option" href="${l.url || '#'}">
-                    <div class="q-item-content">
-                      <div class="q-item-title">${l.label || ''}</div>
-                    </div>
-                  </a>
-                `).join('')}
-              </div>
-            </div>`;
-          openPanel();
-          return;
-        }
-
-        panelEl.innerHTML = groups.map((g) => `
-          <div class="q-group" data-type="${g.typeKey}">
-            <div class="q-group-title">${g.title}</div>
-            <div class="q-items">
-              ${g.items.map((it) => `
-                <a class="q-item" role="option" data-flat-index="${flatItems.indexOf(it)}" href="${it.url}">
-                  ${it.image ? `<img class="q-item-thumb" src="${it.image}" alt="" loading="lazy">` : `<div class="q-item-thumb" aria-hidden="true"></div>`}
-                  <div class="q-item-content">
-                    <div class="q-item-title">${it.title}</div>
-                    ${it.sub ? `<div class="q-item-sub">${it.sub}</div>` : ``}
-                  </div>
-                </a>
-              `).join('')}
-            </div>
-          </div>
-        `).join('');
-
-        try {
-          const counts = {
-            products: payload?.resources?.results?.products?.length || 0,
-            collections: payload?.resources?.results?.collections?.length || 0,
-            articles: payload?.resources?.results?.articles?.length || 0,
-            pages: payload?.resources?.results?.pages?.length || 0
-          };
-          window.dataLayer = window.dataLayer || [];
-          window.dataLayer.push({ event: 'search_predictive_impression', counts, query: controllerState.lastQuery });
-        } catch(e){}
-
-        openPanel();
-      };
-
-      const fetchSuggestions = async (q) => {
-        if (controllerState.currentAbort) controllerState.currentAbort.abort();
-        const aborter = new AbortController();
-        controllerState.currentAbort = aborter;
-        controllerState.lastQuery = q;
-
-        try {
-          const res = await fetch(buildEndpoint(q), { signal: aborter.signal, headers: { 'Accept': 'application/json' }});
-          if (!res.ok) throw new Error('Network error');
-          const data = await res.json();
-          renderPanel(data);
-        } catch (err) {
-          closePanel();
-        } finally {
-          controllerState.currentAbort = null;
-        }
-      };
-
-      const handleInput = debounced(() => {
-        const q = (queryInput.value || '').trim();
-        if (q.length < minChars) { closePanel(); return; }
-        fetchSuggestions(q); /* don't encodeURIComponent here (URLSearchParams will encode) */
-      }, debounceMs);
-
-      queryInput.addEventListener('input', () => {
-        if (mode === 'predictive') handleInput();
-      });
-
-      queryInput.addEventListener('keydown', (e) => {
-        if (!panelEl.classList.contains('is-open')) return;
-
-        const total = flatItems.length;
-        if (!total) return;
-
-        if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = (activeIndex + 1 + total) % total; }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = (activeIndex - 1 + total) % total; }
-        else if (e.key === 'Escape') { e.preventDefault(); closePanel(); return; }
-        else if (e.key === 'Enter') {
-          if (activeIndex >= 0 && flatItems[activeIndex]) {
-            e.preventDefault();
-            const item = flatItems[activeIndex];
-            try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event:'search_predictive_select', type:item.type, id:item.id }); } catch(e){}
-            window.location.href = item.url;
-            return;
-          }
-        }
-
-        panelEl.querySelectorAll('.q-item').forEach(a => a.setAttribute('aria-selected', 'false'));
-        if (activeIndex >= 0) {
-          const activeEl = panelEl.querySelector(`.q-item[data-flat-index="${activeIndex}"]`);
-          if (activeEl) {
-            activeEl.setAttribute('aria-selected', 'true');
-            activeEl.scrollIntoView({ block: 'nearest' });
-          }
-        }
-      });
-
-      panelEl.addEventListener('click', (e) => {
-        const link = e.target.closest('.q-item');
-        if (!link) return;
-        const idx = parseInt(link.getAttribute('data-flat-index') || '-1', 10);
-        if (idx >= 0 && flatItems[idx]) {
-          try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event:'search_predictive_select', type: flatItems[idx].type, id: flatItems[idx].id }); } catch(e){}
-        }
-      });
-
-      document.addEventListener('click', (e) => { if (!rootEl.contains(e.target)) closePanel(); });
-      queryInput.addEventListener('blur', () => {
-        setTimeout(() => { if (!rootEl.contains(document.activeElement)) closePanel(); }, 120);
-      });
-    }
-  })();
-  </script>
 </section>
 
+
+{%- endif -%}
 {% schema %}
 {
   "name": "Form – Site Search",
@@ -578,8 +404,8 @@
       { "value": "predictive", "label": "Predictive search (typeahead)" },
       { "value": "finder", "label": "Finder (guided filters)" }
     ]},
-    { "type": "checkbox", "id": "show_scope", "label": "Show scope select (basic/finder)", "default": true },
-    { "type": "select", "id": "scope_default", "label": "Default scope", "default": "all", "options": [
+    { "type": "checkbox", "id": "show_scope", "label": "Show scope select", "default": true },
+    { "type": "select", "id": "scope_default", "label": "Default scope", "info": "Full Shopify search supports products, articles and pages. Collections are predictive suggestions only; full submission falls back to all supported types.", "default": "all", "options": [
       { "value": "all", "label": "All" },
       { "value": "product", "label": "Products" },
       { "value": "collection", "label": "Collections" },
@@ -588,7 +414,7 @@
     ]},
 
     { "type": "header", "content": "Predictive Settings" },
-    { "type": "text", "id": "predictive_sources", "label": "Sources (csv)", "default": "products,collections,articles,pages" },
+    { "type": "text", "id": "predictive_sources", "label": "Sources (csv)", "info": "Use products, collections, articles and pages. Requests use the saved section settings and per-source limit.", "default": "products,collections,articles,pages" },
     { "type": "range", "id": "predictive_limit", "label": "Max per source", "min": 1, "max": 10, "step": 1, "default": 5 },
     { "type": "range", "id": "predictive_minchars", "label": "Min characters to trigger", "min": 1, "max": 5, "step": 1, "default": 2 },
     { "type": "range", "id": "predictive_debounce", "label": "Debounce (ms)", "min": 80, "max": 600, "step": 20, "default": 160 },
@@ -597,17 +423,17 @@
     { "type": "checkbox", "id": "enable_category", "label": "Enable Category", "default": false },
     { "type": "text", "id": "category_label", "label": "Category label", "default": "Category" },
     { "type": "text", "id": "category_placeholder", "label": "Category placeholder", "default": "Any" },
-    { "type": "textarea", "id": "category_options", "label": "Category options (value|label per line)" },
+    { "type": "textarea", "id": "category_options", "label": "Category options (value|label per line)", "info": "Use Shopify category IDs, for example aa-1|Category label, matching an enabled category filter. Blank options omit the control." },
 
     { "type": "checkbox", "id": "enable_price", "label": "Enable Price band", "default": false },
     { "type": "text", "id": "price_label", "label": "Price label", "default": "Price" },
     { "type": "text", "id": "price_placeholder", "label": "Price placeholder", "default": "Any" },
-    { "type": "textarea", "id": "price_options", "label": "Price options (value|label per line)", "default": "<50|Under $50\n50-150|$50–$150\n150+|$150+" },
+    { "type": "textarea", "id": "price_options", "label": "Price options (value|label per line)", "info": "Optional JS shortcuts in shop currency: <50, 50-150 or 150+. Under uses an upper bound one cent below the value. Native min/max controls work without JS; enable the Shopify price filter.", "default": "<50|Under $50\n50-150|$50–$150\n150+|$150+" },
 
     { "type": "checkbox", "id": "enable_tag", "label": "Enable Tag filter", "default": false },
     { "type": "text", "id": "tag_label", "label": "Tag label", "default": "Tag" },
     { "type": "text", "id": "tag_placeholder", "label": "Tag placeholder", "default": "Any" },
-    { "type": "textarea", "id": "tag_options", "label": "Tag options (value|label per line)" },
+    { "type": "textarea", "id": "tag_options", "label": "Tag options (value|label per line)", "info": "Use exact catalog tags matching an enabled Shopify tag filter. Blank options omit the control." },
 
     { "type": "header", "content": "Content" },
     { "type": "text", "id": "kicker", "label": "Kicker" },
@@ -620,7 +446,7 @@
     { "type": "text", "id": "button_label", "label": "Button label", "default": "Search" },
 
     { "type": "header", "content": "Navigation" },
-    { "type": "text", "id": "nav_target", "label": "Target path", "default": "/search" },
+    { "type": "text", "id": "nav_target", "label": "Target path", "info": "Use /search or another store-relative path that accepts native search/filter parameters. Locale prefix is retained. External URLs, query strings and fragments fall back to Shopify search.", "default": "/search" },
 
     { "type": "header", "content": "Styling" },
     { "type": "select", "id": "template_style", "label": "Template", "default": "inline", "options": [
@@ -628,7 +454,7 @@
       { "value": "card", "label": "Card" },
       { "value": "split", "label": "Split (media + form)" }
     ]},
-    { "type": "select", "id": "surface_style", "label": "Surface chrome", "default": "card", "options": [
+    { "type": "select", "id": "surface_style", "label": "Surface chrome", "info": "Inline always uses a minimal frameless surface. Card and Split use this setting.", "default": "card", "options": [
       { "value": "card", "label": "Card" },
       { "value": "frameless", "label": "Frameless (no card)" }
     ]},
@@ -722,5 +548,3 @@
   ]
 }
 {% endschema %}
-
-{% javascript %}{% endjavascript %}

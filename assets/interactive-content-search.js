@@ -16,8 +16,9 @@
       const integer = (key, fallback, min, max) => Math.max(min, Math.min(max, Number(root.dataset[key]) || fallback));
       const minChars = integer('minChars', 2, 1, 6), debounce = integer('debounce', 200, 0, 1000);
       const limits = {product:Number(root.dataset.limitProducts),collection:Number(root.dataset.limitCollections),article:Number(root.dataset.limitArticles),page:Number(root.dataset.limitPages)};
-      const scopeType = {products_only:'product',articles_only:'article',pages_only:'page'}[root.dataset.scope];
-      const types = Object.keys(limits).filter(type => limits[type] > 0 && (!scopeType || type === scopeType));
+      const scopeSelect = root.querySelector('[data-qps-scope]');
+      const scopeType = {products_only:'product',articles_only:'article',pages_only:'page',collections_only:'collection'}[root.dataset.scope];
+      const types = Object.keys(limits).filter(type => limits[type] > 0 && (scopeSelect || !scopeType || type === scopeType));
       const limit = Math.min(10, Math.max(integer('max', 8, 1, 16), ...types.map(type => limits[type])));
       let timer = null, timeout = null, request = null, generation = 0, disposed = false, composing = false, skipFocus = false;
       function announce(text) { if (status) status.textContent = text; }
@@ -55,7 +56,9 @@
       function run() {
         close(); inner.replaceChildren();
         const term = input.value.trim();
-        if (composing || term.length < minChars || !types.length) return;
+        const selectedScope = scopeSelect?.selectedOptions[0]?.dataset.resourceType;
+        const requestTypes = selectedScope && selectedScope !== 'all' ? types.filter(type => type === selectedScope) : types;
+        if (composing || term.length < minChars || !requestTypes.length) return;
         const version = generation;
         timer = setTimeout(async () => {
           timer = null;
@@ -70,7 +73,7 @@
             const base = root.dataset.suggestUrl || ((window.Shopify?.routes?.root || '/') + 'search/suggest');
             const url = new URL(base, location.origin);
             url.searchParams.set('q', term); url.searchParams.set('section_id', root.dataset.sectionId);
-            url.searchParams.set('resources[type]', types.join(',')); url.searchParams.set('resources[limit]', String(limit));
+            url.searchParams.set('resources[type]', requestTypes.join(',')); url.searchParams.set('resources[limit]', String(limit));
             url.searchParams.set('resources[limit_scope]', 'each');
             const response = await fetch(url.href, { credentials:'same-origin', signal:controller.signal });
             if (!response.ok) throw new Error('Predictive response failed');
@@ -78,6 +81,7 @@
             if (disposed || version !== generation || input.value.trim() !== term) return;
             const rendered = new DOMParser().parseFromString(html, 'text/html').querySelector('[data-qps-render="panel"]');
             if (!rendered) throw new Error('Missing search panel');
+            rendered.querySelectorAll('[data-qps-view-all]').forEach(link => { link.href = fullSearch(term); });
             inner.replaceChildren(rendered); panel.hidden = false; input.setAttribute('aria-expanded', 'true');
             announce(rendered.querySelector('.q-ps__empty') ? rendered.textContent.trim() : 'Search suggestions are available. Use the down arrow or Tab to browse.');
           } catch (_) {
@@ -88,6 +92,7 @@
         }, debounce);
       }
       input.addEventListener('input', run, events);
+      scopeSelect?.addEventListener('change', run, events);
       input.addEventListener('compositionstart', () => { composing = true; close(); }, events);
       input.addEventListener('compositionend', () => { composing = false; run(); }, events);
       input.addEventListener('focus', () => { loadRecent(); if (skipFocus) { skipFocus = false; return; } if (root.dataset.openOnFocus === 'true') run(); }, events);
