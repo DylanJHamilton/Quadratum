@@ -1,0 +1,102 @@
+{% comment %}One configured field; native transport and grouping are owned by form-core.{% endcomment %}
+      {%- liquid
+        assign b = block.settings
+        assign field_key = block.id
+        assign input_id = 'qf-' | append: id | append: '-' | append: field_key
+        assign field_type = b.field_type | default: 'text'
+        assign name_attr = b.name_attr | strip
+        if name_attr == blank or name_attr == 'contact[field]'
+          assign name_attr = 'contact[field-' | append: field_key | append: ']'
+        endif
+        if native_form
+          if field_type == 'email' and primary_email
+            assign name_attr = 'contact[email]'
+          else
+            assign name_start = name_attr | slice: 0, 8
+            unless name_start == 'contact['
+              assign name_attr = 'contact[' | append: name_attr | append: ']'
+            endunless
+          endif
+        endif
+        assign label_txt = b.label | default: 'Field'
+        assign help_txt = b.help_text | default: ''
+        assign required = b.required
+        if native_form and name_attr == 'contact[email]'
+          assign required = true
+        endif
+        assign value = b.default_value | default: ''
+        assign field_name = name_attr | remove_first: 'contact[' | remove: ']'
+        if shopify_form.errors and shopify_form[field_name] != nil
+          assign value = shopify_form[field_name]
+        endif
+        assign descriptions = input_id | append: '-err'
+        if help_txt != blank
+          assign descriptions = input_id | append: '-help ' | append: descriptions
+        endif
+        assign lines = b.options | newline_to_br | split: '<br />'
+      -%}
+      <div class="q-field{% if b.width == 'half' %} half{% endif %}" data-q-field data-required="{{ required }}" data-source-name="{{ b.name_attr | escape }}"
+        {% if b.condition_enable %}data-cond="1" data-cond-field="{{ b.condition_field | escape }}" data-cond-operator="{{ b.condition_operator | escape }}" data-cond-value="{{ b.condition_value | escape }}"{% endif %}
+        {{ block.shopify_attributes }}>
+        {%- case field_type -%}
+          {%- when 'hidden' -%}
+            <input id="{{ input_id }}" type="hidden" name="{{ name_attr | escape }}" value="{{ value | escape }}">
+          {%- when 'html' -%}
+            <div id="{{ input_id }}" class="q-html">{{ b.html_content }}</div>
+          {%- when 'radio' -%}
+            <fieldset class="q-radio-group" aria-describedby="{{ descriptions }}">
+              <legend class="q-label">{{ label_txt | escape }}{% if required %} *{% endif %}</legend>
+              {% for line in lines %}
+                {% assign option_line = line | strip %}
+                {% if option_line == blank %}{% continue %}{% endif %}
+                {% assign parts = option_line | split: '|' %}
+                {% assign option_value = parts[0] | strip %}
+                {% assign option_label = parts[1] | default: option_value | strip %}
+                <label class="q-radio" for="{{ input_id }}-{{ forloop.index }}">
+                  <input id="{{ input_id }}-{{ forloop.index }}" type="radio" class="q-input q-check" name="{{ name_attr | escape }}" value="{{ option_value | escape }}" aria-describedby="{{ descriptions }}"{% if required %} required{% endif %}{% if value == option_value %} checked{% endif %}>
+                  <span>{{ option_label | escape }}</span>
+                </label>
+              {% endfor %}
+            </fieldset>
+          {%- when 'checkbox', 'consent' -%}
+            <label class="q-radio" for="{{ input_id }}">
+              <input id="{{ input_id }}" type="checkbox" class="q-input q-check" name="{{ name_attr | escape }}" value="{% if field_type == 'consent' %}yes{% else %}{{ value | default: 'on' | escape }}{% endif %}" aria-describedby="{{ descriptions }}"{% if required %} required{% endif %}>
+              <span>{{ label_txt | escape }}{% if required %} *{% endif %}</span>
+            </label>
+          {%- when 'select' -%}
+            <label class="q-label" for="{{ input_id }}">{{ label_txt | escape }}{% if required %} *{% endif %}</label>
+            <select id="{{ input_id }}" class="q-select" name="{{ name_attr | escape }}" aria-describedby="{{ descriptions }}"{% if required %} required{% endif %}>
+              <option value="">{{ b.placeholder | default: 'Choose an option' | escape }}</option>
+              {% for line in lines %}
+                {% assign option_line = line | strip %}
+                {% if option_line == blank %}{% continue %}{% endif %}
+                {% assign parts = option_line | split: '|' %}
+                {% assign option_value = parts[0] | strip %}
+                {% assign option_label = parts[1] | default: option_value | strip %}
+                <option value="{{ option_value | escape }}"{% if value == option_value %} selected{% endif %}>{{ option_label | escape }}</option>
+              {% endfor %}
+            </select>
+          {%- when 'textarea' -%}
+            <label class="q-label" for="{{ input_id }}">{{ label_txt | escape }}{% if required %} *{% endif %}</label>
+            <textarea id="{{ input_id }}" class="q-textarea" name="{{ name_attr | escape }}" placeholder="{{ b.placeholder | escape }}" aria-describedby="{{ descriptions }}"{% if required %} required{% endif %}>{{ value | escape }}</textarea>
+          {%- else -%}
+            {%- liquid
+              assign allowed_types = 'text,email,tel,number,url,date,time,password,file' | split: ','
+              unless allowed_types contains field_type
+                assign field_type = 'text'
+              endunless
+            -%}
+            <label class="q-label" for="{{ input_id }}">{{ label_txt | escape }}{% if required %} *{% endif %}</label>
+            <input id="{{ input_id }}" type="{{ field_type }}" class="q-input" name="{{ name_attr | escape }}" placeholder="{{ b.placeholder | escape }}" aria-describedby="{{ descriptions }}"
+              {% unless field_type == 'file' or field_type == 'password' %}value="{{ value | escape }}"{% endunless %}
+              {% if required %}required{% endif %}
+              {% if field_type == 'email' %}autocomplete="email" inputmode="email"{% if shopify_form.errors contains 'email' %} aria-invalid="true"{% endif %}{% endif %}
+              {% if field_type == 'tel' %}autocomplete="tel" inputmode="tel"{% endif %}
+              {% if field_type == 'number' %}step="any" inputmode="decimal"{% endif %}
+              {% if field_type == 'file' and b.accept != blank %}accept="{{ b.accept | escape }}"{% endif %}>
+        {%- endcase -%}
+        {% unless field_type == 'hidden' or field_type == 'html' %}
+          {% if help_txt != blank %}<p id="{{ input_id }}-help" class="q-help">{{ help_txt | escape }}</p>{% endif %}
+          <p id="{{ input_id }}-err" class="q-error"></p>
+        {% endunless %}
+      </div>
