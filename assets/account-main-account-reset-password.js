@@ -1,63 +1,24 @@
-class QuadratumAccountResetPasswordToggle {
-  constructor(resetPasswordSectionElement) {
-    this.resetPasswordSectionElement = resetPasswordSectionElement;
-    this.passwordToggleButtons = Array.from(
-      resetPasswordSectionElement.querySelectorAll('[data-qtm-account-reset-password-toggle]')
-    );
-
-    this.bindPasswordToggleButtons();
-  }
-
-  bindPasswordToggleButtons() {
-    this.passwordToggleButtons.forEach((passwordToggleButton) => {
-      passwordToggleButton.addEventListener('click', () => {
-        this.togglePasswordFieldVisibility(passwordToggleButton);
-      });
+(() => {
+  'use strict';
+  if (window.__qAccountResetPassword) return;
+  window.__qAccountResetPassword = true;
+  const selector = '[data-qtm-account-reset-password]', instances = new Map();
+  function mount(root) {
+    if (instances.has(root)) return;
+    const abort = new AbortController(), toggles = [];
+    root.querySelectorAll('[data-qtm-account-reset-password-toggle]').forEach(button => {
+      const input = button.closest('.qtmAccountResetPassword__passwordField')?.querySelector('input');
+      if (!input) return;
+      const label = button.querySelector('[data-qtm-account-reset-password-toggle-text]');
+      function paint(reveal) { input.type = reveal ? 'text' : 'password'; button.setAttribute('aria-pressed',String(reveal)); button.setAttribute('aria-controls',input.id); button.setAttribute('aria-label',(reveal ? button.dataset.hideLabel : button.dataset.showLabel) || (reveal ? 'Hide password' : 'Show password')); if(label) label.textContent = reveal ? 'Hide' : 'Show'; }
+      button.hidden = false; paint(false);
+      button.addEventListener('click', () => paint(input.type === 'password'), {signal:abort.signal});
+      toggles.push(() => { paint(false); button.hidden = true; });
     });
+    instances.set(root, () => { abort.abort(); toggles.forEach(reset=>reset()); instances.delete(root); });
   }
-
-  togglePasswordFieldVisibility(passwordToggleButton) {
-    const passwordFieldWrapper = passwordToggleButton.closest('.qtmAccountResetPassword__passwordField');
-    const passwordInput = passwordFieldWrapper
-      ? passwordFieldWrapper.querySelector('[data-qtm-account-reset-password-input]')
-      : null;
-    const passwordToggleText = passwordToggleButton.querySelector('[data-qtm-account-reset-password-toggle-text]');
-
-    if (!passwordInput) return;
-
-    const passwordIsCurrentlyHidden = passwordInput.type === 'password';
-    const nextInputType = passwordIsCurrentlyHidden ? 'text' : 'password';
-    const nextButtonLabel = passwordIsCurrentlyHidden
-      ? passwordToggleButton.dataset.hideLabel
-      : passwordToggleButton.dataset.showLabel;
-
-    passwordInput.type = nextInputType;
-    passwordToggleButton.setAttribute('aria-label', nextButtonLabel);
-
-    // Keep the visible toggle text aligned with the accessible button label.
-    if (passwordToggleText) {
-      passwordToggleText.textContent = passwordIsCurrentlyHidden ? 'Hide' : 'Show';
-    }
-  }
-}
-
-function initializeQuadratumAccountResetPasswordSections() {
-  document.querySelectorAll('[data-qtm-account-reset-password]').forEach((resetPasswordSectionElement) => {
-    const sectionAlreadyInitialized =
-      resetPasswordSectionElement.dataset.qtmAccountResetPasswordInitialized === 'true';
-
-    if (sectionAlreadyInitialized) return;
-
-    resetPasswordSectionElement.dataset.qtmAccountResetPasswordInitialized = 'true';
-    new QuadratumAccountResetPasswordToggle(resetPasswordSectionElement);
-  });
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeQuadratumAccountResetPasswordSections);
-} else {
-  initializeQuadratumAccountResetPasswordSections();
-}
-
-// Re-initialize safely when Shopify Theme Editor reloads this section.
-document.addEventListener('shopify:section:load', initializeQuadratumAccountResetPasswordSections);
+  const scan = scope => { if(scope.matches?.(selector)) mount(scope); scope.querySelectorAll?.(selector).forEach(mount); };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>scan(document),{once:true}); else scan(document);
+  document.addEventListener('shopify:section:load',event=>scan(event.target));
+  document.addEventListener('shopify:section:unload',event=>{ for(const[root,dispose]of instances) if(root===event.target||event.target.contains(root))dispose(); });
+})();

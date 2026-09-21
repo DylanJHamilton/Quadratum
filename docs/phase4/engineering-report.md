@@ -24,7 +24,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 4 Product / Commerce | Engineering/register closure: all 69 family components have dispositions (64 live queued, five dormant retained). All five main-product hosts reviewed independently. B4-FINAL storefront acceptance remains mandatory after Batch 9. |
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
-| 7 Social / Third Party / Utilities | CURRENT: 71 assigned components; 51 NOT REVIEWED and 20 live queued. Latest checkpoint: Order Tracking and Region Availability. |
+| 7 Social / Third Party / Utilities | CURRENT: 72 assigned components; 39 NOT REVIEWED and 33 live queued. Latest checkpoint: Legacy Account Authentication. |
 | 8 Theme Blocks | All 102 inventoried; individual host review pending |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
@@ -951,3 +951,16 @@ Region Availability now uses native metafield values and exact, trimmed, case-no
 **Unmodified Theme Check exits 1 with 508 diagnostics (seven errors / 501 warnings), unchanged and unsuppressed.** Batch 7: **71 entries — 20 live queued, 51 NOT REVIEWED**. Overall: **488 components — 182 NOT REVIEWED, 279 live queued, 25 dormant/source-reviewed, one build-only and one owner-review deletion candidate**.
 
 **B7-TRACKING-REGIONS after Batch 9:** real configured help/provider destinations and native browser/popup navigation; published supplier data and Markets localization, saved messages and checkout truthfulness; icons/custom themes/contrast, responsive/RTL/zoom/no-JS/keyboard/AT and real editor insertion/reordering/unload/reload. All earlier queues/closures remain intact. Next: Batch 7 legacy account authentication surfaces and their CSS/JS dependencies. No Batch 8, Batch 9 or live QA is begun; PR #22 remains DRAFT.
+
+
+## Batch 7 checkpoint — Legacy Account Authentication — 2026-09-21
+
+Activation, Login, Registration and Reset Password; their four stylesheets and four controllers; and the Login recovery helper independently move to **REQUIRES LIVE VERIFICATION** (13 entries, including the newly inventoried Login controller). Native platform forms and every setting ID remain. Required-field validation works without JavaScript, and activation decline can submit without filling password fields. Form/error IDs are unique per instance; merchant/customer text is escaped. Login renders one real recovery form with explicit snippet inputs instead of cloning duplicate template IDs. Recovery is available without JavaScript; enhanced panels keep native server errors/success visible and manage focus.
+
+Password toggles start hidden until ready, have actual pressed/control/label state, remain independent across roots and dispose/reset on editor unload. Duplicate assets/load events cannot double-bind. Login labels are escaped data values, eliminating quoted inline JavaScript. The four stylesheets now use actual theme typography and color tokens; solid buttons no longer resolve background and text to the same white color. Explicit input text, card contrast, bounded controls, zero-radius clamping, focus, hidden guards and reduced motion remain scoped. The legacy remember-me field is labelled as platform-controlled; no theme session storage, social login, mail service or account migration is invented.
+
+[Shopify identifies these as legacy customer templates](https://shopify.dev/docs/storefronts/themes/architecture/templates); current customer accounts run outside the theme. All native templates and merchant state are preserved. **173 dedicated actual settings/native-form/escaping/unique-ID/decline/no-JS/panel/password/lifecycle/CSS cases pass**, plus the existing shared form controller suite. Native Liquid parsing, schema/reference/protected architecture/merchant-state checks, all **489 source hashes** and byte-identical generated CSS pass. Evidence: `validation/batch7-account-auth/`. Explicit form/DOM/color adapters do not certify Shopify authentication, native browser pixels or AT.
+
+**Unmodified Theme Check exits 1 with 508 diagnostics (seven errors / 501 warnings), unchanged and unsuppressed.** Batch 7: **72 entries — 33 live queued, 39 NOT REVIEWED**. Overall: **489 components — 170 NOT REVIEWED, 292 live queued, 25 dormant/source-reviewed, one build-only and one owner-review deletion candidate**.
+
+**B7-ACCOUNT-AUTH after Batch 9:** actual legacy activation/decline/login/recovery/reset/registration, server messages/captcha/email/session behavior and account configuration; saved settings, no-JS/responsive/RTL/zoom/contrast/keyboard/AT and real editor lifecycle. All earlier closures/queues remain intact. Next: remaining Batch 7 account pages/navigation and their dependencies. No Batch 8/9, account migration or live QA is begun; PR #22 remains DRAFT.
