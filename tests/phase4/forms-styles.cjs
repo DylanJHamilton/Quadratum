@@ -4,7 +4,7 @@ const files=['assets/forms-sections.css','assets/call-to-action-quote-form.css']
 const sources=files.map(file=>f.read(file)),asts=sources.map(source=>postcss.parse(source));
 const product={...f.product,variants_count:3};
 (async()=>{
- const html=await Promise.all(names.map((name,i)=>f.host(name,{id:'styles-'+i,data:{product},settings:{show_first_name:true}})));
+ const html=await Promise.all(names.map((name,i)=>f.host(name,{id:'styles-'+i,data:{product},settings:{show_first_name:true,action_url:"/apps/test-crm"}})));
  let checks=0;
  for(const ordered of [sources,[...sources].reverse()]){
   // Both assets appear after each host's inline rules, as happens with later inserted sections.
