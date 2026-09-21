@@ -1,0 +1,82 @@
+{% comment %}Waitlist-specific fields inside the shared native/custom form transport.{% endcomment %}
+{%- liquid
+  assign s = settings
+  assign native_form = true
+  if s.destination == 'custom_endpoint'
+    assign native_form = false
+  endif
+  assign chosen = waitlist_product.selected_variant
+  if s.bind_mode == 'manual'
+    assign chosen = nil
+  endif
+  if waitlist_product.has_only_default_variant
+    assign chosen = waitlist_product.variants.first
+  endif
+  assign chosen_in_list = false
+  for variant in waitlist_product.variants
+    if variant.id == chosen.id
+      assign chosen_in_list = true
+    endif
+  endfor
+  assign button_variant = s.button_variant
+  if button_variant == blank or button_variant == 'inherit'
+    assign button_variant = theme_settings.button_variant_default | default: 'solid'
+  endif
+-%}
+<input type="hidden" name="form_name" value="Product Waitlist">
+<input type="hidden" name="shop" value="{{ shop.permanent_domain | escape }}">
+<input type="hidden" name="product_handle" value="{{ waitlist_product.handle | escape }}">
+<input type="hidden" name="variant_label" value="" data-waitlist-label>
+{% if native_form %}<input type="hidden" name="variant_id" value="{{ chosen.id }}" data-waitlist-id>{% endif %}
+{% assign attribution_fields = 'utm_source,utm_medium,utm_campaign,utm_content,utm_term,referrer,page_url,timestamp' | split: ',' %}
+{% for field in attribution_fields %}<input type="hidden" name="{{ field }}" value="">{% endfor %}
+<div class="q-fields">
+  <div class="q-field" data-q-field data-required="true">
+    <label class="q-label" for="qf-{{ id }}-email">Email *</label>
+    <input id="qf-{{ id }}-email" class="q-input" type="email" name="{% if native_form %}contact[email]{% else %}email{% endif %}" placeholder="you@example.com" autocomplete="email" required aria-describedby="qf-{{ id }}-email-err" value="{{ shopify_form.email | escape }}"{% if shopify_form.errors contains 'email' %} aria-invalid="true"{% endif %}>
+    <p class="q-error" id="qf-{{ id }}-email-err"></p>
+  </div>
+  {% if s.show_first_name %}
+    <div class="q-field" data-q-field>
+      <label class="q-label" for="qf-{{ id }}-first">First name (optional)</label>
+      <input id="qf-{{ id }}-first" class="q-input" type="text" name="{% if native_form %}contact[first_name]{% else %}first_name{% endif %}" placeholder="Jane" autocomplete="given-name" value="{{ shopify_form.first_name | escape }}" aria-describedby="qf-{{ id }}-first-err">
+      <p class="q-error" id="qf-{{ id }}-first-err"></p>
+    </div>
+  {% endif %}
+  <div class="q-field q-variant-picker" data-q-field data-q-variant-wrap>
+    <label class="q-label" for="qf-{{ id }}-variant">Variant{% unless native_form %} *{% endunless %}</label>
+    <select id="qf-{{ id }}-variant" class="q-select" data-variant-picker name="{% if native_form %}contact[waitlist_variant_id]{% else %}variant_id{% endif %}"{% unless native_form %} required{% endunless %} aria-describedby="qf-{{ id }}-variant-help qf-{{ id }}-variant-err" style="appearance:auto;background-image:none;">
+      <option value="">{{ s.variant_placeholder | default: 'Select a variant…' | escape }}</option>
+      {% if chosen != blank and chosen_in_list == false %}<option value="{{ chosen.id }}" data-variant-label="{{ chosen.title | escape }}" selected>{{ chosen.title | escape }}</option>{% endif %}
+      {% for variant in waitlist_product.variants %}
+        <option value="{{ variant.id }}" data-variant-label="{{ variant.title | escape }}"{% if variant.id == chosen.id %} selected{% endif %}>{{ variant.title | escape }}{% unless variant.available %} — Sold out{% endunless %}</option>
+      {% endfor %}
+    </select>
+    <p class="q-help" id="qf-{{ id }}-variant-help">{{ s.variant_help | default: 'Choose size/color to join the waitlist.' | escape }}</p>
+    <p class="q-error" id="qf-{{ id }}-variant-err"></p>
+    {% if waitlist_product.variants_count > waitlist_product.variants.size %}<p class="q-help">More options are available on the <a href="{{ waitlist_url | escape }}">product page</a>.</p>{% endif %}
+    <p class="q-help" data-waitlist-binding role="status"></p>
+  </div>
+  <div class="q-field" data-q-field data-required="true">
+    <label class="q-radio" for="qf-{{ id }}-consent">
+      <input id="qf-{{ id }}-consent" class="q-input q-check" type="checkbox" name="{% if native_form %}contact[waitlist_consent]{% else %}consent{% endif %}" value="true" required aria-describedby="qf-{{ id }}-consent-err">
+      <span>{{ s.consent_label | default: 'I agree to receive an email when this item is back in stock.' | escape }}</span>
+    </label>
+    <p class="q-error" id="qf-{{ id }}-consent-err"></p>
+    {% if s.privacy_link != blank %}<p class="q-help"><a href="{{ s.privacy_link | escape }}">{{ s.privacy_text | default: 'Privacy Policy' | escape }}</a></p>{% endif %}
+  </div>
+  {% if native_form %}
+    <div class="q-field" data-q-field data-required="true">
+      <label class="q-radio" for="qf-{{ id }}-marketing">
+        <input id="qf-{{ id }}-marketing" class="q-input q-check" type="checkbox" name="contact[marketing_confirmation]" value="true" required aria-describedby="qf-{{ id }}-marketing-help qf-{{ id }}-marketing-err">
+        <span>I agree to receive marketing emails about this product.</span>
+      </label>
+      <p class="q-help" id="qf-{{ id }}-marketing-help">Submitting this form subscribes you to product emails.</p>
+      <p class="q-error" id="qf-{{ id }}-marketing-err"></p>
+      <noscript><p class="q-help">You can subscribe to product emails here. Enable JavaScript to include your selected variant in the signup tags.</p></noscript>
+    </div>
+  {% endif %}
+  <div class="q-actions" data-q-submit>
+    <button type="submit" class="q-btn q-btn--{{ button_variant | escape }}">{{ s.button_label | default: 'Notify Me' | escape }}</button>
+  </div>
+</div>
