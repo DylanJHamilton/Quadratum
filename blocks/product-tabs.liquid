@@ -36,15 +36,18 @@
 
 <div
   id="{{ block_id }}"
+  data-qtm-tabs
+  data-tabs-vertical="{% if layout_style == 'vertical' %}true{% else %}false{% endif %}"
+  data-tabs-breakpoint="990"
   class="
     product-tabs
     product-tabs--{{ layout_style }}
     product-tabs--width-{{ width }}
     product-tabs--align-{{ alignment }}
-    {% unless show_on_desktop %} product-tabs--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-tabs--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-tabs--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-tabs--animate product-tabs--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-tabs--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-tabs--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-tabs--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-tabs--animate product-tabs--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-tabs-margin-top: {{ block.settings.margin_top }}px;
@@ -74,10 +77,12 @@
     data-variant-id="{{ current_variant.id }}"
   {% endif %}
   data-product-tabs
-  {{ block.shopify_attributes }}
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-tabs-margin-top);
       margin-bottom: var(--product-tabs-margin-bottom);
@@ -175,7 +180,7 @@
     }
 
     #{{ block_id }}.product-tabs--vertical .product-tabs__interface {
-      grid-template-columns: minmax(180px, {{ block.settings.vertical_nav_width }}px) minmax(0, 1fr);
+      grid-template-columns: minmax(0, min(40%, {{ block.settings.vertical_nav_width }}px)) minmax(0, 1fr);
       gap: {{ block.settings.vertical_gap }}px;
       align-items: start;
     }
@@ -441,8 +446,20 @@
         transition: none;
       }
     }
+
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} img, #{{ block_id }} video, #{{ block_id }} iframe { max-width: 100%; }
+{% unless show_on_desktop or request.design_mode %}@media (min-width: 990px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_tablet or request.design_mode %}@media (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_mobile or request.design_mode %}@media (max-width: 749px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+    #{{ block_id }} a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    #{{ block_id }} [data-qtm-tabpanel]:not([hidden]) { display: block; }
+    #{{ block_id }}:not(.qtm-panels-ready) .product-tabs__interface { grid-template-columns: minmax(0, 1fr); }
   </style>
 
+{% capture shipping_content %}{% if block.settings.shipping_text != blank %}{{ block.settings.shipping_text }}{% elsif shop.shipping_policy.url != blank %}<p><a href="{{ shop.shipping_policy.url | escape }}">{{ block.settings.shipping_title | default: 'View policy' | escape }}</a></p>{% endif %}{% endcapture %}
+{% capture returns_content %}{% if block.settings.returns_text != blank %}{{ block.settings.returns_text }}{% elsif shop.refund_policy.url != blank %}<p><a href="{{ shop.refund_policy.url | escape }}">{{ block.settings.returns_title | default: 'View policy' | escape }}</a></p>{% endif %}{% endcapture %}
   {%- capture tab_buttons -%}
     {% if block.settings.show_description_tab and product_context.description != blank %}
       {% assign tab_index = tab_index | plus: 1 %}
@@ -450,93 +467,93 @@
         type="button"
         class="product-tabs__tab"
         id="{{ block_id }}-tab-description"
-        role="tab"
+        role="tab" data-qtm-tab
         aria-selected="{% if tab_index == 1 %}true{% else %}false{% endif %}"
         aria-controls="{{ block_id }}-panel-description"
         tabindex="{% if tab_index == 1 %}0{% else %}-1{% endif %}"
         data-product-tab
       >
-        {{ block.settings.description_title | escape }}
+        {{ block.settings.description_title | default: 'Details' | escape }}
       </button>
     {% endif %}
 
-    {% if block.settings.show_specs_tab %}
+    {% if block.settings.show_specs_tab and block.settings.specs_text != blank %}
       {% assign tab_index = tab_index | plus: 1 %}
       <button
         type="button"
         class="product-tabs__tab"
         id="{{ block_id }}-tab-specs"
-        role="tab"
+        role="tab" data-qtm-tab
         aria-selected="{% if tab_index == 1 %}true{% else %}false{% endif %}"
         aria-controls="{{ block_id }}-panel-specs"
         tabindex="{% if tab_index == 1 %}0{% else %}-1{% endif %}"
         data-product-tab
       >
-        {{ block.settings.specs_title | escape }}
+        {{ block.settings.specs_title | default: 'Details' | escape }}
       </button>
     {% endif %}
 
-    {% if block.settings.show_shipping_tab %}
+    {% if block.settings.show_shipping_tab and shipping_content != blank %}
       {% assign tab_index = tab_index | plus: 1 %}
       <button
         type="button"
         class="product-tabs__tab"
         id="{{ block_id }}-tab-shipping"
-        role="tab"
+        role="tab" data-qtm-tab
         aria-selected="{% if tab_index == 1 %}true{% else %}false{% endif %}"
         aria-controls="{{ block_id }}-panel-shipping"
         tabindex="{% if tab_index == 1 %}0{% else %}-1{% endif %}"
         data-product-tab
       >
-        {{ block.settings.shipping_title | escape }}
+        {{ block.settings.shipping_title | default: 'Details' | escape }}
       </button>
     {% endif %}
 
-    {% if block.settings.show_returns_tab %}
+    {% if block.settings.show_returns_tab and returns_content != blank %}
       {% assign tab_index = tab_index | plus: 1 %}
       <button
         type="button"
         class="product-tabs__tab"
         id="{{ block_id }}-tab-returns"
-        role="tab"
+        role="tab" data-qtm-tab
         aria-selected="{% if tab_index == 1 %}true{% else %}false{% endif %}"
         aria-controls="{{ block_id }}-panel-returns"
         tabindex="{% if tab_index == 1 %}0{% else %}-1{% endif %}"
         data-product-tab
       >
-        {{ block.settings.returns_title | escape }}
+        {{ block.settings.returns_title | default: 'Details' | escape }}
       </button>
     {% endif %}
 
-    {% if block.settings.show_care_tab %}
+    {% if block.settings.show_care_tab and block.settings.care_text != blank %}
       {% assign tab_index = tab_index | plus: 1 %}
       <button
         type="button"
         class="product-tabs__tab"
         id="{{ block_id }}-tab-care"
-        role="tab"
+        role="tab" data-qtm-tab
         aria-selected="{% if tab_index == 1 %}true{% else %}false{% endif %}"
         aria-controls="{{ block_id }}-panel-care"
         tabindex="{% if tab_index == 1 %}0{% else %}-1{% endif %}"
         data-product-tab
       >
-        {{ block.settings.care_title | escape }}
+        {{ block.settings.care_title | default: 'Details' | escape }}
       </button>
     {% endif %}
 
-    {% if block.settings.show_custom_tab %}
+    {% if block.settings.show_custom_tab and block.settings.custom_text != blank %}
       {% assign tab_index = tab_index | plus: 1 %}
       <button
         type="button"
         class="product-tabs__tab"
         id="{{ block_id }}-tab-custom"
-        role="tab"
+        role="tab" data-qtm-tab
         aria-selected="{% if tab_index == 1 %}true{% else %}false{% endif %}"
         aria-controls="{{ block_id }}-panel-custom"
         tabindex="{% if tab_index == 1 %}0{% else %}-1{% endif %}"
         data-product-tab
       >
-        {{ block.settings.custom_title | escape }}
+        {{ block.settings.custom_title | default: 'Details' | escape }}
       </button>
     {% endif %}
 
@@ -546,13 +563,13 @@
         type="button"
         class="product-tabs__tab"
         id="{{ block_id }}-tab-metafield-1"
-        role="tab"
+        role="tab" data-qtm-tab
         aria-selected="{% if tab_index == 1 %}true{% else %}false{% endif %}"
         aria-controls="{{ block_id }}-panel-metafield-1"
         tabindex="{% if tab_index == 1 %}0{% else %}-1{% endif %}"
         data-product-tab
       >
-        {{ block.settings.metafield_1_title | escape }}
+        {{ block.settings.metafield_1_title | default: 'Details' | escape }}
       </button>
     {% endif %}
 
@@ -562,13 +579,13 @@
         type="button"
         class="product-tabs__tab"
         id="{{ block_id }}-tab-metafield-2"
-        role="tab"
+        role="tab" data-qtm-tab
         aria-selected="{% if tab_index == 1 %}true{% else %}false{% endif %}"
         aria-controls="{{ block_id }}-panel-metafield-2"
         tabindex="{% if tab_index == 1 %}0{% else %}-1{% endif %}"
         data-product-tab
       >
-        {{ block.settings.metafield_2_title | escape }}
+        {{ block.settings.metafield_2_title | default: 'Details' | escape }}
       </button>
     {% endif %}
 
@@ -578,13 +595,13 @@
         type="button"
         class="product-tabs__tab"
         id="{{ block_id }}-tab-metafield-3"
-        role="tab"
+        role="tab" data-qtm-tab
         aria-selected="{% if tab_index == 1 %}true{% else %}false{% endif %}"
         aria-controls="{{ block_id }}-panel-metafield-3"
         tabindex="{% if tab_index == 1 %}0{% else %}-1{% endif %}"
         data-product-tab
       >
-        {{ block.settings.metafield_3_title | escape }}
+        {{ block.settings.metafield_3_title | default: 'Details' | escape }}
       </button>
     {% endif %}
   {%- endcapture -%}
@@ -595,7 +612,7 @@
       <div
         class="product-tabs__panel"
         id="{{ block_id }}-panel-description"
-        role="tabpanel"
+        role="region" data-qtm-tabpanel
         aria-labelledby="{{ block_id }}-tab-description"
         data-active="{% if panel_index == 1 %}true{% else %}false{% endif %}"
         data-product-tab-panel
@@ -604,12 +621,12 @@
       </div>
     {% endif %}
 
-    {% if block.settings.show_specs_tab %}
+    {% if block.settings.show_specs_tab and block.settings.specs_text != blank %}
       {% assign panel_index = panel_index | plus: 1 %}
       <div
         class="product-tabs__panel"
         id="{{ block_id }}-panel-specs"
-        role="tabpanel"
+        role="region" data-qtm-tabpanel
         aria-labelledby="{{ block_id }}-tab-specs"
         data-active="{% if panel_index == 1 %}true{% else %}false{% endif %}"
         data-product-tab-panel
@@ -618,40 +635,40 @@
       </div>
     {% endif %}
 
-    {% if block.settings.show_shipping_tab %}
+    {% if block.settings.show_shipping_tab and shipping_content != blank %}
       {% assign panel_index = panel_index | plus: 1 %}
       <div
         class="product-tabs__panel"
         id="{{ block_id }}-panel-shipping"
-        role="tabpanel"
+        role="region" data-qtm-tabpanel
         aria-labelledby="{{ block_id }}-tab-shipping"
         data-active="{% if panel_index == 1 %}true{% else %}false{% endif %}"
         data-product-tab-panel
       >
-        {{ block.settings.shipping_text }}
+        {{ shipping_content }}
       </div>
     {% endif %}
 
-    {% if block.settings.show_returns_tab %}
+    {% if block.settings.show_returns_tab and returns_content != blank %}
       {% assign panel_index = panel_index | plus: 1 %}
       <div
         class="product-tabs__panel"
         id="{{ block_id }}-panel-returns"
-        role="tabpanel"
+        role="region" data-qtm-tabpanel
         aria-labelledby="{{ block_id }}-tab-returns"
         data-active="{% if panel_index == 1 %}true{% else %}false{% endif %}"
         data-product-tab-panel
       >
-        {{ block.settings.returns_text }}
+        {{ returns_content }}
       </div>
     {% endif %}
 
-    {% if block.settings.show_care_tab %}
+    {% if block.settings.show_care_tab and block.settings.care_text != blank %}
       {% assign panel_index = panel_index | plus: 1 %}
       <div
         class="product-tabs__panel"
         id="{{ block_id }}-panel-care"
-        role="tabpanel"
+        role="region" data-qtm-tabpanel
         aria-labelledby="{{ block_id }}-tab-care"
         data-active="{% if panel_index == 1 %}true{% else %}false{% endif %}"
         data-product-tab-panel
@@ -660,12 +677,12 @@
       </div>
     {% endif %}
 
-    {% if block.settings.show_custom_tab %}
+    {% if block.settings.show_custom_tab and block.settings.custom_text != blank %}
       {% assign panel_index = panel_index | plus: 1 %}
       <div
         class="product-tabs__panel"
         id="{{ block_id }}-panel-custom"
-        role="tabpanel"
+        role="region" data-qtm-tabpanel
         aria-labelledby="{{ block_id }}-tab-custom"
         data-active="{% if panel_index == 1 %}true{% else %}false{% endif %}"
         data-product-tab-panel
@@ -679,12 +696,12 @@
       <div
         class="product-tabs__panel"
         id="{{ block_id }}-panel-metafield-1"
-        role="tabpanel"
+        role="region" data-qtm-tabpanel
         aria-labelledby="{{ block_id }}-tab-metafield-1"
         data-active="{% if panel_index == 1 %}true{% else %}false{% endif %}"
         data-product-tab-panel
       >
-        {{ metafield_1_content | metafield_tag }}
+        {% render 'qtm-block-metafield', field: metafield_1_content %}
       </div>
     {% endif %}
 
@@ -693,12 +710,12 @@
       <div
         class="product-tabs__panel"
         id="{{ block_id }}-panel-metafield-2"
-        role="tabpanel"
+        role="region" data-qtm-tabpanel
         aria-labelledby="{{ block_id }}-tab-metafield-2"
         data-active="{% if panel_index == 1 %}true{% else %}false{% endif %}"
         data-product-tab-panel
       >
-        {{ metafield_2_content | metafield_tag }}
+        {% render 'qtm-block-metafield', field: metafield_2_content %}
       </div>
     {% endif %}
 
@@ -707,12 +724,12 @@
       <div
         class="product-tabs__panel"
         id="{{ block_id }}-panel-metafield-3"
-        role="tabpanel"
+        role="region" data-qtm-tabpanel
         aria-labelledby="{{ block_id }}-tab-metafield-3"
         data-active="{% if panel_index == 1 %}true{% else %}false{% endif %}"
         data-product-tab-panel
       >
-        {{ metafield_3_content | metafield_tag }}
+        {% render 'qtm-block-metafield', field: metafield_3_content %}
       </div>
     {% endif %}
   {%- endcapture -%}
@@ -745,6 +762,7 @@
         <div
           class="product-tabs__nav"
           role="tablist"
+      data-qtm-tablist hidden
           aria-label="{{ block.settings.tabs_label | escape }}"
           data-product-tabs-nav
         >
@@ -756,84 +774,7 @@
         </div>
       </div>
     </div>
-
-    <script>
-      (() => {
-        const root = document.getElementById({{ block_id | json }});
-
-        if (!root || root.dataset.productTabsReady === 'true') return;
-
-        root.dataset.productTabsReady = 'true';
-
-        const tabs = Array.from(root.querySelectorAll('[data-product-tab]'));
-        const panels = Array.from(root.querySelectorAll('[data-product-tab-panel]'));
-
-        const activateTab = (tab, shouldFocus = false) => {
-          const panelId = tab.getAttribute('aria-controls');
-
-          tabs.forEach((item) => {
-            item.setAttribute('aria-selected', item === tab ? 'true' : 'false');
-            item.setAttribute('tabindex', item === tab ? '0' : '-1');
-          });
-
-          panels.forEach((panel) => {
-            panel.dataset.active = panel.id === panelId ? 'true' : 'false';
-          });
-
-          if (shouldFocus) {
-            tab.focus();
-          }
-        };
-
-        tabs.forEach((tab, index) => {
-          tab.addEventListener('click', () => activateTab(tab));
-
-          tab.addEventListener('keydown', (event) => {
-            const isVertical = root.classList.contains('product-tabs--vertical');
-            let nextIndex = index;
-
-            if (event.key === 'ArrowRight' || (!isVertical && event.key === 'ArrowDown')) {
-              nextIndex = index + 1;
-            }
-
-            if (event.key === 'ArrowLeft' || (!isVertical && event.key === 'ArrowUp')) {
-              nextIndex = index - 1;
-            }
-
-            if (isVertical && event.key === 'ArrowDown') {
-              nextIndex = index + 1;
-            }
-
-            if (isVertical && event.key === 'ArrowUp') {
-              nextIndex = index - 1;
-            }
-
-            if (event.key === 'Home') {
-              nextIndex = 0;
-            }
-
-            if (event.key === 'End') {
-              nextIndex = tabs.length - 1;
-            }
-
-            if (nextIndex !== index) {
-              event.preventDefault();
-
-              if (nextIndex < 0) {
-                nextIndex = tabs.length - 1;
-              }
-
-              if (nextIndex >= tabs.length) {
-                nextIndex = 0;
-              }
-
-              activateTab(tabs[nextIndex], true);
-            }
-          });
-        });
-      })();
-    </script>
-  {% elsif block.settings.show_empty_state %}
+  {% elsif block.settings.show_empty_state or request.design_mode %}
     <div class="product-tabs__empty">
       {{ block.settings.empty_text | escape }}
     </div>
@@ -869,10 +810,8 @@
     {
       "type": "text",
       "id": "description",
-      "label": "Description",
-      "default": "Organize product-specific details into accessible tabs."
+      "label": "Description"
     },
-
     {
       "type": "header",
       "content": "Product description tab"
@@ -889,7 +828,6 @@
       "label": "Description tab title",
       "default": "Description"
     },
-
     {
       "type": "header",
       "content": "Specifications tab"
@@ -909,10 +847,8 @@
     {
       "type": "richtext",
       "id": "specs_text",
-      "label": "Specifications text",
-      "default": "<p>Add product specifications, feature details, dimensions, or technical information.</p>"
+      "label": "Specifications text"
     },
-
     {
       "type": "header",
       "content": "Shipping tab"
@@ -932,10 +868,8 @@
     {
       "type": "richtext",
       "id": "shipping_text",
-      "label": "Shipping text",
-      "default": "<p>Shipping options and delivery timelines are calculated at checkout.</p>"
+      "label": "Shipping text"
     },
-
     {
       "type": "header",
       "content": "Returns tab"
@@ -955,10 +889,8 @@
     {
       "type": "richtext",
       "id": "returns_text",
-      "label": "Returns text",
-      "default": "<p>Return eligibility depends on product condition, timing, and store policy.</p>"
+      "label": "Returns text"
     },
-
     {
       "type": "header",
       "content": "Care tab"
@@ -978,10 +910,8 @@
     {
       "type": "richtext",
       "id": "care_text",
-      "label": "Care text",
-      "default": "<p>Add care instructions, materials, ingredients, or handling information.</p>"
+      "label": "Care text"
     },
-
     {
       "type": "header",
       "content": "Custom tab"
@@ -1001,10 +931,8 @@
     {
       "type": "richtext",
       "id": "custom_text",
-      "label": "Custom text",
-      "default": "<p>Add custom product-specific information here.</p>"
+      "label": "Custom text"
     },
-
     {
       "type": "header",
       "content": "Metafield tab 1"
@@ -1033,7 +961,6 @@
       "label": "Metafield 1 key",
       "default": "details"
     },
-
     {
       "type": "header",
       "content": "Metafield tab 2"
@@ -1062,7 +989,6 @@
       "label": "Metafield 2 key",
       "default": "materials"
     },
-
     {
       "type": "header",
       "content": "Metafield tab 3"
@@ -1091,7 +1017,6 @@
       "label": "Metafield 3 key",
       "default": "ingredients"
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -1140,7 +1065,6 @@
       "unit": "px",
       "default": 24
     },
-
     {
       "type": "header",
       "content": "Accessibility"
@@ -1151,7 +1075,6 @@
       "label": "Tabs label",
       "default": "Product information tabs"
     },
-
     {
       "type": "header",
       "content": "Typography"
@@ -1216,7 +1139,6 @@
       "unit": "px",
       "default": 15
     },
-
     {
       "type": "header",
       "content": "Sizing"
@@ -1241,7 +1163,6 @@
       "unit": "px",
       "default": 44
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1306,7 +1227,6 @@
       "label": "Focus color",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1341,7 +1261,6 @@
       "unit": "px",
       "default": 12
     },
-
     {
       "type": "header",
       "content": "Container"
@@ -1394,7 +1313,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1479,7 +1397,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Empty state"
@@ -1488,7 +1405,7 @@
       "type": "checkbox",
       "id": "show_empty_state",
       "label": "Show empty state",
-      "default": true
+      "default": false
     },
     {
       "type": "text",
@@ -1496,7 +1413,6 @@
       "label": "Empty state text",
       "default": "Product tab content will appear when enabled tabs have content."
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1519,7 +1435,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1556,24 +1471,18 @@
         "show_header": false,
         "eyebrow": "Product information",
         "heading": "Product details",
-        "description": "Organize product-specific details into accessible tabs.",
         "show_description_tab": true,
         "description_title": "Description",
         "show_specs_tab": true,
         "specs_title": "Specifications",
-        "specs_text": "<p>Add product specifications, feature details, dimensions, or technical information.</p>",
         "show_shipping_tab": true,
         "shipping_title": "Shipping",
-        "shipping_text": "<p>Shipping options and delivery timelines are calculated at checkout.</p>",
         "show_returns_tab": true,
         "returns_title": "Returns",
-        "returns_text": "<p>Return eligibility depends on product condition, timing, and store policy.</p>",
         "show_care_tab": false,
         "care_title": "Care",
-        "care_text": "<p>Add care instructions, materials, ingredients, or handling information.</p>",
         "show_custom_tab": false,
         "custom_title": "More info",
-        "custom_text": "<p>Add custom product-specific information here.</p>",
         "show_metafield_1": false,
         "metafield_1_title": "Details",
         "metafield_1_namespace": "custom",
@@ -1621,7 +1530,7 @@
         "margin_top": 0,
         "margin_bottom": 28,
         "padding": 0,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Product tab content will appear when enabled tabs have content.",
         "show_on_desktop": true,
         "show_on_tablet": true,
@@ -1635,24 +1544,18 @@
         "show_header": false,
         "eyebrow": "Product help",
         "heading": "Specs and shipping",
-        "description": "Show technical information and shipping details in one clean interface.",
         "show_description_tab": false,
         "description_title": "Description",
         "show_specs_tab": true,
         "specs_title": "Specs",
-        "specs_text": "<p>Add product specifications, feature details, dimensions, or technical information.</p>",
         "show_shipping_tab": true,
         "shipping_title": "Shipping",
-        "shipping_text": "<p>Shipping options and delivery timelines are calculated at checkout.</p>",
         "show_returns_tab": true,
         "returns_title": "Returns",
-        "returns_text": "<p>Return eligibility depends on product condition, timing, and store policy.</p>",
         "show_care_tab": false,
         "care_title": "Care",
-        "care_text": "<p>Add care instructions, materials, ingredients, or handling information.</p>",
         "show_custom_tab": false,
         "custom_title": "More info",
-        "custom_text": "<p>Add custom product-specific information here.</p>",
         "show_metafield_1": true,
         "metafield_1_title": "Specifications",
         "metafield_1_namespace": "custom",
@@ -1700,7 +1603,7 @@
         "margin_top": 0,
         "margin_bottom": 28,
         "padding": 0,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Product tab content will appear when enabled tabs have content.",
         "show_on_desktop": true,
         "show_on_tablet": true,
@@ -1714,24 +1617,18 @@
         "show_header": false,
         "eyebrow": "Product support",
         "heading": "Care and FAQ",
-        "description": "Use product tabs for care instructions, FAQs, materials, and extra information.",
         "show_description_tab": true,
         "description_title": "Overview",
         "show_specs_tab": false,
         "specs_title": "Specifications",
-        "specs_text": "<p>Add product specifications, feature details, dimensions, or technical information.</p>",
         "show_shipping_tab": false,
         "shipping_title": "Shipping",
-        "shipping_text": "<p>Shipping options and delivery timelines are calculated at checkout.</p>",
         "show_returns_tab": false,
         "returns_title": "Returns",
-        "returns_text": "<p>Return eligibility depends on product condition, timing, and store policy.</p>",
         "show_care_tab": true,
         "care_title": "Care",
-        "care_text": "<p>Add care instructions, materials, ingredients, or handling information.</p>",
         "show_custom_tab": true,
         "custom_title": "FAQ",
-        "custom_text": "<p>Add product-specific questions and answers here.</p>",
         "show_metafield_1": true,
         "metafield_1_title": "Materials",
         "metafield_1_namespace": "custom",
@@ -1779,7 +1676,7 @@
         "margin_top": 0,
         "margin_bottom": 28,
         "padding": 0,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Product tab content will appear when enabled tabs have content.",
         "show_on_desktop": true,
         "show_on_tablet": true,

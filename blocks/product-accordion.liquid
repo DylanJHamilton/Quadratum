@@ -33,15 +33,17 @@
 
 <div
   id="{{ block_id }}"
+  data-qtm-accordion
+  data-allow-multiple="{{ block.settings.allow_multiple_open }}"
   class="
     product-accordion
     product-accordion--{{ layout_style }}
     product-accordion--width-{{ width }}
     product-accordion--align-{{ alignment }}
-    {% unless show_on_desktop %} product-accordion--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-accordion--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-accordion--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-accordion--animate product-accordion--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-accordion--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-accordion--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-accordion--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-accordion--animate product-accordion--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-accordion-margin-top: {{ block.settings.margin_top }}px;
@@ -67,10 +69,12 @@
     data-variant-id="{{ current_variant.id }}"
   {% endif %}
   data-product-accordion
-  {{ block.shopify_attributes }}
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-accordion-margin-top);
       margin-bottom: var(--product-accordion-margin-bottom);
@@ -377,29 +381,42 @@
         transition: none;
       }
     }
+
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} img, #{{ block_id }} video, #{{ block_id }} iframe { max-width: 100%; }
+{% unless show_on_desktop or request.design_mode %}@media (min-width: 990px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_tablet or request.design_mode %}@media (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_mobile or request.design_mode %}@media (max-width: 749px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+    #{{ block_id }} a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    #{{ block_id }} .product-accordion__toggle { list-style: none; }
+    #{{ block_id }} .product-accordion__toggle::-webkit-details-marker { display: none; }
+    #{{ block_id }} .product-accordion__panel { display: block; }
+    #{{ block_id }} .product-accordion__panel-inner { overflow: visible; }
+    #{{ block_id }} details[open] .product-accordion__icon::after { opacity: 0; }
   </style>
 
+{% capture shipping_content %}{% if block.settings.shipping_text != blank %}{{ block.settings.shipping_text }}{% elsif shop.shipping_policy.url != blank %}<p><a href="{{ shop.shipping_policy.url | escape }}">{{ block.settings.shipping_title | default: 'View policy' | escape }}</a></p>{% endif %}{% endcapture %}
+{% capture returns_content %}{% if block.settings.returns_text != blank %}{{ block.settings.returns_text }}{% elsif shop.refund_policy.url != blank %}<p><a href="{{ shop.refund_policy.url | escape }}">{{ block.settings.returns_title | default: 'View policy' | escape }}</a></p>{% endif %}{% endcapture %}
+  {% assign accordion_open = block.settings.open_first_item %}
   {%- capture accordion_items -%}
     {% if block.settings.show_description_item and product_context.description != blank %}
-      <div class="product-accordion__item">
-        <button
-          type="button"
+      <details class="product-accordion__item"{% if accordion_open %} open{% assign accordion_open = false %}{% endif %}{% unless block.settings.allow_multiple_open %} name="{{ block_id }}"{% endunless %}>
+        <summary
           class="product-accordion__toggle"
           id="{{ block_id }}-toggle-description"
-          aria-expanded="{% if block.settings.open_first_item %}true{% else %}false{% endif %}"
           aria-controls="{{ block_id }}-panel-description"
           data-product-accordion-toggle
         >
-          <span>{{ block.settings.description_title | escape }}</span>
+          <span>{{ block.settings.description_title | default: 'Details' | escape }}</span>
           <span class="product-accordion__icon" aria-hidden="true"></span>
-        </button>
+        </summary>
 
         <div
           id="{{ block_id }}-panel-description"
           class="product-accordion__panel"
           role="region"
           aria-labelledby="{{ block_id }}-toggle-description"
-          data-open="{% if block.settings.open_first_item %}true{% else %}false{% endif %}"
           data-product-accordion-panel
         >
           <div class="product-accordion__panel-inner">
@@ -408,91 +425,82 @@
             </div>
           </div>
         </div>
-      </div>
+      </details>
     {% endif %}
 
-    {% if block.settings.show_shipping_item %}
-      <div class="product-accordion__item">
-        <button
-          type="button"
+    {% if block.settings.show_shipping_item and shipping_content != blank %}
+      <details class="product-accordion__item"{% if accordion_open %} open{% assign accordion_open = false %}{% endif %}{% unless block.settings.allow_multiple_open %} name="{{ block_id }}"{% endunless %}>
+        <summary
           class="product-accordion__toggle"
           id="{{ block_id }}-toggle-shipping"
-          aria-expanded="false"
           aria-controls="{{ block_id }}-panel-shipping"
           data-product-accordion-toggle
         >
-          <span>{{ block.settings.shipping_title | escape }}</span>
+          <span>{{ block.settings.shipping_title | default: 'Details' | escape }}</span>
           <span class="product-accordion__icon" aria-hidden="true"></span>
-        </button>
+        </summary>
 
         <div
           id="{{ block_id }}-panel-shipping"
           class="product-accordion__panel"
           role="region"
           aria-labelledby="{{ block_id }}-toggle-shipping"
-          data-open="false"
           data-product-accordion-panel
         >
           <div class="product-accordion__panel-inner">
             <div class="product-accordion__content">
-              {{ block.settings.shipping_text }}
+              {{ shipping_content }}
             </div>
           </div>
         </div>
-      </div>
+      </details>
     {% endif %}
 
-    {% if block.settings.show_returns_item %}
-      <div class="product-accordion__item">
-        <button
-          type="button"
+    {% if block.settings.show_returns_item and returns_content != blank %}
+      <details class="product-accordion__item"{% if accordion_open %} open{% assign accordion_open = false %}{% endif %}{% unless block.settings.allow_multiple_open %} name="{{ block_id }}"{% endunless %}>
+        <summary
           class="product-accordion__toggle"
           id="{{ block_id }}-toggle-returns"
-          aria-expanded="false"
           aria-controls="{{ block_id }}-panel-returns"
           data-product-accordion-toggle
         >
-          <span>{{ block.settings.returns_title | escape }}</span>
+          <span>{{ block.settings.returns_title | default: 'Details' | escape }}</span>
           <span class="product-accordion__icon" aria-hidden="true"></span>
-        </button>
+        </summary>
 
         <div
           id="{{ block_id }}-panel-returns"
           class="product-accordion__panel"
           role="region"
           aria-labelledby="{{ block_id }}-toggle-returns"
-          data-open="false"
           data-product-accordion-panel
         >
           <div class="product-accordion__panel-inner">
             <div class="product-accordion__content">
-              {{ block.settings.returns_text }}
+              {{ returns_content }}
             </div>
           </div>
         </div>
-      </div>
+      </details>
     {% endif %}
 
-    {% if block.settings.show_care_item %}
-      <div class="product-accordion__item">
-        <button
-          type="button"
+    {% if block.settings.show_care_item and block.settings.care_text != blank %}
+      <details class="product-accordion__item"{% if accordion_open %} open{% assign accordion_open = false %}{% endif %}{% unless block.settings.allow_multiple_open %} name="{{ block_id }}"{% endunless %}>
+        <summary
           class="product-accordion__toggle"
           id="{{ block_id }}-toggle-care"
-          aria-expanded="false"
           aria-controls="{{ block_id }}-panel-care"
           data-product-accordion-toggle
         >
-          <span>{{ block.settings.care_title | escape }}</span>
+          <span>{{ block.settings.care_title | default: 'Details' | escape }}</span>
           <span class="product-accordion__icon" aria-hidden="true"></span>
-        </button>
+        </summary>
 
         <div
           id="{{ block_id }}-panel-care"
           class="product-accordion__panel"
           role="region"
           aria-labelledby="{{ block_id }}-toggle-care"
-          data-open="false"
           data-product-accordion-panel
         >
           <div class="product-accordion__panel-inner">
@@ -501,29 +509,26 @@
             </div>
           </div>
         </div>
-      </div>
+      </details>
     {% endif %}
 
-    {% if block.settings.show_custom_item %}
-      <div class="product-accordion__item">
-        <button
-          type="button"
+    {% if block.settings.show_custom_item and block.settings.custom_text != blank %}
+      <details class="product-accordion__item"{% if accordion_open %} open{% assign accordion_open = false %}{% endif %}{% unless block.settings.allow_multiple_open %} name="{{ block_id }}"{% endunless %}>
+        <summary
           class="product-accordion__toggle"
           id="{{ block_id }}-toggle-custom"
-          aria-expanded="false"
           aria-controls="{{ block_id }}-panel-custom"
           data-product-accordion-toggle
         >
-          <span>{{ block.settings.custom_title | escape }}</span>
+          <span>{{ block.settings.custom_title | default: 'Details' | escape }}</span>
           <span class="product-accordion__icon" aria-hidden="true"></span>
-        </button>
+        </summary>
 
         <div
           id="{{ block_id }}-panel-custom"
           class="product-accordion__panel"
           role="region"
           aria-labelledby="{{ block_id }}-toggle-custom"
-          data-open="false"
           data-product-accordion-panel
         >
           <div class="product-accordion__panel-inner">
@@ -532,100 +537,91 @@
             </div>
           </div>
         </div>
-      </div>
+      </details>
     {% endif %}
 
     {% if block.settings.show_metafield_1 and metafield_1_content != blank %}
-      <div class="product-accordion__item">
-        <button
-          type="button"
+      <details class="product-accordion__item"{% if accordion_open %} open{% assign accordion_open = false %}{% endif %}{% unless block.settings.allow_multiple_open %} name="{{ block_id }}"{% endunless %}>
+        <summary
           class="product-accordion__toggle"
           id="{{ block_id }}-toggle-metafield-1"
-          aria-expanded="false"
           aria-controls="{{ block_id }}-panel-metafield-1"
           data-product-accordion-toggle
         >
-          <span>{{ block.settings.metafield_1_title | escape }}</span>
+          <span>{{ block.settings.metafield_1_title | default: 'Details' | escape }}</span>
           <span class="product-accordion__icon" aria-hidden="true"></span>
-        </button>
+        </summary>
 
         <div
           id="{{ block_id }}-panel-metafield-1"
           class="product-accordion__panel"
           role="region"
           aria-labelledby="{{ block_id }}-toggle-metafield-1"
-          data-open="false"
           data-product-accordion-panel
         >
           <div class="product-accordion__panel-inner">
             <div class="product-accordion__content">
-              {{ metafield_1_content | metafield_tag }}
+              {% render 'qtm-block-metafield', field: metafield_1_content %}
             </div>
           </div>
         </div>
-      </div>
+      </details>
     {% endif %}
 
     {% if block.settings.show_metafield_2 and metafield_2_content != blank %}
-      <div class="product-accordion__item">
-        <button
-          type="button"
+      <details class="product-accordion__item"{% if accordion_open %} open{% assign accordion_open = false %}{% endif %}{% unless block.settings.allow_multiple_open %} name="{{ block_id }}"{% endunless %}>
+        <summary
           class="product-accordion__toggle"
           id="{{ block_id }}-toggle-metafield-2"
-          aria-expanded="false"
           aria-controls="{{ block_id }}-panel-metafield-2"
           data-product-accordion-toggle
         >
-          <span>{{ block.settings.metafield_2_title | escape }}</span>
+          <span>{{ block.settings.metafield_2_title | default: 'Details' | escape }}</span>
           <span class="product-accordion__icon" aria-hidden="true"></span>
-        </button>
+        </summary>
 
         <div
           id="{{ block_id }}-panel-metafield-2"
           class="product-accordion__panel"
           role="region"
           aria-labelledby="{{ block_id }}-toggle-metafield-2"
-          data-open="false"
           data-product-accordion-panel
         >
           <div class="product-accordion__panel-inner">
             <div class="product-accordion__content">
-              {{ metafield_2_content | metafield_tag }}
+              {% render 'qtm-block-metafield', field: metafield_2_content %}
             </div>
           </div>
         </div>
-      </div>
+      </details>
     {% endif %}
 
     {% if block.settings.show_metafield_3 and metafield_3_content != blank %}
-      <div class="product-accordion__item">
-        <button
-          type="button"
+      <details class="product-accordion__item"{% if accordion_open %} open{% assign accordion_open = false %}{% endif %}{% unless block.settings.allow_multiple_open %} name="{{ block_id }}"{% endunless %}>
+        <summary
           class="product-accordion__toggle"
           id="{{ block_id }}-toggle-metafield-3"
-          aria-expanded="false"
           aria-controls="{{ block_id }}-panel-metafield-3"
           data-product-accordion-toggle
         >
-          <span>{{ block.settings.metafield_3_title | escape }}</span>
+          <span>{{ block.settings.metafield_3_title | default: 'Details' | escape }}</span>
           <span class="product-accordion__icon" aria-hidden="true"></span>
-        </button>
+        </summary>
 
         <div
           id="{{ block_id }}-panel-metafield-3"
           class="product-accordion__panel"
           role="region"
           aria-labelledby="{{ block_id }}-toggle-metafield-3"
-          data-open="false"
           data-product-accordion-panel
         >
           <div class="product-accordion__panel-inner">
             <div class="product-accordion__content">
-              {{ metafield_3_content | metafield_tag }}
+              {% render 'qtm-block-metafield', field: metafield_3_content %}
             </div>
           </div>
         </div>
-      </div>
+      </details>
     {% endif %}
   {%- endcapture -%}
 
@@ -657,46 +653,7 @@
         {{ accordion_items }}
       </div>
     </div>
-
-    <script>
-      (() => {
-        const root = document.getElementById({{ block_id | json }});
-
-        if (!root || root.dataset.productAccordionReady === 'true') return;
-
-        root.dataset.productAccordionReady = 'true';
-
-        const toggles = Array.from(root.querySelectorAll('[data-product-accordion-toggle]'));
-        const allowMultiple = {{ block.settings.allow_multiple_open | json }};
-
-        toggles.forEach((toggle) => {
-          toggle.addEventListener('click', () => {
-            const panelId = toggle.getAttribute('aria-controls');
-            const panel = panelId ? root.querySelector(`#${CSS.escape(panelId)}`) : null;
-            const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
-
-            if (!panel) return;
-
-            if (!allowMultiple && !isExpanded) {
-              toggles.forEach((otherToggle) => {
-                const otherPanelId = otherToggle.getAttribute('aria-controls');
-                const otherPanel = otherPanelId ? root.querySelector(`#${CSS.escape(otherPanelId)}`) : null;
-
-                otherToggle.setAttribute('aria-expanded', 'false');
-
-                if (otherPanel) {
-                  otherPanel.dataset.open = 'false';
-                }
-              });
-            }
-
-            toggle.setAttribute('aria-expanded', isExpanded ? 'false' : 'true');
-            panel.dataset.open = isExpanded ? 'false' : 'true';
-          });
-        });
-      })();
-    </script>
-  {% elsif block.settings.show_empty_state %}
+  {% elsif block.settings.show_empty_state or request.design_mode %}
     <div class="product-accordion__empty">
       {{ block.settings.empty_text | escape }}
     </div>
@@ -732,10 +689,8 @@
     {
       "type": "text",
       "id": "description",
-      "label": "Description",
-      "default": "Important product-specific details, policies, and supporting information."
+      "label": "Description"
     },
-
     {
       "type": "header",
       "content": "Behavior"
@@ -752,7 +707,6 @@
       "label": "Allow multiple items open",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Description item"
@@ -769,7 +723,6 @@
       "label": "Description title",
       "default": "Description"
     },
-
     {
       "type": "header",
       "content": "Shipping item"
@@ -789,10 +742,8 @@
     {
       "type": "richtext",
       "id": "shipping_text",
-      "label": "Shipping text",
-      "default": "<p>Shipping options and delivery timelines are calculated at checkout.</p>"
+      "label": "Shipping text"
     },
-
     {
       "type": "header",
       "content": "Returns item"
@@ -812,10 +763,8 @@
     {
       "type": "richtext",
       "id": "returns_text",
-      "label": "Returns text",
-      "default": "<p>Return eligibility depends on product condition, timing, and store policy.</p>"
+      "label": "Returns text"
     },
-
     {
       "type": "header",
       "content": "Care / materials item"
@@ -835,10 +784,8 @@
     {
       "type": "richtext",
       "id": "care_text",
-      "label": "Care text",
-      "default": "<p>Add care instructions, ingredients, materials, or product handling details.</p>"
+      "label": "Care text"
     },
-
     {
       "type": "header",
       "content": "Custom item"
@@ -858,10 +805,8 @@
     {
       "type": "richtext",
       "id": "custom_text",
-      "label": "Custom text",
-      "default": "<p>Add custom product information here.</p>"
+      "label": "Custom text"
     },
-
     {
       "type": "header",
       "content": "Metafield item 1"
@@ -890,7 +835,6 @@
       "label": "Metafield 1 key",
       "default": "specifications"
     },
-
     {
       "type": "header",
       "content": "Metafield item 2"
@@ -919,7 +863,6 @@
       "label": "Metafield 2 key",
       "default": "materials"
     },
-
     {
       "type": "header",
       "content": "Metafield item 3"
@@ -948,7 +891,6 @@
       "label": "Metafield 3 key",
       "default": "ingredients"
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -977,7 +919,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Typography"
@@ -1022,7 +963,6 @@
       "unit": "px",
       "default": 15
     },
-
     {
       "type": "header",
       "content": "Sizing"
@@ -1057,7 +997,6 @@
       "unit": "px",
       "default": 22
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1116,7 +1055,6 @@
       "label": "Focus color",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1141,7 +1079,6 @@
       "unit": "px",
       "default": 14
     },
-
     {
       "type": "header",
       "content": "Container"
@@ -1194,7 +1131,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1259,7 +1195,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Empty state"
@@ -1268,7 +1203,7 @@
       "type": "checkbox",
       "id": "show_empty_state",
       "label": "Show empty state",
-      "default": true
+      "default": false
     },
     {
       "type": "text",
@@ -1276,7 +1211,6 @@
       "label": "Empty state text",
       "default": "Product accordion content will appear when enabled items have content."
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1299,7 +1233,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1336,23 +1269,18 @@
         "show_header": false,
         "eyebrow": "Product information",
         "heading": "Product details",
-        "description": "Important product-specific details, policies, and supporting information.",
         "open_first_item": true,
         "allow_multiple_open": false,
         "show_description_item": true,
         "description_title": "Description",
         "show_shipping_item": true,
         "shipping_title": "Shipping",
-        "shipping_text": "<p>Shipping options and delivery timelines are calculated at checkout.</p>",
         "show_returns_item": true,
         "returns_title": "Returns",
-        "returns_text": "<p>Return eligibility depends on product condition, timing, and store policy.</p>",
         "show_care_item": false,
         "care_title": "Care instructions",
-        "care_text": "<p>Add care instructions, ingredients, materials, or product handling details.</p>",
         "show_custom_item": false,
         "custom_title": "Additional information",
-        "custom_text": "<p>Add custom product information here.</p>",
         "show_metafield_1": false,
         "metafield_1_title": "Specifications",
         "metafield_1_namespace": "custom",
@@ -1392,7 +1320,7 @@
         "margin_top": 0,
         "margin_bottom": 28,
         "padding": 0,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Product accordion content will appear when enabled items have content.",
         "show_on_desktop": true,
         "show_on_tablet": true,
@@ -1406,23 +1334,18 @@
         "show_header": false,
         "eyebrow": "Policies",
         "heading": "Shipping and returns",
-        "description": "Help shoppers understand fulfillment and return details.",
         "open_first_item": true,
         "allow_multiple_open": true,
         "show_description_item": false,
         "description_title": "Description",
         "show_shipping_item": true,
         "shipping_title": "Shipping",
-        "shipping_text": "<p>Shipping options and delivery timelines are calculated at checkout.</p>",
         "show_returns_item": true,
         "returns_title": "Returns",
-        "returns_text": "<p>Return eligibility depends on product condition, timing, and store policy.</p>",
         "show_care_item": false,
         "care_title": "Care instructions",
-        "care_text": "<p>Add care instructions, ingredients, materials, or product handling details.</p>",
         "show_custom_item": false,
         "custom_title": "Additional information",
-        "custom_text": "<p>Add custom product information here.</p>",
         "show_metafield_1": false,
         "metafield_1_title": "Specifications",
         "metafield_1_namespace": "custom",
@@ -1462,7 +1385,7 @@
         "margin_top": 0,
         "margin_bottom": 28,
         "padding": 0,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Product accordion content will appear when enabled items have content.",
         "show_on_desktop": true,
         "show_on_tablet": true,
@@ -1476,23 +1399,18 @@
         "show_header": false,
         "eyebrow": "Product care",
         "heading": "Materials and care",
-        "description": "Show product materials, ingredients, care, and handling information.",
         "open_first_item": true,
         "allow_multiple_open": false,
         "show_description_item": false,
         "description_title": "Description",
         "show_shipping_item": false,
         "shipping_title": "Shipping",
-        "shipping_text": "<p>Shipping options and delivery timelines are calculated at checkout.</p>",
         "show_returns_item": false,
         "returns_title": "Returns",
-        "returns_text": "<p>Return eligibility depends on product condition, timing, and store policy.</p>",
         "show_care_item": true,
         "care_title": "Care instructions",
-        "care_text": "<p>Add care instructions, ingredients, materials, or product handling details.</p>",
         "show_custom_item": false,
         "custom_title": "Additional information",
-        "custom_text": "<p>Add custom product information here.</p>",
         "show_metafield_1": true,
         "metafield_1_title": "Materials",
         "metafield_1_namespace": "custom",
@@ -1532,7 +1450,7 @@
         "margin_top": 0,
         "margin_bottom": 28,
         "padding": 0,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Product accordion content will appear when enabled items have content.",
         "show_on_desktop": true,
         "show_on_tablet": true,

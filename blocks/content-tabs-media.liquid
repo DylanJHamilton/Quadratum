@@ -9,19 +9,32 @@
   assign show_on_desktop = block.settings.show_on_desktop
   assign show_on_tablet = block.settings.show_on_tablet
   assign show_on_mobile = block.settings.show_on_mobile
+  assign has_panel_content = false
+  for panel_number in (1..6)
+    if panel_number <= tab_count
+      assign panel_key = 'tab_' | append: panel_number | append: '_label'
+      if block.settings[panel_key] != blank
+        assign has_panel_content = true
+      endif
+    endif
+  endfor
 -%}
 
+{% if has_panel_content or request.design_mode %}
 <div
   id="{{ block_id }}"
+  data-qtm-tabs
+  data-tabs-vertical="{% if layout_style == 'vertical' %}true{% else %}false{% endif %}"
+  data-tabs-breakpoint="750"
   class="
     content-tabs-media
     content-tabs-media--{{ layout_style }}
     content-tabs-media--width-{{ block_width }}
     content-tabs-media--align-{{ text_alignment }}
-    {% unless show_on_desktop %} content-tabs-media--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} content-tabs-media--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} content-tabs-media--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} content-tabs-media--animate content-tabs-media--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} content-tabs-media--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} content-tabs-media--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} content-tabs-media--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} content-tabs-media--animate content-tabs-media--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --content-tabs-media-margin-top: {{ block.settings.margin_top }}px;
@@ -41,10 +54,12 @@
     --content-tabs-media-card-background: {{ block.settings.card_background_color }};
     --content-tabs-media-media-background: {{ block.settings.media_background_color }};
   "
-  {{ block.shopify_attributes }}
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--content-tabs-media-margin-top);
       margin-bottom: var(--content-tabs-media-margin-bottom);
@@ -480,13 +495,29 @@
         transform: none;
       }
     }
+
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} img, #{{ block_id }} video, #{{ block_id }} iframe { max-width: 100%; }
+{% unless show_on_desktop or request.design_mode %}@media (min-width: 990px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_tablet or request.design_mode %}@media (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_mobile or request.design_mode %}@media (max-width: 749px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+    #{{ block_id }} a { color: var(--content-tabs-media-link-color); text-underline-offset: .2em; }
+    #{{ block_id }} a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    #{{ block_id }} [data-qtm-tabpanel]:not([hidden]) { display: block; }
+    #{{ block_id }}:not(.qtm-panels-ready) .content-tabs-media__inner { grid-template-columns: minmax(0, 1fr); }
+    #{{ block_id }} [data-qtm-tabmedia]:not([hidden]) { display: block; }
+    #{{ block_id }}.content-tabs-media--media_left .content-tabs-media__media-wrap, #{{ block_id }}.content-tabs-media--media_top .content-tabs-media__media-wrap { order: -1; }
+    @media (max-width: 989px) { #{{ block_id }}.content-tabs-media--media_left .content-tabs-media__media-wrap, #{{ block_id }}.content-tabs-media--media_top .content-tabs-media__media-wrap { order: initial; } }
   </style>
 
+  {% if request.design_mode %}<p>Add tab labels and the content you want visitors to read.</p>{% endif %}
   <div class="content-tabs-media__inner">
     <div class="content-tabs-media__content-wrap">
       <div
         class="content-tabs-media__list"
         role="tablist"
+      data-qtm-tablist hidden
         aria-label="{{ block.settings.aria_label | escape }}"
       >
         {%- for index in (1..6) -%}
@@ -501,7 +532,7 @@
                 class="content-tabs-media__tab"
                 id="{{ block_id }}-tab-{{ index }}"
                 type="button"
-                role="tab"
+                role="tab" data-qtm-tab
                 aria-selected="{% if index == 1 %}true{% else %}false{% endif %}"
                 aria-controls="{{ block_id }}-panel-{{ index }}"
                 tabindex="{% if index == 1 %}0{% else %}-1{% endif %}"
@@ -536,9 +567,9 @@
               <div
                 class="content-tabs-media__panel {% if index == 1 %}is-active{% endif %}"
                 id="{{ block_id }}-panel-{{ index }}"
-                role="tabpanel"
+                role="region" data-qtm-tabpanel
                 aria-labelledby="{{ block_id }}-tab-{{ index }}"
-                {% unless index == 1 %}hidden{% endunless %}
+
                 data-content-tabs-media-panel
                 data-content-tabs-media-index="{{ index }}"
               >
@@ -556,7 +587,7 @@
                   {% endif %}
 
                   {% if tab_button_label != blank and tab_button_url != blank %}
-                    <a class="content-tabs-media__button" href="{{ tab_button_url }}">
+                    <a class="content-tabs-media__button" href="{{ tab_button_url | escape }}">
                       {{ tab_button_label | escape }}
                     </a>
                   {% endif %}
@@ -568,7 +599,7 @@
       </div>
     </div>
 
-    <div class="content-tabs-media__media-wrap" aria-live="polite">
+    <div class="content-tabs-media__media-wrap">
       {%- for index in (1..6) -%}
         {%- if index <= tab_count -%}
           {%- liquid
@@ -579,26 +610,26 @@
 
             assign tab_label = block.settings[label_key]
             assign tab_image = block.settings[image_key]
-            assign tab_image_alt = block.settings[image_alt_key]
+            assign tab_image_alt = block.settings[image_alt_key] | default: tab_image.alt
             assign tab_video = block.settings[video_key]
           -%}
 
           {% if tab_label != blank %}
             <div
               class="content-tabs-media__media-panel {% if index == 1 %}is-active{% endif %}"
-              {% unless index == 1 %}hidden{% endunless %}
+
+              data-qtm-tabmedia
+              role="group" aria-label="{{ tab_label | escape }}"
               data-content-tabs-media-media
               data-content-tabs-media-index="{{ index }}"
             >
               <div class="content-tabs-media__media-card">
                 {% if tab_video != blank %}
-                  {{
-                    tab_video
-                    | external_video_url
-                    | external_video_tag:
-                      class: 'content-tabs-media__video',
-                      loading: 'lazy'
-                  }}
+                  {% if tab_video.type == 'youtube' or tab_video.type == 'vimeo' %}
+                    {% capture video_embed %}{% if tab_video.type == 'youtube' %}https://www.youtube-nocookie.com/embed/{{ tab_video.id | url_encode }}{% else %}https://player.vimeo.com/video/{{ tab_video.id | url_encode }}{% endif %}{% endcapture %}
+                    <template data-qtm-panel-media-template><iframe class="content-tabs-media__video" src="{{ video_embed | strip | escape }}" title="{{ tab_label | escape }}" loading="lazy" allow="fullscreen; picture-in-picture" allowfullscreen></iframe></template>
+                    <noscript><a href="{{ video_embed | strip | escape }}">{{ tab_label | escape }} — Watch video</a></noscript>
+                  {% endif %}
                 {% elsif tab_image != blank %}
                   {{
                     tab_image
@@ -608,7 +639,7 @@
                       loading: 'lazy',
                       alt: tab_image_alt
                   }}
-                {% else %}
+                {% elsif request.design_mode %}
                   <div class="content-tabs-media__media-placeholder">
                     Add an image or video for {{ tab_label | escape }}.
                   </div>
@@ -620,91 +651,10 @@
       {%- endfor -%}
     </div>
   </div>
-
-  <script>
-    (() => {
-      const root = document.getElementById({{ block_id | json }});
-
-      if (!root || root.dataset.contentTabsMediaReady === 'true') return;
-
-      root.dataset.contentTabsMediaReady = 'true';
-
-      const tabs = Array.from(root.querySelectorAll('[data-content-tabs-media-tab]'));
-      const panels = Array.from(root.querySelectorAll('[data-content-tabs-media-panel]'));
-      const mediaPanels = Array.from(root.querySelectorAll('[data-content-tabs-media-media]'));
-
-      if (!tabs.length || !panels.length) return;
-
-      const activateTab = (tab) => {
-        const index = tab.dataset.contentTabsMediaIndex;
-
-        tabs.forEach((currentTab) => {
-          const isActive = currentTab === tab;
-          currentTab.setAttribute('aria-selected', isActive ? 'true' : 'false');
-          currentTab.setAttribute('tabindex', isActive ? '0' : '-1');
-        });
-
-        panels.forEach((panel) => {
-          const isActive = panel.dataset.contentTabsMediaIndex === index;
-          panel.classList.toggle('is-active', isActive);
-
-          if (isActive) {
-            panel.removeAttribute('hidden');
-          } else {
-            panel.setAttribute('hidden', '');
-          }
-        });
-
-        mediaPanels.forEach((mediaPanel) => {
-          const isActive = mediaPanel.dataset.contentTabsMediaIndex === index;
-          mediaPanel.classList.toggle('is-active', isActive);
-
-          if (isActive) {
-            mediaPanel.removeAttribute('hidden');
-          } else {
-            mediaPanel.setAttribute('hidden', '');
-          }
-        });
-      };
-
-      tabs.forEach((tab, position) => {
-        tab.addEventListener('click', () => {
-          activateTab(tab);
-        });
-
-        tab.addEventListener('keydown', (event) => {
-          let nextPosition = position;
-
-          if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-            event.preventDefault();
-            nextPosition = position + 1 >= tabs.length ? 0 : position + 1;
-          }
-
-          if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-            event.preventDefault();
-            nextPosition = position - 1 < 0 ? tabs.length - 1 : position - 1;
-          }
-
-          if (event.key === 'Home') {
-            event.preventDefault();
-            nextPosition = 0;
-          }
-
-          if (event.key === 'End') {
-            event.preventDefault();
-            nextPosition = tabs.length - 1;
-          }
-
-          if (nextPosition !== position) {
-            tabs[nextPosition].focus();
-            activateTab(tabs[nextPosition]);
-          }
-        });
-      });
-    })();
-  </script>
 </div>
 
+
+{% endif %}
 {% schema %}
 {
   "name": "Content tabs media",
@@ -814,7 +764,6 @@
       "unit": "px",
       "default": 32
     },
-
     {
       "type": "header",
       "content": "Tab 1"
@@ -822,20 +771,17 @@
     {
       "type": "text",
       "id": "tab_1_label",
-      "label": "Tab label",
-      "default": "Feature one"
+      "label": "Tab label"
     },
     {
       "type": "text",
       "id": "tab_1_heading",
-      "label": "Heading",
-      "default": "Show the first feature clearly"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "tab_1_text",
-      "label": "Text",
-      "default": "<p>Pair explanatory content with visual media so customers can understand features, benefits, or process steps faster.</p>"
+      "label": "Text"
     },
     {
       "type": "image_picker",
@@ -851,20 +797,21 @@
       "type": "video_url",
       "id": "tab_1_video_url",
       "label": "Video URL",
-      "accept": ["youtube", "vimeo"]
+      "accept": [
+        "youtube",
+        "vimeo"
+      ]
     },
     {
       "type": "text",
       "id": "tab_1_button_label",
-      "label": "Button label",
-      "default": "Learn more"
+      "label": "Button label"
     },
     {
       "type": "url",
       "id": "tab_1_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Tab 2"
@@ -872,20 +819,17 @@
     {
       "type": "text",
       "id": "tab_2_label",
-      "label": "Tab label",
-      "default": "Feature two"
+      "label": "Tab label"
     },
     {
       "type": "text",
       "id": "tab_2_heading",
-      "label": "Heading",
-      "default": "Highlight another benefit"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "tab_2_text",
-      "label": "Text",
-      "default": "<p>Use each tab to explain a different customer benefit, product detail, service step, or brand proof point.</p>"
+      "label": "Text"
     },
     {
       "type": "image_picker",
@@ -901,7 +845,10 @@
       "type": "video_url",
       "id": "tab_2_video_url",
       "label": "Video URL",
-      "accept": ["youtube", "vimeo"]
+      "accept": [
+        "youtube",
+        "vimeo"
+      ]
     },
     {
       "type": "text",
@@ -913,7 +860,6 @@
       "id": "tab_2_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Tab 3"
@@ -921,20 +867,17 @@
     {
       "type": "text",
       "id": "tab_3_label",
-      "label": "Tab label",
-      "default": "Feature three"
+      "label": "Tab label"
     },
     {
       "type": "text",
       "id": "tab_3_heading",
-      "label": "Heading",
-      "default": "Make the next step obvious"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "tab_3_text",
-      "label": "Text",
-      "default": "<p>Close with the strongest outcome, process step, transformation, or call-to-action supporting detail.</p>"
+      "label": "Text"
     },
     {
       "type": "image_picker",
@@ -950,7 +893,10 @@
       "type": "video_url",
       "id": "tab_3_video_url",
       "label": "Video URL",
-      "accept": ["youtube", "vimeo"]
+      "accept": [
+        "youtube",
+        "vimeo"
+      ]
     },
     {
       "type": "text",
@@ -962,7 +908,6 @@
       "id": "tab_3_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Tab 4"
@@ -996,7 +941,10 @@
       "type": "video_url",
       "id": "tab_4_video_url",
       "label": "Video URL",
-      "accept": ["youtube", "vimeo"]
+      "accept": [
+        "youtube",
+        "vimeo"
+      ]
     },
     {
       "type": "text",
@@ -1008,7 +956,6 @@
       "id": "tab_4_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Tab 5"
@@ -1042,7 +989,10 @@
       "type": "video_url",
       "id": "tab_5_video_url",
       "label": "Video URL",
-      "accept": ["youtube", "vimeo"]
+      "accept": [
+        "youtube",
+        "vimeo"
+      ]
     },
     {
       "type": "text",
@@ -1054,7 +1004,6 @@
       "id": "tab_5_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Tab 6"
@@ -1088,7 +1037,10 @@
       "type": "video_url",
       "id": "tab_6_video_url",
       "label": "Video URL",
-      "accept": ["youtube", "vimeo"]
+      "accept": [
+        "youtube",
+        "vimeo"
+      ]
     },
     {
       "type": "text",
@@ -1100,7 +1052,6 @@
       "id": "tab_6_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1165,7 +1116,6 @@
       "label": "Media background",
       "default": "#f4f4f4"
     },
-
     {
       "type": "header",
       "content": "Border and radius"
@@ -1190,7 +1140,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1225,7 +1174,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1248,7 +1196,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1300,16 +1247,6 @@
         "block_width": "auto",
         "text_alignment": "left",
         "gap": 32,
-        "tab_1_label": "Feature one",
-        "tab_1_heading": "Show the first feature clearly",
-        "tab_1_text": "<p>Pair explanatory content with visual media so customers can understand features, benefits, or process steps faster.</p>",
-        "tab_1_button_label": "Learn more",
-        "tab_2_label": "Feature two",
-        "tab_2_heading": "Highlight another benefit",
-        "tab_2_text": "<p>Use each tab to explain a different customer benefit, product detail, service step, or brand proof point.</p>",
-        "tab_3_label": "Feature three",
-        "tab_3_heading": "Make the next step obvious",
-        "tab_3_text": "<p>Close with the strongest outcome, process step, transformation, or call-to-action supporting detail.</p>",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",
@@ -1340,15 +1277,6 @@
         "block_width": "auto",
         "text_alignment": "left",
         "gap": 36,
-        "tab_1_label": "Comfort",
-        "tab_1_heading": "Designed around comfort",
-        "tab_1_text": "<p>Explain the customer-focused benefit and pair it with a helpful image or product video.</p>",
-        "tab_2_label": "Performance",
-        "tab_2_heading": "Built for better performance",
-        "tab_2_text": "<p>Use this tab to describe quality, durability, speed, capability, or other performance advantages.</p>",
-        "tab_3_label": "Value",
-        "tab_3_heading": "A smarter long-term choice",
-        "tab_3_text": "<p>Support buying confidence by explaining long-term value, support, warranty, or ownership benefits.</p>",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",
@@ -1379,16 +1307,6 @@
         "block_width": "auto",
         "text_alignment": "left",
         "gap": 40,
-        "tab_1_label": "Plan",
-        "tab_1_heading": "Start with a clear plan",
-        "tab_1_text": "<p>Explain the first step of a process, service, onboarding experience, or customer journey.</p>",
-        "tab_2_label": "Build",
-        "tab_2_heading": "Bring the work to life",
-        "tab_2_text": "<p>Show how the process develops and what the customer can expect during execution.</p>",
-        "tab_3_label": "Launch",
-        "tab_3_heading": "Move forward with confidence",
-        "tab_3_text": "<p>Use the final tab to show the outcome, next step, delivery stage, or completed transformation.</p>",
-        "tab_3_button_label": "Get started",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",

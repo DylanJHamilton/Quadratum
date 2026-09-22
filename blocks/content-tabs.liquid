@@ -9,19 +9,32 @@
   assign show_on_desktop = block.settings.show_on_desktop
   assign show_on_tablet = block.settings.show_on_tablet
   assign show_on_mobile = block.settings.show_on_mobile
+  assign has_panel_content = false
+  for panel_number in (1..6)
+    if panel_number <= tab_count
+      assign panel_key = 'tab_' | append: panel_number | append: '_label'
+      if block.settings[panel_key] != blank
+        assign has_panel_content = true
+      endif
+    endif
+  endfor
 -%}
 
+{% if has_panel_content or request.design_mode %}
 <div
   id="{{ block_id }}"
+  data-qtm-tabs
+  data-tabs-vertical="{% if layout_style == 'vertical' %}true{% else %}false{% endif %}"
+  data-tabs-breakpoint="750"
   class="
     content-tabs
     content-tabs--{{ layout_style }}
     content-tabs--width-{{ block_width }}
     content-tabs--align-{{ text_alignment }}
-    {% unless show_on_desktop %} content-tabs--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} content-tabs--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} content-tabs--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} content-tabs--animate content-tabs--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} content-tabs--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} content-tabs--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} content-tabs--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} content-tabs--animate content-tabs--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --content-tabs-margin-top: {{ block.settings.margin_top }}px;
@@ -40,10 +53,12 @@
     --content-tabs-tab-active-text: {{ block.settings.active_tab_text_color }};
     --content-tabs-panel-background: {{ block.settings.panel_background_color }};
   "
-  {{ block.shopify_attributes }}
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--content-tabs-margin-top);
       margin-bottom: var(--content-tabs-margin-bottom);
@@ -423,12 +438,25 @@
         transform: none;
       }
     }
+
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} img, #{{ block_id }} video, #{{ block_id }} iframe { max-width: 100%; }
+{% unless show_on_desktop or request.design_mode %}@media (min-width: 990px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_tablet or request.design_mode %}@media (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_mobile or request.design_mode %}@media (max-width: 749px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+    #{{ block_id }} a { color: var(--content-tabs-link-color); text-underline-offset: .2em; }
+    #{{ block_id }} a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    #{{ block_id }} [data-qtm-tabpanel]:not([hidden]) { display: block; }
+    #{{ block_id }}:not(.qtm-panels-ready) .content-tabs__inner { grid-template-columns: minmax(0, 1fr); }
   </style>
 
+  {% if request.design_mode %}<p>Add tab labels and the content you want visitors to read.</p>{% endif %}
   <div class="content-tabs__inner">
     <div
       class="content-tabs__list"
       role="tablist"
+      data-qtm-tablist hidden
       aria-label="{{ block.settings.aria_label | escape }}"
     >
       {%- for index in (1..6) -%}
@@ -443,7 +471,7 @@
               class="content-tabs__tab"
               id="{{ block_id }}-tab-{{ index }}"
               type="button"
-              role="tab"
+              role="tab" data-qtm-tab
               aria-selected="{% if index == 1 %}true{% else %}false{% endif %}"
               aria-controls="{{ block_id }}-panel-{{ index }}"
               tabindex="{% if index == 1 %}0{% else %}-1{% endif %}"
@@ -478,9 +506,9 @@
             <div
               class="content-tabs__panel {% if index == 1 %}is-active{% endif %}"
               id="{{ block_id }}-panel-{{ index }}"
-              role="tabpanel"
+              role="region" data-qtm-tabpanel
               aria-labelledby="{{ block_id }}-tab-{{ index }}"
-              {% unless index == 1 %}hidden{% endunless %}
+
               data-content-tabs-panel
               data-content-tabs-index="{{ index }}"
             >
@@ -498,7 +526,7 @@
                 {% endif %}
 
                 {% if tab_button_label != blank and tab_button_url != blank %}
-                  <a class="content-tabs__button" href="{{ tab_button_url }}">
+                  <a class="content-tabs__button" href="{{ tab_button_url | escape }}">
                     {{ tab_button_label | escape }}
                   </a>
                 {% endif %}
@@ -509,79 +537,10 @@
       {%- endfor -%}
     </div>
   </div>
-
-  <script>
-    (() => {
-      const root = document.getElementById({{ block_id | json }});
-
-      if (!root || root.dataset.contentTabsReady === 'true') return;
-
-      root.dataset.contentTabsReady = 'true';
-
-      const tabs = Array.from(root.querySelectorAll('[data-content-tabs-tab]'));
-      const panels = Array.from(root.querySelectorAll('[data-content-tabs-panel]'));
-
-      if (!tabs.length || !panels.length) return;
-
-      const activateTab = (tab) => {
-        const index = tab.dataset.contentTabsIndex;
-
-        tabs.forEach((currentTab) => {
-          const isActive = currentTab === tab;
-          currentTab.setAttribute('aria-selected', isActive ? 'true' : 'false');
-          currentTab.setAttribute('tabindex', isActive ? '0' : '-1');
-        });
-
-        panels.forEach((panel) => {
-          const isActive = panel.dataset.contentTabsIndex === index;
-          panel.classList.toggle('is-active', isActive);
-
-          if (isActive) {
-            panel.removeAttribute('hidden');
-          } else {
-            panel.setAttribute('hidden', '');
-          }
-        });
-      };
-
-      tabs.forEach((tab, position) => {
-        tab.addEventListener('click', () => {
-          activateTab(tab);
-        });
-
-        tab.addEventListener('keydown', (event) => {
-          let nextPosition = position;
-
-          if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-            event.preventDefault();
-            nextPosition = position + 1 >= tabs.length ? 0 : position + 1;
-          }
-
-          if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-            event.preventDefault();
-            nextPosition = position - 1 < 0 ? tabs.length - 1 : position - 1;
-          }
-
-          if (event.key === 'Home') {
-            event.preventDefault();
-            nextPosition = 0;
-          }
-
-          if (event.key === 'End') {
-            event.preventDefault();
-            nextPosition = tabs.length - 1;
-          }
-
-          if (nextPosition !== position) {
-            tabs[nextPosition].focus();
-            activateTab(tabs[nextPosition]);
-          }
-        });
-      });
-    })();
-  </script>
 </div>
 
+
+{% endif %}
 {% schema %}
 {
   "name": "Content tabs",
@@ -691,7 +650,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Tab 1"
@@ -699,20 +657,17 @@
     {
       "type": "text",
       "id": "tab_1_label",
-      "label": "Tab label",
-      "default": "Details"
+      "label": "Tab label"
     },
     {
       "type": "text",
       "id": "tab_1_heading",
-      "label": "Heading",
-      "default": "Product details"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "tab_1_content",
-      "label": "Content",
-      "default": "<p>Use tabs to organize longer content into clear, scannable sections without overwhelming the page.</p>"
+      "label": "Content"
     },
     {
       "type": "text",
@@ -724,7 +679,6 @@
       "id": "tab_1_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Tab 2"
@@ -732,20 +686,17 @@
     {
       "type": "text",
       "id": "tab_2_label",
-      "label": "Tab label",
-      "default": "Shipping"
+      "label": "Tab label"
     },
     {
       "type": "text",
       "id": "tab_2_heading",
-      "label": "Heading",
-      "default": "Shipping information"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "tab_2_content",
-      "label": "Content",
-      "default": "<p>Explain shipping times, fulfillment expectations, delivery options, or support details here.</p>"
+      "label": "Content"
     },
     {
       "type": "text",
@@ -757,7 +708,6 @@
       "id": "tab_2_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Tab 3"
@@ -765,33 +715,28 @@
     {
       "type": "text",
       "id": "tab_3_label",
-      "label": "Tab label",
-      "default": "Returns"
+      "label": "Tab label"
     },
     {
       "type": "text",
       "id": "tab_3_heading",
-      "label": "Heading",
-      "default": "Returns and support"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "tab_3_content",
-      "label": "Content",
-      "default": "<p>Add return details, warranty messaging, support instructions, or helpful policy information.</p>"
+      "label": "Content"
     },
     {
       "type": "text",
       "id": "tab_3_button_label",
-      "label": "Button label",
-      "default": "Learn more"
+      "label": "Button label"
     },
     {
       "type": "url",
       "id": "tab_3_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Tab 4"
@@ -821,7 +766,6 @@
       "id": "tab_4_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Tab 5"
@@ -851,7 +795,6 @@
       "id": "tab_5_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Tab 6"
@@ -881,7 +824,6 @@
       "id": "tab_6_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -940,7 +882,6 @@
       "label": "Panel background",
       "default": "#ffffff"
     },
-
     {
       "type": "header",
       "content": "Border and radius"
@@ -965,7 +906,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1000,7 +940,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1023,7 +962,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1075,16 +1013,6 @@
         "block_width": "auto",
         "text_alignment": "left",
         "gap": 20,
-        "tab_1_label": "Details",
-        "tab_1_heading": "Product details",
-        "tab_1_content": "<p>Use tabs to organize longer content into clear, scannable sections without overwhelming the page.</p>",
-        "tab_2_label": "Shipping",
-        "tab_2_heading": "Shipping information",
-        "tab_2_content": "<p>Explain shipping times, fulfillment expectations, delivery options, or support details here.</p>",
-        "tab_3_label": "Returns",
-        "tab_3_heading": "Returns and support",
-        "tab_3_content": "<p>Add return details, warranty messaging, support instructions, or helpful policy information.</p>",
-        "tab_3_button_label": "Learn more",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",
@@ -1114,16 +1042,6 @@
         "block_width": "auto",
         "text_alignment": "left",
         "gap": 24,
-        "tab_1_label": "Planning",
-        "tab_1_heading": "Plan the right approach",
-        "tab_1_content": "<p>Explain the service process, discovery steps, or how customers get started.</p>",
-        "tab_1_button_label": "Start planning",
-        "tab_2_label": "Execution",
-        "tab_2_heading": "Built around the customer goal",
-        "tab_2_content": "<p>Show how your team delivers the work, manages expectations, and keeps the experience clear.</p>",
-        "tab_3_label": "Support",
-        "tab_3_heading": "Support after launch",
-        "tab_3_content": "<p>Use this tab to describe ongoing service, maintenance, updates, or post-project support.</p>",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",
@@ -1153,16 +1071,6 @@
         "block_width": "auto",
         "text_alignment": "left",
         "gap": 20,
-        "tab_1_label": "Origin",
-        "tab_1_heading": "How the story started",
-        "tab_1_content": "<p>Share the early motivation behind the brand, product, or company mission.</p>",
-        "tab_2_label": "Values",
-        "tab_2_heading": "What guides the work",
-        "tab_2_content": "<p>Explain the standards, beliefs, or customer promises that shape the brand.</p>",
-        "tab_3_label": "Today",
-        "tab_3_heading": "Where the brand is now",
-        "tab_3_content": "<p>Show the current chapter, what customers can expect, and where the company is headed next.</p>",
-        "tab_3_button_label": "Explore our story",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",
