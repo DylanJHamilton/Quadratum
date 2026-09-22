@@ -1,250 +1,56 @@
-/* Quadratum — Maps Locator JS
-   File: assets/maps-locator.js
-
-   - Loads Google Maps JS API once
-   - Powers:
-      - pin <-> card sync
-      - search + tag filter
-*/
-
-(function () {
-  const state = {
-    loaderPromise: null,
-    mapsReady: false
-  };
-
-  function qs(root, sel) { return root.querySelector(sel); }
-  function qsa(root, sel) { return Array.from(root.querySelectorAll(sel)); }
-
-  function loadGoogleMaps(apiKey) {
-    if (!apiKey) return Promise.reject(new Error("Missing Google Maps API key"));
-    if (state.loaderPromise) return state.loaderPromise;
-
-    state.loaderPromise = new Promise((resolve, reject) => {
-      if (window.google && window.google.maps) {
-        state.mapsReady = true;
-        resolve(window.google.maps);
-        return;
-      }
-
-      const cbName = "QMapsInit_" + Math.random().toString(16).slice(2);
-      window[cbName] = () => {
-        state.mapsReady = true;
-        resolve(window.google.maps);
-        try { delete window[cbName]; } catch (e) {}
-      };
-
-      const script = document.createElement("script");
-      script.async = true;
-      script.defer = true;
-      script.src =
-        "https://maps.googleapis.com/maps/api/js?key=" +
-        encodeURIComponent(apiKey) +
-        "&callback=" +
-        encodeURIComponent(cbName);
-
-      script.onerror = () => reject(new Error("Failed to load Google Maps JS API"));
-      document.head.appendChild(script);
-    });
-
-    return state.loaderPromise;
+/* One optional Google Maps loader; native cards remain complete without it. */
+(() => {
+  'use strict';
+  if(window.__qMapLocators)return;window.__qMapLocators=true;
+  const instances=new Map(),selector='.q-map-locator[data-section-id]';let loader=null;
+  const normalize=value=>String(value||'').trim().toLocaleLowerCase();
+  const pair=value=>{const parts=String(value||'').split(',');if(parts.length!==2||parts.some(x=>!/^[-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(x.trim())))return null;const[lat,lng]=parts.map(Number);return Math.abs(lat)<=90&&Math.abs(lng)<=180?{lat,lng}:null;};
+  function load(key){
+    if(window.google?.maps?.Map)return Promise.resolve(window.google.maps);
+    if(loader)return loader;
+    loader=new Promise((resolve,reject)=>{
+      const callback='__qMapsReady',script=document.createElement('script');let finished=false;
+      const done=error=>{if(finished)return;finished=true;clearTimeout(timer);script.onerror=null;if(error){script.remove();window[callback]=()=>{};reject(error);}else{delete window[callback];resolve(window.google.maps);}};
+      window[callback]=()=>done(window.google?.maps?.Map?null:new Error('Maps unavailable'));
+      const timer=setTimeout(()=>done(new Error('Maps timed out')),15000);
+      script.async=true;script.src='https://maps.googleapis.com/maps/api/js?'+new URLSearchParams({key,loading:'async',callback});
+      script.onerror=()=>done(new Error('Maps unavailable'));document.head.append(script);
+    }).catch(error=>{loader=null;throw error;});return loader;
   }
-
-  function parseData(sectionId) {
-    const el = document.getElementById("QMapLocatorData-" + sectionId);
-    if (!el) return null;
-    try { return JSON.parse(el.textContent || "{}"); } catch (e) { return null; }
+  function mount(root){
+    if(instances.has(root))return;
+    const config=root.querySelector('[data-map-config]');if(!config)return;
+    const abort=new AbortController(),on=(el,type,fn)=>el?.addEventListener(type,fn,{signal:abort.signal}),cards=[...root.querySelectorAll('[data-location-card]')];
+    const controls=root.querySelector('[data-map-controls]'),search=root.querySelector('[data-map-search]'),chips=root.querySelector('[data-filter-chips]'),count=root.querySelector('[data-map-count]'),empty=root.querySelector('[data-map-empty]'),pane=root.querySelector('[data-map-pane]'),canvas=root.querySelector('[data-map]'),preview=root.querySelector('[data-map-preview]');
+    let activeTag='',map=null,info=null,maps=null,markers=[],previewPins=[];
+    const tags=card=>(card.dataset.locationTags||'').split(',').map(normalize).filter(Boolean);
+    const positions=new Map(cards.map(card=>[card,pair(card.dataset.locationCoordinates)]));
+    const select=card=>{cards.forEach(x=>x.classList.toggle('is-active',x===card));};
+    const focusCard=card=>{select(card);card.focus({preventScroll:true});card.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});};
+    const clearMap=()=>{for(const{marker,listener}of markers){listener?.remove();marker.setMap(null);}markers=[];info?.close();if(map){maps?.event?.clearInstanceListeners(map);map.unbindAll?.();}map=null;info=null;if(canvas)canvas.replaceChildren();};
+    const mapFilter=()=>{if(!map)return;const visible=markers.filter(x=>!x.card.hidden),bounds=new maps.LatLngBounds();markers.forEach(x=>{x.marker.setMap(x.card.hidden?null:map);if(!x.card.hidden)bounds.extend(positions.get(x.card));});if(visible.length>1)map.fitBounds(bounds,40);else if(visible.length===1){map.setCenter(positions.get(visible[0].card));map.setZoom(Number(config.dataset.zoom)||12);}info?.close();};
+    const apply=()=>{const query=normalize(search?.value);let visible=0;cards.forEach(card=>{card.hidden=!!((query&&!normalize(card.textContent).includes(query))||(activeTag&&!tags(card).includes(activeTag)));if(!card.hidden)visible++;});if(count){count.hidden=false;count.textContent=visible+' of '+cards.length+' locations shown';}if(empty)empty.hidden=visible!==0;for(const{card,pin}of previewPins)pin.hidden=card.hidden;mapFilter();};
+    if(controls)controls.hidden=!(search||chips)||!cards.length;
+    if(chips){chips.replaceChildren();const labels=new Map();cards.forEach(card=>(card.dataset.locationTags||'').split(',').forEach(t=>{if(t.trim()&&!labels.has(normalize(t)))labels.set(normalize(t),t.trim());}));for(const[value,label]of [['',chips.dataset.allLabel||'All'],...labels]){const button=document.createElement('button');button.type='button';button.className='q-map-chip';button.textContent=label;button.setAttribute('aria-pressed',String(!value));on(button,'click',()=>{activeTag=value;chips.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===button)));apply();});chips.append(button);}}
+    on(search,'input',apply);apply();
+    for(const card of cards)on(card.querySelector('[data-focus-map]'),'click',()=>{const pos=positions.get(card);if(map&&pos){select(card);map.panTo(pos);}else if(preview){select(card);previewPins.find(x=>x.card===card)?.pin.focus();}});
+    if(preview){const valid=cards.filter(c=>positions.get(c));if(valid.length){preview.hidden=false;const lats=valid.map(c=>positions.get(c).lat),lngs=valid.map(c=>positions.get(c).lng),minLat=Math.min(...lats),maxLat=Math.max(...lats),minLng=Math.min(...lngs),maxLng=Math.max(...lngs);for(const card of valid){const pos=positions.get(card),pin=document.createElement('button');pin.type='button';pin.textContent=card.dataset.locationName||'Location';pin.style.left=(10+80*((pos.lng-minLng)/(maxLng-minLng||1)))+'%';pin.style.top=(20+70*(1-(pos.lat-minLat)/(maxLat-minLat||1)))+'%';on(pin,'click',()=>focusCard(card));preview.append(pin);previewPins.push({card,pin});const button=card.querySelector('[data-focus-map]');if(button)button.hidden=false;}}}
+    instances.set(root,()=>{abort.abort();clearMap();previewPins.forEach(x=>x.pin.remove());previewPins=[];if(preview)preview.hidden=true;if(pane)pane.hidden=true;root.dataset.listOnly='true';cards.forEach(c=>{c.hidden=false;c.classList.remove('is-active');c.querySelector('[data-focus-map]')?.setAttribute('hidden','');});if(controls)controls.hidden=true;if(count)count.hidden=true;if(empty)empty.hidden=true;chips?.replaceChildren();instances.delete(root);});
+    const center=pair(config.dataset.center)||[...positions.values()].find(Boolean);
+    if(config.dataset.enabled!=='true'||!config.dataset.key||config.dataset.key==='none'||!center)return;
+    load(config.dataset.key).then(api=>{
+      if(abort.signal.aborted)return;maps=api;pane.hidden=false;root.dataset.listOnly='false';
+      map=new maps.Map(canvas,{center,zoom:Math.min(20,Math.max(1,Number(config.dataset.zoom)||12)),mapTypeControl:false,streetViewControl:false,fullscreenControl:true});info=new maps.InfoWindow();
+      for(const card of cards){const position=positions.get(card);if(!position)continue;
+        const marker=new maps.Marker({map,position,title:card.dataset.locationName||'Location'});
+        const listener=marker.addListener('click',()=>{focusCard(card);const content=document.createElement('div'),title=document.createElement('strong');title.textContent=card.dataset.locationName||'Location';content.append(title);const link=card.querySelector('.q-map-card__actions a');if(link){const action=document.createElement('a');action.href=link.href;action.textContent=config.dataset.pinLabel||'Open details';content.append(document.createElement('br'),action);}info.setContent(content);info.open({map,anchor:marker});});
+        markers.push({card,marker,listener});const button=card.querySelector('[data-focus-map]');if(button)button.hidden=false;
+      }mapFilter();
+    }).catch(()=>{if(abort.signal.aborted)return;clearMap();pane.hidden=true;root.dataset.listOnly='true';cards.forEach(c=>{const button=c.querySelector('[data-focus-map]');if(button)button.hidden=!previewPins.some(x=>x.card===c);});});
   }
-
-  function normalize(str) {
-    return (str || "").toLowerCase().trim();
-  }
-
-  function collectTags(cards) {
-    const set = new Set();
-    cards.forEach(card => {
-      const tags = (card.getAttribute("data-location-tags") || "")
-        .split(",")
-        .map(t => t.trim())
-        .filter(Boolean);
-      tags.forEach(t => set.add(t));
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }
-
-  function initFilters(root, cards) {
-    const chipsWrap = qs(root, "[data-filter-chips]");
-    if (!chipsWrap) return;
-
-    const tags = collectTags(cards);
-    chipsWrap.innerHTML = "";
-    tags.forEach(tag => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "q-map-chip";
-      btn.textContent = tag;
-      btn.setAttribute("data-filter", tag);
-      chipsWrap.appendChild(btn);
-    });
-  }
-
-  function applyFiltering(root, cards, activeTag, query) {
-    const q = normalize(query);
-    cards.forEach(card => {
-      const name = normalize(card.getAttribute("data-location-name"));
-      const tags = normalize(card.getAttribute("data-location-tags"));
-      const addr = normalize(card.innerText);
-
-      const matchesQuery = !q || name.includes(q) || tags.includes(q) || addr.includes(q);
-      const matchesTag = !activeTag || activeTag === "all" || (card.getAttribute("data-location-tags") || "")
-        .split(",").map(t => t.trim()).includes(activeTag);
-
-      card.style.display = (matchesQuery && matchesTag) ? "" : "none";
-    });
-  }
-
-  function setActiveCard(cards, idx) {
-    cards.forEach((c, i) => c.classList.toggle("is-active", i === idx));
-  }
-
-  function scrollCardIntoView(card) {
-    try {
-      card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    } catch (e) {
-      card.scrollIntoView();
-    }
-  }
-
-  function initMapInstance(root, data, cards) {
-    const mapEl = document.getElementById("QMap-" + data.sectionId);
-    if (!mapEl) return;
-
-    const centerLat = parseFloat(data.center.lat);
-    const centerLng = parseFloat(data.center.lng);
-    const zoom = Number(data.zoom || 11);
-
-    const map = new window.google.maps.Map(mapEl, {
-      center: { lat: isFinite(centerLat) ? centerLat : 37.7749, lng: isFinite(centerLng) ? centerLng : -122.4194 },
-      zoom: isFinite(zoom) ? zoom : 11,
-      mapTypeControl: false,
-      fullscreenControl: true,
-      streetViewControl: false
-    });
-
-    const bounds = new window.google.maps.LatLngBounds();
-    const markers = [];
-
-    cards.forEach((card, idx) => {
-      const lat = parseFloat(card.getAttribute("data-location-lat"));
-      const lng = parseFloat(card.getAttribute("data-location-lng"));
-      if (!isFinite(lat) || !isFinite(lng)) return;
-
-      const pos = { lat, lng };
-      bounds.extend(pos);
-
-      const marker = new window.google.maps.Marker({
-        position: pos,
-        map,
-        title: card.getAttribute("data-location-name") || "Location"
-      });
-
-      marker.addListener("click", () => {
-        setActiveCard(cards, idx);
-        scrollCardIntoView(card);
-      });
-
-      markers.push({ marker, idx });
-    });
-
-    if (markers.length > 1) {
-      map.fitBounds(bounds, 40);
-    } else if (markers.length === 1) {
-      map.setCenter(markers[0].marker.getPosition());
-      map.setZoom(Math.max(zoom, 13));
-    }
-
-    // card -> map sync
-    cards.forEach((card, idx) => {
-      const focus = () => {
-        setActiveCard(cards, idx);
-
-        const lat = parseFloat(card.getAttribute("data-location-lat"));
-        const lng = parseFloat(card.getAttribute("data-location-lng"));
-        if (isFinite(lat) && isFinite(lng)) {
-          map.panTo({ lat, lng });
-          map.setZoom(Math.max(map.getZoom() || zoom, 13));
-        }
-      };
-
-      card.addEventListener("click", focus);
-      card.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          focus();
-        }
-      });
-    });
-  }
-
-  function initLocator(sectionId) {
-    const root = document.querySelector(`.q-map-locator[data-section-id="${sectionId}"]`);
-    if (!root) return;
-
-    const data = parseData(sectionId);
-    if (!data) return;
-
-    const cards = qsa(root, "[data-location-card]");
-    const searchInput = qs(root, ".q-map-locator__search");
-    const allChip = qs(root, '.q-map-chip[data-filter="all"]');
-
-    let activeTag = "all";
-    let query = "";
-
-    initFilters(root, cards);
-
-    // filter click handling (including dynamically created chips)
-    root.addEventListener("click", (e) => {
-      const btn = e.target && e.target.closest && e.target.closest(".q-map-chip");
-      if (!btn) return;
-
-      const val = btn.getAttribute("data-filter") || "all";
-      activeTag = val;
-
-      qsa(root, ".q-map-chip").forEach(ch => ch.classList.toggle("is-active", (ch.getAttribute("data-filter") || "all") === activeTag));
-      applyFiltering(root, cards, activeTag, query);
-    });
-
-    if (allChip) allChip.classList.add("is-active");
-
-    if (searchInput) {
-      searchInput.addEventListener("input", () => {
-        query = searchInput.value || "";
-        applyFiltering(root, cards, activeTag, query);
-      });
-    }
-
-    // map init if enabled
-    const listOnly = root.getAttribute("data-list-only") === "true";
-    if (listOnly || !data.mapEnabled || !data.google.enabled) return;
-
-    loadGoogleMaps(data.google.apiKey)
-      .then(() => initMapInstance(root, data, cards))
-      .catch(() => {
-        // degrade gracefully: keep list usable
-        root.setAttribute("data-list-only", "true");
-        const frame = qs(root, ".q-map-locator__mapframe");
-        if (frame) frame.classList.add("q-map-locator__mapframe--hidden");
-      });
-  }
-
-  function boot() {
-    const ids = window.QuadratumMapLocators || [];
-    ids.forEach(initLocator);
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot);
-  } else {
-    boot();
-  }
+  const scan=scope=>{if(scope.matches?.(selector))mount(scope);scope.querySelectorAll?.(selector).forEach(mount);};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>scan(document),{once:true});else scan(document);
+  document.addEventListener('shopify:section:load',e=>scan(e.target));
+  document.addEventListener('shopify:section:unload',e=>{for(const[root,dispose]of instances)if(root===e.target||e.target.contains(root))dispose();});
+  document.addEventListener('shopify:block:select',e=>{const card=e.target.closest?.('[data-location-card]');if(card){card.hidden=false;card.focus({preventScroll:true});card.scrollIntoView({block:'nearest'});}});
 })();
