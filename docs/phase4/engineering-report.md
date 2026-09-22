@@ -1,6 +1,6 @@
 # Quadratum Phase 4 — component hardening progress
 
-Status: **IN PROGRESS — draft review only.** Phase 4 is not complete. This document must not be read as certification of unreviewed components.
+Status: **PHASE 4 COMPONENT ENGINEERING CLOSED — LIVE ACCEPTANCE PENDING.** Batch 9 formally closes the remaining 25 entries. All 515 components have explained dispositions; zero NOT REVIEWED. PR #22 remains DRAFT. Source/fixture closure is not live Shopify certification. Earlier checkpoint counts and stop instructions below are historical; the final Batch 9 closure is authoritative for current engineering status.
 
 **Owner-directed validation schedule (2026-09-20):** complete the remaining engineering work through Batches 4–9 before beginning the accumulated live Shopify storefront/theme-editor acceptance. REQUIRES LIVE VERIFICATION is a queued disposition, not a request to interrupt engineering for merchant testing. All existing live requirements remain; PR #22 stays DRAFT until the full register and eventual live acceptance are complete.
 
@@ -18,7 +18,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 
 | Batch | Status |
 |---|---|
-| 1 Global / Structural | Initial hardening plus Batch 3 shared-search settings/request/lifecycle repairs implemented; reopened predictive findings resolved. Dormant search data hook retained/source-reviewed. Live acceptance queued after Batch 9. |
+| 1 Global / Structural | Engineering/source closure: all eight deferred dependencies dispositioned in Batch 9; 47 entries — 37 live queued, nine retained owner-review deletion candidates, one dormant/source-reviewed. Header Two lifecycle repair verified. |
 | 2 Hero / Banner / CTA | Engineering/register closure: all 30 sections and 62 family components have dispositions. 57 await live verification, four dormant helpers retained, one build-only helper reviewed. B2-FINAL live acceptance remains open. |
 | 3 Collection / Discovery | Source/fixture pass complete: all 44 family components have dispositions (30 live queued, 14 dormant retained). Two existing reviewed blog dependencies are now assigned to their actual owner. Blog, collection and Main Search dependencies resolved. All live acceptance after Batch 9. |
 | 4 Product / Commerce | Engineering/register closure: all 69 family components have dispositions (64 live queued, five dormant retained). All five main-product hosts reviewed independently. B4-FINAL storefront acceptance remains mandatory after Batch 9. |
@@ -26,7 +26,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
 | 8 Theme Blocks | FORMALLY CLOSED for engineering: 102/102 blocks and 27 dependencies individually reviewed; all 129 Family 8 entries have dispositions (128 live queued, one dormant retained), zero NOT REVIEWED. Published at `4af9dcb56c7791e198533303bcd452a564cc3a21`; earlier local/publication-pending records below are historical. B8-FINAL live acceptance remains queued after engineering batches. |
-| 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
+| 9 Snippet / Asset Closure | FORMALLY CLOSED for engineering: 17/17 dispositioned — nine live queued, six retained owner-review deletion candidates, one dormant/source-reviewed, one build-only reviewed. Also closes all eight deferred Batch 1 dependencies. Global NOT REVIEWED: zero. |
 
 ## Batch 1 findings and repairs
 
@@ -1380,3 +1380,22 @@ C published/verified at `2a7aa9f95d2610f6c71e36c82bd9ad38983a4a9f`. Four active 
 ## Batch 9 checkpoint E — delivery/build source closure
 
 D published/verified at `46e40f93fce2ada7a59fd717ba56b4cbb3774596`. Final five assets dispositioned: styles/theme active and live queued, tailwind build-only reviewed, obsolete section-slideshow CSS/JS retained owner-review deletion candidates. Styles now preserve component hover colors, honor existing uppercase tokens and allow configured small mobile headings. CSS rebuild exactly reproduces the saved generated hash; the duplicate playground stylesheet link is removed. Adjacent inherited delivery errors are repaired with deferred Quick View loading and real native slideshow image dimensions; associated fixtures pass. All evidence: `validation/batch9-e-delivery/`. All 25 targeted entries now have justified dispositions; global NOT REVIEWED is zero. Formal closure still requires this runtime checkpoint remotely verified and the final full regression/gate reconciliation.
+
+## FORMAL PHASE 4 — BATCH 9 ENGINEERING CLOSURE
+
+**BATCH 9 ENGINEERING COMPLETE — READY FOR OWNER CHECKPOINT.** All runtime/source repairs were already published and verified at `6109054abec9113df43e89032735fb6fe2b7bba0` before this documentation reconciliation. A–E were each non-force published with exact Git tree equality and remote head/open-draft-unmerged PR verification. Final closure binding is the containing commit and PR #22 summary.
+
+- Family 9: 17/17 dispositioned — nine REQUIRES LIVE VERIFICATION (including two generated assets), six retained DELETION CANDIDATE — OWNER REVIEW, one RETAINED — DORMANT SOURCE REVIEWED, one REVIEWED — BUILD ONLY.
+- Deferred Family 1: 8/8 dispositioned, all retained owner-review deletion candidates; actual Header Two lifecycle defect repaired and verified. Family 1 has zero NOT REVIEWED.
+- Global: 515 components — 470 live queued, 28 dormant/source-reviewed, two build-only reviewed, 15 retained owner-review deletion candidates; **zero NOT REVIEWED**. The 14 new candidates plus pre-existing Header Basic remain present. Historical notes are retained; current disposition columns govern counts.
+- Full regressions: **115/115 PASS** (seven Phase 3, 108 Phase 4); zero failures. All 19 scoped/modified Liquid files pass strict native parsing. Schema/reference/JS/architecture checks and all 515 source hashes pass. CSS build reproduces the existing generated bytes.
+- Theme Check 4.8.0: **509 findings, zero errors, 509 warnings; exit 0**, unsuppressed. Baseline 512/three/509. Same runtime source as E; closure references that fresh complete run rather than claiming another execution. Complexity warning text only moved its reported line.
+- Protected state: 150 sections, 102 blocks; every block and all sections except the three-line slideshow intrinsic-dimension repair remain byte-identical to the Batch 9 start. Both builders/row-column chains, five Main Product sections, Quick View, Headers/Footers 1–5 and merchant state preserved. Settings SHA-256: `ffc244582d58f3e6e07713abd6ab1de2cdef7ba109fc00a60cef886235b6b499`. No deletion, main write, force update, merge or deployment.
+
+Complete evidence: `validation/batch9-engineering-closure/README.md`, individual dispositions/consumers, before/after fixtures, regression log/summary, native parses, source hashes, protected state, retained deletion list and verified A–E publication map. Source changes are limited to the eight paths listed in `runtime-changes.json`; no schemas, presets or merchant data changed.
+
+**B9-FINAL live queue:** all 470 active/live-queued components retain their individual queues, especially native Shopify objects/forms/checkout, actual saved merchant configurations, both builders, 320/390/768/1280/1440px, RTL/zoom/long content/no-JS, keyboard/AT/contrast, motion/media/providers and Theme Editor insertion/reorder/unload. Add actual configured font/palette/spacing and main/password cascade, link hover, deferred Quick View and native slideshow image checks for this batch. The 605 historical candidates and 7,830 individual icon visual entries remain separate, not summed as distinct tests. Source/DOM/color adapters do not certify live acceptance.
+
+No additional active engineering blocker was identified as required before owner-led live Shopify testing within this scope. Keep all dormant candidates unactivated; any future reuse requires the recorded repairs and re-review. Deletion decisions, historical digest/security-scan owner triage, the 509 warnings and eventual native acceptance remain open. Icon regeneration is not needed for testing the retained sprite; a future rebuild requires restoring and validating missing source packs. No new security/CI clearance is claimed.
+
+**STOP AT OWNER CHECKPOINT.** PR #22 remains open/DRAFT/unmerged. Do not start Atelier/Signal/Terrace application, source maintainability/readability refactoring, live Shopify QA or roadmap Phase 5 without the owner's next instruction.
