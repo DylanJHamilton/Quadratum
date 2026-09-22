@@ -63,7 +63,7 @@ def audit(paths):
         result.append({'path': path, 'sha256': hashlib.sha256((ROOT / path).read_bytes()).hexdigest(),
                        'direct_consumers': sorted(consumers[path]), 'transitive_runtime_roots': sorted(seen & roots),
                        'other_reference_candidates': mentions,
-                       'tailwind_content_input': file.suffix == '.liquid' and file.parts[0] in ['layout', 'templates', 'sections', 'snippets', 'blocks']})
+                       'tailwind_content_input': (file.suffix == '.liquid' and file.parts[0] in ['layout', 'templates', 'sections', 'snippets', 'blocks']) or (file.suffix == '.js' and file.parts[0] == 'assets' and file.name != 'q-model-viewer.min.js')})
     return {'components': result, 'nonliteral_render_statements': dynamic,
             'method': 'Liquid comments excluded; all retained sections/blocks conservatively treated as potential runtime roots; asset .liquid aliases resolved; runtime/config/build mentions retained for manual review.',
             'limits': 'Tailwind scanning is a build consumer, not storefront execution. App-block render statements require manual type/loop review. Merchant custom Liquid outside this repository cannot be ruled out.'}
