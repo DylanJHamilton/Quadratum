@@ -1,8 +1,11 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 
   assign separator = block.settings.separator_text
 
@@ -26,9 +29,9 @@
     qtm-breadcrumbs--layout-{{ block.settings.layout_style }}
     qtm-breadcrumbs--separator-{{ block.settings.separator_style }}
     qtm-breadcrumbs--animation-{{ animation }}
-    {% unless block.settings.show_desktop %} qtm-breadcrumbs--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-breadcrumbs--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-breadcrumbs--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-breadcrumbs--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-breadcrumbs--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-breadcrumbs--hide-mobile{% endunless %}
   "
   style="
     --qtm-breadcrumbs-margin-top: {{ block.settings.margin_top }}px;
@@ -45,124 +48,70 @@
     --qtm-breadcrumbs-border-width: {{ block.settings.border_width }}px;
     --qtm-breadcrumbs-border-radius: {{ block.settings.border_radius }}px;
   "
-  aria-label="{{ block.settings.nav_label | escape }}"
-  {{ block.shopify_attributes }}
+  aria-label="{{ block.settings.nav_label | default: 'Breadcrumb navigation' | escape }}"
 >
+  {% liquid
+    assign current_title = page_title
+    assign parent_title = ''
+    assign parent_url = ''
+    case request.page_type
+      when 'index'
+        assign current_title = block.settings.home_label | default: 'Home'
+      when 'product'
+        assign current_title = product.title
+        if collection != blank and block.settings.show_collection
+          assign parent_title = collection.title
+          assign parent_url = collection.url
+        endif
+      when 'collection'
+        assign current_title = collection.title
+      when 'page'
+        assign current_title = page.title
+      when 'blog'
+        assign current_title = blog.title
+      when 'article'
+        assign current_title = article.title
+        if blog != blank and block.settings.show_blog
+          assign parent_title = blog.title
+          assign parent_url = blog.url
+        endif
+      when 'cart'
+        assign current_title = block.settings.cart_label | default: 'Cart'
+      when 'search'
+        assign current_title = block.settings.search_label | default: 'Search'
+      when 'customers/account'
+        assign current_title = block.settings.account_label | default: 'Account'
+    endcase
+    assign breadcrumb_count = 0
+  %}
   <ol class="qtm-breadcrumbs__list" role="list">
-    {% if block.settings.show_home %}
-      <li class="qtm-breadcrumbs__item">
-        <a class="qtm-breadcrumbs__link" href="{{ routes.root_url }}">
-          {{ block.settings.home_label | escape }}
-        </a>
-      </li>
+    {% if block.settings.show_home and request.page_type != 'index' %}
+      <li class="qtm-breadcrumbs__item"><a class="qtm-breadcrumbs__link" href="{{ routes.root_url | escape }}">{{ block.settings.home_label | default: 'Home' | escape }}</a></li>
+      {% assign breadcrumb_count = breadcrumb_count | plus: 1 %}
     {% endif %}
-
-    {% if block.settings.show_home %}
-      {% unless request.page_type == 'index' %}
-        <li class="qtm-breadcrumbs__separator" aria-hidden="true">
-          {{ separator | escape }}
-        </li>
-      {% endunless %}
+    {% if parent_title != blank and parent_url != blank %}
+      {% if breadcrumb_count > 0 %}<li class="qtm-breadcrumbs__separator" aria-hidden="true">{{ separator | escape }}</li>{% endif %}
+      <li class="qtm-breadcrumbs__item"><a class="qtm-breadcrumbs__link" href="{{ parent_url | escape }}">{{ parent_title | escape }}</a></li>
+      {% assign breadcrumb_count = breadcrumb_count | plus: 1 %}
     {% endif %}
-
-    {% case request.page_type %}
-      {% when 'product' %}
-        {% if collection and block.settings.show_collection %}
-          <li class="qtm-breadcrumbs__item">
-            <a class="qtm-breadcrumbs__link" href="{{ collection.url }}">
-              {{ collection.title | escape }}
-            </a>
-          </li>
-
-          <li class="qtm-breadcrumbs__separator" aria-hidden="true">
-            {{ separator | escape }}
-          </li>
-        {% endif %}
-
-        <li class="qtm-breadcrumbs__item qtm-breadcrumbs__item--current" aria-current="page">
-          <span class="qtm-breadcrumbs__current">
-            {{ product.title | escape }}
-          </span>
-        </li>
-
-      {% when 'collection' %}
-        <li class="qtm-breadcrumbs__item qtm-breadcrumbs__item--current" aria-current="page">
-          <span class="qtm-breadcrumbs__current">
-            {{ collection.title | escape }}
-          </span>
-        </li>
-
-      {% when 'page' %}
-        <li class="qtm-breadcrumbs__item qtm-breadcrumbs__item--current" aria-current="page">
-          <span class="qtm-breadcrumbs__current">
-            {{ page.title | escape }}
-          </span>
-        </li>
-
-      {% when 'blog' %}
-        <li class="qtm-breadcrumbs__item qtm-breadcrumbs__item--current" aria-current="page">
-          <span class="qtm-breadcrumbs__current">
-            {{ blog.title | escape }}
-          </span>
-        </li>
-
-      {% when 'article' %}
-        {% if blog and block.settings.show_blog %}
-          <li class="qtm-breadcrumbs__item">
-            <a class="qtm-breadcrumbs__link" href="{{ blog.url }}">
-              {{ blog.title | escape }}
-            </a>
-          </li>
-
-          <li class="qtm-breadcrumbs__separator" aria-hidden="true">
-            {{ separator | escape }}
-          </li>
-        {% endif %}
-
-        <li class="qtm-breadcrumbs__item qtm-breadcrumbs__item--current" aria-current="page">
-          <span class="qtm-breadcrumbs__current">
-            {{ article.title | escape }}
-          </span>
-        </li>
-
-      {% when 'cart' %}
-        <li class="qtm-breadcrumbs__item qtm-breadcrumbs__item--current" aria-current="page">
-          <span class="qtm-breadcrumbs__current">
-            {{ block.settings.cart_label | escape }}
-          </span>
-        </li>
-
-      {% when 'search' %}
-        <li class="qtm-breadcrumbs__item qtm-breadcrumbs__item--current" aria-current="page">
-          <span class="qtm-breadcrumbs__current">
-            {{ block.settings.search_label | escape }}
-          </span>
-        </li>
-
-      {% when 'customers/account' %}
-        <li class="qtm-breadcrumbs__item qtm-breadcrumbs__item--current" aria-current="page">
-          <span class="qtm-breadcrumbs__current">
-            {{ block.settings.account_label | escape }}
-          </span>
-        </li>
-
-      {% else %}
-        {% if template.name != 'index' %}
-          <li class="qtm-breadcrumbs__item qtm-breadcrumbs__item--current" aria-current="page">
-            <span class="qtm-breadcrumbs__current">
-              {{ page_title | escape }}
-            </span>
-          </li>
-        {% endif %}
-    {% endcase %}
+    {% if current_title != blank %}
+      {% if request.page_type != 'index' or block.settings.show_home %}
+        {% if breadcrumb_count > 0 %}<li class="qtm-breadcrumbs__separator" aria-hidden="true">{{ separator | escape }}</li>{% endif %}
+        <li class="qtm-breadcrumbs__item qtm-breadcrumbs__item--current" aria-current="page"><span class="qtm-breadcrumbs__current">{{ current_title | escape }}</span></li>
+      {% endif %}
+    {% endif %}
   </ol>
 </nav>
 
 <style>
   .qtm-breadcrumbs-{{ block_id }} {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     margin-top: var(--qtm-breadcrumbs-margin-top);
     margin-bottom: var(--qtm-breadcrumbs-margin-bottom);
-    padding: var(--qtm-breadcrumbs-padding);
+    padding: min(var(--qtm-breadcrumbs-padding), 12%);
     color: var(--qtm-breadcrumbs-text-color);
     background: var(--qtm-breadcrumbs-background-color);
     border: var(--qtm-breadcrumbs-border-width) solid var(--qtm-breadcrumbs-border-color);
@@ -251,9 +200,7 @@
     align-items: center;
     min-height: {{ block.settings.item_height }}px;
     max-width: {{ block.settings.max_item_width }}px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
   }
 
   .qtm-breadcrumbs-{{ block_id }} .qtm-breadcrumbs__link {
@@ -267,7 +214,7 @@
   }
 
   .qtm-breadcrumbs-{{ block_id }} .qtm-breadcrumbs__link:focus-visible {
-    outline: 3px solid var(--qtm-breadcrumbs-link-color);
+    outline: 3px solid var(--qtm-breadcrumbs-heading-color);
     outline-offset: 4px;
   }
 
@@ -388,9 +335,7 @@
   }
 
   @media screen and (max-width: 989px) {
-    .qtm-breadcrumbs-{{ block_id }}.qtm-breadcrumbs--hide-tablet {
-      display: none !important;
-    }
+
   }
 
   @media screen and (min-width: 990px) {
@@ -433,6 +378,14 @@
       scroll-behavior: auto !important;
     }
   }
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-breadcrumbs-{{ block_id }}.qtm-breadcrumbs--hide-tablet {
+      display: none !important;
+    }
+  }
+  .qtm-breadcrumbs-{{ block_id }}[hidden] { display: none !important; }
+  .qtm-breadcrumbs-{{ block_id }} :is(div, ul, ol, li, a, span, table) { min-width: 0; }
+  .qtm-breadcrumbs-{{ block_id }} :is(a, button, img) { max-width: 100%; }
 </style>
 
 {% schema %}
@@ -690,7 +643,7 @@
     {
       "type": "color",
       "id": "heading_color",
-      "label": "Heading color",
+      "label": "Focus outline color",
       "default": "#111111"
     },
     {

@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 55/102 blocks and 19 dependencies individually reviewed; 74/121 Family 8 entries have dispositions (73 live queued, 1 dormant retained), 47 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 63/102 blocks and 20 dependencies individually reviewed; 83/122 Family 8 entries have dispositions (82 live queued, 1 dormant retained), 39 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1187,3 +1187,17 @@ B8-PRODUCT-BUNDLES live queue after engineering batches: actual locale-aware nat
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Bundle checkpoint unsuppressed Theme Check: 507 → 508 findings (3 existing out-of-group errors, 504 → 505 warnings). The new bundle item helper adds one OrphanedSnippet finding despite its two explicit callers. This group has zero Theme Check errors; no suppression was added.
+
+## Batch 8 checkpoint — navigation and store information — 2026-09-22
+
+Previous checkpoint published as `b6149dcd34b472ece563dfe8572ba1f13049bb08`; PR #22 remains DRAFT. Eight navigation/contact/store-information blocks now preserve native menu destinations, exact fragments, readable named links, manual schedules and safe merchant content. Mobile visibility, optional layout tracks, sticky ownership and editor lifecycle are repaired. New insertion defaults avoid fictional contact details, opening hours and page anchors; saved merchant settings remain unchanged.
+
+63/102 blocks and 20 dependencies individually reviewed; 83/122 Family 8 entries have dispositions (82 live queued, 1 dormant retained), 39 NOT REVIEWED. Global dispositions: 415 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 64 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-navigation-information/`. 629 actual default/control/preset/page/empty/contact renders plus runtime cases cover exact native menu parent/current semantics, escaped links/plain multiline contact data, action-only content, real manual schedule rows, punctuation-safe and contiguous anchors, original setting IDs/options/range endpoints, two-instance focus/history/reduced-motion navigation and existing tab-panel composition, missing-target/modifier fallbacks, mobile disclosure restoration and insertion/reorder/removal/editor cleanup. All 17 affected suites pass; 484 settings, 24 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-NAVIGATION-INFORMATION live queue after engineering batches: real native menu/current-route and localized breadcrumbs, browser fragment/history/focus/keyboard/AT behavior, sticky behavior within actual builder containers, mobile disclosures, narrow/RTL/zoom/color contrast and actual Theme Editor selection/reload. Merchant contact/schedule/anchor destinations remain manual configuration; no open-now clock or fabricated default details are implied. No live Shopify QA performed; previous queues carry forward.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Navigation/information checkpoint Theme Check: 508 → 507 findings (three existing out-of-group errors; 505 → 504 warnings after unused contact assign removal). This group has six settings-count warnings and zero errors. No suppression was added.

@@ -1,13 +1,19 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 
-  assign phone_clean = block.settings.phone | remove: ' ' | remove: '-' | remove: '(' | remove: ')' | remove: '.' | remove: '+'
   assign phone_href = 'tel:' | append: block.settings.phone | remove: ' ' | remove: '-' | remove: '(' | remove: ')' | remove: '.'
   assign email_href = 'mailto:' | append: block.settings.email
 %}
+
+{% assign has_items = false %}{% if block.settings.phone != blank or block.settings.email != blank or block.settings.address != blank or block.settings.hours != blank %}{% assign has_items = true %}{% endif %}
+{% if block.settings.support_text != blank %}{% assign has_items = true %}{% endif %}
+{% if block.settings.button_label != blank and block.settings.button_url != blank %}{% assign has_items = true %}{% endif %}
 
 <div
   class="
@@ -17,9 +23,9 @@
     qtm-contact-info--align-{{ block_alignment }}
     qtm-contact-info--layout-{{ block.settings.layout_style }}
     qtm-contact-info--animation-{{ animation }}
-    {% unless block.settings.show_desktop %} qtm-contact-info--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-contact-info--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-contact-info--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-contact-info--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-contact-info--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-contact-info--hide-mobile{% endunless %}
   "
   style="
     --qtm-contact-info-margin-top: {{ block.settings.margin_top }}px;
@@ -39,8 +45,9 @@
     --qtm-contact-info-border-width: {{ block.settings.border_width }}px;
     --qtm-contact-info-border-radius: {{ block.settings.border_radius }}px;
   "
-  {{ block.shopify_attributes }}
+  {% unless has_items or request.design_mode %}hidden{% endunless %}
 >
+  {% if has_items == false and request.design_mode %}<p role="note">Add your actual contact details.</p>{% endif %}
   <div class="qtm-contact-info__inner">
     {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.support_text != blank %}
       <div class="qtm-contact-info__header">
@@ -78,7 +85,7 @@
               {{ block.settings.phone_label | escape }}
             </span>
 
-            <a class="qtm-contact-info__link" href="{{ phone_href }}">
+            <a class="qtm-contact-info__link" href="{{ phone_href | escape }}">
               {{ block.settings.phone | escape }}
             </a>
           </div>
@@ -98,7 +105,7 @@
               {{ block.settings.email_label | escape }}
             </span>
 
-            <a class="qtm-contact-info__link" href="{{ email_href }}">
+            <a class="qtm-contact-info__link" href="{{ email_href | escape }}">
               {{ block.settings.email | escape }}
             </a>
           </div>
@@ -119,12 +126,12 @@
             </span>
 
             {% if block.settings.address_url != blank %}
-              <a class="qtm-contact-info__link" href="{{ block.settings.address_url }}" target="_blank" rel="noopener">
-                {{ block.settings.address | newline_to_br }}
+              <a class="qtm-contact-info__link" href="{{ block.settings.address_url | escape }}" target="_blank" rel="noopener">
+                {{ block.settings.address | escape | newline_to_br }}
               </a>
             {% else %}
               <span class="qtm-contact-info__value">
-                {{ block.settings.address | newline_to_br }}
+                {{ block.settings.address | escape | newline_to_br }}
               </span>
             {% endif %}
           </div>
@@ -145,7 +152,7 @@
             </span>
 
             <span class="qtm-contact-info__value">
-              {{ block.settings.hours | newline_to_br }}
+              {{ block.settings.hours | escape | newline_to_br }}
             </span>
           </div>
         </div>
@@ -154,7 +161,7 @@
 
     {% if block.settings.button_label != blank and block.settings.button_url != blank %}
       <div class="qtm-contact-info__footer">
-        <a class="qtm-contact-info__button" href="{{ block.settings.button_url }}">
+        <a class="qtm-contact-info__button" href="{{ block.settings.button_url | escape }}">
           {{ block.settings.button_label | escape }}
         </a>
       </div>
@@ -164,9 +171,13 @@
 
 <style>
   .qtm-contact-info-{{ block_id }} {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     margin-top: var(--qtm-contact-info-margin-top);
     margin-bottom: var(--qtm-contact-info-margin-bottom);
-    padding: var(--qtm-contact-info-padding);
+    padding: min(var(--qtm-contact-info-padding), 12%);
     color: var(--qtm-contact-info-text-color);
     background: var(--qtm-contact-info-background-color);
     border: var(--qtm-contact-info-border-width) solid var(--qtm-contact-info-border-color);
@@ -283,7 +294,7 @@
 
   .qtm-contact-info-{{ block_id }} .qtm-contact-info__item {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: {% if block.settings.show_icons %}auto {% endif %}minmax(0, 1fr);
     gap: 0.85rem;
     align-items: start;
     padding: 1rem;
@@ -492,9 +503,7 @@
   }
 
   @media screen and (max-width: 989px) {
-    .qtm-contact-info-{{ block_id }}.qtm-contact-info--hide-tablet {
-      display: none !important;
-    }
+
 
     .qtm-contact-info-{{ block_id }}.qtm-contact-info--layout-cards .qtm-contact-info__items {
       grid-template-columns: 1fr;
@@ -540,6 +549,14 @@
       scroll-behavior: auto !important;
     }
   }
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-contact-info-{{ block_id }}.qtm-contact-info--hide-tablet {
+      display: none !important;
+    }
+  }
+  .qtm-contact-info-{{ block_id }}[hidden] { display: none !important; }
+  .qtm-contact-info-{{ block_id }} :is(div, ul, ol, li, a, span, table) { min-width: 0; }
+  .qtm-contact-info-{{ block_id }} :is(a, button, img) { max-width: 100%; }
 </style>
 
 {% schema %}
@@ -565,8 +582,7 @@
     {
       "type": "richtext",
       "id": "support_text",
-      "label": "Support text",
-      "default": "<p>Reach out to our team for help with orders, products, services, or general questions.</p>"
+      "label": "Support text"
     },
     {
       "type": "header",
@@ -581,8 +597,7 @@
     {
       "type": "text",
       "id": "phone",
-      "label": "Phone",
-      "default": "(555) 123-4567"
+      "label": "Phone"
     },
     {
       "type": "text",
@@ -593,8 +608,7 @@
     {
       "type": "text",
       "id": "email",
-      "label": "Email",
-      "default": "support@example.com"
+      "label": "Email"
     },
     {
       "type": "text",
@@ -605,8 +619,7 @@
     {
       "type": "textarea",
       "id": "address",
-      "label": "Address",
-      "default": "123 Commerce Street\nSuite 100\nYour City, ST 00000"
+      "label": "Address"
     },
     {
       "type": "url",
@@ -622,8 +635,7 @@
     {
       "type": "textarea",
       "id": "hours",
-      "label": "Hours",
-      "default": "Monday-Friday: 9am-5pm\nSaturday-Sunday: Closed"
+      "label": "Hours"
     },
     {
       "type": "header",
@@ -951,11 +963,11 @@
       "settings": {
         "eyebrow": "Support",
         "heading": "We are here to help",
-        "support_text": "<p>Contact our team for help with orders, products, returns, or general questions.</p>",
+        "support_text": "",
         "phone_label": "Support phone",
         "email_label": "Support email",
         "hours_label": "Support hours",
-        "hours": "Monday-Friday: 9am-5pm\nSaturday-Sunday: Closed",
+        "hours": "",
         "layout_style": "cards",
         "button_label": "Contact support",
         "padding": 24,
@@ -967,7 +979,7 @@
       "settings": {
         "eyebrow": "Business contact",
         "heading": "Get in touch",
-        "support_text": "<p>Reach out by phone, email, or visit us during business hours.</p>",
+        "support_text": "",
         "phone_label": "Call us",
         "email_label": "Email us",
         "address_label": "Visit us",
@@ -985,10 +997,10 @@
       "settings": {
         "eyebrow": "Help center",
         "heading": "Need a quick answer?",
-        "support_text": "<p>Start with our support resources or contact us directly if you need more help.</p>",
+        "support_text": "",
         "phone": "",
         "address": "",
-        "hours": "Typical response time: 1-2 business days",
+        "hours": "",
         "hours_label": "Response time",
         "email_label": "Help email",
         "layout_style": "compact",

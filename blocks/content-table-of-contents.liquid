@@ -1,11 +1,17 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 %}
 
+{% assign has_items = false %}{% for i in (1..10) %}{% assign enabled_key = 'item_' | append: i | append: '_enabled' %}{% assign label_key = 'item_' | append: i | append: '_label' %}{% assign target_key = 'item_' | append: i | append: '_anchor' %}{% assign target_value = block.settings[target_key] | strip %}{% assign target_first = target_value | slice: 0 %}{% if target_first == '#' %}{% assign target_value = target_value | remove_first: '#' %}{% endif %}{% if block.settings[enabled_key] and block.settings[label_key] != blank and target_value != blank %}{% assign has_items = true %}{% endif %}{% endfor %}
+
 <div
+  id="qtm-toc-{{ block.id }}"
   class="
     qtm-toc
     qtm-toc-{{ block_id }}
@@ -14,9 +20,9 @@
     qtm-toc--layout-{{ block.settings.layout_style }}
     qtm-toc--animation-{{ animation }}
     {% if block.settings.enable_sticky %} qtm-toc--sticky{% endif %}
-    {% unless block.settings.show_desktop %} qtm-toc--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-toc--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-toc--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-toc--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-toc--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-toc--hide-mobile{% endunless %}
   "
   style="
     --qtm-toc-margin-top: {{ block.settings.margin_top }}px;
@@ -39,8 +45,10 @@
     --qtm-toc-sticky-offset: {{ block.settings.sticky_offset }}px;
   "
   {{ block.shopify_attributes }}
+  {% unless has_items or request.design_mode %}hidden{% endunless %}
 >
-  <nav class="qtm-toc__nav" aria-label="{{ block.settings.nav_label | escape }}">
+  {% if has_items == false and request.design_mode %}<p role="note">Set each link to the exact ID of an existing section or heading.</p>{% endif %}
+  <nav class="qtm-toc__nav" aria-label="{{ block.settings.nav_label | default: 'On this page' | escape }}">
     <div class="qtm-toc__card">
       {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank %}
         <div class="qtm-toc__header">
@@ -65,6 +73,7 @@
       {% endif %}
 
       <ol class="qtm-toc__list" role="list">
+        {% assign displayed_items = 0 %}
         {% for i in (1..10) %}
           {% liquid
             assign enabled_key = 'item_' | append: i | append: '_enabled'
@@ -74,16 +83,21 @@
 
             assign item_enabled = block.settings[enabled_key]
             assign item_label = block.settings[label_key]
-            assign item_anchor = block.settings[anchor_key] | remove: '#'
+            assign item_anchor = block.settings[anchor_key] | strip
+            assign first_character = item_anchor | slice: 0
+            if first_character == '#'
+              assign item_anchor = item_anchor | remove_first: '#'
+            endif
             assign item_description = block.settings[description_key]
           %}
 
           {% if item_enabled and item_label != blank and item_anchor != blank %}
+            {% assign displayed_items = displayed_items | plus: 1 %}
             <li class="qtm-toc__item">
-              <a class="qtm-toc__link" href="#{{ item_anchor | escape }}">
+              <a class="qtm-toc__link" href="#{{ item_anchor | url_encode | replace: '+', '%20' | escape }}">
                 {% if block.settings.show_numbers %}
                   <span class="qtm-toc__number" aria-hidden="true">
-                    {{ forloop.index }}
+                    {{ displayed_items }}
                   </span>
                 {% endif %}
 
@@ -111,13 +125,16 @@
       </ol>
     </div>
   </nav>
-</div>
 
 <style>
   .qtm-toc-{{ block_id }} {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     margin-top: var(--qtm-toc-margin-top);
     margin-bottom: var(--qtm-toc-margin-bottom);
-    padding: var(--qtm-toc-padding);
+    padding: min(var(--qtm-toc-padding), 12%);
     color: var(--qtm-toc-text-color);
     background: var(--qtm-toc-background-color);
     border: var(--qtm-toc-border-width) solid var(--qtm-toc-border-color);
@@ -259,7 +276,7 @@
 
   .qtm-toc-{{ block_id }} .qtm-toc__link {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: {% if block.settings.show_numbers %}auto {% endif %}minmax(0, 1fr){% if block.settings.show_arrows %} auto{% endif %};
     gap: 0.75rem;
     align-items: center;
     width: 100%;
@@ -444,9 +461,7 @@
   }
 
   @media screen and (max-width: 989px) {
-    .qtm-toc-{{ block_id }}.qtm-toc--hide-tablet {
-      display: none !important;
-    }
+
 
     .qtm-toc-{{ block_id }}.qtm-toc--sticky {
       position: static;
@@ -488,7 +503,16 @@
       scroll-behavior: auto !important;
     }
   }
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-toc-{{ block_id }}.qtm-toc--hide-tablet {
+      display: none !important;
+    }
+  }
+  .qtm-toc-{{ block_id }}[hidden] { display: none !important; }
+  .qtm-toc-{{ block_id }} :is(div, ul, ol, li, a, span, table) { min-width: 0; }
+  .qtm-toc-{{ block_id }} :is(a, button, img) { max-width: 100%; }
 </style>
+</div>
 
 {% schema %}
 {
@@ -550,7 +574,8 @@
       "type": "checkbox",
       "id": "enable_sticky",
       "label": "Enable sticky positioning on desktop",
-      "default": false
+      "default": false,
+      "info": "Sticky on desktop within its containing builder row or column."
     },
     {
       "type": "range",
@@ -562,7 +587,6 @@
       "unit": "px",
       "default": 80
     },
-
     {
       "type": "header",
       "content": "Item 1"
@@ -583,7 +607,7 @@
       "type": "text",
       "id": "item_1_anchor",
       "label": "Item 1 anchor ID",
-      "default": "overview"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
@@ -591,7 +615,6 @@
       "label": "Item 1 description",
       "default": "Start with the main summary."
     },
-
     {
       "type": "header",
       "content": "Item 2"
@@ -612,7 +635,7 @@
       "type": "text",
       "id": "item_2_anchor",
       "label": "Item 2 anchor ID",
-      "default": "details"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
@@ -620,7 +643,6 @@
       "label": "Item 2 description",
       "default": "Review the important details."
     },
-
     {
       "type": "header",
       "content": "Item 3"
@@ -641,7 +663,7 @@
       "type": "text",
       "id": "item_3_anchor",
       "label": "Item 3 anchor ID",
-      "default": "benefits"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
@@ -649,7 +671,6 @@
       "label": "Item 3 description",
       "default": "Understand the key benefits."
     },
-
     {
       "type": "header",
       "content": "Item 4"
@@ -670,7 +691,7 @@
       "type": "text",
       "id": "item_4_anchor",
       "label": "Item 4 anchor ID",
-      "default": "faqs"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
@@ -678,7 +699,6 @@
       "label": "Item 4 description",
       "default": "Find answers to common questions."
     },
-
     {
       "type": "header",
       "content": "Item 5"
@@ -699,14 +719,13 @@
       "type": "text",
       "id": "item_5_anchor",
       "label": "Item 5 anchor ID",
-      "default": "section"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "item_5_description",
       "label": "Item 5 description"
     },
-
     {
       "type": "header",
       "content": "Item 6"
@@ -727,14 +746,13 @@
       "type": "text",
       "id": "item_6_anchor",
       "label": "Item 6 anchor ID",
-      "default": "section"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "item_6_description",
       "label": "Item 6 description"
     },
-
     {
       "type": "header",
       "content": "Item 7"
@@ -755,14 +773,13 @@
       "type": "text",
       "id": "item_7_anchor",
       "label": "Item 7 anchor ID",
-      "default": "section"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "item_7_description",
       "label": "Item 7 description"
     },
-
     {
       "type": "header",
       "content": "Item 8"
@@ -783,14 +800,13 @@
       "type": "text",
       "id": "item_8_anchor",
       "label": "Item 8 anchor ID",
-      "default": "section"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "item_8_description",
       "label": "Item 8 description"
     },
-
     {
       "type": "header",
       "content": "Item 9"
@@ -811,14 +827,13 @@
       "type": "text",
       "id": "item_9_anchor",
       "label": "Item 9 anchor ID",
-      "default": "section"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "item_9_description",
       "label": "Item 9 description"
     },
-
     {
       "type": "header",
       "content": "Item 10"
@@ -839,14 +854,13 @@
       "type": "text",
       "id": "item_10_anchor",
       "label": "Item 10 anchor ID",
-      "default": "section"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "item_10_description",
       "label": "Item 10 description"
     },
-
     {
       "type": "header",
       "content": "Sizing"
@@ -881,7 +895,6 @@
       "unit": "px",
       "default": 13
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -968,7 +981,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1003,7 +1015,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1074,7 +1085,6 @@
       "label": "Arrow color",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1099,7 +1109,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1122,7 +1131,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1220,6 +1228,7 @@
         "border_radius": 18
       }
     }
-  ]
+  ],
+  "tag": null
 }
 {% endschema %}
