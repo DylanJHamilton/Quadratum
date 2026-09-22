@@ -8,6 +8,10 @@
   assign display_mode = block.settings.display_mode | default: 'mixed'
 
   assign width = block.settings.width | default: 'auto'
+  assign afterpay_enabled = false
+  if shop.enabled_payment_types contains 'afterpay' or shop.enabled_payment_types contains 'afterpay_touch'
+    assign afterpay_enabled = true
+  endif
   assign alignment = block.settings.alignment | default: 'left'
 
   assign show_on_desktop = block.settings.show_on_desktop
@@ -23,10 +27,10 @@
     product-payment-methods--mode-{{ display_mode }}
     product-payment-methods--width-{{ width }}
     product-payment-methods--align-{{ alignment }}
-    {% unless show_on_desktop %} product-payment-methods--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-payment-methods--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-payment-methods--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-payment-methods--animate product-payment-methods--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-payment-methods--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-payment-methods--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-payment-methods--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-payment-methods--animate product-payment-methods--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-payment-methods-margin-top: {{ block.settings.margin_top }}px;
@@ -52,11 +56,14 @@
     data-product-id="{{ product_context.id }}"
     data-variant-id="{{ current_variant.id }}"
   {% endif %}
+  tabindex="-1"
   data-product-payment-methods
-  {{ block.shopify_attributes }}
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-payment-methods-margin-top);
       margin-bottom: var(--product-payment-methods-margin-bottom);
@@ -249,7 +256,8 @@
       justify-content: center;
       gap: 8px;
       min-height: {{ block.settings.item_height }}px;
-      min-width: {{ block.settings.item_min_width }}px;
+      min-width: min({{ block.settings.item_min_width }}px, 100%);
+      max-width: 100%;
       padding: 8px 12px;
       color: var(--product-payment-methods-badge-text);
       background: var(--product-payment-methods-badge-background);
@@ -258,7 +266,7 @@
       line-height: 1.2;
       font-size: {{ block.settings.item_text_size }}px;
       font-weight: 700;
-      white-space: nowrap;
+      white-space: normal;
     }
 
     #{{ block_id }}.product-payment-methods--inline .product-payment-methods__item {
@@ -421,6 +429,14 @@
         transform: none;
       }
     }
+
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} img { max-width: 100%; }
+{% unless show_on_desktop or request.design_mode %}@media (min-width: 990px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_tablet or request.design_mode %}@media (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_mobile or request.design_mode %}@media (max-width: 749px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+    #{{ block_id }}.product-payment-methods--grid .product-payment-methods__item, #{{ block_id }}.product-payment-methods--cards .product-payment-methods__item { min-width: 0; }
+    #{{ block_id }}:focus-visible { outline: 2px solid var(--product-payment-methods-focus-color); outline-offset: 3px; }
   </style>
 
   <div class="product-payment-methods__inner">
@@ -446,7 +462,7 @@
       </div>
     {% endif %}
 
-    {% if block.settings.show_financing_note and display_mode != 'payment_methods' %}
+    {% if block.settings.show_financing_note and display_mode != 'payment_methods' and block.settings.financing_note != blank %}
       <p class="product-payment-methods__financing-note">
         {% if block.settings.show_icons %}
           <span class="product-payment-methods__financing-note-icon" aria-hidden="true">
@@ -457,25 +473,19 @@
       </p>
     {% endif %}
 
+    {% if block.settings.show_icons or block.settings.show_labels %}
     <div class="product-payment-methods__groups">
       {% if display_mode == 'payment_methods' or display_mode == 'mixed' %}
-        <div class="product-payment-methods__group">
-          {% if block.settings.show_group_titles %}
-            <h3 class="product-payment-methods__group-title">
-              {{ block.settings.payment_group_title | escape }}
-            </h3>
-          {% endif %}
-
-          <div class="product-payment-methods__list" aria-label="{{ block.settings.payment_methods_label | escape }}">
-            {% if block.settings.enable_shop_pay %}
-              <span class="product-payment-methods__item">
+{% capture payment_items %}
+            {% if block.settings.enable_shop_pay and shop.enabled_payment_types contains 'shopify_pay' %}
+              <span class="product-payment-methods__item" role="img" aria-label="Shop Pay">
                 {% if block.settings.show_icons %}<span class="product-payment-methods__icon" aria-hidden="true">SP</span>{% endif %}
                 {% if block.settings.show_labels %}<span class="product-payment-methods__label">Shop Pay</span>{% endif %}
               </span>
             {% endif %}
 
-            {% if block.settings.enable_apple_pay %}
-              <span class="product-payment-methods__item">
+            {% if block.settings.enable_apple_pay and shop.enabled_payment_types contains 'apple_pay' %}
+              <span class="product-payment-methods__item" role="img" aria-label="Apple Pay">
                 {% if block.settings.show_icons %}
                   <span class="product-payment-methods__icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" role="img">
@@ -487,41 +497,44 @@
               </span>
             {% endif %}
 
-            {% if block.settings.enable_google_pay %}
-              <span class="product-payment-methods__item">
+            {% if block.settings.enable_google_pay and shop.enabled_payment_types contains 'google_pay' %}
+              <span class="product-payment-methods__item" role="img" aria-label="Google Pay">
                 {% if block.settings.show_icons %}<span class="product-payment-methods__icon" aria-hidden="true">G</span>{% endif %}
                 {% if block.settings.show_labels %}<span class="product-payment-methods__label">Google Pay</span>{% endif %}
               </span>
             {% endif %}
 
-            {% if block.settings.enable_paypal %}
-              <span class="product-payment-methods__item">
+            {% if block.settings.enable_paypal and shop.enabled_payment_types contains 'paypal' %}
+              <span class="product-payment-methods__item" role="img" aria-label="PayPal">
                 {% if block.settings.show_icons %}<span class="product-payment-methods__icon" aria-hidden="true">PP</span>{% endif %}
                 {% if block.settings.show_labels %}<span class="product-payment-methods__label">PayPal</span>{% endif %}
               </span>
             {% endif %}
 
-            {% if block.settings.enable_venmo %}
-              <span class="product-payment-methods__item">
+            {% if block.settings.enable_venmo and shop.enabled_payment_types contains 'venmo' %}
+              <span class="product-payment-methods__item" role="img" aria-label="Venmo">
                 {% if block.settings.show_icons %}<span class="product-payment-methods__icon" aria-hidden="true">V</span>{% endif %}
                 {% if block.settings.show_labels %}<span class="product-payment-methods__label">Venmo</span>{% endif %}
               </span>
             {% endif %}
-          </div>
-        </div>
-      {% endif %}
-
-      {% if display_mode == 'financing' or display_mode == 'mixed' %}
+{% endcapture %}
+{% assign payment_items = payment_items | strip %}{% if payment_items != blank %}
         <div class="product-payment-methods__group">
           {% if block.settings.show_group_titles %}
             <h3 class="product-payment-methods__group-title">
-              {{ block.settings.financing_group_title | escape }}
+              {{ block.settings.payment_group_title | escape }}
             </h3>
           {% endif %}
 
-          <div class="product-payment-methods__list" aria-label="{{ block.settings.financing_methods_label | escape }}">
-            {% if block.settings.enable_affirm %}
-              <span class="product-payment-methods__item">
+          <div class="product-payment-methods__list" role="group" aria-label="{{ block.settings.payment_methods_label | escape }}">{{ payment_items }}</div>
+        </div>
+{% endif %}
+      {% endif %}
+
+      {% if display_mode == 'financing' or display_mode == 'mixed' %}
+{% capture financing_items %}
+            {% if block.settings.enable_affirm and shop.enabled_payment_types contains 'affirm' %}
+              <span class="product-payment-methods__item" role="img" aria-label="Affirm">
                 {% if block.settings.show_icons %}<span class="product-payment-methods__icon" aria-hidden="true">A</span>{% endif %}
                 {% if block.settings.show_labels %}
                   <span class="product-payment-methods__label">
@@ -532,8 +545,8 @@
               </span>
             {% endif %}
 
-            {% if block.settings.enable_klarna %}
-              <span class="product-payment-methods__item">
+            {% if block.settings.enable_klarna and shop.enabled_payment_types contains 'klarna' %}
+              <span class="product-payment-methods__item" role="img" aria-label="Klarna">
                 {% if block.settings.show_icons %}<span class="product-payment-methods__icon" aria-hidden="true">K</span>{% endif %}
                 {% if block.settings.show_labels %}
                   <span class="product-payment-methods__label">
@@ -544,8 +557,8 @@
               </span>
             {% endif %}
 
-            {% if block.settings.enable_afterpay %}
-              <span class="product-payment-methods__item">
+            {% if block.settings.enable_afterpay and afterpay_enabled %}
+              <span class="product-payment-methods__item" role="img" aria-label="Afterpay">
                 {% if block.settings.show_icons %}<span class="product-payment-methods__icon" aria-hidden="true">AP</span>{% endif %}
                 {% if block.settings.show_labels %}
                   <span class="product-payment-methods__label">
@@ -556,8 +569,8 @@
               </span>
             {% endif %}
 
-            {% if block.settings.enable_sezzle %}
-              <span class="product-payment-methods__item">
+            {% if block.settings.enable_sezzle and shop.enabled_payment_types contains 'sezzle' %}
+              <span class="product-payment-methods__item" role="img" aria-label="Sezzle">
                 {% if block.settings.show_icons %}<span class="product-payment-methods__icon" aria-hidden="true">S</span>{% endif %}
                 {% if block.settings.show_labels %}
                   <span class="product-payment-methods__label">
@@ -568,8 +581,8 @@
               </span>
             {% endif %}
 
-            {% if block.settings.enable_zip %}
-              <span class="product-payment-methods__item">
+            {% if block.settings.enable_zip and shop.enabled_payment_types contains 'zip' %}
+              <span class="product-payment-methods__item" role="img" aria-label="Zip">
                 {% if block.settings.show_icons %}<span class="product-payment-methods__icon" aria-hidden="true">Z</span>{% endif %}
                 {% if block.settings.show_labels %}
                   <span class="product-payment-methods__label">
@@ -579,21 +592,24 @@
                 {% endif %}
               </span>
             {% endif %}
-          </div>
-        </div>
-      {% endif %}
-
-      {% if block.settings.enable_custom_method_1 or block.settings.enable_custom_method_2 or block.settings.enable_custom_method_3 %}
+{% endcapture %}
+{% assign financing_items = financing_items | strip %}{% if financing_items != blank %}
         <div class="product-payment-methods__group">
           {% if block.settings.show_group_titles %}
             <h3 class="product-payment-methods__group-title">
-              {{ block.settings.custom_group_title | escape }}
+              {{ block.settings.financing_group_title | escape }}
             </h3>
           {% endif %}
 
-          <div class="product-payment-methods__list" aria-label="{{ block.settings.custom_methods_label | escape }}">
-            {% if block.settings.enable_custom_method_1 %}
-              <span class="product-payment-methods__item">
+          <div class="product-payment-methods__list" role="group" aria-label="{{ block.settings.financing_methods_label | escape }}">{{ financing_items }}</div>
+        </div>
+{% endif %}
+      {% endif %}
+
+      {% if block.settings.enable_custom_method_1 or block.settings.enable_custom_method_2 or block.settings.enable_custom_method_3 %}
+{% capture custom_items %}
+            {% if block.settings.enable_custom_method_1 and block.settings.custom_method_1_label != blank %}
+              <span class="product-payment-methods__item" role="img" aria-label="{{ block.settings.custom_method_1_label | escape }}">
                 {% if block.settings.show_icons %}
                   <span class="product-payment-methods__icon" aria-hidden="true">
                     {% if block.settings.custom_icon_1 %}
@@ -612,8 +628,8 @@
               </span>
             {% endif %}
 
-            {% if block.settings.enable_custom_method_2 %}
-              <span class="product-payment-methods__item">
+            {% if block.settings.enable_custom_method_2 and block.settings.custom_method_2_label != blank %}
+              <span class="product-payment-methods__item" role="img" aria-label="{{ block.settings.custom_method_2_label | escape }}">
                 {% if block.settings.show_icons %}
                   <span class="product-payment-methods__icon" aria-hidden="true">
                     {% if block.settings.custom_icon_2 %}
@@ -632,8 +648,8 @@
               </span>
             {% endif %}
 
-            {% if block.settings.enable_custom_method_3 %}
-              <span class="product-payment-methods__item">
+            {% if block.settings.enable_custom_method_3 and block.settings.custom_method_3_label != blank %}
+              <span class="product-payment-methods__item" role="img" aria-label="{{ block.settings.custom_method_3_label | escape }}">
                 {% if block.settings.show_icons %}
                   <span class="product-payment-methods__icon" aria-hidden="true">
                     {% if block.settings.custom_icon_3 %}
@@ -651,11 +667,22 @@
                 {% endif %}
               </span>
             {% endif %}
-          </div>
+{% endcapture %}
+{% assign custom_items = custom_items | strip %}{% if custom_items != blank %}
+        <div class="product-payment-methods__group">
+          {% if block.settings.show_group_titles %}
+            <h3 class="product-payment-methods__group-title">
+              {{ block.settings.custom_group_title | escape }}
+            </h3>
+          {% endif %}
+
+          <div class="product-payment-methods__list" role="group" aria-label="{{ block.settings.custom_methods_label | escape }}">{{ custom_items }}</div>
         </div>
+{% endif %}
       {% endif %}
     </div>
 
+    {% endif %}
     {% if block.settings.footer_text != blank %}
       <p class="product-payment-methods__footer">
         {{ block.settings.footer_text | escape }}
@@ -734,7 +761,6 @@
       "label": "Show group titles",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Header"
@@ -748,22 +774,20 @@
     {
       "type": "text",
       "id": "eyebrow",
-      "label": "Eyebrow",
-      "default": "Flexible checkout"
+      "label": "Eyebrow"
     },
     {
       "type": "text",
       "id": "heading",
       "label": "Heading",
-      "default": "Payment options available"
+      "default": "Payment information"
     },
     {
       "type": "text",
       "id": "description",
       "label": "Description",
-      "default": "Choose from express checkout, digital wallets, and flexible payment options."
+      "default": "Available payment options are shown at checkout."
     },
-
     {
       "type": "header",
       "content": "Payment methods"
@@ -784,33 +808,37 @@
       "type": "checkbox",
       "id": "enable_shop_pay",
       "label": "Shop Pay",
-      "default": true
+      "default": true,
+      "info": "Built-in providers display only when enabled for this store and market."
     },
     {
       "type": "checkbox",
       "id": "enable_apple_pay",
       "label": "Apple Pay",
-      "default": true
+      "default": true,
+      "info": "Built-in providers display only when enabled for this store and market."
     },
     {
       "type": "checkbox",
       "id": "enable_google_pay",
       "label": "Google Pay",
-      "default": true
+      "default": true,
+      "info": "Built-in providers display only when enabled for this store and market."
     },
     {
       "type": "checkbox",
       "id": "enable_paypal",
       "label": "PayPal",
-      "default": true
+      "default": true,
+      "info": "Built-in providers display only when enabled for this store and market."
     },
     {
       "type": "checkbox",
       "id": "enable_venmo",
       "label": "Venmo",
-      "default": false
+      "default": false,
+      "info": "Built-in providers display only when enabled for this store and market."
     },
-
     {
       "type": "header",
       "content": "Financing"
@@ -836,14 +864,14 @@
     {
       "type": "text",
       "id": "financing_note",
-      "label": "Financing note",
-      "default": "Pay over time with eligible financing providers at checkout."
+      "label": "Financing note"
     },
     {
       "type": "checkbox",
       "id": "enable_affirm",
       "label": "Affirm",
-      "default": true
+      "default": true,
+      "info": "Built-in providers display only when enabled for this store and market."
     },
     {
       "type": "text",
@@ -855,7 +883,8 @@
       "type": "checkbox",
       "id": "enable_klarna",
       "label": "Klarna",
-      "default": true
+      "default": true,
+      "info": "Built-in providers display only when enabled for this store and market."
     },
     {
       "type": "text",
@@ -867,7 +896,8 @@
       "type": "checkbox",
       "id": "enable_afterpay",
       "label": "Afterpay",
-      "default": true
+      "default": true,
+      "info": "Built-in providers display only when enabled for this store and market."
     },
     {
       "type": "text",
@@ -879,7 +909,8 @@
       "type": "checkbox",
       "id": "enable_sezzle",
       "label": "Sezzle",
-      "default": false
+      "default": false,
+      "info": "Built-in providers display only when enabled for this store and market."
     },
     {
       "type": "text",
@@ -891,7 +922,8 @@
       "type": "checkbox",
       "id": "enable_zip",
       "label": "Zip",
-      "default": false
+      "default": false,
+      "info": "Built-in providers display only when enabled for this store and market."
     },
     {
       "type": "text",
@@ -899,7 +931,6 @@
       "label": "Zip note",
       "default": "Buy now, pay later"
     },
-
     {
       "type": "header",
       "content": "Custom methods"
@@ -920,7 +951,8 @@
       "type": "checkbox",
       "id": "enable_custom_method_1",
       "label": "Enable custom method 1",
-      "default": false
+      "default": false,
+      "info": "Enable only for a method your store actually accepts."
     },
     {
       "type": "text",
@@ -949,7 +981,8 @@
       "type": "checkbox",
       "id": "enable_custom_method_2",
       "label": "Enable custom method 2",
-      "default": false
+      "default": false,
+      "info": "Enable only for a method your store actually accepts."
     },
     {
       "type": "text",
@@ -978,7 +1011,8 @@
       "type": "checkbox",
       "id": "enable_custom_method_3",
       "label": "Enable custom method 3",
-      "default": false
+      "default": false,
+      "info": "Enable only for a method your store actually accepts."
     },
     {
       "type": "text",
@@ -1003,7 +1037,6 @@
       "id": "custom_icon_3",
       "label": "Custom method 3 icon"
     },
-
     {
       "type": "header",
       "content": "Footer text"
@@ -1014,7 +1047,6 @@
       "label": "Footer text",
       "default": "Payment availability may vary by location, device, cart value, and checkout eligibility."
     },
-
     {
       "type": "header",
       "content": "Typography"
@@ -1089,7 +1121,6 @@
       "unit": "px",
       "default": 12
     },
-
     {
       "type": "header",
       "content": "Sizing"
@@ -1124,7 +1155,6 @@
       "unit": "px",
       "default": 100
     },
-
     {
       "type": "header",
       "content": "Columns"
@@ -1156,7 +1186,6 @@
       "step": 1,
       "default": 2
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1221,7 +1250,6 @@
       "label": "Focus color",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1246,7 +1274,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Container"
@@ -1299,7 +1326,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1354,7 +1380,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1377,7 +1402,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1409,7 +1433,7 @@
   ],
   "presets": [
     {
-      "name": "Express Checkout",
+      "name": "Payment Badges",
       "settings": {
         "display_mode": "payment_methods",
         "layout_style": "badges",
@@ -1417,9 +1441,8 @@
         "show_labels": true,
         "show_group_titles": false,
         "show_header": true,
-        "eyebrow": "Fast checkout",
-        "heading": "Express checkout available",
-        "description": "Check out faster with supported digital wallets and express payment options.",
+        "heading": "Payment information",
+        "description": "Available payment options are shown at checkout.",
         "payment_group_title": "Express checkout",
         "payment_methods_label": "Accepted express checkout methods",
         "enable_shop_pay": true,
@@ -1430,7 +1453,6 @@
         "financing_group_title": "Financing options",
         "financing_methods_label": "Available financing options",
         "show_financing_note": false,
-        "financing_note": "Pay over time with eligible financing providers at checkout.",
         "enable_affirm": false,
         "affirm_note": "Pay over time",
         "enable_klarna": false,
@@ -1495,7 +1517,7 @@
       }
     },
     {
-      "name": "Financing Available",
+      "name": "Financing Information",
       "settings": {
         "display_mode": "financing",
         "layout_style": "cards",
@@ -1503,9 +1525,8 @@
         "show_labels": true,
         "show_group_titles": false,
         "show_header": true,
-        "eyebrow": "Flexible payments",
-        "heading": "Financing available",
-        "description": "Give shoppers confidence with buy now, pay later messaging before checkout.",
+        "heading": "Payment information",
+        "description": "Available payment options are shown at checkout.",
         "payment_group_title": "Express checkout",
         "payment_methods_label": "Accepted payment methods",
         "enable_shop_pay": false,
@@ -1516,7 +1537,6 @@
         "financing_group_title": "Financing options",
         "financing_methods_label": "Available financing options",
         "show_financing_note": true,
-        "financing_note": "Pay over time with eligible financing providers at checkout.",
         "enable_affirm": true,
         "affirm_note": "Pay over time",
         "enable_klarna": true,
@@ -1581,7 +1601,7 @@
       }
     },
     {
-      "name": "Accepted Payment Methods",
+      "name": "Payment Methods Grid",
       "settings": {
         "display_mode": "mixed",
         "layout_style": "grid",
@@ -1589,9 +1609,8 @@
         "show_labels": true,
         "show_group_titles": true,
         "show_header": true,
-        "eyebrow": "Secure checkout",
-        "heading": "Accepted payment methods",
-        "description": "Display payment, wallet, and financing options in one clean checkout confidence block.",
+        "heading": "Payment information",
+        "description": "Available payment options are shown at checkout.",
         "payment_group_title": "Payment methods",
         "payment_methods_label": "Accepted payment methods",
         "enable_shop_pay": true,
@@ -1602,7 +1621,6 @@
         "financing_group_title": "Financing options",
         "financing_methods_label": "Available financing options",
         "show_financing_note": true,
-        "financing_note": "Eligible orders may qualify for flexible payment options at checkout.",
         "enable_affirm": true,
         "affirm_note": "Pay over time",
         "enable_klarna": true,
