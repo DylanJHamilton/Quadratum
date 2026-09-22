@@ -40,6 +40,7 @@ def audit(paths):
     roots = {name for name in files if name.split('/')[0] in ['layout', 'templates', 'sections', 'blocks']}
     build_files = ['package.json', 'tailwind.config.js', 'postcss.config.js', '.shopifyignore']
     build = {name: (ROOT / name).read_text() for name in build_files if (ROOT / name).exists()}
+    build.update({p.relative_to(ROOT).as_posix(): p.read_text() for p in (ROOT / 'tools').glob('*') if p.suffix in ['.js', '.mjs', '.json']})
     result = []
     for path in paths:
         seen = set()

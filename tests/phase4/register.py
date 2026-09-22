@@ -27,7 +27,10 @@ for p in files+context_files:
  trace=re.sub(r'{%-?\s*comment\s*-?%}.*?{%-?\s*endcomment\s*-?%}', '', s, flags=re.S)
  for section in re.findall(r"(?:section\s+['\"]|\"type\"\s*:\s*\")([\w-]+)",trace):consumers['sections/'+section+'.liquid'].append(name)
  for ref in re.findall(r"(?:render|include)\s+['\"]([^'\"]+)['\"]",trace):consumers['snippets/'+ref+'.liquid'].append(name)
- for ref in re.findall(r"['\"]([^'\"]+)['\"]\s*\|\s*asset_url",trace):consumers['assets/'+ref].append(name)
+ for ref in re.findall(r"['\"]([^'\"]+)['\"]\s*\|\s*asset_url",trace):
+  asset='assets/'+ref
+  if not (ROOT/asset).exists() and (ROOT/(asset+'.liquid')).exists():asset+='.liquid'
+  consumers[asset].append(name)
 for name,s in sources.items():
  p=Path(name);starts=list(re.finditer(r'{%-?\s*schema\s*-?%}',s));matches=list(SCHEMA.finditer(s,starts[-1].start())) if starts else [];schema={};valid='N/A'
  if matches:
