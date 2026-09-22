@@ -155,7 +155,8 @@
       url.pathname = url.pathname.replace(/\/add\/?$/, '/add.js');
       const response = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' }, body: new FormData(form) });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.description || 'Unable to add this item.');
+      if (!response.ok) throw new Error(result.description || form.dataset.cartErrorMessage || 'Unable to add this item.');
+      if (!form.isConnected) return;
       status.textContent = form.dataset.cartAddedMessage || 'Added to cart.';
       try {
         if (window.QuadratumSettings.cart.openAfterAdd) await open(event.submitter);
@@ -164,7 +165,7 @@
         // The purchase succeeded. A refresh failure must not suggest submitting the add again.
         const link = document.createElement('a'); link.href = cartUrl(); link.textContent = 'View cart'; status.append(' ', link);
       }
-    } catch (error) { status.textContent = error.message; }
+    } catch (error) { if (form.isConnected) status.textContent = error.message || form.dataset.cartErrorMessage || 'Unable to add this item.'; }
     finally { submittingForms.delete(form); form.removeAttribute('aria-busy'); }
   });
   document.addEventListener('keydown', event => {

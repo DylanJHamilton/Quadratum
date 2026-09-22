@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 53/102 blocks and 17 dependencies individually reviewed; 70/119 Family 8 entries have dispositions (69 live queued, 1 dormant retained), 49 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 55/102 blocks and 19 dependencies individually reviewed; 74/121 Family 8 entries have dispositions (73 live queued, 1 dormant retained), 47 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1173,3 +1173,17 @@ B8-PRODUCT-MERCHANDISING live queue after engineering batches: native complement
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Product merchandising Theme Check: 506 (3 errors, 503 warnings) to 507 (3 errors, 504 warnings); one new card-helper OrphanedSnippet despite three actual callers. No new errors or suppression.
+
+## Batch 8 checkpoint — native product bundle forms — 2026-09-22
+
+Previous checkpoint published as `39b70ff16d74b65199e2e5c16c69ad6c88fe779e`; PR #22 remains DRAFT. The remaining two product merchandising blocks now use native multi-item forms and the existing cart drawer contract. A shared native item helper removes copied markup/calculation, respects availability/minimum quantities/required selling plans and keeps totals aligned with actual submitted items. Scoped enhancement follows the owning product form and preserves optional selection. Advertised discounts no longer reduce the payable subtotal without Shopify applying them; new presets avoid invented savings or purchase-history claims.
+
+55/102 blocks and 19 dependencies individually reviewed; 74/121 Family 8 entries have dispositions (73 live queued, 1 dormant retained), 47 NOT REVIEWED. Global dispositions: 406 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 72 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-product-bundles/`. 165 actual default/control/preset/empty/quantity/availability/plan renders plus runtime fixtures cover native no-JS contiguous FormData, duplicates/current exclusion, selected native plans and minimum quantities, actual two-host commerce/plan/quantity/restoration, out-of-enumeration selected variants, unknown native IDs, correct optional selection/totals/savings gates, unapplied display-discount separation, money separator/currency handling, native versus AJAX submission, real cart handler success/error/duplicate/detached completion, editor load/unload/reorder/removal/insertion and retained responsive source rules. All 28 affected suites pass; 119 settings, 6 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-PRODUCT-BUNDLES live queue after engineering batches: actual locale-aware native multi-item form and AJAX cart transactions, inventory/quantity-rule rejection and selling-plan eligibility/prices/names, native current variant outside enumeration and browser restoration; real automatic/app discounts versus advertised offer text, market/presentment money formats and cart totals; no-JS/keyboard/AT/focus/RTL/zoom/responsive layouts and native Theme Editor lifecycle. Companion subscription/options choices remain on their native product pages unless an actual selected allocation exists. No live Shopify QA performed; all prior queues carry forward.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Bundle checkpoint unsuppressed Theme Check: 507 → 508 findings (3 existing out-of-group errors, 504 → 505 warnings). The new bundle item helper adds one OrphanedSnippet finding despite its two explicit callers. This group has zero Theme Check errors; no suppression was added.
