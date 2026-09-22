@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 95/102 blocks and 27 dependencies individually reviewed; 122/129 Family 8 entries have dispositions (121 live queued, 1 dormant retained), 7 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 98/102 blocks and 27 dependencies individually reviewed; 125/129 Family 8 entries have dispositions (124 live queued, 1 dormant retained), 4 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1313,3 +1313,17 @@ B8-PROOF-TIMELINE live queue after engineering batches: merchant-supplied logo/p
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Unsuppressed Theme Check: 512 unchanged findings: 3 unchanged out-of-group errors and 509 warnings. Four retained settings-count warnings in this group, zero group errors; no suppression.
+
+## Batch 8 checkpoint — marquee, scrolling text and exact stats counters — 2026-09-22
+
+Previous local checkpoint `ff1d3dfa0bd7360f3d4300eb467eb26f0550721e`; PR #22 remains DRAFT. Three motion/stat blocks now preserve authoritative merchant content and native fallbacks while using the existing shared motion and stats controllers. Saved IDs/types/options remain intact; new insertion avoids fabricated service claims and numbers.
+
+98/102 blocks and 27 dependencies individually reviewed; 125/129 Family 8 entries have dispositions (124 live queued, 1 dormant retained), 4 NOT REVIEWED. Global dispositions: 457 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 29 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-motion-counters/`. 253 actual default/preset/control/data-state renders; every original setting type/option and seven presets, saved text, inert/named originals, sparse/empty/native-image states and raw IDs. Actual shared controllers cover independent motion/RAF, persistent pause, focus/hover/visibility/reduced motion, exact numeric text and stable accessible values, RTL measurement, mutation insert/remove/reorder and editor disposal/reload. All prior Partner Logos and Stats Strip assertions retained. The first gate run found only two trailing-whitespace lines; these were removed, hashes refreshed and diff gate rerun successfully. All 10 affected suites pass; 195 settings, 7 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-MOTION-COUNTERS live queue: actual native horizontal motion/scroll/RTL/keyboard/AT/focus/zoom/nested layouts; browser reduced-motion/offscreen/visibility transitions and Theme Editor insert/reorder/unload; merchant-supplied claim correctness. Counters are display animation only. DOM/geometry/RAF/native-image adapters are not live acceptance. No Shopify live QA; all previous queues carry forward.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Motion/counter checkpoint Theme Check remains 512 unsuppressed findings (3 unchanged out-of-group errors, 509 warnings), zero group errors. Publication status: automatic approval review rejected the public-branch push of recovered checkpoint `ff1d3df`, including a retry narrowed to the exact reviewed commit after outgoing scope/secret-signature checks. Review stated that trusted authorization for public source disclosure/remote mutation was missing. No alternate publication route was attempted. This and subsequent authorized engineering work is committed locally; remote publication and PR summary update await direct owner approval.

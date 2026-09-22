@@ -65,7 +65,7 @@
       else motion?.removeListener?.(onMotion);
       instances.delete(root);
     });
-    if (motion?.matches || document.hidden || window.Shopify?.designMode || typeof requestAnimationFrame !== 'function') { finishAll(); return; }
+    if (motion?.matches || document.hidden || window.Shopify?.designMode || root.dataset.editor === 'true' || typeof requestAnimationFrame !== 'function') { finishAll(); return; }
     if ('IntersectionObserver' in window) {
       observer = new IntersectionObserver(entries => {
         for (const entry of entries) {
@@ -85,6 +85,13 @@
     for (const [root, dispose] of instances) if (event.target === root || event.target.contains?.(root)) dispose();
   });
   window.QuadratumStatsStrip = { scan };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => scan(document), { once: true });
-  else scan(document);
+  const start = () => {
+    scan(document);
+    if (window.MutationObserver && document.body) new MutationObserver(records => {
+      for (const [root, dispose] of instances) if (!root.isConnected) dispose();
+      for (const record of records) for (const node of record.addedNodes) if (node.isConnected) scan(node);
+    }).observe(document.body, { childList: true, subtree: true });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
 })();

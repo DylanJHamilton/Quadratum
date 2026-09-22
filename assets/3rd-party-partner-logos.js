@@ -1,7 +1,6 @@
 (() => {
   'use strict';
-  if (window.__qPartnerLogos) return;
-  window.__qPartnerLogos = true;
+  if (window.__qPartnerLogos) { window.__qPartnerLogos.scan(document); return; }
   const controllers = new Map();
   const selector = '[data-q-partner-logos]';
   function mount(root) {
@@ -23,6 +22,7 @@
       if (root.style.getPropertyValue('--q-logos-viewport') !== widthValue) root.style.setProperty('--q-logos-viewport', widthValue);
       const distance = original.getBoundingClientRect().width + 'px';
       if (root.style.getPropertyValue('--q-logos-distance') !== distance) root.style.setProperty('--q-logos-distance', distance);
+      if (root.hasAttribute('data-q-motion-block')) root.style.setProperty('--q-logos-direction', style.direction === 'rtl' ? '1' : '-1');
     }
     function advance() {
       const max = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
@@ -42,12 +42,12 @@
       root.dataset.playing = String(playing);
       toggle.hidden = !canAnimate || motion.matches;
       toggle.setAttribute('aria-pressed', String(stopped));
-      toggle.textContent = stopped ? 'Start logo motion' : 'Stop logo motion';
+      toggle.textContent = stopped ? (toggle.dataset.startLabel || 'Start logo motion') : (toggle.dataset.stopLabel || 'Stop logo motion');
       if (playing && root.dataset.mode === 'strip') timer = setInterval(advance, speed);
       if (playing && root.dataset.mode === 'marquee') viewport.scrollLeft = 0;
     }
     on(toggle, 'click', () => { stopped = !stopped; update(); });
-    on(viewport, 'pointerenter', () => { hovered = true; update(); });
+    on(viewport, 'pointerenter', () => { hovered = root.dataset.pauseHover !== 'false'; update(); });
     on(viewport, 'pointerleave', () => { hovered = false; update(); });
     on(root, 'focusin', () => { focused = true; update(); });
     on(root, 'focusout', event => { focused = !!event.relatedTarget && root.contains(event.relatedTarget); update(); });
@@ -68,6 +68,7 @@
       for (const dispose of disposers) dispose();
       delete root.dataset.playing; toggle.hidden = true;
       root.style.removeProperty('--q-logos-viewport'); root.style.removeProperty('--q-logos-distance');
+      if (root.hasAttribute('data-q-motion-block')) root.style.removeProperty('--q-logos-direction');
       controllers.delete(root);
     });
   }
@@ -75,8 +76,16 @@
     if (scope.matches?.(selector)) mount(scope);
     scope.querySelectorAll?.(selector).forEach(mount);
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => scan(document), { once: true });
-  else scan(document);
+  window.__qPartnerLogos = { scan };
+  const start = () => {
+    scan(document);
+    if (window.MutationObserver && document.body) new MutationObserver(records => {
+      for (const [root, dispose] of controllers) if (!root.isConnected) dispose();
+      for (const record of records) for (const node of record.addedNodes) if (node.isConnected) scan(node);
+    }).observe(document.body, { childList: true, subtree: true });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
   document.addEventListener('shopify:section:load', event => scan(event.target));
   document.addEventListener('shopify:section:unload', event => {
     for (const [root, dispose] of controllers) if (event.target === root || event.target.contains(root)) dispose();

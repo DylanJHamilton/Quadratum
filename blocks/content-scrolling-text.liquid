@@ -1,11 +1,23 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
+  assign complete_cta = false
+  if block.settings.cta_text != blank and block.settings.cta_url != blank
+    assign complete_cta = true
+  endif
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 %}
 
 <div
+  id="content-scrolling-text-{{ block_id }}"
+  {% if block.settings.display_text == blank and block.settings.eyebrow == blank and block.settings.heading == blank and block.settings.text == blank and complete_cta == false and request.design_mode == false %}hidden{% endif %}
+  data-q-partner-logos data-q-motion-block data-mode="marquee" data-autoplay="{% if block.settings.motion_mode == 'scroll' %}true{% else %}false{% endif %}"
+  data-editor="{{ request.design_mode }}" data-pause-hover="{{ block.settings.pause_on_hover }}"
+  role="region"
   class="
     qtm-scrolling-text
     qtm-scrolling-text-{{ block_id }}
@@ -16,9 +28,9 @@
     qtm-scrolling-text--direction-{{ block.settings.direction }}
     qtm-scrolling-text--animation-{{ animation }}
     {% if block.settings.pause_on_hover %} qtm-scrolling-text--pause-hover{% endif %}
-    {% unless block.settings.show_desktop %} qtm-scrolling-text--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-scrolling-text--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-scrolling-text--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-scrolling-text--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-scrolling-text--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-scrolling-text--hide-mobile{% endunless %}
   "
   style="
     --qtm-scrolling-text-margin-top: {{ block.settings.margin_top }}px;
@@ -41,10 +53,10 @@
     --qtm-scrolling-text-border-radius: {{ block.settings.border_radius }}px;
   "
   aria-label="{{ block.settings.accessibility_label | default: block.settings.display_text | escape }}"
-  {{ block.shopify_attributes }}
+
 >
   <div class="qtm-scrolling-text__inner">
-    {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank or block.settings.cta_text != blank %}
+    {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank or complete_cta %}
       <div class="qtm-scrolling-text__header">
         {% if block.settings.eyebrow != blank %}
           <p class="qtm-scrolling-text__eyebrow">
@@ -65,14 +77,15 @@
         {% endif %}
 
         {% if block.settings.cta_text != blank and block.settings.cta_url != blank %}
-          <a class="qtm-scrolling-text__button" href="{{ block.settings.cta_url }}">
+          <a class="qtm-scrolling-text__button" href="{{ block.settings.cta_url | escape }}">
             {{ block.settings.cta_text | escape }}
           </a>
         {% endif %}
       </div>
     {% endif %}
 
-    <div class="qtm-scrolling-text__viewport">
+    {% if block.settings.display_text != blank %}
+    <div class="qtm-scrolling-text__viewport" data-q-logos-viewport tabindex="0" role="group" aria-label="{{ block.settings.accessibility_label | default: 'Campaign message' | escape }}">
       {% if block.settings.motion_mode == 'static' %}
         <div class="qtm-scrolling-text__static">
           <span class="qtm-scrolling-text__display">
@@ -82,9 +95,9 @@
       {% else %}
         <div class="qtm-scrolling-text__track">
           {% for repeat in (1..2) %}
-            <div class="qtm-scrolling-text__group" {% if repeat == 2 %}aria-hidden="true"{% endif %}>
+            <div class="qtm-scrolling-text__group" {% if repeat == 2 %}aria-hidden="true" inert{% else %}data-q-logos-original{% endif %}>
               {% for i in (1..6) %}
-                <span class="qtm-scrolling-text__display">
+                <span class="qtm-scrolling-text__display{% if i > 1 %} qtm-scrolling-text__repeat{% endif %}{% if i == 2 or i == 4 or i == 6 %} qtm-scrolling-text__display--outline{% endif %}" {% if i > 1 %}aria-hidden="true"{% endif %}>
                   {{ block.settings.display_text | escape }}
                 </span>
 
@@ -99,6 +112,8 @@
         </div>
       {% endif %}
     </div>
+    {% if block.settings.motion_mode == 'scroll' %}<button type="button" data-q-logos-toggle data-start-label="Start motion" data-stop-label="Stop motion" aria-pressed="false" hidden>Stop motion</button>{% endif %}
+    {% elsif request.design_mode %}<p role="note">Add a campaign message.</p>{% endif %}
   </div>
 </div>
 
@@ -106,7 +121,7 @@
   .qtm-scrolling-text-{{ block_id }} {
     margin-top: var(--qtm-scrolling-text-margin-top);
     margin-bottom: var(--qtm-scrolling-text-margin-bottom);
-    padding: var(--qtm-scrolling-text-padding);
+    padding: min(var(--qtm-scrolling-text-padding), 8%);
     color: var(--qtm-scrolling-text-text-color);
     background: var(--qtm-scrolling-text-background-color);
     border: var(--qtm-scrolling-text-border-width) solid var(--qtm-scrolling-text-border-color);
@@ -123,20 +138,20 @@
   }
 
   .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--width-small {
-    max-width: 720px;
+    max-width: min(100%, 720px);
   }
 
   .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--width-medium {
-    max-width: 960px;
+    max-width: min(100%, 960px);
   }
 
   .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--width-large {
-    max-width: 1240px;
+    max-width: min(100%, 1240px);
   }
 
   .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--width-full {
     width: 100%;
-    max-width: none;
+    max-width: 100%;
   }
 
   .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--align-left {
@@ -294,18 +309,12 @@
   .qtm-scrolling-text-{{ block_id }} .qtm-scrolling-text__track {
     display: flex;
     width: max-content;
-    animation: qtm-scrolling-text-scroll-{{ block_id }} var(--qtm-scrolling-text-speed) linear infinite;
     will-change: transform;
   }
 
-  .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--direction-right .qtm-scrolling-text__track {
-    animation-name: qtm-scrolling-text-scroll-reverse-{{ block_id }};
-  }
 
-  .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--pause-hover:hover .qtm-scrolling-text__track,
-  .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--pause-hover:focus-within .qtm-scrolling-text__track {
-    animation-play-state: paused;
-  }
+
+
 
   .qtm-scrolling-text-{{ block_id }} .qtm-scrolling-text__group {
     display: flex;
@@ -335,13 +344,13 @@
     text-stroke: var(--qtm-scrolling-text-outline-width) var(--qtm-scrolling-text-heading-color);
   }
 
-  .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--style-mixed .qtm-scrolling-text__display:nth-child(odd) {
+  .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--style-mixed .qtm-scrolling-text__display:not(.qtm-scrolling-text__display--outline) {
     color: var(--qtm-scrolling-text-heading-color);
     -webkit-text-stroke: 0 transparent;
     text-stroke: 0 transparent;
   }
 
-  .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--style-mixed .qtm-scrolling-text__display:nth-child(even) {
+  .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--style-mixed .qtm-scrolling-text__display--outline {
     color: transparent;
     -webkit-text-stroke: var(--qtm-scrolling-text-outline-width) var(--qtm-scrolling-text-accent-color);
     text-stroke: var(--qtm-scrolling-text-outline-width) var(--qtm-scrolling-text-accent-color);
@@ -362,25 +371,9 @@
     opacity: 0.75;
   }
 
-  @keyframes qtm-scrolling-text-scroll-{{ block_id }} {
-    from {
-      transform: translateX(0);
-    }
 
-    to {
-      transform: translateX(-50%);
-    }
-  }
 
-  @keyframes qtm-scrolling-text-scroll-reverse-{{ block_id }} {
-    from {
-      transform: translateX(-50%);
-    }
 
-    to {
-      transform: translateX(0);
-    }
-  }
 
   .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--animation-fade {
     animation: qtm-scrolling-text-fade-{{ block_id }} 520ms ease both;
@@ -471,10 +464,10 @@
     }
   }
 
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--hide-tablet { display: none !important; }
+  }
   @media screen and (max-width: 989px) {
-    .qtm-scrolling-text-{{ block_id }}.qtm-scrolling-text--hide-tablet {
-      display: none !important;
-    }
 
     .qtm-scrolling-text-{{ block_id }} {
       --qtm-scrolling-text-font-size: clamp(var(--qtm-scrolling-text-mobile-font-size), 12vw, {{ block.settings.tablet_text_size }}px);
@@ -541,7 +534,34 @@
       white-space: normal;
     }
   }
+
+  .qtm-scrolling-text-{{ block_id }} { min-width: 0; max-width: 100%; overflow-wrap: anywhere; container-type: inline-size; }
+  .qtm-scrolling-text-{{ block_id }}, .qtm-scrolling-text-{{ block_id }} * { box-sizing: border-box; }
+  .qtm-scrolling-text-{{ block_id }}[hidden], .qtm-scrolling-text-{{ block_id }} [hidden] { display: none !important; }
+  .qtm-scrolling-text-{{ block_id }} .qtm-scrolling-text__inner, .qtm-scrolling-text-{{ block_id }} .qtm-scrolling-text__header { min-width: 0; max-width: 100%; }
+  .qtm-scrolling-text-{{ block_id }} .qtm-scrolling-text__viewport { overflow-x: auto; }
+  .qtm-scrolling-text-{{ block_id }} .qtm-scrolling-text__viewport::before, .qtm-scrolling-text-{{ block_id }} .qtm-scrolling-text__viewport::after { display: none; }
+  .qtm-scrolling-text-{{ block_id }} .qtm-scrolling-text__track { animation: none; transform: none; will-change: auto; min-width: 100%; }
+  .qtm-scrolling-text-{{ block_id }} .qtm-scrolling-text__group { min-width: var(--q-logos-viewport, 100%); padding-right: 0; padding-inline-end: var(--qtm-scrolling-text-gap); }
+  .qtm-scrolling-text-{{ block_id }} .qtm-scrolling-text__group[aria-hidden="true"] { display: none; }
+  .qtm-scrolling-text-{{ block_id }}[data-playing="true"] .qtm-scrolling-text__viewport { overflow: hidden; }
+  .qtm-scrolling-text-{{ block_id }}[data-playing="true"] .qtm-scrolling-text__group[aria-hidden="true"] { display: flex; }
+  .qtm-scrolling-text-{{ block_id }}[data-playing="true"] .qtm-scrolling-text__track { animation: qtm-block-motion-{{ block_id }} var(--qtm-scrolling-text-speed) linear infinite; will-change: transform; }
+  .qtm-scrolling-text-{{ block_id }}[data-playing="true"].qtm-scrolling-text--direction-right .qtm-scrolling-text__track { animation-direction: reverse; }
+  @keyframes qtm-block-motion-{{ block_id }} { from { transform: translateX(0); } to { transform: translateX(calc(var(--q-logos-direction, -1) * var(--q-logos-distance, 0px))); } }
+  .qtm-scrolling-text-{{ block_id }} [data-q-logos-toggle] { margin-block-start: 8px; padding: 10px 16px; color: var(--qtm-scrolling-text-link-color); background: var(--qtm-scrolling-text-background-color); border: 1px solid currentColor; border-radius: 4px; cursor: pointer; }
+  .qtm-scrolling-text-{{ block_id }} :focus-visible { outline: 2px solid var(--qtm-scrolling-text-link-color); outline-offset: -3px; }
+  @media (prefers-reduced-motion: reduce) { .qtm-scrolling-text-{{ block_id }} .qtm-scrolling-text__group[aria-hidden="true"] { display: none !important; } }
+  .qtm-scrolling-text-{{ block_id }}:not([data-playing="true"]) .qtm-scrolling-text__repeat, .qtm-scrolling-text-{{ block_id }}:not([data-playing="true"]) .qtm-scrolling-text__separator { display: none; }
+  .qtm-scrolling-text-{{ block_id }}:not([data-playing="true"]) .qtm-scrolling-text__track { width: 100%; }
+  .qtm-scrolling-text-{{ block_id }}:not([data-playing="true"]) .qtm-scrolling-text__display { min-width: 0; max-width: 100%; white-space: normal; display: block; }
+  .qtm-scrolling-text-{{ block_id }}:not([data-playing="true"]) .qtm-scrolling-text__group { padding-inline-end: 0; width: 100%; justify-content: inherit; }
+  .qtm-scrolling-text-{{ block_id }} .qtm-scrolling-text__static { min-width: 0; }
+  @container (max-width: 749px) { .qtm-scrolling-text-{{ block_id }} .qtm-scrolling-text__display { font-size: var(--qtm-scrolling-text-mobile-font-size); } }
 </style>
+
+
+<script src="{{ '3rd-party-partner-logos.js' | asset_url }}" defer="defer"></script>
 
 {% schema %}
 {
@@ -583,8 +603,7 @@
     {
       "type": "text",
       "id": "display_text",
-      "label": "Display text",
-      "default": "Built for modern commerce"
+      "label": "Display text"
     },
     {
       "type": "text",
@@ -1015,8 +1034,7 @@
     {
       "name": "Luxury Headline",
       "settings": {
-        "display_text": "Quiet luxury, built to last",
-        "accessibility_label": "Quiet luxury, built to last",
+        "accessibility_label": "Campaign message",
         "text_style": "mixed",
         "motion_mode": "scroll",
         "direction": "left",
@@ -1037,11 +1055,7 @@
     {
       "name": "Campaign Message",
       "settings": {
-        "eyebrow": "New campaign",
-        "heading": "A launch moment with movement",
-        "text": "<p>Use oversized motion typography to create impact for seasonal drops, product launches, and promotional campaigns.</p>",
-        "display_text": "New season essentials",
-        "accessibility_label": "New season essentials",
+        "accessibility_label": "Campaign message",
         "text_style": "filled",
         "motion_mode": "scroll",
         "direction": "right",
@@ -1065,11 +1079,7 @@
     {
       "name": "Brand Statement",
       "settings": {
-        "eyebrow": "Brand statement",
-        "heading": "Make the message impossible to miss",
-        "text": "<p>Use static or scrolling editorial typography to reinforce your brand position across premium landing pages.</p>",
-        "display_text": "Designed with intention",
-        "accessibility_label": "Designed with intention",
+        "accessibility_label": "Campaign message",
         "text_style": "outline",
         "motion_mode": "static",
         "desktop_text_size": 104,

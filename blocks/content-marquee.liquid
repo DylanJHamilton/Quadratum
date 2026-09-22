@@ -1,11 +1,105 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
+  assign item_count = 0
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 %}
 
+{% capture marquee_content %}
+    <div class="qtm-marquee__viewport" data-q-logos-viewport tabindex="0" role="group" aria-label="{{ block.settings.accessibility_label | default: 'Announcements' | escape }}">
+      <div class="qtm-marquee__track" >
+        {% for repeat in (1..2) %}
+          <div class="qtm-marquee__group" {% if repeat == 2 %}aria-hidden="true" inert{% else %}data-q-logos-original{% endif %}>
+            {% for i in (1..8) %}
+              {% liquid
+                assign enabled_key = 'item_' | append: i | append: '_enabled'
+                assign text_key = 'item_' | append: i | append: '_text'
+                assign image_key = 'item_' | append: i | append: '_image'
+                assign link_key = 'item_' | append: i | append: '_link'
+
+                assign item_enabled = block.settings[enabled_key]
+                assign item_text = block.settings[text_key]
+                assign item_image = block.settings[image_key]
+                assign item_link = block.settings[link_key]
+                assign image_visible = false
+                if item_image != blank
+                  if block.settings.marquee_type == 'logos' or block.settings.show_item_images
+                    assign image_visible = true
+                  endif
+                endif
+                assign image_alt = item_image.alt | default: item_text | default: 'Logo'
+              %}
+
+              {% if item_enabled %}
+              {% if item_text != blank or image_visible %}
+                {% if repeat == 1 %}{% assign item_count = item_count | plus: 1 %}{% endif %}
+                <div class="qtm-marquee__item">
+                  {% if item_link != blank and repeat == 1 %}
+                    <a class="qtm-marquee__item-link" href="{{ item_link | escape }}">
+                  {% else %}
+                    <span class="qtm-marquee__item-static">
+                  {% endif %}
+
+                    {% if block.settings.marquee_type == 'logos' and item_image != blank %}
+                      {{
+                        item_image
+                        | image_url: width: 360
+                        | image_tag:
+                          class: 'qtm-marquee__logo',
+                          loading: 'lazy',
+                          widths: '120, 180, 240, 300, 360',
+                          sizes: '180px',
+                          alt: image_alt
+                      }}
+                    {% elsif item_image != blank and block.settings.show_item_images %}
+                      {{
+                        item_image
+                        | image_url: width: 160
+                        | image_tag:
+                          class: 'qtm-marquee__icon-image',
+                          loading: 'lazy',
+                          widths: '60, 90, 120, 160',
+                          sizes: '60px',
+                          alt: image_alt
+                      }}
+                    {% endif %}
+
+                    {% if item_text != blank %}
+                      <span class="qtm-marquee__item-text">
+                        {{ item_text | escape }}
+                      </span>
+                    {% endif %}
+
+                  {% if item_link != blank and repeat == 1 %}
+                    </a>
+                  {% else %}
+                    </span>
+                  {% endif %}
+                </div>
+
+                {% if block.settings.show_separator and block.settings.marquee_type != 'logos' %}
+                  <span class="qtm-marquee__separator" aria-hidden="true">
+                    {{ block.settings.separator_text | escape }}
+                  </span>
+                {% endif %}
+              {% endif %}
+              {% endif %}
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+{% endcapture %}
 <div
+  id="content-marquee-{{ block_id }}"
+  {% if item_count == 0 and block.settings.eyebrow == blank and block.settings.heading == blank and block.settings.text == blank and request.design_mode == false %}hidden{% endif %}
+  data-q-partner-logos data-q-motion-block data-mode="marquee" data-autoplay="true"
+  data-editor="{{ request.design_mode }}" data-pause-hover="{{ block.settings.pause_on_hover }}"
+  role="region"
   class="
     qtm-marquee
     qtm-marquee-{{ block_id }}
@@ -15,9 +109,9 @@
     qtm-marquee--direction-{{ block.settings.direction }}
     qtm-marquee--animation-{{ animation }}
     {% if block.settings.pause_on_hover %} qtm-marquee--pause-hover{% endif %}
-    {% unless block.settings.show_desktop %} qtm-marquee--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-marquee--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-marquee--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-marquee--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-marquee--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-marquee--hide-mobile{% endunless %}
   "
   style="
     --qtm-marquee-margin-top: {{ block.settings.margin_top }}px;
@@ -35,7 +129,7 @@
     --qtm-marquee-border-radius: {{ block.settings.border_radius }}px;
   "
   aria-label="{{ block.settings.accessibility_label | default: 'Marquee' | escape }}"
-  {{ block.shopify_attributes }}
+
 >
   <div class="qtm-marquee__inner">
     {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank %}
@@ -60,79 +154,9 @@
       </div>
     {% endif %}
 
-    <div class="qtm-marquee__viewport">
-      <div class="qtm-marquee__track" aria-hidden="false">
-        {% for repeat in (1..2) %}
-          <div class="qtm-marquee__group" {% if repeat == 2 %}aria-hidden="true"{% endif %}>
-            {% for i in (1..8) %}
-              {% liquid
-                assign enabled_key = 'item_' | append: i | append: '_enabled'
-                assign text_key = 'item_' | append: i | append: '_text'
-                assign image_key = 'item_' | append: i | append: '_image'
-                assign link_key = 'item_' | append: i | append: '_link'
-
-                assign item_enabled = block.settings[enabled_key]
-                assign item_text = block.settings[text_key]
-                assign item_image = block.settings[image_key]
-                assign item_link = block.settings[link_key]
-              %}
-
-              {% if item_enabled %}
-                <div class="qtm-marquee__item">
-                  {% if item_link != blank %}
-                    <a class="qtm-marquee__item-link" href="{{ item_link }}">
-                  {% else %}
-                    <span class="qtm-marquee__item-static">
-                  {% endif %}
-
-                    {% if block.settings.marquee_type == 'logos' and item_image != blank %}
-                      {{
-                        item_image
-                        | image_url: width: 360
-                        | image_tag:
-                          class: 'qtm-marquee__logo',
-                          loading: 'lazy',
-                          widths: '120, 180, 240, 300, 360',
-                          sizes: '180px',
-                          alt: item_image.alt
-                      }}
-                    {% elsif item_image != blank and block.settings.show_item_images %}
-                      {{
-                        item_image
-                        | image_url: width: 160
-                        | image_tag:
-                          class: 'qtm-marquee__icon-image',
-                          loading: 'lazy',
-                          widths: '60, 90, 120, 160',
-                          sizes: '60px',
-                          alt: item_image.alt
-                      }}
-                    {% endif %}
-
-                    {% if item_text != blank %}
-                      <span class="qtm-marquee__item-text">
-                        {{ item_text | escape }}
-                      </span>
-                    {% endif %}
-
-                  {% if item_link != blank %}
-                    </a>
-                  {% else %}
-                    </span>
-                  {% endif %}
-                </div>
-
-                {% if block.settings.show_separator and block.settings.marquee_type != 'logos' %}
-                  <span class="qtm-marquee__separator" aria-hidden="true">
-                    {{ block.settings.separator_text | escape }}
-                  </span>
-                {% endif %}
-              {% endif %}
-            {% endfor %}
-          </div>
-        {% endfor %}
-      </div>
-    </div>
+    {% if item_count > 0 %}{{ marquee_content }}{% endif %}
+    {% if request.design_mode and item_count == 0 %}<p role="note">Add announcement text or logo images.</p>{% endif %}
+    {% if item_count > 1 %}<button type="button" data-q-logos-toggle data-start-label="Start motion" data-stop-label="Stop motion" aria-pressed="false" hidden>Stop motion</button>{% endif %}
   </div>
 </div>
 
@@ -140,7 +164,7 @@
   .qtm-marquee-{{ block_id }} {
     margin-top: var(--qtm-marquee-margin-top);
     margin-bottom: var(--qtm-marquee-margin-bottom);
-    padding: var(--qtm-marquee-padding);
+    padding: min(var(--qtm-marquee-padding), 8%);
     color: var(--qtm-marquee-text-color);
     background: var(--qtm-marquee-background-color);
     border: var(--qtm-marquee-border-width) solid var(--qtm-marquee-border-color);
@@ -157,20 +181,20 @@
   }
 
   .qtm-marquee-{{ block_id }}.qtm-marquee--width-small {
-    max-width: 720px;
+    max-width: min(100%, 720px);
   }
 
   .qtm-marquee-{{ block_id }}.qtm-marquee--width-medium {
-    max-width: 960px;
+    max-width: min(100%, 960px);
   }
 
   .qtm-marquee-{{ block_id }}.qtm-marquee--width-large {
-    max-width: 1240px;
+    max-width: min(100%, 1240px);
   }
 
   .qtm-marquee-{{ block_id }}.qtm-marquee--width-full {
     width: 100%;
-    max-width: none;
+    max-width: 100%;
   }
 
   .qtm-marquee-{{ block_id }}.qtm-marquee--align-left {
@@ -270,18 +294,12 @@
   .qtm-marquee-{{ block_id }} .qtm-marquee__track {
     display: flex;
     width: max-content;
-    animation: qtm-marquee-scroll-{{ block_id }} var(--qtm-marquee-speed) linear infinite;
     will-change: transform;
   }
 
-  .qtm-marquee-{{ block_id }}.qtm-marquee--direction-right .qtm-marquee__track {
-    animation-name: qtm-marquee-scroll-reverse-{{ block_id }};
-  }
 
-  .qtm-marquee-{{ block_id }}.qtm-marquee--pause-hover:hover .qtm-marquee__track,
-  .qtm-marquee-{{ block_id }}.qtm-marquee--pause-hover:focus-within .qtm-marquee__track {
-    animation-play-state: paused;
-  }
+
+
 
   .qtm-marquee-{{ block_id }} .qtm-marquee__group {
     display: flex;
@@ -373,25 +391,9 @@
     background: var(--qtm-marquee-item-background);
   }
 
-  @keyframes qtm-marquee-scroll-{{ block_id }} {
-    from {
-      transform: translateX(0);
-    }
 
-    to {
-      transform: translateX(-50%);
-    }
-  }
 
-  @keyframes qtm-marquee-scroll-reverse-{{ block_id }} {
-    from {
-      transform: translateX(-50%);
-    }
 
-    to {
-      transform: translateX(0);
-    }
-  }
 
   .qtm-marquee-{{ block_id }}.qtm-marquee--animation-fade {
     animation: qtm-marquee-fade-{{ block_id }} 520ms ease both;
@@ -482,10 +484,10 @@
     }
   }
 
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-marquee-{{ block_id }}.qtm-marquee--hide-tablet { display: none !important; }
+  }
   @media screen and (max-width: 989px) {
-    .qtm-marquee-{{ block_id }}.qtm-marquee--hide-tablet {
-      display: none !important;
-    }
 
     .qtm-marquee-{{ block_id }} .qtm-marquee__item-text {
       font-size: min({{ block.settings.text_size }}px, 24px);
@@ -558,7 +560,28 @@
       display: none;
     }
   }
+
+  .qtm-marquee-{{ block_id }} { min-width: 0; max-width: 100%; overflow-wrap: anywhere; container-type: inline-size; }
+  .qtm-marquee-{{ block_id }}, .qtm-marquee-{{ block_id }} * { box-sizing: border-box; }
+  .qtm-marquee-{{ block_id }}[hidden], .qtm-marquee-{{ block_id }} [hidden] { display: none !important; }
+  .qtm-marquee-{{ block_id }} .qtm-marquee__inner, .qtm-marquee-{{ block_id }} .qtm-marquee__header { min-width: 0; max-width: 100%; }
+  .qtm-marquee-{{ block_id }} .qtm-marquee__viewport { overflow-x: auto; }
+  .qtm-marquee-{{ block_id }} .qtm-marquee__viewport::before, .qtm-marquee-{{ block_id }} .qtm-marquee__viewport::after { display: none; }
+  .qtm-marquee-{{ block_id }} .qtm-marquee__track { animation: none; transform: none; will-change: auto; min-width: 100%; }
+  .qtm-marquee-{{ block_id }} .qtm-marquee__group { min-width: var(--q-logos-viewport, 100%); padding-right: 0; padding-inline-end: var(--qtm-marquee-gap); }
+  .qtm-marquee-{{ block_id }} .qtm-marquee__group[aria-hidden="true"] { display: none; }
+  .qtm-marquee-{{ block_id }}[data-playing="true"] .qtm-marquee__viewport { overflow: hidden; }
+  .qtm-marquee-{{ block_id }}[data-playing="true"] .qtm-marquee__group[aria-hidden="true"] { display: flex; }
+  .qtm-marquee-{{ block_id }}[data-playing="true"] .qtm-marquee__track { animation: qtm-block-motion-{{ block_id }} var(--qtm-marquee-speed) linear infinite; will-change: transform; }
+  .qtm-marquee-{{ block_id }}[data-playing="true"].qtm-marquee--direction-right .qtm-marquee__track { animation-direction: reverse; }
+  @keyframes qtm-block-motion-{{ block_id }} { from { transform: translateX(0); } to { transform: translateX(calc(var(--q-logos-direction, -1) * var(--q-logos-distance, 0px))); } }
+  .qtm-marquee-{{ block_id }} [data-q-logos-toggle] { margin-block-start: 8px; padding: 10px 16px; color: var(--qtm-marquee-link-color); background: var(--qtm-marquee-background-color); border: 1px solid currentColor; border-radius: 4px; cursor: pointer; }
+  .qtm-marquee-{{ block_id }} :focus-visible { outline: 2px solid var(--qtm-marquee-link-color); outline-offset: -3px; }
+  @media (prefers-reduced-motion: reduce) { .qtm-marquee-{{ block_id }} .qtm-marquee__group[aria-hidden="true"] { display: none !important; } }
 </style>
+
+
+<script src="{{ '3rd-party-partner-logos.js' | asset_url }}" defer="defer"></script>
 
 {% schema %}
 {
@@ -825,7 +848,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Item 1"
@@ -839,8 +861,7 @@
     {
       "type": "text",
       "id": "item_1_text",
-      "label": "Item 1 text",
-      "default": "Free shipping over $75"
+      "label": "Item 1 text"
     },
     {
       "type": "image_picker",
@@ -852,7 +873,6 @@
       "id": "item_1_link",
       "label": "Item 1 link"
     },
-
     {
       "type": "header",
       "content": "Item 2"
@@ -866,8 +886,7 @@
     {
       "type": "text",
       "id": "item_2_text",
-      "label": "Item 2 text",
-      "default": "30-day returns"
+      "label": "Item 2 text"
     },
     {
       "type": "image_picker",
@@ -879,7 +898,6 @@
       "id": "item_2_link",
       "label": "Item 2 link"
     },
-
     {
       "type": "header",
       "content": "Item 3"
@@ -893,8 +911,7 @@
     {
       "type": "text",
       "id": "item_3_text",
-      "label": "Item 3 text",
-      "default": "Premium materials"
+      "label": "Item 3 text"
     },
     {
       "type": "image_picker",
@@ -906,7 +923,6 @@
       "id": "item_3_link",
       "label": "Item 3 link"
     },
-
     {
       "type": "header",
       "content": "Item 4"
@@ -920,8 +936,7 @@
     {
       "type": "text",
       "id": "item_4_text",
-      "label": "Item 4 text",
-      "default": "Loved by thousands"
+      "label": "Item 4 text"
     },
     {
       "type": "image_picker",
@@ -933,7 +948,6 @@
       "id": "item_4_link",
       "label": "Item 4 link"
     },
-
     {
       "type": "header",
       "content": "Item 5"
@@ -947,8 +961,7 @@
     {
       "type": "text",
       "id": "item_5_text",
-      "label": "Item 5 text",
-      "default": "Secure checkout"
+      "label": "Item 5 text"
     },
     {
       "type": "image_picker",
@@ -960,7 +973,6 @@
       "id": "item_5_link",
       "label": "Item 5 link"
     },
-
     {
       "type": "header",
       "content": "Item 6"
@@ -974,8 +986,7 @@
     {
       "type": "text",
       "id": "item_6_text",
-      "label": "Item 6 text",
-      "default": "Fast fulfillment"
+      "label": "Item 6 text"
     },
     {
       "type": "image_picker",
@@ -987,7 +998,6 @@
       "id": "item_6_link",
       "label": "Item 6 link"
     },
-
     {
       "type": "header",
       "content": "Item 7"
@@ -1001,8 +1011,7 @@
     {
       "type": "text",
       "id": "item_7_text",
-      "label": "Item 7 text",
-      "default": "New arrivals weekly"
+      "label": "Item 7 text"
     },
     {
       "type": "image_picker",
@@ -1014,7 +1023,6 @@
       "id": "item_7_link",
       "label": "Item 7 link"
     },
-
     {
       "type": "header",
       "content": "Item 8"
@@ -1028,8 +1036,7 @@
     {
       "type": "text",
       "id": "item_8_text",
-      "label": "Item 8 text",
-      "default": "Built for everyday use"
+      "label": "Item 8 text"
     },
     {
       "type": "image_picker",
@@ -1041,7 +1048,6 @@
       "id": "item_8_link",
       "label": "Item 8 link"
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -1284,13 +1290,7 @@
         "item_background_color": "#111111",
         "text_color": "#FFFFFF",
         "link_color": "#FFFFFF",
-        "border_radius": 0,
-        "item_1_text": "Free shipping over $75",
-        "item_2_text": "New arrivals just dropped",
-        "item_3_text": "30-day returns",
-        "item_4_text": "Limited-time offers",
-        "item_5_text": "Secure checkout",
-        "item_6_text": "Fast fulfillment"
+        "border_radius": 0
       }
     },
     {
@@ -1307,13 +1307,7 @@
         "logo_height": 42,
         "logo_item_width": 220,
         "logo_grayscale": true,
-        "logo_opacity": 75,
-        "item_1_text": "",
-        "item_2_text": "",
-        "item_3_text": "",
-        "item_4_text": "",
-        "item_5_text": "",
-        "item_6_text": ""
+        "logo_opacity": 75
       }
     },
     {
@@ -1335,13 +1329,7 @@
         "link_color": "#111111",
         "border_color": "#E5E5E5",
         "border_width": 1,
-        "border_radius": 24,
-        "item_1_text": "Trusted by real customers",
-        "item_2_text": "Premium product experience",
-        "item_3_text": "Secure checkout",
-        "item_4_text": "Responsive customer support",
-        "item_5_text": "Fast, reliable fulfillment",
-        "item_6_text": "Built for long-term value"
+        "border_radius": 24
       }
     }
   ]

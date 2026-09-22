@@ -1,6 +1,7 @@
 {%- liquid
   assign block_id = 'content-stats-counter-' | append: block.id
 
+  assign populated = false
   assign alignment = block.settings.alignment | default: 'center'
   assign width = block.settings.width | default: 'auto'
   assign layout_style = block.settings.layout_style | default: 'cards'
@@ -14,8 +15,76 @@
   assign show_mobile = block.settings.show_mobile
 -%}
 
+{% capture rendered_stats %}
+  <div class="content-stats-counter__grid">
+    {%- for index in (1..8) -%}
+      {%- if index <= stat_count -%}
+        {%- liquid
+          assign icon_key = 'stat_' | append: index | append: '_icon'
+          assign prefix_key = 'stat_' | append: index | append: '_prefix'
+          assign number_key = 'stat_' | append: index | append: '_number'
+          assign suffix_key = 'stat_' | append: index | append: '_suffix'
+          assign heading_key = 'stat_' | append: index | append: '_heading'
+          assign description_key = 'stat_' | append: index | append: '_description'
+
+          assign stat_icon = block.settings[icon_key]
+          assign stat_prefix = block.settings[prefix_key]
+          assign stat_number = block.settings[number_key]
+          assign stat_suffix = block.settings[suffix_key]
+          assign stat_heading = block.settings[heading_key]
+          assign stat_description = block.settings[description_key]
+        -%}
+
+        {% if stat_number != blank or stat_heading != blank or stat_description != blank %}
+        {% assign populated = true %}
+        <article class="content-stats-counter__item">
+          {% if stat_icon != blank %}
+            <div class="content-stats-counter__icon" aria-hidden="true">
+              {{ stat_icon | escape }}
+            </div>
+          {% endif %}
+
+          {% if stat_number != blank %}
+            <div class="content-stats-counter__value" data-q-counter data-q-counter-text="{{ stat_number | escape }}">
+              <span class="visually-hidden">{{ stat_prefix | append: stat_number | append: stat_suffix | escape }}</span>
+              {% if stat_prefix != blank %}
+                <span class="content-stats-counter__prefix" aria-hidden="true">{{ stat_prefix | escape }}</span>
+              {% endif %}
+
+              <span
+                class="content-stats-counter__number"
+                data-q-counter-display aria-hidden="true"
+              >
+                {{ stat_number | escape }}
+              </span>
+
+              {% if stat_suffix != blank %}
+                <span class="content-stats-counter__suffix" aria-hidden="true">{{ stat_suffix | escape }}</span>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          {% if stat_heading != blank %}
+            <h3 class="content-stats-counter__heading">
+              {{ stat_heading | escape }}
+            </h3>
+          {% endif %}
+
+          {% if stat_description != blank %}
+            <div class="content-stats-counter__description">
+              {{ stat_description }}
+            </div>
+          {% endif %}
+        </article>
+        {% endif %}
+      {%- endif -%}
+    {%- endfor -%}
+  </div>
+
+{% endcapture %}
 <div
   id="{{ block_id }}"
+  {% if populated == false and request.design_mode == false %}hidden{% endif %}
   class="
     content-stats-counter
     content-stats-counter--{{ layout_style }}
@@ -24,10 +93,10 @@
     content-stats-counter--desktop-{{ desktop_columns }}
     content-stats-counter--mobile-{{ mobile_columns }}
     content-stats-counter--counter-{{ counter_animation }}
-    {% unless show_desktop %} content-stats-counter--hide-desktop{% endunless %}
-    {% unless show_tablet %} content-stats-counter--hide-tablet{% endunless %}
-    {% unless show_mobile %} content-stats-counter--hide-mobile{% endunless %}
-    {% if block.settings.animation != 'none' %} content-stats-counter--animate content-stats-counter--animate-{{ block.settings.animation }}{% endif %}
+    {% unless show_desktop or request.design_mode %} content-stats-counter--hide-desktop{% endunless %}
+    {% unless show_tablet or request.design_mode %} content-stats-counter--hide-tablet{% endunless %}
+    {% unless show_mobile or request.design_mode %} content-stats-counter--hide-mobile{% endunless %}
+    {% if block.settings.animation != 'none' and request.design_mode == false %} content-stats-counter--animate content-stats-counter--animate-{{ block.settings.animation }}{% endif %}
   "
   style="
     --content-stats-counter-margin-top: {{ block.settings.margin_top }}px;
@@ -51,7 +120,7 @@
     --content-stats-counter-icon-size: {{ block.settings.icon_size }}px;
     --content-stats-counter-number-size: {{ block.settings.number_size }}px;
   "
-  {{ block.shopify_attributes }}
+  data-q-stats-strip data-q-counters="{% if counter_animation == 'count-up' %}true{% else %}false{% endif %}" data-editor="{{ request.design_mode }}"
 >
   <style>
     #{{ block_id }} {
@@ -60,30 +129,30 @@
       margin-bottom: var(--content-stats-counter-margin-bottom);
       padding-top: var(--content-stats-counter-padding-top);
       padding-bottom: var(--content-stats-counter-padding-bottom);
-      padding-left: var(--content-stats-counter-padding-left);
-      padding-right: var(--content-stats-counter-padding-right);
+      padding-left: min(var(--content-stats-counter-padding-left), 8%);
+      padding-right: min(var(--content-stats-counter-padding-right), 8%);
       background: var(--content-stats-counter-background-color);
       color: var(--content-stats-counter-text-color);
     }
 
     #{{ block_id }}.content-stats-counter--width-auto {
-      max-width: none;
+      max-width: 100%;
     }
 
     #{{ block_id }}.content-stats-counter--width-small {
-      max-width: 720px;
+      max-width: min(100%, 720px);
     }
 
     #{{ block_id }}.content-stats-counter--width-medium {
-      max-width: 960px;
+      max-width: min(100%, 960px);
     }
 
     #{{ block_id }}.content-stats-counter--width-large {
-      max-width: 1200px;
+      max-width: min(100%, 1200px);
     }
 
     #{{ block_id }}.content-stats-counter--width-full {
-      max-width: none;
+      max-width: 100%;
     }
 
     #{{ block_id }}.content-stats-counter--align-left {
@@ -135,7 +204,7 @@
       background: var(--content-stats-counter-card-background-color);
       border: var(--content-stats-counter-border-width) solid var(--content-stats-counter-border-color);
       border-radius: var(--content-stats-counter-border-radius);
-      padding: var(--content-stats-counter-card-padding);
+      padding: min(var(--content-stats-counter-card-padding), 8%);
     }
 
     #{{ block_id }}.content-stats-counter--minimal .content-stats-counter__item {
@@ -217,7 +286,7 @@
     }
 
     #{{ block_id }}.content-stats-counter--animate {
-      opacity: 0;
+      opacity: 1;
       animation-duration: 700ms;
       animation-fill-mode: forwards;
       animation-timing-function: ease;
@@ -351,156 +420,21 @@
         transform: none;
       }
     }
+      #{{ block_id }} { min-width: 0; overflow-wrap: anywhere; container-type: inline-size; }
+    #{{ block_id }}, #{{ block_id }} * { box-sizing: border-box; }
+    #{{ block_id }}[hidden] { display: none !important; }
+    #{{ block_id }} a { color: var(--content-stats-counter-link-color); }
+    #{{ block_id }} :focus-visible { outline: 2px solid var(--content-stats-counter-link-color); outline-offset: 2px; }
+    #{{ block_id }} .content-stats-counter__value { flex-wrap: wrap; }
+    #{{ block_id }} .content-stats-counter__number { min-width: 0; max-width: 100%; }
+    @container (max-width: 749px) {
+      #{{ block_id }} .content-stats-counter__grid { grid-template-columns: repeat({{ mobile_columns }}, minmax(0, 1fr)); }
+      #{{ block_id }} .content-stats-counter__number, #{{ block_id }} .content-stats-counter__prefix, #{{ block_id }} .content-stats-counter__suffix { font-size: min(var(--content-stats-counter-number-size), 48px); }
+    }
   </style>
 
-  <div class="content-stats-counter__grid">
-    {%- for index in (1..8) -%}
-      {%- if index <= stat_count -%}
-        {%- liquid
-          assign icon_key = 'stat_' | append: index | append: '_icon'
-          assign prefix_key = 'stat_' | append: index | append: '_prefix'
-          assign number_key = 'stat_' | append: index | append: '_number'
-          assign suffix_key = 'stat_' | append: index | append: '_suffix'
-          assign heading_key = 'stat_' | append: index | append: '_heading'
-          assign description_key = 'stat_' | append: index | append: '_description'
-
-          assign stat_icon = block.settings[icon_key]
-          assign stat_prefix = block.settings[prefix_key]
-          assign stat_number = block.settings[number_key]
-          assign stat_suffix = block.settings[suffix_key]
-          assign stat_heading = block.settings[heading_key]
-          assign stat_description = block.settings[description_key]
-        -%}
-
-        <article class="content-stats-counter__item">
-          {% if stat_icon != blank %}
-            <div class="content-stats-counter__icon" aria-hidden="true">
-              {{ stat_icon }}
-            </div>
-          {% endif %}
-
-          {% if stat_number != blank %}
-            <div class="content-stats-counter__value" aria-label="{{ stat_prefix | append: stat_number | append: stat_suffix | escape }}">
-              {% if stat_prefix != blank %}
-                <span class="content-stats-counter__prefix">{{ stat_prefix | escape }}</span>
-              {% endif %}
-
-              <span
-                class="content-stats-counter__number"
-                data-content-stats-number
-                data-content-stats-target="{{ stat_number | remove: ',' | escape }}"
-              >
-                {{ stat_number | escape }}
-              </span>
-
-              {% if stat_suffix != blank %}
-                <span class="content-stats-counter__suffix">{{ stat_suffix | escape }}</span>
-              {% endif %}
-            </div>
-          {% endif %}
-
-          {% if stat_heading != blank %}
-            <h3 class="content-stats-counter__heading">
-              {{ stat_heading | escape }}
-            </h3>
-          {% endif %}
-
-          {% if stat_description != blank %}
-            <div class="content-stats-counter__description">
-              {{ stat_description }}
-            </div>
-          {% endif %}
-        </article>
-      {%- endif -%}
-    {%- endfor -%}
-  </div>
-
-  {% if counter_animation == 'count-up' %}
-    <script>
-      (() => {
-        const root = document.getElementById({{ block_id | json }});
-
-        if (!root || root.dataset.contentStatsCounterReady === 'true') return;
-
-        root.dataset.contentStatsCounterReady = 'true';
-
-        const numbers = root.querySelectorAll('[data-content-stats-number]');
-
-        if (!numbers.length) return;
-
-        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-        const formatNumber = (value, decimals) => {
-          return Number(value).toLocaleString(undefined, {
-            minimumFractionDigits: decimals,
-            maximumFractionDigits: decimals
-          });
-        };
-
-        const getDecimals = (value) => {
-          const valueString = String(value);
-          if (!valueString.includes('.')) return 0;
-          return valueString.split('.')[1].length;
-        };
-
-        const animateNumber = (element) => {
-          const rawTarget = element.dataset.contentStatsTarget || '0';
-          const cleanedTarget = rawTarget.replace(/[^0-9.-]/g, '');
-          const target = parseFloat(cleanedTarget);
-
-          if (Number.isNaN(target)) return;
-
-          const decimals = getDecimals(cleanedTarget);
-          const duration = 1200;
-          const startTime = performance.now();
-
-          const tick = (now) => {
-            const progress = Math.min((now - startTime) / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3);
-            const current = target * eased;
-
-            element.textContent = formatNumber(current, decimals);
-
-            if (progress < 1) {
-              requestAnimationFrame(tick);
-            } else {
-              element.textContent = formatNumber(target, decimals);
-            }
-          };
-
-          element.textContent = formatNumber(0, decimals);
-          requestAnimationFrame(tick);
-        };
-
-        const run = () => {
-          numbers.forEach((element) => {
-            if (element.dataset.contentStatsAnimated === 'true') return;
-            element.dataset.contentStatsAnimated = 'true';
-
-            if (prefersReducedMotion) return;
-
-            animateNumber(element);
-          });
-        };
-
-        if ('IntersectionObserver' in window) {
-          const observer = new IntersectionObserver((entries) => {
-            entries.forEach((entry) => {
-              if (!entry.isIntersecting) return;
-              run();
-              observer.disconnect();
-            });
-          }, {
-            threshold: 0.25
-          });
-
-          observer.observe(root);
-        } else {
-          run();
-        }
-      })();
-    </script>
-  {% endif %}
+  {% if populated %}{{ rendered_stats }}{% elsif request.design_mode %}<p role="note">Add your statistics and descriptions.</p>{% endif %}
+  {% if populated and counter_animation == 'count-up' %}<script src="{{ 'interactive-content-stats.js' | asset_url }}" defer="defer"></script>{% endif %}
 </div>
 
 {% schema %}
@@ -684,7 +618,6 @@
       "unit": "px",
       "default": 32
     },
-
     {
       "type": "header",
       "content": "Stat 1"
@@ -692,8 +625,7 @@
     {
       "type": "text",
       "id": "stat_1_icon",
-      "label": "Icon",
-      "default": "★"
+      "label": "Icon"
     },
     {
       "type": "text",
@@ -703,28 +635,23 @@
     {
       "type": "text",
       "id": "stat_1_number",
-      "label": "Number",
-      "default": "10"
+      "label": "Number"
     },
     {
       "type": "text",
       "id": "stat_1_suffix",
-      "label": "Suffix",
-      "default": "+"
+      "label": "Suffix"
     },
     {
       "type": "text",
       "id": "stat_1_heading",
-      "label": "Heading",
-      "default": "Years in business"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "stat_1_description",
-      "label": "Description",
-      "default": "<p>Highlight experience, momentum, or credibility with a clear statistic.</p>"
+      "label": "Description"
     },
-
     {
       "type": "header",
       "content": "Stat 2"
@@ -732,8 +659,7 @@
     {
       "type": "text",
       "id": "stat_2_icon",
-      "label": "Icon",
-      "default": "✓"
+      "label": "Icon"
     },
     {
       "type": "text",
@@ -743,28 +669,23 @@
     {
       "type": "text",
       "id": "stat_2_number",
-      "label": "Number",
-      "default": "50000"
+      "label": "Number"
     },
     {
       "type": "text",
       "id": "stat_2_suffix",
-      "label": "Suffix",
-      "default": "+"
+      "label": "Suffix"
     },
     {
       "type": "text",
       "id": "stat_2_heading",
-      "label": "Heading",
-      "default": "Customers served"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "stat_2_description",
-      "label": "Description",
-      "default": "<p>Use larger numbers to quickly communicate trust and social proof.</p>"
+      "label": "Description"
     },
-
     {
       "type": "header",
       "content": "Stat 3"
@@ -772,8 +693,7 @@
     {
       "type": "text",
       "id": "stat_3_icon",
-      "label": "Icon",
-      "default": "◆"
+      "label": "Icon"
     },
     {
       "type": "text",
@@ -783,8 +703,7 @@
     {
       "type": "text",
       "id": "stat_3_number",
-      "label": "Number",
-      "default": "4.9"
+      "label": "Number"
     },
     {
       "type": "text",
@@ -794,16 +713,13 @@
     {
       "type": "text",
       "id": "stat_3_heading",
-      "label": "Heading",
-      "default": "Average rating"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "stat_3_description",
-      "label": "Description",
-      "default": "<p>Showcase ratings, reviews, satisfaction scores, or performance metrics.</p>"
+      "label": "Description"
     },
-
     {
       "type": "header",
       "content": "Stat 4"
@@ -811,8 +727,7 @@
     {
       "type": "text",
       "id": "stat_4_icon",
-      "label": "Icon",
-      "default": "✦"
+      "label": "Icon"
     },
     {
       "type": "text",
@@ -822,28 +737,23 @@
     {
       "type": "text",
       "id": "stat_4_number",
-      "label": "Number",
-      "default": "1200"
+      "label": "Number"
     },
     {
       "type": "text",
       "id": "stat_4_suffix",
-      "label": "Suffix",
-      "default": "+"
+      "label": "Suffix"
     },
     {
       "type": "text",
       "id": "stat_4_heading",
-      "label": "Heading",
-      "default": "Products sold"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "stat_4_description",
-      "label": "Description",
-      "default": "<p>Feature sales volume, completed projects, delivered orders, or milestones.</p>"
+      "label": "Description"
     },
-
     {
       "type": "header",
       "content": "Stat 5"
@@ -878,7 +788,6 @@
       "id": "stat_5_description",
       "label": "Description"
     },
-
     {
       "type": "header",
       "content": "Stat 6"
@@ -913,7 +822,6 @@
       "id": "stat_6_description",
       "label": "Description"
     },
-
     {
       "type": "header",
       "content": "Stat 7"
@@ -948,7 +856,6 @@
       "id": "stat_7_description",
       "label": "Description"
     },
-
     {
       "type": "header",
       "content": "Stat 8"
@@ -983,7 +890,6 @@
       "id": "stat_8_description",
       "label": "Description"
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1036,7 +942,6 @@
       "label": "Border color",
       "default": "#e5e5e5"
     },
-
     {
       "type": "header",
       "content": "Borders"
@@ -1061,7 +966,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1126,7 +1030,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1149,7 +1052,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1206,25 +1108,6 @@
         "card_padding": 28,
         "number_size": 52,
         "icon_size": 32,
-        "stat_1_icon": "★",
-        "stat_1_number": "10",
-        "stat_1_suffix": "+",
-        "stat_1_heading": "Years in business",
-        "stat_1_description": "<p>Highlight experience, momentum, or credibility with a clear statistic.</p>",
-        "stat_2_icon": "✓",
-        "stat_2_number": "50000",
-        "stat_2_suffix": "+",
-        "stat_2_heading": "Customers served",
-        "stat_2_description": "<p>Use larger numbers to quickly communicate trust and social proof.</p>",
-        "stat_3_icon": "◆",
-        "stat_3_number": "4.9",
-        "stat_3_heading": "Average rating",
-        "stat_3_description": "<p>Showcase ratings, reviews, satisfaction scores, or performance metrics.</p>",
-        "stat_4_icon": "✦",
-        "stat_4_number": "1200",
-        "stat_4_suffix": "+",
-        "stat_4_heading": "Products sold",
-        "stat_4_description": "<p>Feature sales volume, completed projects, delivered orders, or milestones.</p>",
         "number_color": "#111111",
         "icon_color": "#111111",
         "heading_color": "#111111",
