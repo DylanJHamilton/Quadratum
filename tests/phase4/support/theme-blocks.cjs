@@ -18,6 +18,7 @@ async function html(name, settings = {}, id = 'one', design = false, data = {}) 
   const { liquid, schema } = unpack(name);
   const block = { id, type: name, settings: { ...f.defaults(schema.settings), ...settings }, shopify_attributes: 'data-editor-block="' + id + '"' };
   const output = await f.engine.parseAndRender(f.platform ? f.platform(liquid) : liquid, { block }, { globals: { request: { design_mode: design }, shop: { name: 'Fixture store' }, product: f.product, ...data, routes: { root_url: '/fr/', cart_url: '/fr/cart', cart_add_url: '/fr/cart/add', all_products_collection_url: '/fr/collections/all' } } });
+  if (schema.tag === null) return output;
   return '<div class="shopify-block" id="shopify-block-' + id + '" data-editor-block="' + id + '">' + output + '</div>';
 }
 async function inspect(name, settings, callback, design = false) {

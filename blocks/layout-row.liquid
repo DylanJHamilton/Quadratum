@@ -1,17 +1,23 @@
 {%- liquid
   assign columns = block.settings.columns | default: '2'
   assign row_tag = block.settings.row_tag | default: 'div'
+  assign allowed_tags = 'div,section,article,aside' | split: ','
+  unless allowed_tags contains row_tag
+    assign row_tag = 'div'
+  endunless
   assign row_label = block.settings.accessibility_label
   assign mobile_behavior = block.settings.mobile_behavior | default: 'inherit'
+  assign resolved_mobile_behavior = mobile_behavior
+  if mobile_behavior == 'inherit'
+    assign resolved_mobile_behavior = section.settings.mobile_behavior | default: 'stack'
+  endif
+  assign scrollable_row = false
+  if resolved_mobile_behavior == 'scroll'
+    assign scrollable_row = true
+  endif
   assign vertical_alignment = block.settings.vertical_alignment | default: 'inherit'
 
   assign inherit_section_spacing = block.settings.inherit_section_spacing | default: true, allow_false: true
-  assign scrollable_row = false
-  if mobile_behavior == 'scroll'
-    assign scrollable_row = true
-  elsif mobile_behavior == 'inherit' and section.settings.mobile_behavior == 'scroll'
-    assign scrollable_row = true
-  endif
 
   assign show_desktop = block.settings.show_desktop
   assign show_tablet = block.settings.show_tablet
@@ -20,21 +26,23 @@
 
 <{{ row_tag }}
   id="qtm-layout-row-{{ block.id }}"
+  data-qtm-layout-row
+  data-mobile-behavior="{{ resolved_mobile_behavior | escape }}"
   class="
     qtm-layout-row
     qtm-layout-row--columns-{{ columns }}
     qtm-layout-row--mobile-{{ mobile_behavior }}
     qtm-layout-row--align-{{ vertical_alignment }}
     {% unless request.design_mode %}
-    {% unless show_desktop %} qtm-layout-row--hide-desktop{% endunless %}
-    {% unless show_tablet %} qtm-layout-row--hide-tablet{% endunless %}
-    {% unless show_mobile %} qtm-layout-row--hide-mobile{% endunless %}
+    {% unless show_desktop or request.design_mode %} qtm-layout-row--hide-desktop{% endunless %}
+    {% unless show_tablet or request.design_mode %} qtm-layout-row--hide-tablet{% endunless %}
+    {% unless show_mobile or request.design_mode %} qtm-layout-row--hide-mobile{% endunless %}
     {% endunless %}
   "
   {% if scrollable_row %}
     tabindex="0" role="region" aria-label="{{ row_label | default: 'Scrollable content' | escape }}"
   {% elsif row_label != blank %}
-    aria-label="{{ row_label | escape }}"
+    {% if row_tag == 'div' %}role="region"{% endif %} aria-label="{{ row_label | escape }}"
   {% endif %}
   style="
     {% unless inherit_section_spacing %}
@@ -60,7 +68,7 @@
   {{ block.shopify_attributes }}
 >
   <style>
-    #qtm-layout-row-{{ block.id }} {
+    #qtm-layout-row-{{ block.id }}[data-qtm-layout-row] {
       margin-top: var(--qtm-layout-row-margin-top);
       margin-bottom: var(--qtm-layout-row-margin-bottom);
       padding-top: var(--qtm-layout-row-padding-top);
@@ -72,87 +80,89 @@
       border-radius: var(--qtm-layout-row-radius, 0);
       box-shadow: var(--qtm-layout-row-shadow, none);
       min-width: 0;
+      box-sizing: border-box;
+      overflow-wrap: anywhere;
       display: grid;
       gap: var(--qtm-layout-row-column-gap, var(--qtm-block-section-column-gap, 24px));
       row-gap: var(--qtm-layout-row-row-gap, var(--qtm-block-section-row-gap, 32px));
     }
 
-    #qtm-layout-row-{{ block.id }}.qtm-layout-row--columns-1 {
+    #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--columns-1 {
       grid-template-columns: minmax(0, 1fr);
     }
 
-    #qtm-layout-row-{{ block.id }}.qtm-layout-row--columns-2 {
+    #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--columns-2 {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    #qtm-layout-row-{{ block.id }}.qtm-layout-row--columns-3 {
+    #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--columns-3 {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
-    #qtm-layout-row-{{ block.id }}.qtm-layout-row--columns-4 {
+    #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--columns-4 {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
-    #qtm-layout-row-{{ block.id }}.qtm-layout-row--columns-5 {
+    #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--columns-5 {
       grid-template-columns: repeat(5, minmax(0, 1fr));
     }
 
-    #qtm-layout-row-{{ block.id }}.qtm-layout-row--columns-6 {
+    #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--columns-6 {
       grid-template-columns: repeat(6, minmax(0, 1fr));
     }
 
-    #qtm-layout-row-{{ block.id }}.qtm-layout-row--align-inherit {
+    #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--align-inherit {
       align-items: var(--qtm-block-section-row-align, stretch);
     }
 
-    #qtm-layout-row-{{ block.id }}.qtm-layout-row--align-top {
+    #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--align-top {
       align-items: start;
     }
 
-    #qtm-layout-row-{{ block.id }}.qtm-layout-row--align-center {
+    #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--align-center {
       align-items: center;
     }
 
-    #qtm-layout-row-{{ block.id }}.qtm-layout-row--align-bottom {
+    #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--align-bottom {
       align-items: end;
     }
 
-    #qtm-layout-row-{{ block.id }}.qtm-layout-row--align-stretch {
+    #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--align-stretch {
       align-items: stretch;
     }
 
     @media screen and (min-width: 990px) {
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--hide-desktop {
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--hide-desktop {
         display: none !important;
       }
     }
 
     @media screen and (min-width: 750px) and (max-width: 989px) {
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--hide-tablet {
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--hide-tablet {
         display: none !important;
       }
 
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--columns-4,
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--columns-5,
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--columns-6 {
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--columns-4,
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--columns-5,
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--columns-6 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
     @media screen and (max-width: 749px) {
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--hide-mobile {
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--hide-mobile {
         display: none !important;
       }
 
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--mobile-inherit {
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row].qtm-layout-row--mobile-inherit {
         grid-template-columns: minmax(0, 1fr);
       }
 
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--mobile-stack {
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row][data-mobile-behavior="stack"] {
         grid-template-columns: minmax(0, 1fr);
       }
 
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--mobile-scroll {
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row][data-mobile-behavior="scroll"] {
         display: grid;
         grid-auto-flow: column;
         grid-auto-columns: minmax(78%, 1fr);
@@ -163,24 +173,31 @@
         padding-bottom: max(var(--qtm-layout-row-padding-bottom), 8px);
       }
 
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--mobile-scroll > .qtm-layout-column {
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row][data-mobile-behavior="scroll"] > .qtm-layout-column {
         scroll-snap-align: start;
       }
 
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--mobile-keep-grid.qtm-layout-row--columns-1 {
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row][data-mobile-behavior="keep-grid"].qtm-layout-row--columns-1 {
         grid-template-columns: minmax(0, 1fr);
       }
 
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--mobile-keep-grid.qtm-layout-row--columns-2 {
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row][data-mobile-behavior="keep-grid"].qtm-layout-row--columns-2 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--mobile-keep-grid.qtm-layout-row--columns-3,
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--mobile-keep-grid.qtm-layout-row--columns-4,
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--mobile-keep-grid.qtm-layout-row--columns-5,
-      #qtm-layout-row-{{ block.id }}.qtm-layout-row--mobile-keep-grid.qtm-layout-row--columns-6 {
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row][data-mobile-behavior="keep-grid"].qtm-layout-row--columns-3,
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row][data-mobile-behavior="keep-grid"].qtm-layout-row--columns-4,
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row][data-mobile-behavior="keep-grid"].qtm-layout-row--columns-5,
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row][data-mobile-behavior="keep-grid"].qtm-layout-row--columns-6 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
+    }
+
+    #qtm-layout-row-{{ block.id }}[data-qtm-layout-row]:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    #qtm-layout-row-{{ block.id }}[data-qtm-layout-row] > * { min-width: 0; max-width: 100%; }
+    @media (max-width: 749px) {
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row][data-mobile-behavior="stack"], #qtm-layout-row-{{ block.id }}[data-qtm-layout-row][data-mobile-behavior="keep-grid"] { grid-auto-flow: row; grid-auto-columns: auto; overflow-x: visible; scroll-snap-type: none; }
+      #qtm-layout-row-{{ block.id }}[data-qtm-layout-row][data-mobile-behavior="scroll"] > * { scroll-snap-align: start; }
     }
   </style>
 
@@ -313,7 +330,12 @@
         }
       ]
     },
-    { "type": "checkbox", "id": "inherit_section_spacing", "label": "Use section spacing", "default": true },
+    {
+      "type": "checkbox",
+      "id": "inherit_section_spacing",
+      "label": "Use section spacing",
+      "default": true
+    },
     {
       "type": "range",
       "id": "column_gap",
@@ -478,7 +500,8 @@
         "vertical_alignment": "inherit",
         "mobile_behavior": "inherit",
         "column_gap": 24,
-        "row_gap": 32
+        "row_gap": 32,
+        "inherit_section_spacing": false
       },
       "blocks": [
         {
@@ -493,7 +516,8 @@
         "vertical_alignment": "center",
         "mobile_behavior": "stack",
         "column_gap": 32,
-        "row_gap": 32
+        "row_gap": 32,
+        "inherit_section_spacing": false
       },
       "blocks": [
         {
@@ -511,7 +535,8 @@
         "vertical_alignment": "stretch",
         "mobile_behavior": "stack",
         "column_gap": 24,
-        "row_gap": 24
+        "row_gap": 24,
+        "inherit_section_spacing": false
       },
       "blocks": [
         {
@@ -525,6 +550,7 @@
         }
       ]
     }
-  ]
+  ],
+  "tag": null
 }
 {% endschema %}
