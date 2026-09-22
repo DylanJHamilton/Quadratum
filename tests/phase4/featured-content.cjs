@@ -1,9 +1,12 @@
+// Fix both parsing and formatting to the fixture's UTC calendar day.
+const nativeTimezone=process.env.TZ;process.env.TZ='UTC';
 const assert=require('node:assert/strict'),f=require('./support/commerce.cjs');
 const NativeDate=Date;global.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:['2026-09-20T15:00:00Z']))}static now(){return new NativeDate('2026-09-20T15:00:00Z').valueOf()}};
 const sale='featured-content-sale-highlight',blog='featured-content-blog-spotlight';
 const deal=(title,settings={})=>({type:'deal',settings:{title,...settings}});
 const article=(id,tags=[])=>({id,handle:'post-'+id,title:'Story <safe> '+id,url:'/fr/blogs/news/post-'+id,tags,content:'<p>'+Array.from({length:40},(_,i)=>'word'+i).join(' ')+'</p>',excerpt_or_content:'<p>'+Array.from({length:40},(_,i)=>'word'+i).join(' ')+'</p>',published_at:'2026-09-01',author:'Author <safe>',image:f.photo()});
 (async()=>{
+ assert.equal(await f.engine.parseAndRender("{{ 'now' | date: '%Y%m%d' }}"),'20260920','fixture uses the intended UTC calendar day');
  const deals=[deal('Expired',{end_date:'2026-09-19'}),deal('Future',{start_date:'2026-09-21'}),deal('Ends today',{end_date:'2026-09-20'}),deal('Starts today',{start_date:'2026-09-20'}),deal('Invalid date',{end_date:'bad-date'}),deal('Overflow')];
  let d=f.dom(await f.render(sale,{blocks:deals,settings:{mode:'cards',max_cards:3}})),doc=d.window.document;
  assert.deepEqual([...doc.querySelectorAll('.q-promo__title')].map(x=>x.textContent),['Ends today','Starts today','Invalid date']);assert.equal(doc.querySelectorAll('.q-promo__expiry').length,1,'end day remains visible after midnight; malformed date not shown');assert.match(doc.querySelector('.q-promo__expiry').textContent,/September/);d.window.close();
@@ -18,4 +21,4 @@ const article=(id,tags=[])=>({id,handle:'post-'+id,title:'Story <safe> '+id,url:
  d=f.dom(await f.render(blog,{blocks,settings:{show_header:false,show_image:false,show_author:false,show_date:false,show_tags:false,show_read_time:false,show_excerpt:false,cta_label_featured:'',cta_label_supporting:''}}));doc=d.window.document;assert.equal(doc.querySelector('.q-bhs__header,.q-blogcard__media,.q-blogcard__meta,.q-blogcard__excerpt,.q-blogcard__cta'),null);d.window.close();
  for(const name of [sale,blog]){const schema=f.unpack(name).schema;const validBlocks=name===sale?[hostile]:blocks;for(const setting of schema.settings.filter(s=>s.type==='select'))for(const option of setting.options)assert.doesNotMatch(await f.render(name,{blocks:validBlocks,settings:{[setting.id]:option.value}}),/Liquid error|NaN/);for(const preset of schema.presets)assert.doesNotMatch(await f.render(name,{blocks:preset.blocks,settings:preset.settings}),/Liquid error|NaN/);const html=await f.render(name,{id:'a',blocks:validBlocks})+await f.render(name,{id:'b',blocks:validBlocks});d=f.dom(html);const ids=[...d.window.document.querySelectorAll('[id]')].map(e=>e.id);assert.equal(new Set(ids).size,ids.length);d.window.close();}
  console.log('PASS Featured Deals/Blog: actual presets/select settings, inclusive/invalid/scheduled dates and editor empty state; escaped text, existing subscription/card destinations, native selected article objects, filtered limits, meaningful excerpts, all layouts, single article, false toggles and independent instances. Shopify date caching/browser acceptance queued.');
-})().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>{global.Date=NativeDate});
+})().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>{global.Date=NativeDate;if(nativeTimezone===undefined)delete process.env.TZ;else process.env.TZ=nativeTimezone});
