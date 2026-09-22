@@ -166,6 +166,9 @@
       on(header, DESKTOP_MQ, 'change', onMQChange);
     } else if (typeof DESKTOP_MQ.addListener === 'function') {
       DESKTOP_MQ.addListener(onMQChange);
+      on(header, header, 'qtm:header-destroy', function() {
+        if (typeof DESKTOP_MQ.removeListener === 'function') DESKTOP_MQ.removeListener(onMQChange);
+      });
     }
   }
 
@@ -181,13 +184,14 @@
     var lastFocused = null;
     var closeTimer = null;
 
-    function setOpenButtons(expanded) {
-      on(header, header, 'qtm:header-destroy', function() { closeDrawer(); window.clearTimeout(closeTimer); drawer.hidden = true; if (overlay) overlay.hidden = true; });
+    on(header, header, 'qtm:header-destroy', function() { closeDrawer(); window.clearTimeout(closeTimer); drawer.hidden = true; if (overlay) overlay.hidden = true; });
     on(header, document, 'qtm:header-mobile-open', function(event) { if (event.detail !== header) closeDrawer(); });
     on(header, document, 'focusin', function(event) {
       if (isOpen && header.isConnected && !drawer.contains(event.target)) (getFocusable(drawer)[0] || drawer).focus();
     });
-    openButtons.forEach(function (button) {
+
+    function setOpenButtons(expanded) {
+      openButtons.forEach(function (button) {
         button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
       });
     }
@@ -330,9 +334,18 @@
     var sectionWrap = header.closest('[id^="shopify-section-"]') || header;
     var lastY = window.scrollY;
     var ticking = false;
+    var frame = null;
     var threshold = 80;
 
+    on(header, header, 'qtm:header-destroy', function() {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      frame = null;
+      ticking = false;
+      sectionWrap.classList.remove('qh2b-section-hidden');
+    });
+
     function update() {
+      frame = null;
       var currentY = window.scrollY;
 
       if (currentY > lastY && currentY > threshold) {
@@ -348,7 +361,7 @@
     on(header, window, 'scroll', function () {
       if (!ticking) {
         ticking = true;
-        window.requestAnimationFrame(update);
+        frame = window.requestAnimationFrame(update);
       }
     }, { passive: true });
   }

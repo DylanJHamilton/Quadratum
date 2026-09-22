@@ -44,7 +44,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 ## Deliberate non-changes and decisions
 
 - No retained file deleted. `sections/header-basic.liquid` is a zero-byte file with no active consumer found in the layout/config/template trace: **DELETION CANDIDATE — OWNER REVIEW**, retained.
-- Legacy `header-two-*` snippet chains and standalone `q-nav` remain for Batch 9 consumer closure. No automatic orphan deletion.
+- Legacy `header-two-*` snippet chains and standalone `q-nav` were deferred to Batch 9; checkpoints A/B below now close all eight as retained owner-review deletion candidates. No automatic orphan deletion.
 - Header/footer settings counts remain high. Removing controls or changing layout families solely to reduce lint counts would violate the feature-preservation brief.
 - Source breakpoint review and rendered fixtures are not screenshots. Components awaiting real responsive/merchant-state verification are marked REQUIRES LIVE VERIFICATION, not PASS/HARDENED.
 - The 605 historical Shopify-verification candidates remain separate. No candidate was promoted solely because it was unprovable offline.
@@ -1364,3 +1364,7 @@ Publication checkpoint: read-only GitHub verification still reports branch/PR he
 ## Batch 9 checkpoint A — header controls
 
 Owner authorized Phase 4 Batch 9 at verified remote `4af9dcb56c7791e198533303bcd452a564cc3a21`; PR #22 remains draft. Batch 8 is closed and is not repeated. Account/actions/cart/logo are proven dormant legacy Header Two dependencies, retained as owner-review deletion candidates. Actual Header Two V2 owns different markup/selectors and does not call them. Four native strict parses and existing active global-surface/preset regressions pass. No runtime changes or deletions. Detailed consumer, configuration, accessibility and preactivation liabilities: `validation/batch9-a-header-controls/`. Global NOT REVIEWED: 25 → 21. Remaining engineering proceeds only after this checkpoint is remotely verified.
+
+## Batch 9 checkpoint B — header navigation and deferred Batch 1 closure
+
+A published/verified at `6c640a26941fa295cac0f47c6d46b9883b11fb04` with PR open/draft/unmerged. The remaining legacy mega/mobile/search and q-nav snippets have no active consumers; all eight deferred dependencies are retained owner-review deletion candidates, with explicit source/preactivation liabilities in `validation/batch9-b-header-navigation/`. Actual Header Two inspection exposed repeated global listeners on drawer open/close (48 extra registrations over 12 cycles). A bounded controller repair registers once, disposes old-media-query listeners and cancels pending sticky frames on unload. Actual two-preset lifecycle regression fails before and passes after; existing global/header preset fixtures pass. No schema, merchant state or section/block change. Family 1 NOT REVIEWED is zero; global NOT REVIEWED is 17, all Family 9.
