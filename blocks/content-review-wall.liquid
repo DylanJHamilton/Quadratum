@@ -1,6 +1,7 @@
 {%- liquid
   assign block_id = 'content-review-wall-' | append: block.id
 
+  assign populated = false
   assign block_width = block.settings.block_width | default: 'auto'
   assign text_alignment = block.settings.text_alignment | default: 'left'
   assign layout_style = block.settings.layout_style | default: 'grid'
@@ -13,8 +14,93 @@
   assign show_on_mobile = block.settings.show_on_mobile
 -%}
 
+{% capture rendered_reviews %}
+
+
+  <div class="content-review-wall__items">
+    {%- for index in (1..12) -%}
+      {%- if index <= review_count -%}
+        {%- liquid
+          assign quote_key = 'review_' | append: index | append: '_quote'
+          assign name_key = 'review_' | append: index | append: '_name'
+          assign rating_key = 'review_' | append: index | append: '_rating'
+          assign source_key = 'review_' | append: index | append: '_source'
+          assign image_key = 'review_' | append: index | append: '_image'
+          assign image_alt_key = 'review_' | append: index | append: '_image_alt'
+          assign verified_key = 'review_' | append: index | append: '_verified_label'
+
+          assign quote = block.settings[quote_key]
+          assign name = block.settings[name_key]
+          assign rating = block.settings[rating_key] | default: 'none'
+          assign source = block.settings[source_key]
+          assign image = block.settings[image_key]
+          assign image_alt = block.settings[image_alt_key] | default: image.alt | default: name
+          assign verified_label = block.settings[verified_key]
+        -%}
+
+        {% if quote != blank or name != blank or source != blank or image != blank or verified_label != blank or rating != 'none' %}
+          {% assign populated = true %}
+          <article class="content-review-wall__item">
+            <div class="content-review-wall__card">
+              {% if image != blank or name != blank or source != blank or rating != 'none' %}<div class="content-review-wall__top">
+                {% if image != blank or name != blank or source != blank %}<div class="content-review-wall__author">
+                  {% if image != blank %}
+                    {{
+                      image
+                      | image_url: width: 220
+                      | image_tag:
+                        class: 'content-review-wall__image',
+                        loading: 'lazy',
+                        alt: image_alt
+                    }}
+                  {% endif %}
+
+                  {% if name != blank or source != blank %}<div class="content-review-wall__author-content">
+                    {% if name != blank %}
+                      <strong class="content-review-wall__name">{{ name | escape }}</strong>
+                    {% endif %}
+
+                    {% if source != blank %}
+                      <span class="content-review-wall__source">{{ source | escape }}</span>
+                    {% endif %}
+                  </div>{% endif %}
+                </div>{% endif %}
+
+                {% if rating != 'none' %}
+                  <div class="content-review-wall__rating" role="img" aria-label="{{ rating | escape }} out of 5 stars">
+                    <span aria-hidden="true">{%- case rating -%}
+                      {%- when '1' -%}★
+                      {%- when '2' -%}★★
+                      {%- when '3' -%}★★★
+                      {%- when '4' -%}★★★★
+                      {%- when '5' -%}★★★★★
+                    {%- endcase -%}</span>
+                  </div>
+                {% endif %}
+              </div>{% endif %}
+
+              {% if quote != blank %}
+                <blockquote class="content-review-wall__quote">
+                  “{{ quote | escape }}”
+                </blockquote>
+              {% endif %}
+
+              {% if verified_label != blank %}
+                <span class="content-review-wall__verified">
+                  <span aria-hidden="true">✓</span>
+                  <span>{{ verified_label | escape }}</span>
+                </span>
+              {% endif %}
+            </div>
+          </article>
+        {% endif %}
+      {%- endif -%}
+    {%- endfor -%}
+  </div>
+{% endcapture %}
 <div
   id="{{ block_id }}"
+  {% if populated == false and request.design_mode == false %}hidden{% endif %}
   class="
     content-review-wall
     content-review-wall--{{ layout_style }}
@@ -22,10 +108,10 @@
     content-review-wall--align-{{ text_alignment }}
     content-review-wall--desktop-{{ desktop_columns }}
     content-review-wall--mobile-{{ mobile_columns }}
-    {% unless show_on_desktop %} content-review-wall--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} content-review-wall--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} content-review-wall--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} content-review-wall--animate content-review-wall--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} content-review-wall--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} content-review-wall--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} content-review-wall--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} content-review-wall--animate content-review-wall--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --content-review-wall-margin-top: {{ block.settings.margin_top }}px;
@@ -46,36 +132,36 @@
     --content-review-wall-verified-text: {{ block.settings.verified_text_color }};
     --content-review-wall-image-size: {{ block.settings.image_size }}px;
   "
-  {{ block.shopify_attributes }}
+
 >
   <style>
     #{{ block_id }} {
       width: 100%;
       margin-top: var(--content-review-wall-margin-top);
       margin-bottom: var(--content-review-wall-margin-bottom);
-      padding: var(--content-review-wall-padding);
+      padding: min(var(--content-review-wall-padding), 8%);
       color: var(--content-review-wall-text-color);
       background: var(--content-review-wall-background-color);
     }
 
     #{{ block_id }}.content-review-wall--width-auto {
-      max-width: none;
+      max-width: 100%;
     }
 
     #{{ block_id }}.content-review-wall--width-small {
-      max-width: 720px;
+      max-width: min(100%, 720px);
     }
 
     #{{ block_id }}.content-review-wall--width-medium {
-      max-width: 960px;
+      max-width: min(100%, 960px);
     }
 
     #{{ block_id }}.content-review-wall--width-large {
-      max-width: 1200px;
+      max-width: min(100%, 1200px);
     }
 
     #{{ block_id }}.content-review-wall--width-full {
-      max-width: none;
+      max-width: 100%;
     }
 
     #{{ block_id }}.content-review-wall--align-left {
@@ -134,7 +220,7 @@
       background: var(--content-review-wall-card-background-color);
       border: var(--content-review-wall-border-width) solid var(--content-review-wall-border-color);
       border-radius: var(--content-review-wall-border-radius);
-      padding: var(--content-review-wall-card-padding);
+      padding: min(var(--content-review-wall-card-padding), 8%);
       overflow: hidden;
     }
 
@@ -218,7 +304,7 @@
     }
 
     #{{ block_id }} .content-review-wall__source {
-      color: var(--content-review-wall-text-color);
+      color: var(--content-review-wall-link-color);
       line-height: 1.3;
       opacity: 0.76;
     }
@@ -274,7 +360,7 @@
     }
 
     #{{ block_id }}.content-review-wall--animate {
-      opacity: 0;
+      opacity: 1;
       animation-duration: 700ms;
       animation-fill-mode: forwards;
       animation-timing-function: ease;
@@ -381,7 +467,7 @@
       }
 
       #{{ block_id }}.content-review-wall--masonry .content-review-wall__items {
-        columns: 2;
+        columns: {{ desktop_columns | at_most: 2 }};
       }
     }
 
@@ -424,87 +510,19 @@
         transform: none;
       }
     }
+      @container (max-width: 749px) {
+      #{{ block_id }}.content-review-wall .content-review-wall__items { grid-template-columns: repeat({{ mobile_columns }}, minmax(0, 1fr)); }
+      #{{ block_id }}.content-review-wall.content-review-wall--masonry .content-review-wall__items { columns: {{ mobile_columns }}; }
+    }
+    #{{ block_id }} { min-width: 0; overflow-wrap: anywhere; container-type: inline-size; }
+    #{{ block_id }}, #{{ block_id }} * { box-sizing: border-box; }
+    #{{ block_id }}[hidden], #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} .content-review-wall__author, #{{ block_id }} .content-review-wall__top { flex-wrap: wrap; }
+    #{{ block_id }} .content-review-wall__image { max-width: 100%; flex-shrink: 1; }
+    #{{ block_id }} .content-review-wall__image { aspect-ratio: 1; height: auto; }
+    #{{ block_id }} :focus-visible { outline: 2px solid var(--content-review-wall-link-color); outline-offset: -3px; }
   </style>
-
-  <div class="content-review-wall__items">
-    {%- for index in (1..12) -%}
-      {%- if index <= review_count -%}
-        {%- liquid
-          assign quote_key = 'review_' | append: index | append: '_quote'
-          assign name_key = 'review_' | append: index | append: '_name'
-          assign rating_key = 'review_' | append: index | append: '_rating'
-          assign source_key = 'review_' | append: index | append: '_source'
-          assign image_key = 'review_' | append: index | append: '_image'
-          assign image_alt_key = 'review_' | append: index | append: '_image_alt'
-          assign verified_key = 'review_' | append: index | append: '_verified_label'
-
-          assign quote = block.settings[quote_key]
-          assign name = block.settings[name_key]
-          assign rating = block.settings[rating_key]
-          assign source = block.settings[source_key]
-          assign image = block.settings[image_key]
-          assign image_alt = block.settings[image_alt_key]
-          assign verified_label = block.settings[verified_key]
-        -%}
-
-        {% if quote != blank or name != blank %}
-          <article class="content-review-wall__item">
-            <div class="content-review-wall__card">
-              <div class="content-review-wall__top">
-                <div class="content-review-wall__author">
-                  {% if image != blank %}
-                    {{
-                      image
-                      | image_url: width: 220
-                      | image_tag:
-                        class: 'content-review-wall__image',
-                        loading: 'lazy',
-                        alt: image_alt
-                    }}
-                  {% endif %}
-
-                  <div class="content-review-wall__author-content">
-                    {% if name != blank %}
-                      <strong class="content-review-wall__name">{{ name | escape }}</strong>
-                    {% endif %}
-
-                    {% if source != blank %}
-                      <span class="content-review-wall__source">{{ source | escape }}</span>
-                    {% endif %}
-                  </div>
-                </div>
-
-                {% if rating != 'none' %}
-                  <div class="content-review-wall__rating" aria-label="{{ rating | escape }} out of 5 stars">
-                    {%- case rating -%}
-                      {%- when '1' -%}★
-                      {%- when '2' -%}★★
-                      {%- when '3' -%}★★★
-                      {%- when '4' -%}★★★★
-                      {%- when '5' -%}★★★★★
-                    {%- endcase -%}
-                  </div>
-                {% endif %}
-              </div>
-
-              {% if quote != blank %}
-                <blockquote class="content-review-wall__quote">
-                  “{{ quote | escape }}”
-                </blockquote>
-              {% endif %}
-
-              {% if verified_label != blank %}
-                <span class="content-review-wall__verified">
-                  <span aria-hidden="true">✓</span>
-                  <span>{{ verified_label | escape }}</span>
-                </span>
-              {% endif %}
-            </div>
-          </article>
-        {% endif %}
-      {%- endif -%}
-    {%- endfor -%}
-  </div>
+  {% if populated %}{{ rendered_reviews }}{% elsif request.design_mode %}<p role="note">Add your customer content. Ratings and verification labels are entered manually.</p>{% endif %}
 </div>
 
 {% schema %}
@@ -666,7 +684,6 @@
       "unit": "px",
       "default": 48
     },
-
     {
       "type": "header",
       "content": "Review 1"
@@ -674,20 +691,18 @@
     {
       "type": "textarea",
       "id": "review_1_quote",
-      "label": "Quote",
-      "default": "Fast, clear, and exactly what I needed. The entire process felt easy from start to finish."
+      "label": "Quote"
     },
     {
       "type": "text",
       "id": "review_1_name",
-      "label": "Name",
-      "default": "Alex Morgan"
+      "label": "Name"
     },
     {
       "type": "select",
       "id": "review_1_rating",
       "label": "Rating",
-      "default": "5",
+      "default": "none",
       "options": [
         {
           "value": "none",
@@ -718,8 +733,7 @@
     {
       "type": "text",
       "id": "review_1_source",
-      "label": "Source",
-      "default": "Verified Buyer"
+      "label": "Source"
     },
     {
       "type": "image_picker",
@@ -734,10 +748,8 @@
     {
       "type": "text",
       "id": "review_1_verified_label",
-      "label": "Verified label",
-      "default": "Verified"
+      "label": "Verified label"
     },
-
     {
       "type": "header",
       "content": "Review 2"
@@ -745,20 +757,18 @@
     {
       "type": "textarea",
       "id": "review_2_quote",
-      "label": "Quote",
-      "default": "The experience was professional and gave me confidence before making a decision."
+      "label": "Quote"
     },
     {
       "type": "text",
       "id": "review_2_name",
-      "label": "Name",
-      "default": "Jordan Lee"
+      "label": "Name"
     },
     {
       "type": "select",
       "id": "review_2_rating",
       "label": "Rating",
-      "default": "5",
+      "default": "none",
       "options": [
         {
           "value": "none",
@@ -789,8 +799,7 @@
     {
       "type": "text",
       "id": "review_2_source",
-      "label": "Source",
-      "default": "Customer Review"
+      "label": "Source"
     },
     {
       "type": "image_picker",
@@ -805,10 +814,8 @@
     {
       "type": "text",
       "id": "review_2_verified_label",
-      "label": "Verified label",
-      "default": "Verified"
+      "label": "Verified label"
     },
-
     {
       "type": "header",
       "content": "Review 3"
@@ -816,20 +823,18 @@
     {
       "type": "textarea",
       "id": "review_3_quote",
-      "label": "Quote",
-      "default": "Everything was simple to understand. It made the buying experience feel much more trustworthy."
+      "label": "Quote"
     },
     {
       "type": "text",
       "id": "review_3_name",
-      "label": "Name",
-      "default": "Taylor Reed"
+      "label": "Name"
     },
     {
       "type": "select",
       "id": "review_3_rating",
       "label": "Rating",
-      "default": "5",
+      "default": "none",
       "options": [
         {
           "value": "none",
@@ -860,8 +865,7 @@
     {
       "type": "text",
       "id": "review_3_source",
-      "label": "Source",
-      "default": "Online Review"
+      "label": "Source"
     },
     {
       "type": "image_picker",
@@ -876,10 +880,8 @@
     {
       "type": "text",
       "id": "review_3_verified_label",
-      "label": "Verified label",
-      "default": "Verified"
+      "label": "Verified label"
     },
-
     {
       "type": "header",
       "content": "Review 4"
@@ -887,20 +889,18 @@
     {
       "type": "textarea",
       "id": "review_4_quote",
-      "label": "Quote",
-      "default": "Helpful, responsive, and easy to work with."
+      "label": "Quote"
     },
     {
       "type": "text",
       "id": "review_4_name",
-      "label": "Name",
-      "default": "Morgan James"
+      "label": "Name"
     },
     {
       "type": "select",
       "id": "review_4_rating",
       "label": "Rating",
-      "default": "5",
+      "default": "none",
       "options": [
         {
           "value": "none",
@@ -931,8 +931,7 @@
     {
       "type": "text",
       "id": "review_4_source",
-      "label": "Source",
-      "default": "Verified Buyer"
+      "label": "Source"
     },
     {
       "type": "image_picker",
@@ -947,10 +946,8 @@
     {
       "type": "text",
       "id": "review_4_verified_label",
-      "label": "Verified label",
-      "default": "Verified"
+      "label": "Verified label"
     },
-
     {
       "type": "header",
       "content": "Review 5"
@@ -958,20 +955,18 @@
     {
       "type": "textarea",
       "id": "review_5_quote",
-      "label": "Quote",
-      "default": "The value was clear and the result matched what I expected."
+      "label": "Quote"
     },
     {
       "type": "text",
       "id": "review_5_name",
-      "label": "Name",
-      "default": "Casey Brooks"
+      "label": "Name"
     },
     {
       "type": "select",
       "id": "review_5_rating",
       "label": "Rating",
-      "default": "5",
+      "default": "none",
       "options": [
         {
           "value": "none",
@@ -1002,8 +997,7 @@
     {
       "type": "text",
       "id": "review_5_source",
-      "label": "Source",
-      "default": "Customer Review"
+      "label": "Source"
     },
     {
       "type": "image_picker",
@@ -1018,10 +1012,8 @@
     {
       "type": "text",
       "id": "review_5_verified_label",
-      "label": "Verified label",
-      "default": "Verified"
+      "label": "Verified label"
     },
-
     {
       "type": "header",
       "content": "Review 6"
@@ -1029,20 +1021,18 @@
     {
       "type": "textarea",
       "id": "review_6_quote",
-      "label": "Quote",
-      "default": "I would recommend this to anyone looking for a cleaner, more confident experience."
+      "label": "Quote"
     },
     {
       "type": "text",
       "id": "review_6_name",
-      "label": "Name",
-      "default": "Riley Carter"
+      "label": "Name"
     },
     {
       "type": "select",
       "id": "review_6_rating",
       "label": "Rating",
-      "default": "5",
+      "default": "none",
       "options": [
         {
           "value": "none",
@@ -1073,8 +1063,7 @@
     {
       "type": "text",
       "id": "review_6_source",
-      "label": "Source",
-      "default": "Online Review"
+      "label": "Source"
     },
     {
       "type": "image_picker",
@@ -1089,10 +1078,8 @@
     {
       "type": "text",
       "id": "review_6_verified_label",
-      "label": "Verified label",
-      "default": "Verified"
+      "label": "Verified label"
     },
-
     {
       "type": "header",
       "content": "Review 7"
@@ -1159,7 +1146,6 @@
       "id": "review_7_verified_label",
       "label": "Verified label"
     },
-
     {
       "type": "header",
       "content": "Review 8"
@@ -1226,7 +1212,6 @@
       "id": "review_8_verified_label",
       "label": "Verified label"
     },
-
     {
       "type": "header",
       "content": "Review 9"
@@ -1293,7 +1278,6 @@
       "id": "review_9_verified_label",
       "label": "Verified label"
     },
-
     {
       "type": "header",
       "content": "Review 10"
@@ -1360,7 +1344,6 @@
       "id": "review_10_verified_label",
       "label": "Verified label"
     },
-
     {
       "type": "header",
       "content": "Review 11"
@@ -1427,7 +1410,6 @@
       "id": "review_11_verified_label",
       "label": "Verified label"
     },
-
     {
       "type": "header",
       "content": "Review 12"
@@ -1494,7 +1476,6 @@
       "id": "review_12_verified_label",
       "label": "Verified label"
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1532,7 +1513,7 @@
     {
       "type": "color",
       "id": "link_color",
-      "label": "Link color",
+      "label": "Source accent color",
       "default": "#111111"
     },
     {
@@ -1553,7 +1534,6 @@
       "label": "Verified text",
       "default": "#1d6b35"
     },
-
     {
       "type": "header",
       "content": "Border and radius"
@@ -1578,7 +1558,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1613,7 +1592,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1636,7 +1614,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1691,36 +1668,6 @@
         "gap": 20,
         "card_padding": 24,
         "image_size": 48,
-        "review_1_quote": "Fast, clear, and exactly what I needed. The entire process felt easy from start to finish.",
-        "review_1_name": "Alex Morgan",
-        "review_1_rating": "5",
-        "review_1_source": "Verified Buyer",
-        "review_1_verified_label": "Verified",
-        "review_2_quote": "The experience was professional and gave me confidence before making a decision.",
-        "review_2_name": "Jordan Lee",
-        "review_2_rating": "5",
-        "review_2_source": "Customer Review",
-        "review_2_verified_label": "Verified",
-        "review_3_quote": "Everything was simple to understand. It made the buying experience feel much more trustworthy.",
-        "review_3_name": "Taylor Reed",
-        "review_3_rating": "5",
-        "review_3_source": "Online Review",
-        "review_3_verified_label": "Verified",
-        "review_4_quote": "Helpful, responsive, and easy to work with.",
-        "review_4_name": "Morgan James",
-        "review_4_rating": "5",
-        "review_4_source": "Verified Buyer",
-        "review_4_verified_label": "Verified",
-        "review_5_quote": "The value was clear and the result matched what I expected.",
-        "review_5_name": "Casey Brooks",
-        "review_5_rating": "5",
-        "review_5_source": "Customer Review",
-        "review_5_verified_label": "Verified",
-        "review_6_quote": "I would recommend this to anyone looking for a cleaner, more confident experience.",
-        "review_6_name": "Riley Carter",
-        "review_6_rating": "5",
-        "review_6_source": "Online Review",
-        "review_6_verified_label": "Verified",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",
@@ -1753,36 +1700,6 @@
         "gap": 20,
         "card_padding": 24,
         "image_size": 48,
-        "review_1_quote": "Loved how easy this was. It felt personal, simple, and trustworthy.",
-        "review_1_name": "Jamie P.",
-        "review_1_rating": "5",
-        "review_1_source": "UGC Review",
-        "review_1_verified_label": "Verified",
-        "review_2_quote": "Exactly what I hoped for. The details were clear and the process was smooth.",
-        "review_2_name": "Avery S.",
-        "review_2_rating": "5",
-        "review_2_source": "Customer Post",
-        "review_2_verified_label": "Verified",
-        "review_3_quote": "I had questions before buying, and this helped answer them without needing to reach out.",
-        "review_3_name": "Drew B.",
-        "review_3_rating": "5",
-        "review_3_source": "Social Review",
-        "review_3_verified_label": "Verified",
-        "review_4_quote": "The experience felt modern and easy.",
-        "review_4_name": "Sam R.",
-        "review_4_rating": "5",
-        "review_4_source": "Customer Post",
-        "review_4_verified_label": "Verified",
-        "review_5_quote": "Clear, helpful, and worth recommending.",
-        "review_5_name": "Quinn E.",
-        "review_5_rating": "5",
-        "review_5_source": "UGC Review",
-        "review_5_verified_label": "Verified",
-        "review_6_quote": "This gave me confidence in the decision and helped me understand the value quickly.",
-        "review_6_name": "Parker M.",
-        "review_6_rating": "5",
-        "review_6_source": "Online Review",
-        "review_6_verified_label": "Verified",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",
@@ -1815,26 +1732,6 @@
         "gap": 20,
         "card_padding": 24,
         "image_size": 44,
-        "review_1_quote": "Trusted, simple, and clear.",
-        "review_1_name": "Alex M.",
-        "review_1_rating": "5",
-        "review_1_source": "Verified",
-        "review_1_verified_label": "Verified",
-        "review_2_quote": "The kind of experience that makes it easy to say yes.",
-        "review_2_name": "Jordan L.",
-        "review_2_rating": "5",
-        "review_2_source": "Customer",
-        "review_2_verified_label": "Verified",
-        "review_3_quote": "Professional and easy to understand.",
-        "review_3_name": "Taylor R.",
-        "review_3_rating": "5",
-        "review_3_source": "Review",
-        "review_3_verified_label": "Verified",
-        "review_4_quote": "Exactly what we needed.",
-        "review_4_name": "Morgan J.",
-        "review_4_rating": "5",
-        "review_4_source": "Buyer",
-        "review_4_verified_label": "Verified",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",

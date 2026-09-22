@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 98/102 blocks and 27 dependencies individually reviewed; 125/129 Family 8 entries have dispositions (124 live queued, 1 dormant retained), 4 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 102/102 blocks and 27 dependencies individually reviewed; 129/129 Family 8 entries have dispositions (128 live queued, 1 dormant retained), 0 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1327,3 +1327,17 @@ B8-MOTION-COUNTERS live queue: actual native horizontal motion/scroll/RTL/keyboa
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Motion/counter checkpoint Theme Check remains 512 unsuppressed findings (3 unchanged out-of-group errors, 509 warnings), zero group errors. Publication status: automatic approval review rejected the public-branch push of recovered checkpoint `ff1d3df`, including a retry narrowed to the exact reviewed commit after outgoing scope/secret-signature checks. Review stated that trusted authorization for public source disclosure/remote mutation was missing. No alternate publication route was attempted. This and subsequent authorized engineering work is committed locally; remote publication and PR summary update await direct owner approval.
+
+## Batch 8 checkpoint — reviews, testimonials, native slider media and UGC — 2026-09-22
+
+Previous local checkpoint `0b67c27cca96924159cb3c4f2fa2efa0afd61ccf`; PR #22 remains DRAFT. The final four Theme Blocks now have truthful insertion states and complete native content, with reviewed shared carousel and media controllers replacing fragile local behavior. Saved merchant reviews, claims and media configuration remain intact.
+
+102/102 blocks and 27 dependencies individually reviewed; 129/129 Family 8 entries have dispositions (128 live queued, 1 dormant retained), 0 NOT REVIEWED. Global dispositions: 461 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 25 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-reviews-ugc/`. 507 actual default/control/preset/data-state renders cover all original settings/types/options and twelve presets, neutral new and retained saved claims, sparse/action/image/rating/video/product-only states, escaped URLs/alt and named ratings. Actual shared controllers cover measured RTL navigation, persistent pause/focus restoration, deferred player cleanup, visibility/mutation/editor lifecycle and independent UGC play controls/reduced motion/editor policy. Test development corrected an expectation: restored player-button focus correctly continues to stop rotation until focus leaves. Checkpoint command initially named a nonexistent gallery suite; the actual gallery-text-carousel suite was then run and substituted, with initial invocation evidence retained. No runtime code was changed to satisfy either fixture mistake. All 14 affected suites pass; 428 settings, 12 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-REVIEWS-UGC live queue: actual native settings drops and hosted/uploaded player behavior, real YouTube/Vimeo availability/privacy/controls, genuine merchant review/rating/verification/UGC rights and accuracy, 320–1440px/RTL/zoom/nested layouts, keyboard/AT/focus/contrast/native scrolling, and actual Theme Editor insertion/reorder/reload. Fixtures/DOM/geometry/media stubs are not Shopify/browser certification. No live QA; earlier queues and 605 historical candidates remain separate.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Final block-group Theme Check remains 512 findings (3 unchanged out-of-group errors, 509 warnings), zero group errors. All 102 Theme Blocks and 27 Family 8 dependencies now have source dispositions; formal closure still requires the full regression run. Publication remains blocked by automatic approval review, so this checkpoint is local and is not represented as a GitHub head.

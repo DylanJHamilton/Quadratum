@@ -1,73 +1,20 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
+  assign populated = false
+  assign complete_cta = false
+  if block.settings.cta_text != blank and block.settings.cta_url != blank
+    assign complete_cta = true
+  endif
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 %}
 
-<div
-  class="
-    qtm-ugc-showcase
-    qtm-ugc-showcase-{{ block_id }}
-    qtm-ugc-showcase--width-{{ block_width }}
-    qtm-ugc-showcase--align-{{ block_alignment }}
-    qtm-ugc-showcase--layout-{{ block.settings.layout_style }}
-    qtm-ugc-showcase--animation-{{ animation }}
-    {% unless block.settings.show_desktop %} qtm-ugc-showcase--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-ugc-showcase--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-ugc-showcase--hide-mobile{% endunless %}
-  "
-  style="
-    --qtm-ugc-margin-top: {{ block.settings.margin_top }}px;
-    --qtm-ugc-margin-bottom: {{ block.settings.margin_bottom }}px;
-    --qtm-ugc-padding: {{ block.settings.padding }}px;
-    --qtm-ugc-gap: {{ block.settings.gap }}px;
-    --qtm-ugc-heading-color: {{ block.settings.heading_color }};
-    --qtm-ugc-text-color: {{ block.settings.text_color }};
-    --qtm-ugc-background-color: {{ block.settings.background_color }};
-    --qtm-ugc-border-color: {{ block.settings.border_color }};
-    --qtm-ugc-link-color: {{ block.settings.link_color }};
-    --qtm-ugc-card-background: {{ block.settings.card_background_color }};
-    --qtm-ugc-star-color: {{ block.settings.star_color }};
-    --qtm-ugc-overlay-color: {{ block.settings.overlay_color }};
-    --qtm-ugc-overlay-opacity: {{ block.settings.overlay_opacity | divided_by: 100.0 }};
-    --qtm-ugc-border-width: {{ block.settings.border_width }}px;
-    --qtm-ugc-border-radius: {{ block.settings.border_radius }}px;
-  "
-  {{ block.shopify_attributes }}
->
-  <div class="qtm-ugc-showcase__inner">
-    {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank or block.settings.cta_text != blank %}
-      <div class="qtm-ugc-showcase__header">
-        <div class="qtm-ugc-showcase__header-copy">
-          {% if block.settings.eyebrow != blank %}
-            <p class="qtm-ugc-showcase__eyebrow">
-              {{ block.settings.eyebrow | escape }}
-            </p>
-          {% endif %}
-
-          {% if block.settings.heading != blank %}
-            <h2 class="qtm-ugc-showcase__heading">
-              {{ block.settings.heading | escape }}
-            </h2>
-          {% endif %}
-
-          {% if block.settings.text != blank %}
-            <div class="qtm-ugc-showcase__text">
-              {{ block.settings.text }}
-            </div>
-          {% endif %}
-        </div>
-
-        {% if block.settings.cta_text != blank and block.settings.cta_url != blank %}
-          <a class="qtm-ugc-showcase__header-link" href="{{ block.settings.cta_url }}">
-            {{ block.settings.cta_text | escape }}
-          </a>
-        {% endif %}
-      </div>
-    {% endif %}
-
-    <div class="qtm-ugc-showcase__items" role="list">
+{% capture rendered_ugc %}
+    <div class="qtm-ugc-showcase__items" role="list" {% if block.settings.layout_style == 'row' %}tabindex="0" aria-label="{{ block.settings.heading | default: 'Customer content' | escape }}"{% endif %}>
       {% for i in (1..6) %}
         {% liquid
           assign show_key = 'show_item_' | append: i
@@ -91,11 +38,21 @@
           assign review = block.settings[review_key]
           assign customer = block.settings[customer_key]
           assign handle = block.settings[handle_key]
-          assign rating = block.settings[rating_key] | plus: 0
+          assign rating = block.settings[rating_key] | plus: 0 | at_least: 0 | at_most: 5
           assign product = block.settings[product_key]
           assign item_link = block.settings[link_key]
           assign item_link_text = block.settings[link_text_key]
 
+          assign image_alt = item_image.alt | default: customer | default: handle
+          assign product_image_alt = product.featured_image.alt | default: product.title
+          assign has_media = false
+          if media_type == 'video' and item_video != blank
+            assign has_media = true
+          elsif media_type == 'external_video' and external_video_url != blank
+            assign has_media = true
+          elsif item_image != blank
+            assign has_media = true
+          endif
           assign final_link = item_link
           if final_link == blank and product != blank
             assign final_link = product.url
@@ -108,22 +65,41 @@
           endif
         %}
 
+        {% liquid
+          assign has_copy = false
+          if review != blank or customer != blank or handle != blank
+            assign has_copy = true
+          elsif block.settings.show_product_reference and product != blank
+            assign has_copy = true
+          elsif block.settings.show_ratings and rating > 0
+            assign has_copy = true
+          elsif block.settings.show_item_links and final_link != blank
+            assign has_copy = true
+          endif
+        %}
         {% if show_item %}
+        {% if has_media or has_copy %}
+          {% assign populated = true %}
           <article class="qtm-ugc-showcase__card qtm-ugc-showcase__card--{{ i }}" role="listitem">
-            <div class="qtm-ugc-showcase__media">
+            {% if has_media %}<div class="qtm-ugc-showcase__media">
               {% if media_type == 'video' and item_video != blank %}
+                <div data-qtm-visual-block="video" data-controls="{{ block.settings.show_video_controls }}" data-autoplay="{{ block.settings.autoplay_videos }}" data-design-mode="{{ request.design_mode }}">
                 {{
                   item_video
                   | video_tag:
                     class: 'qtm-ugc-showcase__video',
                     image_size: '900x',
-                    autoplay: block.settings.autoplay_videos,
+                    autoplay: false,
                     loop: true,
                     muted: true,
-                    controls: block.settings.show_video_controls
+                    controls: true,
+                    playsinline: true,
+                    preload: 'metadata'
                 }}
+                <button type="button" data-qtm-video-toggle hidden>Play video</button>
+                </div>
               {% elsif media_type == 'external_video' and external_video_url != blank %}
-                <a class="qtm-ugc-showcase__external-video" href="{{ external_video_url }}" target="_blank" rel="noopener">
+                <a class="qtm-ugc-showcase__external-video" href="{{ external_video_url | escape }}" target="_blank" rel="noopener noreferrer">
                   {% if item_image != blank %}
                     {{
                       item_image
@@ -133,7 +109,7 @@
                         loading: 'lazy',
                         widths: '375, 550, 750, 950, 1200',
                         sizes: '(min-width: 990px) 33vw, 100vw',
-                        alt: item_image.alt
+                        alt: image_alt
                     }}
                   {% else %}
                     <div class="qtm-ugc-showcase__placeholder">
@@ -158,12 +134,8 @@
                     loading: 'lazy',
                     widths: '375, 550, 750, 950, 1200',
                     sizes: '(min-width: 990px) 33vw, 100vw',
-                    alt: item_image.alt
+                    alt: image_alt
                 }}
-              {% else %}
-                <div class="qtm-ugc-showcase__placeholder">
-                  {{ 'lifestyle-2' | placeholder_svg_tag: 'qtm-ugc-showcase__placeholder-svg' }}
-                </div>
               {% endif %}
 
               {% if block.settings.enable_overlay %}
@@ -175,11 +147,11 @@
                   Video
                 </span>
               {% endif %}
-            </div>
+            </div>{% endif %}
 
-            <div class="qtm-ugc-showcase__content">
+            {% if has_copy %}<div class="qtm-ugc-showcase__content">
               {% if block.settings.show_ratings and rating > 0 %}
-                <div class="qtm-ugc-showcase__rating" aria-label="{{ rating }} out of 5 stars">
+                <div class="qtm-ugc-showcase__rating" role="img" aria-label="{{ rating }} out of 5 stars">
                   {% for star in (1..5) %}
                     <span class="{% if star <= rating %}is-filled{% endif %}" aria-hidden="true">★</span>
                   {% endfor %}
@@ -205,7 +177,7 @@
               {% endif %}
 
               {% if product != blank and block.settings.show_product_reference %}
-                <a class="qtm-ugc-showcase__product" href="{{ product.url }}">
+                <a class="qtm-ugc-showcase__product{% if product.featured_image == blank %} qtm-ugc-showcase__product--no-image{% endif %}" href="{{ product.url | escape }}">
                   {% if product.featured_image != blank %}
                     {{
                       product.featured_image
@@ -215,7 +187,7 @@
                         loading: 'lazy',
                         widths: '90, 140, 180',
                         sizes: '54px',
-                        alt: product.featured_image.alt
+                        alt: product_image_alt
                     }}
                   {% endif %}
 
@@ -231,15 +203,82 @@
               {% endif %}
 
               {% if final_link != blank and block.settings.show_item_links %}
-                <a class="qtm-ugc-showcase__item-link" href="{{ final_link }}">
+                <a class="qtm-ugc-showcase__item-link" href="{{ final_link | escape }}">
                   {{ item_link_text | escape }}
                 </a>
               {% endif %}
-            </div>
+            </div>{% endif %}
           </article>
+        {% endif %}
         {% endif %}
       {% endfor %}
     </div>
+{% endcapture %}
+<div
+  id="content-ugc-showcase-{{ block_id }}"
+  {% if populated == false and block.settings.eyebrow == blank and block.settings.heading == blank and block.settings.text == blank and complete_cta == false and request.design_mode == false %}hidden{% endif %}
+  class="
+    qtm-ugc-showcase
+    qtm-ugc-showcase-{{ block_id }}
+    qtm-ugc-showcase--width-{{ block_width }}
+    qtm-ugc-showcase--align-{{ block_alignment }}
+    qtm-ugc-showcase--layout-{{ block.settings.layout_style }}
+    qtm-ugc-showcase--animation-{{ animation }}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-ugc-showcase--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-ugc-showcase--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-ugc-showcase--hide-mobile{% endunless %}
+  "
+  style="
+    --qtm-ugc-margin-top: {{ block.settings.margin_top }}px;
+    --qtm-ugc-margin-bottom: {{ block.settings.margin_bottom }}px;
+    --qtm-ugc-padding: {{ block.settings.padding }}px;
+    --qtm-ugc-gap: {{ block.settings.gap }}px;
+    --qtm-ugc-heading-color: {{ block.settings.heading_color }};
+    --qtm-ugc-text-color: {{ block.settings.text_color }};
+    --qtm-ugc-background-color: {{ block.settings.background_color }};
+    --qtm-ugc-border-color: {{ block.settings.border_color }};
+    --qtm-ugc-link-color: {{ block.settings.link_color }};
+    --qtm-ugc-card-background: {{ block.settings.card_background_color }};
+    --qtm-ugc-star-color: {{ block.settings.star_color }};
+    --qtm-ugc-overlay-color: {{ block.settings.overlay_color }};
+    --qtm-ugc-overlay-opacity: {{ block.settings.overlay_opacity | divided_by: 100.0 }};
+    --qtm-ugc-border-width: {{ block.settings.border_width }}px;
+    --qtm-ugc-border-radius: {{ block.settings.border_radius }}px;
+  "
+
+>
+  <div class="qtm-ugc-showcase__inner">
+    {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank or complete_cta %}
+      <div class="qtm-ugc-showcase__header">
+        {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank %}<div class="qtm-ugc-showcase__header-copy">
+          {% if block.settings.eyebrow != blank %}
+            <p class="qtm-ugc-showcase__eyebrow">
+              {{ block.settings.eyebrow | escape }}
+            </p>
+          {% endif %}
+
+          {% if block.settings.heading != blank %}
+            <h2 class="qtm-ugc-showcase__heading">
+              {{ block.settings.heading | escape }}
+            </h2>
+          {% endif %}
+
+          {% if block.settings.text != blank %}
+            <div class="qtm-ugc-showcase__text">
+              {{ block.settings.text }}
+            </div>
+          {% endif %}
+        </div>{% endif %}
+
+        {% if block.settings.cta_text != blank and block.settings.cta_url != blank %}
+          <a class="qtm-ugc-showcase__header-link" href="{{ block.settings.cta_url | escape }}">
+            {{ block.settings.cta_text | escape }}
+          </a>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if populated %}{{ rendered_ugc }}{% elsif request.design_mode %}<p role="note">Add customer content. Reviews, ratings and attribution are entered manually.</p>{% endif %}
   </div>
 </div>
 
@@ -247,7 +286,7 @@
   .qtm-ugc-showcase-{{ block_id }} {
     margin-top: var(--qtm-ugc-margin-top);
     margin-bottom: var(--qtm-ugc-margin-bottom);
-    padding: var(--qtm-ugc-padding);
+    padding: min(var(--qtm-ugc-padding), 8%);
     color: var(--qtm-ugc-text-color);
     background: var(--qtm-ugc-background-color);
     border: var(--qtm-ugc-border-width) solid var(--qtm-ugc-border-color);
@@ -263,20 +302,20 @@
   }
 
   .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--width-small {
-    max-width: 720px;
+    max-width: min(100%, 720px);
   }
 
   .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--width-medium {
-    max-width: 980px;
+    max-width: min(100%, 980px);
   }
 
   .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--width-large {
-    max-width: 1240px;
+    max-width: min(100%, 1240px);
   }
 
   .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--width-full {
     width: 100%;
-    max-width: none;
+    max-width: 100%;
   }
 
   .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--align-left {
@@ -402,7 +441,7 @@
   }
 
   .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--layout-row .qtm-ugc-showcase__card {
-    flex: 0 0 min(82vw, 360px);
+    flex: 0 0 min(85%, 360px);
     scroll-snap-align: start;
   }
 
@@ -590,8 +629,8 @@
     color: var(--qtm-ugc-heading-color);
     font-weight: 750;
     line-height: 1.25;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    text-overflow: clip;
+    white-space: normal;
   }
 
   .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--animation-fade {
@@ -683,10 +722,10 @@
     }
   }
 
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--hide-tablet { display: none !important; }
+  }
   @media screen and (max-width: 989px) {
-    .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--hide-tablet {
-      display: none !important;
-    }
 
     .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--layout-grid .qtm-ugc-showcase__items,
     .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--layout-masonry .qtm-ugc-showcase__items {
@@ -746,7 +785,21 @@
       animation: none !important;
     }
   }
+  .qtm-ugc-showcase-{{ block_id }} { min-width: 0; overflow-wrap: anywhere; container-type: inline-size; }
+  .qtm-ugc-showcase-{{ block_id }}, .qtm-ugc-showcase-{{ block_id }} * { box-sizing: border-box; }
+  .qtm-ugc-showcase-{{ block_id }}[hidden], .qtm-ugc-showcase-{{ block_id }} [hidden] { display: none !important; }
+  .qtm-ugc-showcase-{{ block_id }} .qtm-ugc-showcase__inner, .qtm-ugc-showcase-{{ block_id }} .qtm-ugc-showcase__content, .qtm-ugc-showcase-{{ block_id }} .qtm-ugc-showcase__header-copy, .qtm-ugc-showcase-{{ block_id }} .qtm-ugc-showcase__card { min-width: 0; max-width: 100%; }
+  .qtm-ugc-showcase-{{ block_id }} .qtm-ugc-showcase__product--no-image { grid-template-columns: minmax(0, 1fr); }
+  .qtm-ugc-showcase-{{ block_id }} [data-qtm-video-toggle] { position: relative; z-index: 3; color: var(--qtm-ugc-link-color); background: var(--qtm-ugc-card-background); padding: 10px 14px; border: 1px solid currentColor; cursor: pointer; }
+  .qtm-ugc-showcase-{{ block_id }} :focus-visible { outline: 2px solid var(--qtm-ugc-link-color); outline-offset: -3px; }
+  @container (max-width: 749px) {
+    .qtm-ugc-showcase-{{ block_id }} .qtm-ugc-showcase__header { grid-template-columns: minmax(0, 1fr); }
+    .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--layout-grid .qtm-ugc-showcase__items, .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--layout-masonry .qtm-ugc-showcase__items { grid-template-columns: minmax(0, 1fr); }
+    .qtm-ugc-showcase-{{ block_id }} .qtm-ugc-showcase__image, .qtm-ugc-showcase-{{ block_id }} .qtm-ugc-showcase__video, .qtm-ugc-showcase-{{ block_id }} .qtm-ugc-showcase__placeholder,
+    .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--layout-masonry .qtm-ugc-showcase__card:nth-child(2n) .qtm-ugc-showcase__image, .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--layout-masonry .qtm-ugc-showcase__card:nth-child(2n) .qtm-ugc-showcase__video, .qtm-ugc-showcase-{{ block_id }}.qtm-ugc-showcase--layout-masonry .qtm-ugc-showcase__card:nth-child(2n) .qtm-ugc-showcase__placeholder { min-height: {{ block.settings.mobile_media_height }}px; }
+  }
 </style>
+<script src="{{ 'qtm-block-visual-media.js' | asset_url }}" defer="defer"></script>
 
 {% schema %}
 {
@@ -759,26 +812,22 @@
     {
       "type": "text",
       "id": "eyebrow",
-      "label": "Eyebrow",
-      "default": "Loved by customers"
+      "label": "Eyebrow"
     },
     {
       "type": "text",
       "id": "heading",
-      "label": "Heading",
-      "default": "Real customers. Real moments."
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "text",
-      "label": "Text",
-      "default": "<p>Show customer photos, videos, reviews, and product moments in a premium social proof gallery.</p>"
+      "label": "Text"
     },
     {
       "type": "text",
       "id": "cta_text",
-      "label": "Header CTA text",
-      "default": "Share your story"
+      "label": "Header CTA text"
     },
     {
       "type": "url",
@@ -921,7 +970,6 @@
       "unit": "%",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "UGC item 1"
@@ -938,9 +986,18 @@
       "label": "Item 1 media type",
       "default": "image",
       "options": [
-        { "value": "image", "label": "Image" },
-        { "value": "video", "label": "Uploaded video" },
-        { "value": "external_video", "label": "External video link" }
+        {
+          "value": "image",
+          "label": "Image"
+        },
+        {
+          "value": "video",
+          "label": "Uploaded video"
+        },
+        {
+          "value": "external_video",
+          "label": "External video link"
+        }
       ]
     },
     {
@@ -961,20 +1018,17 @@
     {
       "type": "richtext",
       "id": "item_1_review",
-      "label": "Item 1 review",
-      "default": "<p>“The quality was even better than expected. I get compliments every time I use it.”</p>"
+      "label": "Item 1 review"
     },
     {
       "type": "text",
       "id": "item_1_customer",
-      "label": "Item 1 customer",
-      "default": "Avery M."
+      "label": "Item 1 customer"
     },
     {
       "type": "text",
       "id": "item_1_handle",
-      "label": "Item 1 handle",
-      "default": "@averyshops"
+      "label": "Item 1 handle"
     },
     {
       "type": "range",
@@ -983,7 +1037,7 @@
       "min": 0,
       "max": 5,
       "step": 1,
-      "default": 5
+      "default": 0
     },
     {
       "type": "product",
@@ -998,10 +1052,8 @@
     {
       "type": "text",
       "id": "item_1_link_text",
-      "label": "Item 1 link text",
-      "default": "Shop the look"
+      "label": "Item 1 link text"
     },
-
     {
       "type": "header",
       "content": "UGC item 2"
@@ -1018,9 +1070,18 @@
       "label": "Item 2 media type",
       "default": "image",
       "options": [
-        { "value": "image", "label": "Image" },
-        { "value": "video", "label": "Uploaded video" },
-        { "value": "external_video", "label": "External video link" }
+        {
+          "value": "image",
+          "label": "Image"
+        },
+        {
+          "value": "video",
+          "label": "Uploaded video"
+        },
+        {
+          "value": "external_video",
+          "label": "External video link"
+        }
       ]
     },
     {
@@ -1041,20 +1102,17 @@
     {
       "type": "richtext",
       "id": "item_2_review",
-      "label": "Item 2 review",
-      "default": "<p>“This became my favorite purchase of the season. Beautiful, useful, and worth it.”</p>"
+      "label": "Item 2 review"
     },
     {
       "type": "text",
       "id": "item_2_customer",
-      "label": "Item 2 customer",
-      "default": "Jordan K."
+      "label": "Item 2 customer"
     },
     {
       "type": "text",
       "id": "item_2_handle",
-      "label": "Item 2 handle",
-      "default": "@jordanhome"
+      "label": "Item 2 handle"
     },
     {
       "type": "range",
@@ -1063,7 +1121,7 @@
       "min": 0,
       "max": 5,
       "step": 1,
-      "default": 5
+      "default": 0
     },
     {
       "type": "product",
@@ -1078,10 +1136,8 @@
     {
       "type": "text",
       "id": "item_2_link_text",
-      "label": "Item 2 link text",
-      "default": "View product"
+      "label": "Item 2 link text"
     },
-
     {
       "type": "header",
       "content": "UGC item 3"
@@ -1098,9 +1154,18 @@
       "label": "Item 3 media type",
       "default": "image",
       "options": [
-        { "value": "image", "label": "Image" },
-        { "value": "video", "label": "Uploaded video" },
-        { "value": "external_video", "label": "External video link" }
+        {
+          "value": "image",
+          "label": "Image"
+        },
+        {
+          "value": "video",
+          "label": "Uploaded video"
+        },
+        {
+          "value": "external_video",
+          "label": "External video link"
+        }
       ]
     },
     {
@@ -1121,20 +1186,17 @@
     {
       "type": "richtext",
       "id": "item_3_review",
-      "label": "Item 3 review",
-      "default": "<p>“Exactly what I was looking for. The details made the difference.”</p>"
+      "label": "Item 3 review"
     },
     {
       "type": "text",
       "id": "item_3_customer",
-      "label": "Item 3 customer",
-      "default": "Sam R."
+      "label": "Item 3 customer"
     },
     {
       "type": "text",
       "id": "item_3_handle",
-      "label": "Item 3 handle",
-      "default": "@samstyle"
+      "label": "Item 3 handle"
     },
     {
       "type": "range",
@@ -1143,7 +1205,7 @@
       "min": 0,
       "max": 5,
       "step": 1,
-      "default": 5
+      "default": 0
     },
     {
       "type": "product",
@@ -1158,10 +1220,8 @@
     {
       "type": "text",
       "id": "item_3_link_text",
-      "label": "Item 3 link text",
-      "default": "Shop now"
+      "label": "Item 3 link text"
     },
-
     {
       "type": "header",
       "content": "UGC item 4"
@@ -1178,9 +1238,18 @@
       "label": "Item 4 media type",
       "default": "image",
       "options": [
-        { "value": "image", "label": "Image" },
-        { "value": "video", "label": "Uploaded video" },
-        { "value": "external_video", "label": "External video link" }
+        {
+          "value": "image",
+          "label": "Image"
+        },
+        {
+          "value": "video",
+          "label": "Uploaded video"
+        },
+        {
+          "value": "external_video",
+          "label": "External video link"
+        }
       ]
     },
     {
@@ -1201,20 +1270,17 @@
     {
       "type": "richtext",
       "id": "item_4_review",
-      "label": "Item 4 review",
-      "default": "<p>“I came back and bought another one because the first was that good.”</p>"
+      "label": "Item 4 review"
     },
     {
       "type": "text",
       "id": "item_4_customer",
-      "label": "Item 4 customer",
-      "default": "Morgan T."
+      "label": "Item 4 customer"
     },
     {
       "type": "text",
       "id": "item_4_handle",
-      "label": "Item 4 handle",
-      "default": "@morganfinds"
+      "label": "Item 4 handle"
     },
     {
       "type": "range",
@@ -1223,7 +1289,7 @@
       "min": 0,
       "max": 5,
       "step": 1,
-      "default": 5
+      "default": 0
     },
     {
       "type": "product",
@@ -1238,10 +1304,8 @@
     {
       "type": "text",
       "id": "item_4_link_text",
-      "label": "Item 4 link text",
-      "default": "See more"
+      "label": "Item 4 link text"
     },
-
     {
       "type": "header",
       "content": "UGC item 5"
@@ -1258,9 +1322,18 @@
       "label": "Item 5 media type",
       "default": "image",
       "options": [
-        { "value": "image", "label": "Image" },
-        { "value": "video", "label": "Uploaded video" },
-        { "value": "external_video", "label": "External video link" }
+        {
+          "value": "image",
+          "label": "Image"
+        },
+        {
+          "value": "video",
+          "label": "Uploaded video"
+        },
+        {
+          "value": "external_video",
+          "label": "External video link"
+        }
       ]
     },
     {
@@ -1281,20 +1354,17 @@
     {
       "type": "richtext",
       "id": "item_5_review",
-      "label": "Item 5 review",
-      "default": "<p>“The product looked great online, but it was even better in person.”</p>"
+      "label": "Item 5 review"
     },
     {
       "type": "text",
       "id": "item_5_customer",
-      "label": "Item 5 customer",
-      "default": "Taylor C."
+      "label": "Item 5 customer"
     },
     {
       "type": "text",
       "id": "item_5_handle",
-      "label": "Item 5 handle",
-      "default": "@taylorcollects"
+      "label": "Item 5 handle"
     },
     {
       "type": "range",
@@ -1303,7 +1373,7 @@
       "min": 0,
       "max": 5,
       "step": 1,
-      "default": 5
+      "default": 0
     },
     {
       "type": "product",
@@ -1318,10 +1388,8 @@
     {
       "type": "text",
       "id": "item_5_link_text",
-      "label": "Item 5 link text",
-      "default": "Explore"
+      "label": "Item 5 link text"
     },
-
     {
       "type": "header",
       "content": "UGC item 6"
@@ -1338,9 +1406,18 @@
       "label": "Item 6 media type",
       "default": "image",
       "options": [
-        { "value": "image", "label": "Image" },
-        { "value": "video", "label": "Uploaded video" },
-        { "value": "external_video", "label": "External video link" }
+        {
+          "value": "image",
+          "label": "Image"
+        },
+        {
+          "value": "video",
+          "label": "Uploaded video"
+        },
+        {
+          "value": "external_video",
+          "label": "External video link"
+        }
       ]
     },
     {
@@ -1361,20 +1438,17 @@
     {
       "type": "richtext",
       "id": "item_6_review",
-      "label": "Item 6 review",
-      "default": "<p>“Beautifully made and easy to recommend. This is what I hoped for.”</p>"
+      "label": "Item 6 review"
     },
     {
       "type": "text",
       "id": "item_6_customer",
-      "label": "Item 6 customer",
-      "default": "Riley P."
+      "label": "Item 6 customer"
     },
     {
       "type": "text",
       "id": "item_6_handle",
-      "label": "Item 6 handle",
-      "default": "@rileypicks"
+      "label": "Item 6 handle"
     },
     {
       "type": "range",
@@ -1383,7 +1457,7 @@
       "min": 0,
       "max": 5,
       "step": 1,
-      "default": 5
+      "default": 0
     },
     {
       "type": "product",
@@ -1398,10 +1472,8 @@
     {
       "type": "text",
       "id": "item_6_link_text",
-      "label": "Item 6 link text",
-      "default": "View more"
+      "label": "Item 6 link text"
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -1412,11 +1484,26 @@
       "label": "Width",
       "default": "full",
       "options": [
-        { "value": "auto", "label": "Auto" },
-        { "value": "small", "label": "Small" },
-        { "value": "medium", "label": "Medium" },
-        { "value": "large", "label": "Large" },
-        { "value": "full", "label": "Full" }
+        {
+          "value": "auto",
+          "label": "Auto"
+        },
+        {
+          "value": "small",
+          "label": "Small"
+        },
+        {
+          "value": "medium",
+          "label": "Medium"
+        },
+        {
+          "value": "large",
+          "label": "Large"
+        },
+        {
+          "value": "full",
+          "label": "Full"
+        }
       ]
     },
     {
@@ -1425,9 +1512,18 @@
       "label": "Alignment",
       "default": "left",
       "options": [
-        { "value": "left", "label": "Left" },
-        { "value": "center", "label": "Center" },
-        { "value": "right", "label": "Right" }
+        {
+          "value": "left",
+          "label": "Left"
+        },
+        {
+          "value": "center",
+          "label": "Center"
+        },
+        {
+          "value": "right",
+          "label": "Right"
+        }
       ]
     },
     {
@@ -1576,13 +1672,34 @@
       "label": "Animation",
       "default": "none",
       "options": [
-        { "value": "none", "label": "None" },
-        { "value": "fade", "label": "Fade" },
-        { "value": "fade-up", "label": "Fade up" },
-        { "value": "fade-down", "label": "Fade down" },
-        { "value": "fade-left", "label": "Fade left" },
-        { "value": "fade-right", "label": "Fade right" },
-        { "value": "zoom", "label": "Zoom" }
+        {
+          "value": "none",
+          "label": "None"
+        },
+        {
+          "value": "fade",
+          "label": "Fade"
+        },
+        {
+          "value": "fade-up",
+          "label": "Fade up"
+        },
+        {
+          "value": "fade-down",
+          "label": "Fade down"
+        },
+        {
+          "value": "fade-left",
+          "label": "Fade left"
+        },
+        {
+          "value": "fade-right",
+          "label": "Fade right"
+        },
+        {
+          "value": "zoom",
+          "label": "Zoom"
+        }
       ]
     }
   ],
@@ -1590,10 +1707,6 @@
     {
       "name": "UGC Gallery",
       "settings": {
-        "eyebrow": "Community favorites",
-        "heading": "Seen in real life",
-        "text": "<p>Show real customer photos, product moments, and reviews in a polished gallery that builds trust.</p>",
-        "cta_text": "Share your photo",
         "layout_style": "grid",
         "media_aspect_ratio": "4 / 5",
         "show_ratings": true,
@@ -1610,41 +1723,24 @@
     {
       "name": "Customer Stories",
       "settings": {
-        "eyebrow": "Customer stories",
-        "heading": "Why customers keep coming back",
-        "text": "<p>Pair customer reviews with lifestyle imagery and product references to create stronger buying confidence.</p>",
-        "cta_text": "Read more stories",
         "layout_style": "masonry",
         "media_aspect_ratio": "3 / 4",
         "show_ratings": true,
         "show_product_reference": true,
         "product_label": "Customer pick",
-        "show_item_links": true,
-        "item_1_review": "<p>“This instantly became part of my daily routine.”</p>",
-        "item_2_review": "<p>“The details are what sold me. It feels premium.”</p>",
-        "item_3_review": "<p>“I purchased one, loved it, and came back for another.”</p>"
+        "show_item_links": true
       }
     },
     {
       "name": "Social Showcase",
       "settings": {
-        "eyebrow": "Social proof",
-        "heading": "Shared by the community",
-        "text": "<p>Create a native social-style showcase without relying on third-party social scripts or heavy app embeds.</p>",
-        "cta_text": "Follow along",
         "layout_style": "row",
         "media_aspect_ratio": "1 / 1",
         "show_ratings": false,
         "show_product_reference": false,
         "show_item_links": true,
         "enable_overlay": true,
-        "overlay_opacity": 15,
-        "item_1_link_text": "View post",
-        "item_2_link_text": "View post",
-        "item_3_link_text": "View post",
-        "item_4_link_text": "View post",
-        "item_5_link_text": "View post",
-        "item_6_link_text": "View post"
+        "overlay_opacity": 15
       }
     }
   ]
