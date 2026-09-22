@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 44/102 blocks and 11 dependencies individually reviewed; 55/113 Family 8 entries have dispositions (54 live queued, 1 dormant retained), 58 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 48/102 blocks and 13 dependencies individually reviewed; 61/115 Family 8 entries have dispositions (60 live queued, 1 dormant retained), 54 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1131,3 +1131,17 @@ B8-PANELS live queue after engineering batches: native Theme Editor insert/selec
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Panel checkpoint Theme Check: 503 (3 errors, 500 warnings) to 504 (3 errors, 501 warnings); one helper OrphanedSnippet despite actual consumers, no new errors or suppressions.
+
+## Batch 8 checkpoint — product countdown, progress, merchant messages and sharing — 2026-09-22
+
+Previous checkpoint published as `3f855b75a51824e9755c24ed9904c7b7b4dcfd5d`; PR #22 remains DRAFT. Four product utility blocks now use configured facts and progressive native fallbacks. Strict shared deadline validation and the existing Countdown controller replace duplicated inline clocks. Product Progress Bar gains correct identity and optional real elapsed-time progress without removing its saved countdown contract. Merchant messages have no invented purchase/viewer defaults or unsafe inline JSON. Sharing preserves product/locale URLs and native links while reporting only actual copy results and disposing async work. Two new dependencies are individually inventoried; the existing Countdown asset remains Batch 5 with contextual revalidation.
+
+48/102 blocks and 13 dependencies individually reviewed; 61/115 Family 8 entries have dispositions (60 live queued, 1 dormant retained), 54 NOT REVIEWED. Global dispositions: 393 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 79 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-product-utilities/`. 341 actual default/preset/control/state renders plus runtime cases cover strict calendar/leap/time/offsets, no-JS deadline/link/copy fallbacks, configured time progress before/during/after its range, exact expiry/hidden-page pause, two independent timers/share roots, safe message injection and real text, copy success/failure/cancel/focus, editor load/unload/reorder/removal/late insertion and pending async disposal. Original Countdown/Progress regression also passes. All 21 affected suites pass; 157 settings, 12 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-PRODUCT-UTILITIES live queue after engineering batches: native Liquid epoch parsing/caching and configured fixed UTC offsets versus daylight-saving intent; native progress/timer/no-JS/AT and responsive long content, true Web Share/clipboard permissions/provider/email behavior; merchant-supplied messages must reflect actual configured claims and have no connected live feed; Theme Editor insertion/select/reorder/load/unload and actual focus/motion. All prior queues carry forward. No live Shopify QA.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Product utility checkpoint Theme Check: 504 (3 errors, 501 warnings) to 505 (3 errors, 502 warnings), one deadline-helper orphan report despite actual consumers. No new errors or suppression.

@@ -16,6 +16,8 @@
       const editor = root.dataset.designMode === 'true' || window.Shopify?.designMode;
       const message = root.querySelector('[data-q-expired-message]');
       const stat = root.querySelector('[data-q-static]');
+      const progress = root.querySelector('[data-q-time-progress]');
+      const start = /^\d+$/.test(root.dataset.startEpoch || '') ? Number(root.dataset.startEpoch) * 1000 : NaN;
       const abort = new AbortController();
       let timer = null, disposed = false;
       function cancel() { if (timer !== null) clearTimeout(timer); timer = null; }
@@ -23,6 +25,10 @@
         cancel();
         if (disposed || document.hidden) return;
         const remaining = Math.max(0, target - Date.now());
+        if (progress && Number.isSafeInteger(start) && start < target) {
+          progress.value = Math.max(0, Math.min(100, (Date.now() - start) * 100 / (target - start)));
+          progress.hidden = false;
+        }
         const total = Math.ceil(remaining / 1000);
         const values = [Math.floor(total / 86400), Math.floor(total / 3600) % 24, Math.floor(total / 60) % 60, total % 60];
         ['days', 'hours', 'minutes', 'seconds'].forEach((unit, i) => {
@@ -37,7 +43,7 @@
           else if (root.dataset.expiredBehavior === 'show_message' || editor) {
             grid.hidden = true;
             if (stat) stat.hidden = true;
-            if (message) { message.hidden = false; if (!message.textContent.trim()) message.textContent = 'This offer has ended.'; }
+            if (message) { message.hidden = false; if (!message.textContent.trim()) message.textContent = root.dataset.expiredFallback || 'This offer has ended.'; }
           }
           return;
         }
@@ -51,6 +57,7 @@
         root.hidden = false; grid.hidden = true; root.classList.remove('q-campaign--expired');
         if (stat) stat.hidden = false;
         if (message) message.hidden = true;
+        if (progress) progress.hidden = true;
       });
       tick();
     });

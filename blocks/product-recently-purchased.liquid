@@ -19,6 +19,19 @@
   endif
 -%}
 
+{%- capture qtm_messages -%}[{{ block.settings.random_message_1 | json }},{{ block.settings.random_message_2 | json }},{{ block.settings.random_message_3 | json }},{{ block.settings.random_message_4 | json }},{{ block.settings.random_message_5 | json }}]{%- endcapture -%}
+{%- liquid
+  if message_text == blank and block.settings.randomize_messages
+    for i in (1..5)
+      assign message_key = 'random_message_' | append: i
+      if block.settings[message_key] != blank
+        assign message_text = block.settings[message_key]
+        break
+      endif
+    endfor
+  endif
+-%}
+{%- if message_text != blank -%}
 <div
   id="{{ block_id }}"
   class="
@@ -26,10 +39,10 @@
     product-recently-purchased--{{ layout_style }}
     product-recently-purchased--width-{{ width }}
     product-recently-purchased--align-{{ alignment }}
-    {% unless show_on_desktop %} product-recently-purchased--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-recently-purchased--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-recently-purchased--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-recently-purchased--animate product-recently-purchased--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-recently-purchased--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-recently-purchased--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-recently-purchased--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-recently-purchased--animate product-recently-purchased--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-recently-purchased-margin-top: {{ block.settings.margin_top }}px;
@@ -56,10 +69,13 @@
   {% endif %}
   data-product-recently-purchased
   data-randomize="{{ block.settings.randomize_messages }}"
-  {{ block.shopify_attributes }}
+  data-messages="{{ qtm_messages | escape }}"
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-recently-purchased-margin-top);
       margin-bottom: var(--product-recently-purchased-margin-bottom);
@@ -230,7 +246,7 @@
       opacity: 1;
       animation-name: productRecentlyPurchasedPulse;
       animation-duration: 1800ms;
-      animation-iteration-count: infinite;
+      animation-iteration-count: 2;
     }
 
     @keyframes productRecentlyPurchasedFade {
@@ -297,6 +313,14 @@
         transform: none;
       }
     }
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; min-width: 0; }
+    #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} a { color: var(--product-recently-purchased-link-color, currentColor); }
+    #{{ block_id }} :is(a, button, input):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    @media (min-width: 990px) { .shopify-block:has(> #{{ block_id }}.product-recently-purchased--hide-desktop) { display: none !important; } }
+    @media (min-width: 750px) and (max-width: 989px) { .shopify-block:has(> #{{ block_id }}.product-recently-purchased--hide-tablet) { display: none !important; } }
+    @media (max-width: 749px) { .shopify-block:has(> #{{ block_id }}.product-recently-purchased--hide-mobile) { display: none !important; } }
+    #{{ block_id }} .product-recently-purchased__inner:not(:has(> .product-recently-purchased__icon)) { grid-template-columns: minmax(0, 1fr); }
   </style>
 
   <div class="product-recently-purchased__inner">
@@ -325,46 +349,11 @@
     </div>
   </div>
 
-  {% if block.settings.randomize_messages %}
-    <script type="application/json" data-product-recently-purchased-messages>
-      [
-        {{ block.settings.random_message_1 | json }},
-        {{ block.settings.random_message_2 | json }},
-        {{ block.settings.random_message_3 | json }},
-        {{ block.settings.random_message_4 | json }},
-        {{ block.settings.random_message_5 | json }}
-      ]
-    </script>
 
-    <script>
-      (() => {
-        const root = document.getElementById({{ block_id | json }});
-
-        if (!root || root.dataset.productRecentlyPurchasedReady === 'true') return;
-
-        root.dataset.productRecentlyPurchasedReady = 'true';
-
-        const messageNode = root.querySelector('[data-product-recently-purchased-message]');
-        const messagesScript = root.querySelector('[data-product-recently-purchased-messages]');
-
-        if (!messageNode || !messagesScript) return;
-
-        try {
-          const messages = JSON.parse(messagesScript.textContent || '[]')
-            .filter((message) => typeof message === 'string' && message.trim().length > 0);
-
-          if (!messages.length) return;
-
-          const index = Math.floor(Math.random() * messages.length);
-          messageNode.textContent = messages[index];
-        } catch (error) {
-          return;
-        }
-      })();
-    </script>
-  {% endif %}
 </div>
 
+
+{% elsif request.design_mode %}<p>Add a merchant message. This block has no live purchase or viewer feed.</p>{% endif %}
 {% schema %}
 {
   "name": "Recently purchased",
@@ -372,6 +361,10 @@
     {
       "type": "header",
       "content": "Message"
+    },
+    {
+      "type": "paragraph",
+      "content": "Static merchant text only. No order, viewer, location, cart or popularity feed is connected. Add only messages you can substantiate; optional random selection uses your configured messages."
     },
     {
       "type": "select",
@@ -392,34 +385,28 @@
     {
       "type": "text",
       "id": "heading",
-      "label": "Heading",
-      "default": "Recently purchased"
+      "label": "Heading"
     },
     {
       "type": "text",
       "id": "message_text",
-      "label": "Static message",
-      "default": "12 customers bought this recently."
+      "label": "Static message"
     },
     {
       "type": "text",
       "id": "product_prefix",
-      "label": "Product fallback prefix",
-      "default": "Shoppers are currently viewing"
+      "label": "Product fallback prefix"
     },
     {
       "type": "text",
       "id": "product_suffix",
-      "label": "Product fallback suffix",
-      "default": "this week."
+      "label": "Product fallback suffix"
     },
     {
       "type": "text",
       "id": "caption",
-      "label": "Caption",
-      "default": "Merchant-controlled social proof message."
+      "label": "Caption"
     },
-
     {
       "type": "header",
       "content": "Randomized merchant messages"
@@ -433,34 +420,28 @@
     {
       "type": "text",
       "id": "random_message_1",
-      "label": "Random message 1",
-      "default": "12 customers bought this recently."
+      "label": "Random message 1"
     },
     {
       "type": "text",
       "id": "random_message_2",
-      "label": "Random message 2",
-      "default": "Recently purchased by shoppers in your area."
+      "label": "Random message 2"
     },
     {
       "type": "text",
       "id": "random_message_3",
-      "label": "Random message 3",
-      "default": "Trending with customers this week."
+      "label": "Random message 3"
     },
     {
       "type": "text",
       "id": "random_message_4",
-      "label": "Random message 4",
-      "default": "Popular pick with returning customers."
+      "label": "Random message 4"
     },
     {
       "type": "text",
       "id": "random_message_5",
-      "label": "Random message 5",
-      "default": "Customers are adding this to their carts."
+      "label": "Random message 5"
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -485,7 +466,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Icon"
@@ -512,7 +492,6 @@
       "unit": "px",
       "default": 38
     },
-
     {
       "type": "header",
       "content": "Typography"
@@ -567,7 +546,6 @@
       "unit": "px",
       "default": 12
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -623,10 +601,9 @@
     {
       "type": "color",
       "id": "accent_color",
-      "label": "Activity dot color",
+      "label": "Icon dot color",
       "default": "#147a3f"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -651,7 +628,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Container"
@@ -704,7 +680,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -759,7 +734,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -782,7 +756,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -814,20 +787,10 @@
   ],
   "presets": [
     {
-      "name": "Recently Purchased",
+      "name": "Merchant Message",
       "settings": {
         "message_source": "static",
-        "heading": "Recently purchased",
-        "message_text": "12 customers bought this recently.",
-        "product_prefix": "Shoppers are currently viewing",
-        "product_suffix": "this week.",
-        "caption": "Merchant-controlled social proof message.",
         "randomize_messages": false,
-        "random_message_1": "12 customers bought this recently.",
-        "random_message_2": "Recently purchased by shoppers in your area.",
-        "random_message_3": "Trending with customers this week.",
-        "random_message_4": "Popular pick with returning customers.",
-        "random_message_5": "Customers are adding this to their carts.",
         "layout_style": "inline_notice",
         "show_icon": true,
         "icon_text": "✓",
@@ -862,20 +825,10 @@
       }
     },
     {
-      "name": "Trending Now",
+      "name": "Message Card",
       "settings": {
         "message_source": "static",
-        "heading": "Trending now",
-        "message_text": "Trending with shoppers this week.",
-        "product_prefix": "Trending now:",
-        "product_suffix": "is getting attention this week.",
-        "caption": "Use this for merchant-approved demand messaging.",
-        "randomize_messages": true,
-        "random_message_1": "Trending with shoppers this week.",
-        "random_message_2": "Popular with customers right now.",
-        "random_message_3": "Customers are checking this out today.",
-        "random_message_4": "A strong pick for this season.",
-        "random_message_5": "Recently added to shopper carts.",
+        "randomize_messages": false,
         "layout_style": "card",
         "show_icon": true,
         "icon_text": "↗",
@@ -906,24 +859,14 @@
         "show_on_desktop": true,
         "show_on_tablet": true,
         "show_on_mobile": true,
-        "animation_style": "fade_up"
+        "animation_style": "none"
       }
     },
     {
-      "name": "Customer Activity",
+      "name": "Minimal Message",
       "settings": {
-        "message_source": "product_fallback",
-        "heading": "Customer activity",
-        "message_text": "Customers are viewing this product.",
-        "product_prefix": "Customers are viewing",
-        "product_suffix": "right now.",
-        "caption": "No live data claims are made unless the merchant controls the text.",
+        "message_source": "static",
         "randomize_messages": false,
-        "random_message_1": "12 customers bought this recently.",
-        "random_message_2": "Recently purchased by shoppers in your area.",
-        "random_message_3": "Trending with customers this week.",
-        "random_message_4": "Popular pick with returning customers.",
-        "random_message_5": "Customers are adding this to their carts.",
         "layout_style": "minimal",
         "show_icon": true,
         "icon_text": "•",
@@ -954,7 +897,7 @@
         "show_on_desktop": true,
         "show_on_tablet": true,
         "show_on_mobile": true,
-        "animation_style": "pulse"
+        "animation_style": "none"
       }
     }
   ]
