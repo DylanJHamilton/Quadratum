@@ -33,8 +33,9 @@ for name,s in sources.items():
  if matches:
   try:schema=json.loads(matches[-1][1]);valid='YES'
   except Exception as e:valid='ERROR: '+str(e)
- dependencies=sorted(set('snippets/'+v+'.liquid' for v in re.findall(r"(?:render|include)\s+['\"]([^'\"]+)['\"]",s)))
- assets=sorted(set(re.findall(r"['\"]([^'\"]+)['\"]\s*\|\s*asset_url",s)))
+ trace=re.sub(r'{%-?\s*comment\s*-?%}.*?{%-?\s*endcomment\s*-?%}', '', s, flags=re.S)
+ dependencies=sorted(set('snippets/'+v+'.liquid' for v in re.findall(r"(?:render|include)\s+['\"]([^'\"]+)['\"]",trace)))
+ assets=sorted(set(re.findall(r"['\"]([^'\"]+)['\"]\s*\|\s*asset_url",trace)))
  rows.append({'Type':p.parts[0],'Component':p.stem,'File':name,'Family':family(p.stem) if p.parts[0]!='blocks' else '8 Theme Blocks','Dependencies':';'.join(dependencies),'CSS Asset':';'.join(a for a in assets if '.css' in a),'JS Asset':';'.join(a for a in assets if '.js' in a),'Consumers':';'.join(sorted(set(consumers[name]))),'Schema Valid':valid,'Settings Reviewed':'PENDING','Preset Reviewed':'PENDING' if schema.get('presets') else 'N/A','Responsive Reviewed':'PENDING','Accessibility Reviewed':'PENDING','Multi-Instance Reviewed':'PENDING','Theme Editor Reviewed':'PENDING','Theme Check Reviewed':'PENDING','Final Disposition':'NOT REVIEWED','Changes':'','Live Verification Needed':'Not yet assessed','Notes':'Literal dependency trace only; dynamic consumers require review.','SHA256':hashlib.sha256((ROOT/name).read_bytes()).hexdigest()})
 path=ROOT/'docs/phase4/component-register.csv'
 if path.exists():
