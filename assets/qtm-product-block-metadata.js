@@ -4,7 +4,7 @@
   const selector = '[data-product-sku], [data-product-description], [data-product-info]';
   const instances = new Map();
   const roots = node => node?.querySelectorAll ? [...(node.matches?.(selector) ? [node] : []), ...node.querySelectorAll(selector)] : [];
-  const scopeOf = root => root.closest('.qtm-product-block-section, .shopify-section') || root;
+  const scopeOf = root => root.closest('[data-qtm-commerce-scope], .qtm-product-block-section, .shopify-section') || root;
   function init(root) {
     if (instances.has(root)) return;
     const abort = new AbortController();
@@ -46,6 +46,7 @@
             const id = String(detail.sectionId);
             if (![id, 'shopify-section-' + id, 'qtm-product-block-section-' + id].includes(scope.id)) return;
           } else {
+            if (scope.hasAttribute('data-qtm-commerce-scope')) return;
             // Legacy document events cannot identify one of several instances of the same product.
             const scopes = new Set([...document.querySelectorAll('[data-product-sku], [data-product-info]')].filter(node => node.dataset.productId === root.dataset.productId).map(scopeOf));
             if (scopes.size !== 1) return;
@@ -57,13 +58,14 @@
       for (const name of ['variant:change', 'product:variant-change', 'qtm:variant:change']) on(document, name, handle);
       on(scope, 'change', event => {
         const input = event.target;
+        if (scopeOf(input) !== scope) return;
         const owner = input.closest?.('[data-product-id]');
         if (owner && owner.dataset.productId !== root.dataset.productId) return;
         if (input.matches?.('[name="id"]') && !input.disabled && (!['radio', 'checkbox'].includes(input.type) || input.checked)) update(input.value);
       });
-      const initial = [...scope.querySelectorAll('form [name="id"]')].find(input => { const owner = input.closest('[data-product-id]'); return !owner || owner.dataset.productId === root.dataset.productId; });
+      const initial = [...scope.querySelectorAll('form [name="id"]')].find(input => { const owner = input.closest('[data-product-id]'); return scopeOf(input) === scope && (!owner || owner.dataset.productId === root.dataset.productId); });
       if (initial && !initial.disabled) update(initial.value);
-      on(scope, 'qtm:variant-restored', event => { const input = event.target.matches?.('[name="id"]') ? event.target : event.target.querySelector?.('[name="id"]'); if (input && (!input.closest('[data-product-id]') || input.closest('[data-product-id]').dataset.productId === root.dataset.productId)) update(input.value); });
+      on(scope, 'qtm:variant-restored', event => { const input = event.target.matches?.('[name="id"]') ? event.target : event.target.querySelector?.('[name="id"]'); if (input && scopeOf(input) === scope && (!input.closest('[data-product-id]') || input.closest('[data-product-id]').dataset.productId === root.dataset.productId)) update(input.value); });
     } else {
       const content = root.querySelector('[data-product-description-content]');
       const toggle = root.querySelector('[data-product-description-toggle]');

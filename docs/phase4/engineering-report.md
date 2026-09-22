@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 88/102 blocks and 24 dependencies individually reviewed; 112/126 Family 8 entries have dispositions (111 live queued, 1 dormant retained), 14 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 89/102 blocks and 25 dependencies individually reviewed; 114/127 Family 8 entries have dispositions (113 live queued, 1 dormant retained), 13 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1271,3 +1271,17 @@ B8-PRODUCT-DISCOVERY live queue after engineering batches: actual Shopify relate
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Unsuppressed CLI 4.8.0 remains at 510 findings (3 unchanged out-of-group errors and 507 warnings); no group errors or suppression.
+
+## Batch 8 checkpoint — Featured Product native purchase and media — 2026-09-22
+
+Previous checkpoint published as `9c3cfc25bff36ae7a2fc48d7fdd382550a3f1072`; PR #22 remains DRAFT. Featured Product now uses the established canonical purchase and native-media controllers, with independent manually selected products and shared explicit current-product state. Selected variant price, availability, quantity, plans and media remain coherent without foreign event contamination.
+
+89/102 blocks and 25 dependencies individually reviewed; 114/127 Family 8 entries have dispositions (113 live queued, 1 dormant retained), 13 NOT REVIEWED. Global dispositions: 446 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 38 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-featured-product/`. 112 actual default/preset/control/data-state renders preserve every original setting type/option and cover native source precedence, missing products/media, all native media types, selected variant/media outside enumeration/limit, gallery-off dynamic media, escaped labels, native required/optional plans and quantities. Actual combined manual/current/main-form/SKU/bundle/gallery fixture proves ownership, player activation/cleanup, section and mutation lifecycle; actual cart drawer proves one POST with exact native id/quantity/selling_plan, invalid quantity blocking, sold-out blocking, errors and native fallback. All 15 affected suites pass; 68 settings, 3 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-FEATURED-PRODUCT live queue after engineering batches: actual native product forms/variant enumeration/selling plans/quantity rules/presentment prices/cart drawer and server errors, product-builder sharing, Shopify media/model players, 320–1440px/RTL/zoom/nested layouts, real keyboard/AT and Theme Editor lifecycle. LiquidJS/DOM/native-filter/player adapters are not acceptance. No live Shopify QA; prior queues carry forward.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Unsuppressed Theme Check: 511 findings: 3 unchanged out-of-group errors and 508 warnings. One new shared-gallery orphan diagnostic despite traced Featured Product caller; no suppression.

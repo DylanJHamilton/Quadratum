@@ -3,7 +3,7 @@
   if (window.qtmProductBlockGallery) return;
   const selector = '[data-qtm-block-gallery]', instances = new Map();
   const roots = node => node?.querySelectorAll ? [...(node.matches?.(selector) ? [node] : []), ...node.querySelectorAll(selector)] : [];
-  const scopeOf = root => root.closest('.qtm-product-block-section, .shopify-section') || root;
+  const scopeOf = root => root.closest('[data-qtm-commerce-scope], .qtm-product-block-section, .shopify-section') || root;
   function init(root) {
     if (instances.has(root)) return;
     const items = [...root.querySelectorAll('[data-gallery-item]')];
@@ -12,7 +12,8 @@
     const viewport = root.querySelector('[data-product-gallery-viewport]'), scope = scopeOf(root);
     const choices = [...root.querySelectorAll('[data-product-gallery-thumbnail], [data-product-gallery-dot]')];
     const nav = [...root.querySelectorAll('[data-gallery-nav]')], pauseButton = root.querySelector('[data-gallery-pause]');
-    const slider = root.dataset.galleryMode === 'slider', panels = root.dataset.galleryMode === 'horizontal_thumbs' && choices.length > 0;
+    const slider = root.dataset.galleryMode === 'slider', panels = root.dataset.galleryMode === 'horizontal_thumbs' && (choices.length > 0 || root.hasAttribute('data-gallery-variant-panels'));
+    const addedItems = new Set();
     const motion = matchMedia('(prefers-reduced-motion: reduce)');
     let variants; try { variants = JSON.parse(root.dataset.variants || '[]'); } catch (_) { variants = []; }
     if (!Array.isArray(variants)) variants = [];
@@ -91,18 +92,29 @@
     on(document, 'visibilitychange', () => { if (document.hidden) items.forEach(item => stopMedia(item)); schedule(); });
     on(motion, 'change', schedule);
     on(root, 'play', event => { userAction(); items.forEach(item => stopMedia(item, event.target)); }, { capture: true });
-    root.querySelectorAll('[data-gallery-embed-link]').forEach(link => on(link, 'click', event => {
+    on(root, 'click', event => {
+      const link = event.target.closest?.('[data-gallery-embed-link]');
+      if (!link || link.closest(selector) !== root) return;
       const container = link.parentElement, template = container.querySelector('template[data-gallery-embed-template]');
       if (!template) return;
       event.preventDefault(); userAction(); items.forEach(item => stopMedia(item));
       const player = document.createElement('div'); player.dataset.galleryEmbedPlayer = '';
       player.append(template.content.cloneNode(true)); link.after(player); link.hidden = true; player.querySelector('iframe')?.focus();
-    }));
+    });
     const updateVariant = (id, scroll = false, fromUser = scroll) => {
       const variant = variants.find(item => String(item.id) === String(id));
       if (id && !variant) return;
       root.dataset.variantId = variant ? String(variant.id) : '';
-      const index = items.findIndex(item => item.dataset.mediaId === String(variant?.mediaId));
+      let index = items.findIndex(item => item.dataset.mediaId === String(variant?.mediaId));
+      if (index < 0 && variant?.mediaId != null && root.hasAttribute('data-gallery-variant-panels')) {
+        // Featured-product navigation can be limited while every selected variant still owns its native media.
+        const template = [...root.querySelectorAll('template[data-gallery-extra-template]')].find(node => node.dataset.mediaId === String(variant.mediaId));
+        const source = template?.content.querySelector('[data-gallery-item]');
+        if (source && viewport) {
+          const item = source.cloneNode(true); item.tabIndex = -1;
+          viewport.append(item); items.push(item); addedItems.add(item); index = items.length - 1;
+        }
+      }
       if (index >= 0) { if (fromUser) userAction(); activate(index, scroll); }
     };
     const handle = event => {
@@ -114,13 +126,14 @@
       if (sourceScope && sourceScope !== scope) return;
       if (!sourceScope) {
         if (detail.sectionId != null) { const id = String(detail.sectionId); if (![id, 'shopify-section-' + id, 'qtm-product-block-section-' + id].includes(scope.id)) return; }
+        else if (scope.hasAttribute('data-qtm-commerce-scope')) return;
         else if (new Set([...document.querySelectorAll(selector)].filter(node => node.dataset.productId === root.dataset.productId).map(scopeOf)).size !== 1) return;
       }
       const id = detail.variant?.id ?? detail.variantId ?? detail.variant_id ?? detail.id;
       if (id != null || detail.variant === null) updateVariant(id, true);
     };
     for (const name of ['variant:change', 'qtm:variant:change', 'product:variant-change']) on(document, name, handle);
-    const nativeVariant = input => input?.matches?.('[name="id"]') && !input.disabled && (!['radio', 'checkbox'].includes(input.type) || input.checked) && (!input.closest('[data-product-id]') || input.closest('[data-product-id]').dataset.productId === root.dataset.productId);
+    const nativeVariant = input => input?.matches?.('[name="id"]') && scopeOf(input) === scope && !input.disabled && (!['radio', 'checkbox'].includes(input.type) || input.checked) && (!input.closest('[data-product-id]') || input.closest('[data-product-id]').dataset.productId === root.dataset.productId);
     on(scope, 'change', event => { if (nativeVariant(event.target)) updateVariant(event.target.value, true); });
     on(scope, 'qtm:variant-restored', event => { const input = nativeVariant(event.target) ? event.target : event.target.querySelector?.('[name="id"]'); if (nativeVariant(input)) updateVariant(input.value); });
     on(root.closest('.shopify-block') || root, 'shopify:block:select', () => { userAction(); activate(active, true); });
@@ -137,6 +150,7 @@
     instances.set(root, () => {
       disposed = true; abort.abort(); cancel(); resize?.disconnect(); if (frame) cancelAnimationFrame(frame);
       items.forEach(item => { stopMedia(item); item.hidden = false; item.inert = false; item.removeAttribute('inert'); item.removeAttribute('aria-hidden'); item.removeAttribute('tabindex'); });
+      addedItems.forEach(item => item.remove());
       nav.forEach(node => { node.hidden = true; }); if (pauseButton) pauseButton.hidden = true;
       delete root.dataset.qtmGalleryReady; root.querySelector('[data-gallery-status]').textContent = '';
     });

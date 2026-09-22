@@ -4,7 +4,7 @@
   const selector = '[data-qtm-product-block-commerce]';
   const instances = new Map();
   const states = new Set();
-  const scopeOf = root => root.closest('.qtm-product-block-section, .shopify-section') || root;
+  const scopeOf = root => root.closest('[data-qtm-commerce-scope], .qtm-product-block-section, .shopify-section') || root;
   const roots = node => node?.querySelectorAll ? [...(node.matches?.(selector) ? [node] : []), ...node.querySelectorAll(selector)] : [];
   const number = (value, fallback) => Number.isInteger(Number(value)) && Number(value) > 0 ? Number(value) : fallback;
   function rules(state) {
@@ -138,6 +138,7 @@
     if (detail.productId != null && String(detail.productId) !== state.productId) return false;
     if (event.target instanceof Element) return scopeOf(event.target) === state.scope;
     if (detail.sectionId != null) return [String(detail.sectionId), 'shopify-section-' + detail.sectionId, 'qtm-product-block-section-' + detail.sectionId].includes(state.scope.id);
+    if (state.scope.hasAttribute('data-qtm-commerce-scope')) return false;
     return [...states].filter(item => item.productId === state.productId).length === 1;
   }
   function init(root) {

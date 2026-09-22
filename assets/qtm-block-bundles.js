@@ -3,7 +3,7 @@
   if (window.qtmBlockBundles) return;
   const selector = '[data-qtm-block-bundle]', instances = new Map();
   const roots = node => node?.querySelectorAll ? [...(node.matches?.(selector) ? [node] : []), ...node.querySelectorAll(selector)] : [];
-  const scopeOf = node => node.closest('.qtm-product-block-section, .shopify-section') || node;
+  const scopeOf = node => node.closest('[data-qtm-commerce-scope], .qtm-product-block-section, .shopify-section') || node;
   const parse = (text, fallback) => { try { return JSON.parse(text); } catch { return fallback; } };
   function init(root) {
     if (instances.has(root)) return;
@@ -109,6 +109,7 @@
       if (target && scopeOf(target) !== scope) return;
       if (!target) {
         if (detail.sectionId != null) { if (![String(detail.sectionId), 'shopify-section-' + detail.sectionId, 'qtm-product-block-section-' + detail.sectionId].includes(scope.id)) return; }
+        else if (scope.hasAttribute('data-qtm-commerce-scope')) return;
         else if (new Set([...document.querySelectorAll(selector)].filter(n => n.dataset.productId === root.dataset.productId).map(scopeOf)).size !== 1) return;
       }
       const id = detail.variant?.id ?? detail.variantId ?? detail.variant_id ?? detail.id;
