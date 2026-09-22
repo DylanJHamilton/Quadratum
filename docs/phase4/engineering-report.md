@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 12/102 blocks and 4/4 shared dependencies individually reviewed. 15 live queued, one dormant retained; 90 Family 8 entries NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 20/102 blocks and five shared dependencies individually reviewed. 24 live queued, one dormant retained; 82 Family 8 entries NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1063,3 +1063,19 @@ Evidence: `validation/batch8-primitives/`. All 13 affected suites pass, includin
 Theme Check: **499 → 500 findings, errors 5 → 3, warnings 494 → 497**, unsuppressed CLI exit 1. Zero errors in this group. The parsed wrappers now receive two orphan diagnostics (12 explicit start consumers; honestly dormant end); repaired Quote Custom width increases its controls from 40 to 41 and adds one settings-count warning. No unrelated global errors changed.
 
 **B8-PRIMITIVES live queue:** actual Shopify block/preset insertion, native image/custom-Liquid evaluation and Theme Editor lifecycle; all saved/zero/extreme controls, long text, 320/390/768/1280/1440px, RTL/zoom/no-JS/motion/keyboard/AT/contrast; real merchant destinations and provider code. Adapters and source checks do not certify live behavior. No owner decision blocks continuation. PR #22 remains draft; Batch 9, the brand-preset rollout, roadmap Phase 5 and live acceptance remain out of scope.
+
+## Batch 8 checkpoint — product identity and metadata — 2026-09-22
+
+Owner explicitly authorized pushing the first Batch 8 checkpoint and subsequent coherent checkpoints on the release branch. Local `f9d6a31` was published through GitHub object APIs as `614872ef8d5a4e71add8509fd09abeb84f79b72a`, with the identical tree verified. PR #22 remains open/draft. No main write or merge occurred.
+
+Eight more blocks now have individual engineering dispositions: Product Title, Subtitle, Vendor, Type, Tags, SKU, Description and Metafield (209 settings, 24 presets). Vendor now uses real product.vendor for new insertions; its former copied subtitle settings remain compatible. Corrected subtitle rich/plain markup, localized tag links, Product Type's malformed saved animation option, independent font controls, missing/empty/editor states and bounded long content. SKU data is escaped outside raw script bodies, and updates are scoped to the originating host. Descriptions are complete without JS, expand for keyboard focus, and have clean lifecycle/remeasurement behavior. Typed metafield rendering preserves false/zero, escapes text, handles supported lists/references and supplies real named file destinations.
+
+One new globally deferred metadata controller is required for first insertion after initial editor boot. It is inventoried/reviewed in Family 8, bringing the family to 107 entries (102 original blocks + five dependencies). The normal layout receives one dependency tag; all protected section sources remain unchanged. Product Form and Variant Picker only change event emission from document to the originating root; actual producer bodies are integration-tested, but those blocks remain NOT REVIEWED pending their complete individual reviews.
+
+**25/107 Family 8 entries have dispositions: 24 REQUIRES LIVE VERIFICATION, one dormant retained; 82 remain NOT REVIEWED.** Total register: 493 entries, 357 live queued, 27 dormant reviewed, one build-only, one retained owner-review deletion candidate, 107 NOT REVIEWED. No untouched component is approved by association.
+
+Evidence: `validation/batch8-product-identity/`. All 15 affected suites pass, including all seven Phase 3 suites, two new block suites, primitive/engine, product host, main/compact commerce and layout regressions. 444 default/preset/control renders plus targeted type/escape/URL/media/lifecycle assertions pass. All changed Liquid sources parse in native strict mode; architecture/schema/reference/source hashes, protected settings/sections and CSS build pass. Theme Check remains unsuppressed with its exact counts in the evidence; three existing out-of-group errors remain.
+
+**B8-PRODUCT-IDENTITY live queue:** native Shopify drops/media/locale URLs and editor insertion/load/unload/reorder/selection; duplicate product hosts, variant/SKU transitions, description image/font/viewport reflow and keyboard/AT/no-JS; every saved/preset/control state at 320/390/768/1280/1440px, RTL/zoom/reduced motion and theme contrast. No live acceptance started. Batch 8 continues; Batch 9 and preset-family rollout remain outside authorization.
+
+Product identity checkpoint Theme Check reconciliation: **500 findings unchanged: three errors, 497 warnings.** The only in-group diagnostic is the existing Metafield settings-count warning; no new diagnostics or suppressions.

@@ -15,6 +15,7 @@
   assign show_on_mobile = block.settings.show_on_mobile
 -%}
 
+{% capture sku_variant_data %}[{% for variant in product_context.variants %}{"id":{{ variant.id | json }},"sku":{{ variant.sku | json }}}{% unless forloop.last %},{% endunless %}{% endfor %}]{% endcapture %}
 <div
   id="{{ block_id }}"
   class="
@@ -22,11 +23,11 @@
     product-sku--{{ sku_style }}
     product-sku--width-{{ width }}
     product-sku--align-{{ alignment }}
-    {% if sku_value == blank and block.settings.hide_when_empty %} product-sku--empty{% endif %}
-    {% unless show_on_desktop %} product-sku--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-sku--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-sku--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-sku--animate product-sku--animate-{{ block.settings.animation_style }}{% endif %}
+    {% if sku_value == blank and block.settings.hide_when_empty and request.design_mode == false %} product-sku--empty{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-sku--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-sku--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-sku--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-sku--animate product-sku--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-sku-margin-top: {{ block.settings.margin_top }}px;
@@ -44,10 +45,17 @@
   data-product-id="{{ product_context.id }}"
   data-variant-id="{{ current_variant.id }}"
   data-product-sku
-  {{ block.shopify_attributes }}
+  data-variants="{{ sku_variant_data | escape }}"
+  data-empty-text="{{ block.settings.empty_text | escape }}"
+  data-hide-empty="{{ block.settings.hide_when_empty }}"
+  data-design-mode="{{ request.design_mode }}"
+
 >
   <style>
     #{{ block_id }} {
+        min-width: 0;
+        box-sizing: border-box;
+        overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-sku-margin-top);
       margin-bottom: var(--product-sku-margin-bottom);
@@ -100,6 +108,8 @@
 
     #{{ block_id }} .product-sku__inner {
       display: inline-flex;
+        min-width: 0;
+        max-width: 100%;
       align-items: center;
       gap: 6px;
       max-width: 100%;
@@ -128,7 +138,7 @@
 
     #{{ block_id }} .product-sku__label {
       color: var(--product-sku-label-color);
-      white-space: nowrap;
+      white-space: normal;
     }
 
     #{{ block_id }} .product-sku__value {
@@ -262,7 +272,13 @@
         transform: none;
       }
     }
-  </style>
+
+      #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+      #{{ block_id }} :is(a, button):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+      #{{ block_id }}:focus-within { opacity: 1; animation: none; transform: none; }
+          #{{ block_id }} .product-sku__inner { flex-wrap: wrap; }
+      #{{ block_id }} .product-sku__value { min-width: 0; }
+    </style>
 
   <div class="product-sku__inner">
     {% if block.settings.show_label and block.settings.label != blank %}
@@ -280,75 +296,7 @@
     </span>
   </div>
 
-  <script type="application/json" data-product-sku-variants>
-    {{ product_context.variants | json }}
-  </script>
 
-  <script>
-    (() => {
-      const root = document.getElementById({{ block_id | json }});
-
-      if (!root || root.dataset.productSkuReady === 'true') return;
-
-      root.dataset.productSkuReady = 'true';
-
-      const valueEl = root.querySelector('[data-product-sku-value]');
-      const variantsJson = root.querySelector('[data-product-sku-variants]');
-      const emptyText = {{ block.settings.empty_text | json }};
-      const hideWhenEmpty = {{ block.settings.hide_when_empty | json }};
-
-      if (!valueEl || !variantsJson) return;
-
-      let variants = [];
-
-      try {
-        variants = JSON.parse(variantsJson.textContent || '[]');
-      } catch (error) {
-        variants = [];
-      }
-
-      const updateSku = (variantId) => {
-        if (!variantId) return;
-
-        const variant = variants.find((item) => String(item.id) === String(variantId));
-
-        if (!variant) return;
-
-        const sku = variant.sku || '';
-
-        valueEl.textContent = sku || emptyText || '';
-
-        if (hideWhenEmpty) {
-          root.classList.toggle('product-sku--empty', !sku);
-        }
-
-        root.dataset.variantId = String(variant.id);
-      };
-
-      document.addEventListener('variant:change', (event) => {
-        const detail = event.detail || {};
-        const variantId = detail.variantId || detail.variant_id || detail.id;
-
-        updateSku(variantId);
-      });
-
-      document.addEventListener('product:variant-change', (event) => {
-        const detail = event.detail || {};
-        const variant = detail.variant || {};
-        const variantId = variant.id || detail.variantId || detail.variant_id;
-
-        updateSku(variantId);
-      });
-
-      document.addEventListener('qtm:variant:change', (event) => {
-        const detail = event.detail || {};
-        const variant = detail.variant || {};
-        const variantId = variant.id || detail.variantId || detail.variant_id;
-
-        updateSku(variantId);
-      });
-    })();
-  </script>
 </div>
 
 {% schema %}

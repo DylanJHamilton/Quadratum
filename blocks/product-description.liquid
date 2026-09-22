@@ -15,7 +15,7 @@
   assign show_on_mobile = block.settings.show_on_mobile
 -%}
 
-{% if description_content != blank or block.settings.hide_when_empty == false %}
+{% if description_content != blank or block.settings.hide_when_empty == false or request.design_mode %}
   <div
     id="{{ block_id }}"
     class="
@@ -24,10 +24,10 @@
       product-description--width-{{ width }}
       product-description--align-{{ alignment }}
       {% if block.settings.enable_read_more %} product-description--read-more-enabled{% endif %}
-      {% unless show_on_desktop %} product-description--hide-desktop{% endunless %}
-      {% unless show_on_tablet %} product-description--hide-tablet{% endunless %}
-      {% unless show_on_mobile %} product-description--hide-mobile{% endunless %}
-      {% if block.settings.animation_style != 'none' %} product-description--animate product-description--animate-{{ block.settings.animation_style }}{% endif %}
+      {% unless show_on_desktop or request.design_mode %} product-description--hide-desktop{% endunless %}
+      {% unless show_on_tablet or request.design_mode %} product-description--hide-tablet{% endunless %}
+      {% unless show_on_mobile or request.design_mode %} product-description--hide-mobile{% endunless %}
+      {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-description--animate product-description--animate-{{ block.settings.animation_style }}{% endif %}
     "
     style="
       --product-description-margin-top: {{ block.settings.margin_top }}px;
@@ -47,10 +47,16 @@
     data-product-id="{{ product_context.id }}"
     data-variant-id="{{ current_variant.id }}"
     data-product-description
-    {{ block.shopify_attributes }}
+    data-read-more="{{ block.settings.read_more_label | default: 'Read more' | escape }}"
+    data-read-less="{{ block.settings.read_less_label | default: 'Read less' | escape }}"
+    data-design-mode="{{ request.design_mode }}"
+
   >
     <style>
       #{{ block_id }} {
+        min-width: 0;
+        box-sizing: border-box;
+        overflow-wrap: anywhere;
         width: 100%;
         margin-top: var(--product-description-margin-top);
         margin-bottom: var(--product-description-margin-bottom);
@@ -126,25 +132,9 @@
         overflow-wrap: anywhere;
       }
 
-      #{{ block_id }}.product-description--read-more-enabled:not(.is-expanded) .product-description__content {
+      #{{ block_id }}.product-description--read-more-enabled.is-enhanced:not(.is-expanded) .product-description__content {
         max-height: var(--product-description-collapsed-height);
         overflow: hidden;
-      }
-
-      #{{ block_id }}.product-description--read-more-enabled:not(.is-expanded) .product-description__content::after {
-        content: "";
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        height: 56px;
-        pointer-events: none;
-        background: linear-gradient(to bottom, rgba(255, 255, 255, 0), var(--product-description-background-color));
-      }
-
-      #{{ block_id }}.product-description--standard.product-description--read-more-enabled:not(.is-expanded) .product-description__content::after,
-      #{{ block_id }}.product-description--minimal.product-description--read-more-enabled:not(.is-expanded) .product-description__content::after {
-        background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #ffffff);
       }
 
       #{{ block_id }} .product-description__content > *:first-child {
@@ -341,6 +331,12 @@
           transform: none;
         }
       }
+
+      #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+      #{{ block_id }} :is(a, button):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+      #{{ block_id }}:focus-within { opacity: 1; animation: none; transform: none; }
+          #{{ block_id }} .product-description__toggle[hidden] { display: none; }
+      #{{ block_id }} .product-description__content table { display: block; max-width: 100%; overflow-x: auto; }
     </style>
 
     <div class="product-description__inner">
@@ -350,7 +346,7 @@
         </h3>
       {% endif %}
 
-      <div class="product-description__content" data-product-description-content>
+      <div id="{{ block_id }}-content" class="product-description__content" data-product-description-content>
         {% if description_content != blank %}
           {{ description_content }}
         {% else %}
@@ -363,53 +359,15 @@
           type="button"
           class="product-description__toggle"
           data-product-description-toggle
-          aria-expanded="false"
+          hidden
+          aria-expanded="true"
           aria-controls="{{ block_id }}-content"
         >
-          {{ block.settings.read_more_label | escape }}
+          {{ block.settings.read_more_label | default: 'Read more' | escape }}
         </button>
       {% endif %}
     </div>
 
-    <script>
-      (() => {
-        const root = document.getElementById({{ block_id | json }});
-
-        if (!root || root.dataset.productDescriptionReady === 'true') return;
-
-        root.dataset.productDescriptionReady = 'true';
-
-        const content = root.querySelector('[data-product-description-content]');
-        const toggle = root.querySelector('[data-product-description-toggle]');
-
-        if (!content || !toggle) return;
-
-        content.id = `${root.id}-content`;
-
-        const readMoreLabel = {{ block.settings.read_more_label | json }};
-        const readLessLabel = {{ block.settings.read_less_label | json }};
-
-        const shouldShowToggle = () => {
-          const collapsedHeight = parseInt(getComputedStyle(root).getPropertyValue('--product-description-collapsed-height'), 10) || 0;
-          return content.scrollHeight > collapsedHeight + 8;
-        };
-
-        const updateToggleVisibility = () => {
-          toggle.hidden = !shouldShowToggle();
-        };
-
-        toggle.addEventListener('click', () => {
-          const expanded = root.classList.toggle('is-expanded');
-
-          toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-          toggle.textContent = expanded ? readLessLabel : readMoreLabel;
-        });
-
-        updateToggleVisibility();
-
-        window.addEventListener('resize', updateToggleVisibility, { passive: true });
-      })();
-    </script>
   </div>
 {% endif %}
 

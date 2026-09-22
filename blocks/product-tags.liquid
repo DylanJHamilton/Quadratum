@@ -14,6 +14,46 @@
   assign show_on_mobile = block.settings.show_on_mobile
 -%}
 
+{% assign visible_tag_count = 0 %}
+{% assign rendered_any_tag = false %}
+{% capture tag_items %}
+        {%- for tag in product_context.tags -%}
+          {%- liquid
+            assign first_character = tag | slice: 0, 1
+            assign should_render_tag = true
+
+            if block.settings.hide_internal_tags and first_character == '_'
+              assign should_render_tag = false
+            endif
+
+            if visible_tag_count >= max_tags
+              assign should_render_tag = false
+            endif
+          -%}
+
+          {% if should_render_tag %}
+            {%- liquid
+              assign visible_tag_count = visible_tag_count | plus: 1
+              assign rendered_any_tag = true
+              assign tag_handle = tag | handle
+              assign tag_url = routes.all_products_collection_url | append: '/' | append: tag_handle
+            -%}
+
+            <li class="product-tags__item">
+              {% if block.settings.link_tags %}
+                <a class="product-tags__tag" href="{{ tag_url | escape }}">
+                  {{ tag | escape }}
+                </a>
+              {% else %}
+                <span class="product-tags__tag">
+                  {{ tag | escape }}
+                </span>
+              {% endif %}
+            </li>
+          {% endif %}
+        {%- endfor -%}
+{% endcapture %}
+{% if rendered_any_tag or block.settings.hide_when_empty == false or request.design_mode %}
 <div
   id="{{ block_id }}"
   class="
@@ -21,10 +61,10 @@
     product-tags--{{ tags_style }}
     product-tags--width-{{ width }}
     product-tags--align-{{ alignment }}
-    {% unless show_on_desktop %} product-tags--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-tags--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-tags--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-tags--animate product-tags--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-tags--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-tags--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-tags--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-tags--animate product-tags--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-tags-margin-top: {{ block.settings.margin_top }}px;
@@ -43,10 +83,13 @@
   data-product-id="{{ product_context.id }}"
   data-variant-id="{{ current_variant.id }}"
   data-product-tags
-  {{ block.shopify_attributes }}
+
 >
   <style>
     #{{ block_id }} {
+        min-width: 0;
+        box-sizing: border-box;
+        overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-tags-margin-top);
       margin-bottom: var(--product-tags-margin-bottom);
@@ -125,11 +168,15 @@
 
     #{{ block_id }} .product-tags__item {
       display: inline-flex;
+        min-width: 0;
+        max-width: 100%;
       min-width: 0;
     }
 
     #{{ block_id }} .product-tags__tag {
       display: inline-flex;
+        min-width: 0;
+        max-width: 100%;
       align-items: center;
       justify-content: center;
       max-width: 100%;
@@ -151,7 +198,7 @@
     }
 
     #{{ block_id }}.product-tags--badges .product-tags__tag {
-      border-radius: max(calc(var(--product-tags-border-radius) - 8px), 4px);
+      border-radius: max(calc(var(--product-tags-border-radius) - 8px), 0px);
     }
 
     #{{ block_id }}.product-tags--list .product-tags__list {
@@ -307,7 +354,11 @@
         transform: none;
       }
     }
-  </style>
+
+      #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+      #{{ block_id }} :is(a, button):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+      #{{ block_id }}:focus-within { opacity: 1; animation: none; transform: none; }
+    </style>
 
   <div class="product-tags__inner">
     {% if block.settings.show_label and block.settings.label != blank %}
@@ -316,57 +367,17 @@
       </span>
     {% endif %}
 
-    {%- liquid
-      assign visible_tag_count = 0
-      assign rendered_any_tag = false
-    -%}
-
-    {% if product_context.tags.size > 0 %}
-      <ul class="product-tags__list" aria-label="{{ block.settings.aria_label | escape }}">
-        {%- for tag in product_context.tags -%}
-          {%- liquid
-            assign first_character = tag | slice: 0, 1
-            assign should_render_tag = true
-
-            if block.settings.hide_internal_tags and first_character == '_'
-              assign should_render_tag = false
-            endif
-
-            if visible_tag_count >= max_tags
-              assign should_render_tag = false
-            endif
-          -%}
-
-          {% if should_render_tag %}
-            {%- liquid
-              assign visible_tag_count = visible_tag_count | plus: 1
-              assign rendered_any_tag = true
-              assign tag_url = routes.all_products_collection_url | append: '/' | append: tag | handle
-            -%}
-
-            <li class="product-tags__item">
-              {% if block.settings.link_tags %}
-                <a class="product-tags__tag" href="{{ tag_url }}">
-                  {{ tag | escape }}
-                </a>
-              {% else %}
-                <span class="product-tags__tag">
-                  {{ tag | escape }}
-                </span>
-              {% endif %}
-            </li>
-          {% endif %}
-        {%- endfor -%}
-      </ul>
+    {% if rendered_any_tag %}
+      <ul class="product-tags__list" aria-label="{{ block.settings.aria_label | default: 'Product tags' | escape }}">{{ tag_items }}</ul>
     {% endif %}
-
-    {% if rendered_any_tag == false and block.settings.hide_when_empty == false %}
+    {% if rendered_any_tag == false %}
       <span class="product-tags__tag">
         {{ block.settings.empty_text | escape }}
       </span>
     {% endif %}
   </div>
 </div>
+{% endif %}
 
 {% schema %}
 {
