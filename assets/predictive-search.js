@@ -100,6 +100,10 @@
       url.searchParams.set('q', query);
       url.searchParams.set('type', fullTypes);
       url.searchParams.delete('page');
+      for (const name of ['options[unavailable_products]', 'options[prefix]']) {
+        const value = form?.elements.namedItem(name)?.value;
+        if (value) url.searchParams.set(name, value);
+      }
       return url.toString();
     }
 
@@ -142,7 +146,8 @@
       url.searchParams.set('resources[type]', groups.map((group) => group.type).join(','));
       url.searchParams.set('resources[limit]', String(Math.max(...groups.map((group) => group.limit))));
       url.searchParams.set('resources[limit_scope]', 'each');
-      url.searchParams.set('resources[options][unavailable_products]', 'hide');
+      const unavailable = form?.elements.namedItem('options[unavailable_products]')?.value;
+      url.searchParams.set('resources[options][unavailable_products]', ['show', 'hide', 'last'].includes(unavailable) ? unavailable : 'hide');
       url.searchParams.set('resources[options][fields]', 'title,product_type,variants.title,vendor,tag,body');
       try {
         const response = await fetch(url.toString(), { signal: controller.signal, headers: { Accept: 'application/json' } });
@@ -215,11 +220,17 @@
   }
 
   function bootPredictiveSearch(scope = document) {
+    if (!scope?.querySelectorAll) return;
     instances.forEach((instance, root) => { if (!root.isConnected) instance.destroy(); });
     if (scope.matches?.(ROOT_SELECTOR)) initPredictive(scope);
     scope.querySelectorAll(ROOT_SELECTOR).forEach(initPredictive);
   }
   window.initPredictiveSearch = bootPredictiveSearch;
+  const observer = new MutationObserver((records) => {
+    if (!records.some((record) => [...record.addedNodes, ...record.removedNodes].some((node) => node.nodeType === 1 && (node.matches?.(ROOT_SELECTOR) || node.querySelector?.(ROOT_SELECTOR))))) return;
+    bootPredictiveSearch();
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
   const closeOutside = (event) => instances.forEach((instance, root) => {
     if (!root.contains(event.target)) instance.close();
   });

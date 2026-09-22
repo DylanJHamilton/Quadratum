@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 69/102 blocks and 21 dependencies individually reviewed; 90/123 Family 8 entries have dispositions (89 live queued, 1 dormant retained), 33 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 75/102 blocks and 22 dependencies individually reviewed; 97/124 Family 8 entries have dispositions (96 live queued, 1 dormant retained), 27 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1215,3 +1215,17 @@ B8-CONTENT-CARDS live queue after engineering batches: real card image rendition
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Content card checkpoint unsuppressed Theme Check: 507 → 508 findings (three unchanged out-of-group errors, 504 → 505 warnings). The shared comparison-value helper adds one OrphanedSnippet finding despite two explicit callers. Group has zero errors and five retained settings-count warnings; no suppression.
+
+## Batch 8 checkpoint — native forms, search, social links and payment information — 2026-09-22
+
+Previous checkpoint published as `fccb22d2017c4413d2c3e79248d4231e8dd0ca1e`; PR #22 remains DRAFT. Six native form/information blocks now preserve safe values and actual Shopify sources, provide working existing predictive-search composition, maintain accessible links/payment names, and retain the historical custom location alias through one reviewed renderer. Native contact/customer POST and localized search GET remain progressive; no new form backend or payment integration is claimed.
+
+75/102 blocks and 22 dependencies individually reviewed; 97/124 Family 8 entries have dispositions (96 live queued, 1 dormant retained), 27 NOT REVIEWED. Global dispositions: 429 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 52 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-native-forms-information/`. 471 actual render cases exercise all original IDs/options/range endpoints and 18 presets, blank/returned/malicious field values, native success/error/required/consent behavior, local/global social sources, 15 native payment aliases and unavailable filtering, manual custom labels, exact location-alias DOM/style parity, typed/localized search/filter/source modes and duplicate raw IDs. Actual predictive controller fixtures cover two hosts, IME/keyboard, safe provider results, stale responses/aborts, duplicate scripts and insert/reorder/remove/unload/reload. All 16 affected suites pass; 293 settings, 18 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-NATIVE-FORMS live queue after engineering batches: real contact/customer POST, captcha/server errors/return values and newsletter consent/tag handling; native search source/display/filter behavior and keyboard/AT; native payment SVGs and actual device/location/checkout eligibility; real narrow-container form/card layouts and Theme Editor lifecycle. Legacy custom-custom-form remains location information. No live Shopify QA; prior queues carry forward.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Native forms/information lint checkpoint: 508 → 509 unsuppressed findings (3 unchanged out-of-group errors; 505 → 506 warnings). The new shared location helper adds one OrphanedSnippet warning despite two explicit callers. This group has no errors; no suppressions.
