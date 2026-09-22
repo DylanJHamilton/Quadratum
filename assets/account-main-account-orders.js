@@ -1,6 +1,12 @@
+(() => {
+'use strict';
+if(window.__qAccountOrders)return;window.__qAccountOrders=true;
 class QtmAccountOrders {
   constructor(root) {
     this.root = root;
+    this.abort = new AbortController();
+    this.controls = root.querySelector("[data-qtm-orders-controls]");
+    if(this.controls)this.controls.hidden=false;
     this.searchInput = root.querySelector('[data-qtm-account-orders-search]');
     this.sortSelect = root.querySelector('[data-qtm-account-orders-sort]');
     this.filterButtons = Array.from(root.querySelectorAll('[data-qtm-account-orders-filter]'));
@@ -12,12 +18,21 @@ class QtmAccountOrders {
     this.tableItems = Array.from(this.tableBody ? this.tableBody.querySelectorAll('[data-qtm-account-orders-item]') : []);
     this.cardItems = Array.from(this.cardList ? this.cardList.querySelectorAll('[data-qtm-account-orders-item]') : []);
 
-    this.activeFilter = 'all';
-    this.searchTerm = '';
+    this.activeFilter = this.filterButtons.find(b=>b.getAttribute('aria-pressed')==='true')?.dataset.qtmAccountOrdersFilter || 'all';
+    this.searchTerm = this.searchInput?.value.trim().toLowerCase() || '';
     this.sortValue = this.sortSelect ? this.sortSelect.value : 'newest';
 
+    if(this.countNode)this.countNode.hidden=false;
     this.bindEvents();
     this.applyState();
+  }
+
+  dispose() {
+    this.abort.abort();
+    if(this.controls)this.controls.hidden=true;
+    if(this.countNode)this.countNode.hidden=true;
+    if(this.noMatchesNode)this.noMatchesNode.hidden=true;
+    [...this.tableItems,...this.cardItems].forEach(item=>item.hidden=false);
   }
 
   bindEvents() {
@@ -25,14 +40,14 @@ class QtmAccountOrders {
       this.searchInput.addEventListener('input', () => {
         this.searchTerm = this.searchInput.value.trim().toLowerCase();
         this.applyState();
-      });
+      }, {signal:this.abort.signal});
     }
 
     if (this.sortSelect) {
       this.sortSelect.addEventListener('change', () => {
         this.sortValue = this.sortSelect.value;
         this.applyState();
-      });
+      }, {signal:this.abort.signal});
     }
 
     this.filterButtons.forEach((button) => {
@@ -46,7 +61,7 @@ class QtmAccountOrders {
         });
 
         this.applyState();
-      });
+      }, {signal:this.abort.signal});
     });
   }
 
@@ -101,7 +116,7 @@ class QtmAccountOrders {
       const statusText = item.dataset.orderStatus || '';
       const searchText = item.dataset.orderSearch || '';
 
-      const matchesStatus = this.activeFilter === 'all' || statusText.includes(this.activeFilter);
+      const matchesStatus = this.activeFilter === 'all' || statusText.split(/\s+/).includes(this.activeFilter);
       const matchesSearch = this.searchTerm === '' || searchText.includes(this.searchTerm);
       const isVisible = matchesStatus && matchesSearch;
 
@@ -116,19 +131,11 @@ class QtmAccountOrders {
   }
 }
 
-function initQtmAccountOrders() {
-  document.querySelectorAll('[data-qtm-account-orders]').forEach((root) => {
-    if (root.dataset.qtmAccountOrdersInitialized === 'true') return;
 
-    root.dataset.qtmAccountOrdersInitialized = 'true';
-    new QtmAccountOrders(root);
-  });
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initQtmAccountOrders);
-} else {
-  initQtmAccountOrders();
-}
-
-document.addEventListener('shopify:section:load', initQtmAccountOrders);
+const instances=new Map(),selector='[data-qtm-account-orders]';
+const mount=root=>{if(!instances.has(root))instances.set(root,new QtmAccountOrders(root));};
+const scan=scope=>{if(scope.matches?.(selector))mount(scope);scope.querySelectorAll?.(selector).forEach(mount);};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>scan(document),{once:true});else scan(document);
+document.addEventListener('shopify:section:load',e=>scan(e.target));
+document.addEventListener('shopify:section:unload',e=>{for(const[root,instance]of instances)if(root===e.target||e.target.contains(root)){instance.dispose();instances.delete(root);}});
+})();

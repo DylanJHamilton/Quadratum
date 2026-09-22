@@ -19,6 +19,8 @@
 
 {{ 'account-main-account-dashboard.css' | asset_url | stylesheet_tag }}
 
+{%- capture account_button_fg -%}{%- render 'contrast-text', bg: section.settings.link_color, preferred: '#ffffff' -%}{%- endcapture -%}
+{%- capture account_card_fg -%}{%- render 'contrast-text', bg: section.settings.card_background, preferred: settings.text_base -%}{%- endcapture -%}
 {%- liquid
   assign layout_style = section.settings.layout_style
 
@@ -33,9 +35,6 @@
   endif
 
   assign tracking_url = section.settings.tracking_url
-  if tracking_url == blank
-    assign tracking_url = '/pages/order-tracking'
-  endif
 
   assign account_nav_layout = 'horizontal'
   if layout_style == 'sidebar'
@@ -53,6 +52,7 @@
     --qtm-account-heading-size: {{ section.settings.heading_font_size }}px;
     --qtm-account-subheading-size: {{ section.settings.subheading_font_size }}px;
     --qtm-account-body-size: {{ section.settings.body_font_size }}px;
+    --qtm-account-card-fg: {{ account_card_fg | strip }};
     --qtm-account-card-bg: {{ section.settings.card_background }};
     --qtm-account-card-border: {{ section.settings.card_border }};
     --qtm-account-radius: {{ section.settings.card_radius }}px;
@@ -60,6 +60,7 @@
     --qtm-account-gap: {{ section.settings.card_gap }}px;
     --qtm-account-button-radius: {{ section.settings.button_radius }}px;
     --qtm-account-button-padding: {{ section.settings.button_padding }}px;
+    --qtm-account-link-fg: {{ account_button_fg | strip }};
     --qtm-account-link-color: {{ section.settings.link_color }};
   "
 >
@@ -68,25 +69,25 @@
       <header class="account-main-account-dashboard__header">
         <div>
           <h1 class="account-main-account-dashboard__heading">
-            {{ section.settings.heading }}
+            {{ section.settings.heading | escape }}
           </h1>
 
           {% if section.settings.subheading != blank %}
             <p class="account-main-account-dashboard__subheading">
               {% if section.settings.show_customer_name %}
-                Welcome back, {{ customer_display_name }}.
+                Welcome back, {{ customer_display_name | escape }}.
               {% else %}
-                {{ section.settings.subheading }}
+                {{ section.settings.subheading | escape }}
               {% endif %}
             </p>
           {% endif %}
         </div>
       </header>
 
-      <div class="account-main-account-dashboard__layout">
+      <div class="account-main-account-dashboard__layout" {% unless section.settings.show_nav_cards %}style="grid-template-columns:minmax(0,1fr)"{% endunless %}>
         {% if section.settings.show_nav_cards %}
           <aside class="account-main-account-dashboard__sidebar">
-            {% render 'account-main-account-nav',
+            {% render 'account-main-account-nav', section: section,
               active: 'dashboard',
               show_tracking: true,
               tracking_url: tracking_url,
@@ -112,9 +113,9 @@
                   </span>
                   <span class="account-main-account-dashboard__summary-value">
                     {% if customer.name != blank %}
-                      {{ customer.name }}
+                      {{ customer.name | escape }}
                     {% else %}
-                      {{ customer_display_name }}
+                      {{ customer_display_name | escape }}
                     {% endif %}
                   </span>
                 </div>
@@ -125,7 +126,7 @@
                       Email
                     </span>
                     <span class="account-main-account-dashboard__summary-value">
-                      {{ customer.email }}
+                      {{ customer.email | escape }}
                     </span>
                   </div>
                 {% endif %}
@@ -157,7 +158,7 @@
               </div>
 
               <div class="account-main-account-dashboard__summary-actions">
-                <a href="{{ routes.account_addresses_url }}">
+                <a href="{{ routes.account_addresses_url | escape }}">
                   Manage addresses
                 </a>
               </div>
@@ -172,16 +173,17 @@
                 </h2>
 
                 <a
-                  href="{{ routes.account_url }}"
+                  href="{{ routes.account_url | escape }}"
                   class="account-main-account-dashboard__panel-link"
                 >
                   View account
                 </a>
               </div>
 
-              {% paginate customer.orders by section.settings.recent_orders_limit %}
+
+                {% paginate customer.orders by section.settings.recent_orders_limit %}
                 {% if customer.orders.size > 0 %}
-                  <div class="account-main-account-dashboard__table-wrap">
+                  <div class="account-main-account-dashboard__table-wrap" tabindex="0" role="region" aria-label="Recent orders">
                     <table class="account-main-account-dashboard__orders-table">
                       <caption class="visually-hidden">
                         Recent customer orders
@@ -198,11 +200,11 @@
                       </thead>
 
                       <tbody>
-                        {% for order in customer.orders %}
+                        {% for order in customer.orders limit: section.settings.recent_orders_limit %}
                           <tr>
                             <td data-label="Order">
-                              <a href="{{ order.customer_url }}">
-                                {{ order.name }}
+                              <a href="{{ order.customer_url | escape }}">
+                                {{ order.name | escape }}
                               </a>
                             </td>
 
@@ -211,11 +213,11 @@
                             </td>
 
                             <td data-label="Payment">
-                              {{ order.financial_status_label }}
+                              {{ order.financial_status_label | escape }}
                             </td>
 
                             <td data-label="Fulfillment">
-                              {{ order.fulfillment_status_label }}
+                              {{ order.fulfillment_status_label | escape }}
                             </td>
 
                             <td data-label="Total">
@@ -231,22 +233,23 @@
                     <p>You have not placed any orders yet.</p>
 
                     <a
-                      href="{{ shopping_url }}"
+                      href="{{ shopping_url | escape }}"
                       class="account-main-account-dashboard__button account-main-account-dashboard__button--{{ section.settings.button_style }}"
                     >
-                      {{ section.settings.shopping_label }}
+                      {{ section.settings.shopping_label | escape }}
                     </a>
                   </div>
                 {% endif %}
+                {% if paginate.pages > 1 %}<nav aria-label="Account order pages">{{ paginate | default_pagination }}</nav>{% endif %}
               {% endpaginate %}
             </div>
           {% endif %}
 
-          {% if section.settings.show_support_panel %}
+          {% if section.settings.show_support_panel and section.settings.support_heading != blank or section.settings.show_support_panel and section.settings.support_text != blank or section.settings.show_support_panel and section.settings.support_button_url != blank and section.settings.support_button_label != blank %}
             <div class="account-main-account-dashboard__panel account-main-account-dashboard__support">
               {% if section.settings.support_heading != blank %}
                 <h2 class="account-main-account-dashboard__panel-title">
-                  {{ section.settings.support_heading }}
+                  {{ section.settings.support_heading | escape }}
                 </h2>
               {% endif %}
 
@@ -258,10 +261,10 @@
 
               {% if section.settings.support_button_label != blank and section.settings.support_button_url != blank %}
                 <a
-                  href="{{ section.settings.support_button_url }}"
+                  href="{{ section.settings.support_button_url | escape }}"
                   class="account-main-account-dashboard__button account-main-account-dashboard__button--{{ section.settings.button_style }}"
                 >
-                  {{ section.settings.support_button_label }}
+                  {{ section.settings.support_button_label | escape }}
                 </a>
               {% endif %}
             </div>
@@ -271,7 +274,7 @@
     {% else %}
       <div class="account-main-account-dashboard__guest">
         <h1 class="account-main-account-dashboard__heading">
-          {{ section.settings.heading }}
+          {{ section.settings.heading | escape }}
         </h1>
 
         <p class="account-main-account-dashboard__subheading">
@@ -279,7 +282,7 @@
         </p>
 
         <a
-          href="{{ routes.account_login_url }}"
+          href="{{ routes.account_login_url | escape }}"
           class="account-main-account-dashboard__button account-main-account-dashboard__button--{{ section.settings.button_style }}"
         >
           Sign in
@@ -295,6 +298,10 @@
   "tag": "section",
   "class": "qtm-account-main-dashboard",
   "settings": [
+    {
+      "type": "paragraph",
+      "content": "Legacy customer-account theme surface. Shopify owns authentication, account data and native form processing; current customer accounts are managed outside the theme. Tracking links require merchant configuration or native fulfillment data."
+    },
     {
       "type": "select",
       "id": "layout_style",
