@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 63/102 blocks and 20 dependencies individually reviewed; 83/122 Family 8 entries have dispositions (82 live queued, 1 dormant retained), 39 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 69/102 blocks and 21 dependencies individually reviewed; 90/123 Family 8 entries have dispositions (89 live queued, 1 dormant retained), 33 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1201,3 +1201,17 @@ B8-NAVIGATION-INFORMATION live queue after engineering batches: real native menu
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Navigation/information checkpoint Theme Check: 508 → 507 findings (three existing out-of-group errors; 505 → 504 warnings after unused contact assign removal). This group has six settings-count warnings and zero errors. No suppression was added.
+
+## Batch 8 checkpoint — content cards, comparisons and guarantees — 2026-09-22
+
+Previous checkpoint published as `c24b20bf8b0cee5beca71377bb9e9b7a6a7f9940`; PR #22 remains DRAFT. Six static content card/comparison/guarantee blocks now omit empty configured slots, preserve native images and safe destinations, repair narrow-layout/overlay/focus behavior and keep desktop/mobile comparisons consistent. A shared comparison-value helper centralizes readable symbol labels and escaped notes. New insertion defaults leave prices, popularity, performance and policy claims for merchants to configure explicitly; saved merchant content is preserved.
+
+69/102 blocks and 21 dependencies individually reviewed; 90/123 Family 8 entries have dispositions (89 live queued, 1 dormant retained), 33 NOT REVIEWED. Global dispositions: 422 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 58 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-content-cards/`. 588 actual default/control/preset/empty/native-media renders exercise all original IDs/options/range endpoints, populated and blank slots, native alt overrides/fallback and image/background precedence, literal icon/URL/note escaping, authored CTA-plus-footer behavior, hidden optional icon/point grids, enabled/named matrix column/row alignment, identical desktop/mobile value/CTA contracts and translated labels. Independent IDs, native wrapper/editor/motion and responsive source rules are checked. All 16 affected suites pass; 453 settings, 12 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-CONTENT-CARDS live queue after engineering batches: real card image rendition/alt/overlay stacking and configured colors; native narrow builder grids/flex, zoom/RTL and 320–1440px layouts; comparison table/definition-list semantics and keyboard/AT/contrast; actual Theme Editor insert/select/reorder. Merchant prices, comparisons and guarantee terms remain manual authored claims and do not change Shopify policies/cart prices. No live Shopify QA; prior queues carry forward.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Content card checkpoint unsuppressed Theme Check: 507 → 508 findings (three unchanged out-of-group errors, 504 → 505 warnings). The shared comparison-value helper adds one OrphanedSnippet finding despite two explicit callers. Group has zero errors and five retained settings-count warnings; no suppression.

@@ -13,6 +13,97 @@
   assign show_mobile = block.settings.show_mobile
 -%}
 
+{% assign has_content = false %}
+{% capture cards_markup %}
+  <div class="content-content-cards__grid">
+    {%- for index in (1..8) -%}
+      {%- if index <= card_count -%}
+        {%- liquid
+          assign image_key = 'card_' | append: index | append: '_image'
+          assign image_alt_key = 'card_' | append: index | append: '_image_alt'
+          assign eyebrow_key = 'card_' | append: index | append: '_eyebrow'
+          assign badge_key = 'card_' | append: index | append: '_badge'
+          assign heading_key = 'card_' | append: index | append: '_heading'
+          assign text_key = 'card_' | append: index | append: '_text'
+          assign button_label_key = 'card_' | append: index | append: '_button_label'
+          assign button_url_key = 'card_' | append: index | append: '_button_url'
+
+          assign card_image = block.settings[image_key]
+          assign card_image_alt = block.settings[image_alt_key] | default: card_image.alt
+          assign card_eyebrow = block.settings[eyebrow_key]
+          assign card_badge = block.settings[badge_key]
+          assign card_heading = block.settings[heading_key]
+          assign card_text = block.settings[text_key]
+          assign card_button_label = block.settings[button_label_key]
+          assign card_button_url = block.settings[button_url_key]
+          assign card_has_content = false
+          if card_image != blank or card_heading != blank or card_text != blank
+            assign card_has_content = true
+          endif
+          if card_button_label != blank and card_button_url != blank
+            assign card_has_content = true
+          endif
+          if card_badge != blank or card_eyebrow != blank
+            assign card_has_content = true
+          endif
+        -%}
+        {% if card_has_content %}{% assign has_content = true %}
+        <article class="content-content-cards__item">
+          {% if card_image != blank %}
+            <div class="content-content-cards__media">
+              {{
+                card_image
+                | image_url: width: 1100
+                | image_tag:
+                  class: 'content-content-cards__image',
+                  loading: 'lazy',
+                  widths: '240, 360, 540, 720, 900, 1100',
+                  sizes: '(min-width: 990px) 33vw, (min-width: 750px) 50vw, 100vw',
+                  alt: card_image_alt
+              }}
+            </div>
+          {% endif %}
+
+          <span class="content-content-cards__overlay" aria-hidden="true"></span>
+
+          <div class="content-content-cards__body">
+            {% if card_badge != blank %}
+              <span class="content-content-cards__badge">
+                {{ card_badge | escape }}
+              </span>
+            {% endif %}
+
+            {% if card_eyebrow != blank %}
+              <span class="content-content-cards__eyebrow">
+                {{ card_eyebrow | escape }}
+              </span>
+            {% endif %}
+
+            {% if card_heading != blank %}
+              <h3 class="content-content-cards__heading">
+                {{ card_heading | escape }}
+              </h3>
+            {% endif %}
+
+            {% if card_text != blank %}
+              <div class="content-content-cards__text">
+                {{ card_text }}
+              </div>
+            {% endif %}
+
+            {% if card_button_label != blank and card_button_url != blank %}
+              <a class="content-content-cards__button" href="{{ card_button_url | escape }}">
+                {{ card_button_label | escape }}
+              </a>
+            {% endif %}
+          </div>
+        </article>
+        {% endif %}
+      {%- endif -%}
+    {%- endfor -%}
+  </div>
+{% endcapture %}
+
 <div
   id="{{ block_id }}"
   class="
@@ -22,10 +113,10 @@
     content-content-cards--width-{{ width }}
     content-content-cards--desktop-{{ desktop_columns }}
     content-content-cards--mobile-{{ mobile_columns }}
-    {% unless show_desktop %} content-content-cards--hide-desktop{% endunless %}
-    {% unless show_tablet %} content-content-cards--hide-tablet{% endunless %}
-    {% unless show_mobile %} content-content-cards--hide-mobile{% endunless %}
-    {% if block.settings.animation != 'none' %} content-content-cards--animate content-content-cards--animate-{{ block.settings.animation }}{% endif %}
+    {% unless show_desktop or request.design_mode %} content-content-cards--hide-desktop{% endunless %}
+    {% unless show_tablet or request.design_mode %} content-content-cards--hide-tablet{% endunless %}
+    {% unless show_mobile or request.design_mode %} content-content-cards--hide-mobile{% endunless %}
+    {% if block.settings.animation != 'none' and request.design_mode == false %} content-content-cards--animate content-content-cards--animate-{{ block.settings.animation }}{% endif %}
   "
   style="
     --content-content-cards-margin-top: {{ block.settings.margin_top }}px;
@@ -47,20 +138,25 @@
     --content-content-cards-border-color: {{ block.settings.border_color }};
     --content-content-cards-badge-background: {{ block.settings.badge_background_color }};
     --content-content-cards-badge-text: {{ block.settings.badge_text_color }};
+    --content-content-cards-overlay-text: {{ block.settings.overlay_text_color }};
     --content-content-cards-overlay-color: {{ block.settings.overlay_color }};
     --content-content-cards-overlay-opacity: {{ block.settings.overlay_opacity | divided_by: 100.0 }};
   "
-  {{ block.shopify_attributes }}
+  {% unless has_content or request.design_mode %}hidden{% endunless %}
 >
+  {% if has_content == false and request.design_mode %}<p role="note">Add an image, heading, text or destination to a card.</p>{% endif %}
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--content-content-cards-margin-top);
       margin-bottom: var(--content-content-cards-margin-bottom);
       padding-top: var(--content-content-cards-padding-top);
       padding-bottom: var(--content-content-cards-padding-bottom);
-      padding-left: var(--content-content-cards-padding-left);
-      padding-right: var(--content-content-cards-padding-right);
+      padding-left: min(var(--content-content-cards-padding-left), 12%);
+      padding-right: min(var(--content-content-cards-padding-right), 12%);
       background: var(--content-content-cards-background-color);
       color: var(--content-content-cards-text-color);
     }
@@ -192,21 +288,18 @@
     #{{ block_id }}.content-content-cards--stacked .content-content-cards__image {
       aspect-ratio: 4 / 3;
       object-fit: cover;
-      border-radius: 0;
-    }
+      }
 
     #{{ block_id }}.content-content-cards--horizontal .content-content-cards__image {
       height: 100%;
       min-height: 260px;
       object-fit: cover;
-      border-radius: 0;
-    }
+      }
 
     #{{ block_id }}.content-content-cards--overlay .content-content-cards__image {
       height: 100%;
       object-fit: cover;
-      border-radius: 0;
-    }
+      }
 
     #{{ block_id }} .content-content-cards__overlay {
       display: none;
@@ -223,13 +316,15 @@
     }
 
     #{{ block_id }} .content-content-cards__body {
+      min-width: 0;
+      flex: 1 1 0;
       position: relative;
       z-index: 2;
       display: flex;
       flex-direction: column;
       gap: 14px;
       width: 100%;
-      padding: var(--content-content-cards-card-padding);
+      padding: min(var(--content-content-cards-card-padding), 12%);
     }
 
     #{{ block_id }}.content-content-cards--minimal .content-content-cards__body {
@@ -239,7 +334,7 @@
     }
 
     #{{ block_id }}.content-content-cards--overlay .content-content-cards__body {
-      color: #ffffff;
+      color: var(--content-content-cards-overlay-text);
     }
 
     #{{ block_id }} .content-content-cards__badge,
@@ -269,7 +364,7 @@
     #{{ block_id }}.content-content-cards--overlay .content-content-cards__heading,
     #{{ block_id }}.content-content-cards--overlay .content-content-cards__text,
     #{{ block_id }}.content-content-cards--overlay .content-content-cards__button {
-      color: #ffffff;
+      color: var(--content-content-cards-overlay-text);
     }
 
     #{{ block_id }} .content-content-cards__heading {
@@ -323,7 +418,7 @@
     }
 
     #{{ block_id }}.content-content-cards--animate {
-      opacity: 0;
+      opacity: 1;
       animation-duration: 700ms;
       animation-fill-mode: forwards;
       animation-timing-function: ease;
@@ -469,82 +564,14 @@
         transform: none;
       }
     }
-  </style>
+    #{{ block_id }}[hidden] { display: none !important; }
+  #{{ block_id }}, #{{ block_id }} * { box-sizing: border-box; }
+  #{{ block_id }} :is(div,article,ul,li,a,span) { min-width: 0; }
+  #{{ block_id }} :is(img,a,button) { max-width: 100%; }
+  #{{ block_id }} a:focus-visible { outline: 3px solid var(--content-content-cards-link-color); outline-offset: 3px; }
+</style>
 
-  <div class="content-content-cards__grid">
-    {%- for index in (1..8) -%}
-      {%- if index <= card_count -%}
-        {%- liquid
-          assign image_key = 'card_' | append: index | append: '_image'
-          assign image_alt_key = 'card_' | append: index | append: '_image_alt'
-          assign eyebrow_key = 'card_' | append: index | append: '_eyebrow'
-          assign badge_key = 'card_' | append: index | append: '_badge'
-          assign heading_key = 'card_' | append: index | append: '_heading'
-          assign text_key = 'card_' | append: index | append: '_text'
-          assign button_label_key = 'card_' | append: index | append: '_button_label'
-          assign button_url_key = 'card_' | append: index | append: '_button_url'
-
-          assign card_image = block.settings[image_key]
-          assign card_image_alt = block.settings[image_alt_key]
-          assign card_eyebrow = block.settings[eyebrow_key]
-          assign card_badge = block.settings[badge_key]
-          assign card_heading = block.settings[heading_key]
-          assign card_text = block.settings[text_key]
-          assign card_button_label = block.settings[button_label_key]
-          assign card_button_url = block.settings[button_url_key]
-        -%}
-
-        <article class="content-content-cards__item">
-          {% if card_image != blank %}
-            <div class="content-content-cards__media">
-              {{
-                card_image
-                | image_url: width: 1100
-                | image_tag:
-                  class: 'content-content-cards__image',
-                  loading: 'lazy',
-                  alt: card_image_alt
-              }}
-            </div>
-          {% endif %}
-
-          <span class="content-content-cards__overlay" aria-hidden="true"></span>
-
-          <div class="content-content-cards__body">
-            {% if card_badge != blank %}
-              <span class="content-content-cards__badge">
-                {{ card_badge | escape }}
-              </span>
-            {% endif %}
-
-            {% if card_eyebrow != blank %}
-              <span class="content-content-cards__eyebrow">
-                {{ card_eyebrow | escape }}
-              </span>
-            {% endif %}
-
-            {% if card_heading != blank %}
-              <h3 class="content-content-cards__heading">
-                {{ card_heading | escape }}
-              </h3>
-            {% endif %}
-
-            {% if card_text != blank %}
-              <div class="content-content-cards__text">
-                {{ card_text }}
-              </div>
-            {% endif %}
-
-            {% if card_button_label != blank and card_button_url != blank %}
-              <a class="content-content-cards__button" href="{{ card_button_url }}">
-                {{ card_button_label | escape }}
-              </a>
-            {% endif %}
-          </div>
-        </article>
-      {%- endif -%}
-    {%- endfor -%}
-  </div>
+  {{ cards_markup }}
 </div>
 
 {% schema %}
@@ -696,7 +723,6 @@
       "unit": "px",
       "default": 28
     },
-
     {
       "type": "header",
       "content": "Card 1"
@@ -714,26 +740,22 @@
     {
       "type": "text",
       "id": "card_1_badge",
-      "label": "Badge",
-      "default": "Popular"
+      "label": "Badge"
     },
     {
       "type": "text",
       "id": "card_1_eyebrow",
-      "label": "Eyebrow",
-      "default": "Service"
+      "label": "Eyebrow"
     },
     {
       "type": "text",
       "id": "card_1_heading",
-      "label": "Heading",
-      "default": "Universal card layout"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "card_1_text",
-      "label": "Text",
-      "default": "<p>Build flexible cards for services, categories, team members, features, or benefit sections.</p>"
+      "label": "Text"
     },
     {
       "type": "text",
@@ -746,7 +768,6 @@
       "id": "card_1_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Card 2"
@@ -769,20 +790,17 @@
     {
       "type": "text",
       "id": "card_2_eyebrow",
-      "label": "Eyebrow",
-      "default": "Category"
+      "label": "Eyebrow"
     },
     {
       "type": "text",
       "id": "card_2_heading",
-      "label": "Heading",
-      "default": "Flexible presentation"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "card_2_text",
-      "label": "Text",
-      "default": "<p>Choose stacked, horizontal, overlay, or minimal layouts depending on the section goal.</p>"
+      "label": "Text"
     },
     {
       "type": "text",
@@ -795,7 +813,6 @@
       "id": "card_2_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Card 3"
@@ -818,20 +835,17 @@
     {
       "type": "text",
       "id": "card_3_eyebrow",
-      "label": "Eyebrow",
-      "default": "Feature"
+      "label": "Eyebrow"
     },
     {
       "type": "text",
       "id": "card_3_heading",
-      "label": "Heading",
-      "default": "Built for landing pages"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "card_3_text",
-      "label": "Text",
-      "default": "<p>Use cards to create stronger page structure, better scanning, and clearer calls to action.</p>"
+      "label": "Text"
     },
     {
       "type": "text",
@@ -844,7 +858,6 @@
       "id": "card_3_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Card 4"
@@ -889,7 +902,6 @@
       "id": "card_4_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Card 5"
@@ -934,7 +946,6 @@
       "id": "card_5_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Card 6"
@@ -979,7 +990,6 @@
       "id": "card_6_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Card 7"
@@ -1024,7 +1034,6 @@
       "id": "card_7_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Card 8"
@@ -1069,7 +1078,6 @@
       "id": "card_8_button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1138,7 +1146,6 @@
       "unit": "%",
       "default": 45
     },
-
     {
       "type": "header",
       "content": "Borders"
@@ -1173,7 +1180,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1238,7 +1244,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1261,7 +1266,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1301,6 +1305,12 @@
           "label": "Zoom"
         }
       ]
+    },
+    {
+      "type": "color",
+      "id": "overlay_text_color",
+      "label": "Overlay text and link color",
+      "default": "#FFFFFF"
     }
   ],
   "presets": [
@@ -1315,18 +1325,18 @@
         "width": "auto",
         "gap": 24,
         "card_padding": 28,
-        "card_1_badge": "Popular",
-        "card_1_eyebrow": "Service",
-        "card_1_heading": "Universal card layout",
-        "card_1_text": "<p>Build flexible cards for services, categories, team members, features, or benefit sections.</p>",
+        "card_1_badge": "",
+        "card_1_eyebrow": "",
+        "card_1_heading": "",
+        "card_1_text": "",
         "card_1_button_label": "Learn more",
-        "card_2_eyebrow": "Category",
-        "card_2_heading": "Flexible presentation",
-        "card_2_text": "<p>Choose stacked, horizontal, overlay, or minimal layouts depending on the section goal.</p>",
+        "card_2_eyebrow": "",
+        "card_2_heading": "",
+        "card_2_text": "",
         "card_2_button_label": "View details",
-        "card_3_eyebrow": "Feature",
-        "card_3_heading": "Built for landing pages",
-        "card_3_text": "<p>Use cards to create stronger page structure, better scanning, and clearer calls to action.</p>",
+        "card_3_eyebrow": "",
+        "card_3_heading": "",
+        "card_3_text": "",
         "card_3_button_label": "Explore",
         "heading_color": "#111111",
         "text_color": "#444444",

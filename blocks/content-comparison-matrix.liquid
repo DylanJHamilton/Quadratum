@@ -1,10 +1,16 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
   assign highlighted_column = block.settings.highlighted_column | plus: 0
 %}
+
+{% assign column_count = 0 %}{% for i in (1..4) %}{% assign enabled_key = 'column_' | append: i | append: '_enabled' %}{% assign title_key = 'column_' | append: i | append: '_title' %}{% if block.settings[enabled_key] and block.settings[title_key] != blank %}{% assign column_count = column_count | plus: 1 %}{% endif %}{% endfor %}
+{% assign has_content = false %}{% if column_count > 0 %}{% assign has_content = true %}{% endif %}
 
 <div
   class="
@@ -13,9 +19,9 @@
     qtm-comparison-matrix--width-{{ block_width }}
     qtm-comparison-matrix--align-{{ block_alignment }}
     qtm-comparison-matrix--animation-{{ animation }}
-    {% unless block.settings.show_desktop %} qtm-comparison-matrix--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-comparison-matrix--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-comparison-matrix--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-comparison-matrix--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-comparison-matrix--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-comparison-matrix--hide-mobile{% endunless %}
   "
   style="
     --qtm-comparison-margin-top: {{ block.settings.margin_top }}px;
@@ -36,8 +42,9 @@
     --qtm-comparison-border-width: {{ block.settings.border_width }}px;
     --qtm-comparison-border-radius: {{ block.settings.border_radius }}px;
   "
-  {{ block.shopify_attributes }}
+  {% unless has_content or request.design_mode %}hidden{% endunless %}
 >
+  {% if has_content == false and request.design_mode %}<p role="note">Enable and name real comparison options, then configure their feature rows.</p>{% endif %}
   <div class="qtm-comparison-matrix__inner">
     {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank %}
       <div class="qtm-comparison-matrix__header">
@@ -70,7 +77,7 @@
         <thead>
           <tr>
             <th scope="col" class="qtm-comparison-matrix__feature-heading">
-              {{ block.settings.feature_column_label | escape }}
+              {{ block.settings.feature_column_label | default: 'Features' | escape }}
             </th>
 
             {% for i in (1..4) %}
@@ -87,7 +94,7 @@
                 assign column_price = block.settings[column_price_key]
               %}
 
-              {% if column_enabled %}
+              {% if column_enabled and column_title != blank %}
                 <th
                   scope="col"
                   class="
@@ -133,7 +140,7 @@
               assign row_label = block.settings[row_label_key]
             %}
 
-            {% if row_enabled %}
+            {% if row_enabled and row_label != blank %}
               <tr>
                 <th scope="row" class="qtm-comparison-matrix__feature-cell">
                   {{ row_label | escape }}
@@ -141,6 +148,8 @@
 
                 {% for column in (1..4) %}
                   {% liquid
+                    assign column_title_key = 'column_' | append: column | append: '_title'
+                    assign column_title = block.settings[column_title_key]
                     assign column_enabled_key = 'column_' | append: column | append: '_enabled'
                     assign value_key = 'row_' | append: row | append: '_column_' | append: column | append: '_value'
                     assign note_key = 'row_' | append: row | append: '_column_' | append: column | append: '_note'
@@ -150,26 +159,9 @@
                     assign note = block.settings[note_key]
                   %}
 
-                  {% if column_enabled %}
+                  {% if column_enabled and column_title != blank %}
                     <td class="{% if highlighted_column == column %}qtm-comparison-matrix__cell--highlight{% endif %}">
-                      <span class="qtm-comparison-matrix__value qtm-comparison-matrix__value--{{ value }}">
-                        {% case value %}
-                          {% when 'yes' %}
-                            <span aria-label="Included">✓</span>
-                          {% when 'no' %}
-                            <span aria-label="Not included">×</span>
-                          {% when 'partial' %}
-                            <span aria-label="Partially included">—</span>
-                          {% else %}
-                            <span>{{ value | escape }}</span>
-                        {% endcase %}
-                      </span>
-
-                      {% if note != blank %}
-                        <span class="qtm-comparison-matrix__note">
-                          {{ note | escape }}
-                        </span>
-                      {% endif %}
+                      {% render 'qtm-block-comparison-value', value: value, note: note, block: block %}
                     </td>
                   {% endif %}
                 {% endfor %}
@@ -182,12 +174,14 @@
           <tfoot>
             <tr>
               <th scope="row" class="qtm-comparison-matrix__feature-cell">
-                {{ block.settings.cta_row_label | escape }}
+                {{ block.settings.cta_row_label | default: 'Details' | escape }}
               </th>
 
               {% for i in (1..4) %}
                 {% liquid
                   assign column_enabled_key = 'column_' | append: i | append: '_enabled'
+                  assign column_title_key = 'column_' | append: i | append: '_title'
+                  assign column_title = block.settings[column_title_key]
                   assign cta_text_key = 'column_' | append: i | append: '_cta_text'
                   assign cta_url_key = 'column_' | append: i | append: '_cta_url'
 
@@ -196,10 +190,10 @@
                   assign cta_url = block.settings[cta_url_key]
                 %}
 
-                {% if column_enabled %}
+                {% if column_enabled and column_title != blank %}
                   <td class="{% if highlighted_column == i %}qtm-comparison-matrix__cell--highlight{% endif %}">
-                    {% if cta_text != blank and cta_url != blank %}
-                      <a class="qtm-comparison-matrix__button" href="{{ cta_url }}">
+                    {% if block.settings.show_cta_row and cta_text != blank and cta_url != blank %}
+                      <a class="qtm-comparison-matrix__button" href="{{ cta_url | escape }}">
                         {{ cta_text | escape }}
                       </a>
                     {% endif %}
@@ -232,7 +226,7 @@
           assign cta_url = block.settings[cta_url_key]
         %}
 
-        {% if column_enabled %}
+        {% if column_enabled and column_title != blank %}
           <article class="qtm-comparison-matrix__mobile-card {% if highlighted_column == column %}qtm-comparison-matrix__mobile-card--highlight{% endif %}">
             <div class="qtm-comparison-matrix__mobile-card-header">
               {% if column_badge != blank %}
@@ -274,36 +268,19 @@
                   assign note = block.settings[note_key]
                 %}
 
-                {% if row_enabled %}
+                {% if row_enabled and row_label != blank %}
                   <div class="qtm-comparison-matrix__mobile-feature">
                     <dt>{{ row_label | escape }}</dt>
                     <dd>
-                      <span class="qtm-comparison-matrix__value qtm-comparison-matrix__value--{{ value }}">
-                        {% case value %}
-                          {% when 'yes' %}
-                            <span aria-label="Included">✓</span>
-                          {% when 'no' %}
-                            <span aria-label="Not included">×</span>
-                          {% when 'partial' %}
-                            <span aria-label="Partially included">—</span>
-                          {% else %}
-                            <span>{{ value | escape }}</span>
-                        {% endcase %}
-                      </span>
-
-                      {% if note != blank %}
-                        <span class="qtm-comparison-matrix__note">
-                          {{ note | escape }}
-                        </span>
-                      {% endif %}
+                      {% render 'qtm-block-comparison-value', value: value, note: note, block: block %}
                     </dd>
                   </div>
                 {% endif %}
               {% endfor %}
             </dl>
 
-            {% if cta_text != blank and cta_url != blank %}
-              <a class="qtm-comparison-matrix__button" href="{{ cta_url }}">
+            {% if block.settings.show_cta_row and cta_text != blank and cta_url != blank %}
+              <a class="qtm-comparison-matrix__button" href="{{ cta_url | escape }}">
                 {{ cta_text | escape }}
               </a>
             {% endif %}
@@ -316,9 +293,13 @@
 
 <style>
   .qtm-comparison-matrix-{{ block_id }} {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     margin-top: var(--qtm-comparison-margin-top);
     margin-bottom: var(--qtm-comparison-margin-bottom);
-    padding: var(--qtm-comparison-padding);
+    padding: min(var(--qtm-comparison-padding), 12%);
     color: var(--qtm-comparison-text-color);
     background: var(--qtm-comparison-background-color);
     border: var(--qtm-comparison-border-width) solid var(--qtm-comparison-border-color);
@@ -431,7 +412,7 @@
 
   .qtm-comparison-matrix-{{ block_id }} .qtm-comparison-matrix__table {
     width: 100%;
-    min-width: 720px;
+    min-width: {{ column_count | times: 160 | plus: 180 }}px;
     border-collapse: separate;
     border-spacing: 0;
     color: var(--qtm-comparison-text-color);
@@ -682,9 +663,7 @@
   }
 
   @media screen and (max-width: 989px) {
-    .qtm-comparison-matrix-{{ block_id }}.qtm-comparison-matrix--hide-tablet {
-      display: none !important;
-    }
+
   }
 
   @media screen and (min-width: 990px) {
@@ -767,7 +746,7 @@
 
     .qtm-comparison-matrix-{{ block_id }} .qtm-comparison-matrix__mobile-feature {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 1rem;
       align-items: center;
       padding: 0.85rem 0;
@@ -797,6 +776,15 @@
       scroll-behavior: auto !important;
     }
   }
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-comparison-matrix-{{ block_id }}.qtm-comparison-matrix--hide-tablet {
+      display: none !important;
+    }
+  }
+  .qtm-comparison-matrix-{{ block_id }}[hidden] { display: none !important; }
+  .qtm-comparison-matrix-{{ block_id }}, .qtm-comparison-matrix-{{ block_id }} * { box-sizing: border-box; }
+  .qtm-comparison-matrix-{{ block_id }} :is(div,article,ul,li,a,span) { min-width: 0; }
+  .qtm-comparison-matrix-{{ block_id }} :is(img,a,button) { max-width: 100%; }
 </style>
 
 {% schema %}
@@ -822,8 +810,7 @@
     {
       "type": "richtext",
       "id": "text",
-      "label": "Text",
-      "default": "<p>Help customers compare products, plans, packages, or bundles with a clear feature-by-feature matrix.</p>"
+      "label": "Text"
     },
     {
       "type": "text",
@@ -867,7 +854,7 @@
       "type": "checkbox",
       "id": "column_1_enabled",
       "label": "Enable column 1",
-      "default": true
+      "default": false
     },
     {
       "type": "text",
@@ -878,8 +865,7 @@
     {
       "type": "text",
       "id": "column_1_subtitle",
-      "label": "Column 1 subtitle",
-      "default": "For essentials"
+      "label": "Column 1 subtitle"
     },
     {
       "type": "text",
@@ -890,7 +876,7 @@
       "type": "text",
       "id": "column_1_price",
       "label": "Column 1 price",
-      "default": "$49"
+      "info": "Manual display text only; does not change product or checkout prices."
     },
     {
       "type": "text",
@@ -907,7 +893,7 @@
       "type": "checkbox",
       "id": "column_2_enabled",
       "label": "Enable column 2",
-      "default": true
+      "default": false
     },
     {
       "type": "text",
@@ -918,20 +904,18 @@
     {
       "type": "text",
       "id": "column_2_subtitle",
-      "label": "Column 2 subtitle",
-      "default": "Best for most customers"
+      "label": "Column 2 subtitle"
     },
     {
       "type": "text",
       "id": "column_2_badge",
-      "label": "Column 2 badge",
-      "default": "Popular"
+      "label": "Column 2 badge"
     },
     {
       "type": "text",
       "id": "column_2_price",
       "label": "Column 2 price",
-      "default": "$89"
+      "info": "Manual display text only; does not change product or checkout prices."
     },
     {
       "type": "text",
@@ -948,7 +932,7 @@
       "type": "checkbox",
       "id": "column_3_enabled",
       "label": "Enable column 3",
-      "default": true
+      "default": false
     },
     {
       "type": "text",
@@ -959,8 +943,7 @@
     {
       "type": "text",
       "id": "column_3_subtitle",
-      "label": "Column 3 subtitle",
-      "default": "For the full experience"
+      "label": "Column 3 subtitle"
     },
     {
       "type": "text",
@@ -971,7 +954,7 @@
       "type": "text",
       "id": "column_3_price",
       "label": "Column 3 price",
-      "default": "$129"
+      "info": "Manual display text only; does not change product or checkout prices."
     },
     {
       "type": "text",
@@ -999,20 +982,18 @@
     {
       "type": "text",
       "id": "column_4_subtitle",
-      "label": "Column 4 subtitle",
-      "default": "Advanced package"
+      "label": "Column 4 subtitle"
     },
     {
       "type": "text",
       "id": "column_4_badge",
-      "label": "Column 4 badge",
-      "default": "Custom"
+      "label": "Column 4 badge"
     },
     {
       "type": "text",
       "id": "column_4_price",
       "label": "Column 4 price",
-      "default": "Custom"
+      "info": "Manual display text only; does not change product or checkout prices."
     },
     {
       "type": "text",
@@ -1037,7 +1018,7 @@
       "type": "checkbox",
       "id": "row_1_enabled",
       "label": "Enable row 1",
-      "default": true
+      "default": false
     },
     {
       "type": "text",
@@ -1051,12 +1032,30 @@
       "label": "Row 1 column 1 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1070,12 +1069,30 @@
       "label": "Row 1 column 2 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1089,12 +1106,30 @@
       "label": "Row 1 column 3 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1108,12 +1143,30 @@
       "label": "Row 1 column 4 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1121,12 +1174,11 @@
       "id": "row_1_column_4_note",
       "label": "Row 1 column 4 note"
     },
-
     {
       "type": "checkbox",
       "id": "row_2_enabled",
       "label": "Enable row 2",
-      "default": true
+      "default": false
     },
     {
       "type": "text",
@@ -1140,19 +1192,36 @@
       "label": "Row 2 column 1 value",
       "default": "partial",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
       "type": "text",
       "id": "row_2_column_1_note",
-      "label": "Row 2 column 1 note",
-      "default": "Email"
+      "label": "Row 2 column 1 note"
     },
     {
       "type": "select",
@@ -1160,19 +1229,36 @@
       "label": "Row 2 column 2 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
       "type": "text",
       "id": "row_2_column_2_note",
-      "label": "Row 2 column 2 note",
-      "default": "Priority"
+      "label": "Row 2 column 2 note"
     },
     {
       "type": "select",
@@ -1180,19 +1266,36 @@
       "label": "Row 2 column 3 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
       "type": "text",
       "id": "row_2_column_3_note",
-      "label": "Row 2 column 3 note",
-      "default": "VIP"
+      "label": "Row 2 column 3 note"
     },
     {
       "type": "select",
@@ -1200,26 +1303,42 @@
       "label": "Row 2 column 4 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
       "type": "text",
       "id": "row_2_column_4_note",
-      "label": "Row 2 column 4 note",
-      "default": "Dedicated"
+      "label": "Row 2 column 4 note"
     },
-
     {
       "type": "checkbox",
       "id": "row_3_enabled",
       "label": "Enable row 3",
-      "default": true
+      "default": false
     },
     {
       "type": "text",
@@ -1233,12 +1352,30 @@
       "label": "Row 3 column 1 value",
       "default": "no",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1252,19 +1389,36 @@
       "label": "Row 3 column 2 value",
       "default": "partial",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
       "type": "text",
       "id": "row_3_column_2_note",
-      "label": "Row 3 column 2 note",
-      "default": "Limited"
+      "label": "Row 3 column 2 note"
     },
     {
       "type": "select",
@@ -1272,19 +1426,36 @@
       "label": "Row 3 column 3 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
       "type": "text",
       "id": "row_3_column_3_note",
-      "label": "Row 3 column 3 note",
-      "default": "Included"
+      "label": "Row 3 column 3 note"
     },
     {
       "type": "select",
@@ -1292,26 +1463,42 @@
       "label": "Row 3 column 4 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
       "type": "text",
       "id": "row_3_column_4_note",
-      "label": "Row 3 column 4 note",
-      "default": "Full"
+      "label": "Row 3 column 4 note"
     },
-
     {
       "type": "checkbox",
       "id": "row_4_enabled",
       "label": "Enable row 4",
-      "default": true
+      "default": false
     },
     {
       "type": "text",
@@ -1325,12 +1512,30 @@
       "label": "Row 4 column 1 value",
       "default": "no",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1344,12 +1549,30 @@
       "label": "Row 4 column 2 value",
       "default": "partial",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1363,12 +1586,30 @@
       "label": "Row 4 column 3 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1382,12 +1623,30 @@
       "label": "Row 4 column 4 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1395,12 +1654,11 @@
       "id": "row_4_column_4_note",
       "label": "Row 4 column 4 note"
     },
-
     {
       "type": "checkbox",
       "id": "row_5_enabled",
       "label": "Enable row 5",
-      "default": true
+      "default": false
     },
     {
       "type": "text",
@@ -1414,19 +1672,36 @@
       "label": "Row 5 column 1 value",
       "default": "Limited",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
       "type": "text",
       "id": "row_5_column_1_note",
-      "label": "Row 5 column 1 note",
-      "default": "Simple needs"
+      "label": "Row 5 column 1 note"
     },
     {
       "type": "select",
@@ -1434,19 +1709,36 @@
       "label": "Row 5 column 2 value",
       "default": "Included",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
       "type": "text",
       "id": "row_5_column_2_note",
-      "label": "Row 5 column 2 note",
-      "default": "Most customers"
+      "label": "Row 5 column 2 note"
     },
     {
       "type": "select",
@@ -1454,19 +1746,36 @@
       "label": "Row 5 column 3 value",
       "default": "Advanced",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
       "type": "text",
       "id": "row_5_column_3_note",
-      "label": "Row 5 column 3 note",
-      "default": "Power users"
+      "label": "Row 5 column 3 note"
     },
     {
       "type": "select",
@@ -1474,21 +1783,37 @@
       "label": "Row 5 column 4 value",
       "default": "Advanced",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
       "type": "text",
       "id": "row_5_column_4_note",
-      "label": "Row 5 column 4 note",
-      "default": "Teams"
+      "label": "Row 5 column 4 note"
     },
-
     {
       "type": "checkbox",
       "id": "row_6_enabled",
@@ -1507,12 +1832,30 @@
       "label": "Row 6 column 1 value",
       "default": "no",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1526,12 +1869,30 @@
       "label": "Row 6 column 2 value",
       "default": "partial",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1545,12 +1906,30 @@
       "label": "Row 6 column 3 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1564,12 +1943,30 @@
       "label": "Row 6 column 4 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1577,7 +1974,6 @@
       "id": "row_6_column_4_note",
       "label": "Row 6 column 4 note"
     },
-
     {
       "type": "checkbox",
       "id": "row_7_enabled",
@@ -1596,12 +1992,30 @@
       "label": "Row 7 column 1 value",
       "default": "no",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1615,12 +2029,30 @@
       "label": "Row 7 column 2 value",
       "default": "partial",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1634,12 +2066,30 @@
       "label": "Row 7 column 3 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1653,12 +2103,30 @@
       "label": "Row 7 column 4 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1666,7 +2134,6 @@
       "id": "row_7_column_4_note",
       "label": "Row 7 column 4 note"
     },
-
     {
       "type": "checkbox",
       "id": "row_8_enabled",
@@ -1685,12 +2152,30 @@
       "label": "Row 8 column 1 value",
       "default": "no",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1704,12 +2189,30 @@
       "label": "Row 8 column 2 value",
       "default": "partial",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1723,12 +2226,30 @@
       "label": "Row 8 column 3 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1742,12 +2263,30 @@
       "label": "Row 8 column 4 value",
       "default": "yes",
       "options": [
-        { "value": "yes", "label": "Yes" },
-        { "value": "no", "label": "No" },
-        { "value": "partial", "label": "Partial" },
-        { "value": "Included", "label": "Text: Included" },
-        { "value": "Limited", "label": "Text: Limited" },
-        { "value": "Advanced", "label": "Text: Advanced" }
+        {
+          "value": "yes",
+          "label": "Yes"
+        },
+        {
+          "value": "no",
+          "label": "No"
+        },
+        {
+          "value": "partial",
+          "label": "Partial"
+        },
+        {
+          "value": "Included",
+          "label": "Text: Included"
+        },
+        {
+          "value": "Limited",
+          "label": "Text: Limited"
+        },
+        {
+          "value": "Advanced",
+          "label": "Text: Advanced"
+        }
       ]
     },
     {
@@ -1781,11 +2320,26 @@
       "label": "Width",
       "default": "full",
       "options": [
-        { "value": "auto", "label": "Auto" },
-        { "value": "small", "label": "Small" },
-        { "value": "medium", "label": "Medium" },
-        { "value": "large", "label": "Large" },
-        { "value": "full", "label": "Full" }
+        {
+          "value": "auto",
+          "label": "Auto"
+        },
+        {
+          "value": "small",
+          "label": "Small"
+        },
+        {
+          "value": "medium",
+          "label": "Medium"
+        },
+        {
+          "value": "large",
+          "label": "Large"
+        },
+        {
+          "value": "full",
+          "label": "Full"
+        }
       ]
     },
     {
@@ -1794,9 +2348,18 @@
       "label": "Alignment",
       "default": "center",
       "options": [
-        { "value": "left", "label": "Left" },
-        { "value": "center", "label": "Center" },
-        { "value": "right", "label": "Right" }
+        {
+          "value": "left",
+          "label": "Left"
+        },
+        {
+          "value": "center",
+          "label": "Center"
+        },
+        {
+          "value": "right",
+          "label": "Right"
+        }
       ]
     },
     {
@@ -1969,14 +2532,53 @@
       "label": "Animation",
       "default": "none",
       "options": [
-        { "value": "none", "label": "None" },
-        { "value": "fade", "label": "Fade" },
-        { "value": "fade-up", "label": "Fade up" },
-        { "value": "fade-down", "label": "Fade down" },
-        { "value": "fade-left", "label": "Fade left" },
-        { "value": "fade-right", "label": "Fade right" },
-        { "value": "zoom", "label": "Zoom" }
+        {
+          "value": "none",
+          "label": "None"
+        },
+        {
+          "value": "fade",
+          "label": "Fade"
+        },
+        {
+          "value": "fade-up",
+          "label": "Fade up"
+        },
+        {
+          "value": "fade-down",
+          "label": "Fade down"
+        },
+        {
+          "value": "fade-left",
+          "label": "Fade left"
+        },
+        {
+          "value": "fade-right",
+          "label": "Fade right"
+        },
+        {
+          "value": "zoom",
+          "label": "Zoom"
+        }
       ]
+    },
+    {
+      "type": "text",
+      "id": "included_label",
+      "label": "Included value label",
+      "default": "Included"
+    },
+    {
+      "type": "text",
+      "id": "not_included_label",
+      "label": "Not included value label",
+      "default": "Not included"
+    },
+    {
+      "type": "text",
+      "id": "partial_label",
+      "label": "Partial value label",
+      "default": "Partially included"
     }
   ],
   "presets": [
@@ -1985,20 +2587,20 @@
       "settings": {
         "eyebrow": "Compare products",
         "heading": "Find the right fit",
-        "text": "<p>Compare core features, support, customization, and ideal use cases across multiple product options.</p>",
+        "text": "",
         "feature_column_label": "Product details",
         "column_1_title": "Essential",
-        "column_1_subtitle": "Simple everyday option",
-        "column_1_price": "$49",
+        "column_1_subtitle": "",
+        "column_1_price": "",
         "column_1_cta_text": "View Essential",
         "column_2_title": "Performance",
-        "column_2_subtitle": "Best for most customers",
-        "column_2_badge": "Popular",
-        "column_2_price": "$89",
+        "column_2_subtitle": "",
+        "column_2_badge": "",
+        "column_2_price": "",
         "column_2_cta_text": "View Performance",
         "column_3_title": "Signature",
-        "column_3_subtitle": "Premium experience",
-        "column_3_price": "$129",
+        "column_3_subtitle": "",
+        "column_3_price": "",
         "column_3_cta_text": "View Signature",
         "highlighted_column": "2",
         "row_1_label": "Core benefit",
@@ -2013,26 +2615,26 @@
       "settings": {
         "eyebrow": "Compare plans",
         "heading": "Simple plans for every stage",
-        "text": "<p>Give customers a clear way to choose between service levels, subscriptions, memberships, or pricing tiers.</p>",
+        "text": "",
         "feature_column_label": "Plan features",
         "column_1_title": "Basic",
-        "column_1_subtitle": "Start simple",
-        "column_1_price": "$19/mo",
+        "column_1_subtitle": "",
+        "column_1_price": "",
         "column_1_cta_text": "Start Basic",
         "column_2_title": "Growth",
-        "column_2_subtitle": "Most popular",
-        "column_2_badge": "Best value",
-        "column_2_price": "$49/mo",
+        "column_2_subtitle": "",
+        "column_2_badge": "",
+        "column_2_price": "",
         "column_2_cta_text": "Start Growth",
         "column_3_title": "Pro",
-        "column_3_subtitle": "Advanced tools",
-        "column_3_price": "$99/mo",
+        "column_3_subtitle": "",
+        "column_3_price": "",
         "column_3_cta_text": "Start Pro",
-        "column_4_enabled": true,
+        "column_4_enabled": false,
         "column_4_title": "Enterprise",
-        "column_4_subtitle": "Custom support",
-        "column_4_badge": "Custom",
-        "column_4_price": "Custom",
+        "column_4_subtitle": "",
+        "column_4_badge": "",
+        "column_4_price": "",
         "column_4_cta_text": "Contact sales",
         "highlighted_column": "2",
         "row_1_label": "Included features",
@@ -2047,20 +2649,20 @@
       "settings": {
         "eyebrow": "Package guide",
         "heading": "Compare every package",
-        "text": "<p>Use this matrix to compare bundles, kits, service packages, or curated product sets.</p>",
+        "text": "",
         "feature_column_label": "Package includes",
         "column_1_title": "Starter Kit",
-        "column_1_subtitle": "Entry package",
-        "column_1_price": "$99",
+        "column_1_subtitle": "",
+        "column_1_price": "",
         "column_1_cta_text": "Choose Starter",
         "column_2_title": "Complete Kit",
-        "column_2_subtitle": "Balanced package",
-        "column_2_badge": "Recommended",
-        "column_2_price": "$179",
+        "column_2_subtitle": "",
+        "column_2_badge": "",
+        "column_2_price": "",
         "column_2_cta_text": "Choose Complete",
         "column_3_title": "Ultimate Kit",
-        "column_3_subtitle": "Everything included",
-        "column_3_price": "$249",
+        "column_3_subtitle": "",
+        "column_3_price": "",
         "column_3_cta_text": "Choose Ultimate",
         "highlighted_column": "2",
         "row_1_label": "Main product",

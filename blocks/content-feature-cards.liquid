@@ -13,6 +13,84 @@
   assign show_mobile = block.settings.show_mobile
 -%}
 
+{% assign has_content = false %}
+{% capture cards_markup %}
+  <div class="content-feature-cards__grid">
+    {%- for index in (1..8) -%}
+      {%- if index <= card_count -%}
+        {%- liquid
+          assign image_key = 'card_' | append: index | append: '_image'
+          assign icon_key = 'card_' | append: index | append: '_icon'
+          assign heading_key = 'card_' | append: index | append: '_heading'
+          assign text_key = 'card_' | append: index | append: '_text'
+          assign link_label_key = 'card_' | append: index | append: '_link_label'
+          assign link_url_key = 'card_' | append: index | append: '_link_url'
+          assign alt_key = 'card_' | append: index | append: '_image_alt'
+
+          assign card_image = block.settings[image_key]
+          assign card_icon = block.settings[icon_key]
+          assign card_heading = block.settings[heading_key]
+          assign card_text = block.settings[text_key]
+          assign card_link_label = block.settings[link_label_key]
+          assign card_link_url = block.settings[link_url_key]
+          assign card_image_alt = block.settings[alt_key] | default: card_image.alt
+          assign card_has_content = false
+          if card_image != blank or card_heading != blank or card_text != blank
+            assign card_has_content = true
+          endif
+          if card_link_label != blank and card_link_url != blank
+            assign card_has_content = true
+          endif
+          if card_icon != blank
+            assign card_has_content = true
+          endif
+        -%}
+        {% if card_has_content %}{% assign has_content = true %}
+        <article class="content-feature-cards__item">
+          {% if card_image != blank %}
+            <div class="content-feature-cards__media">
+              {{
+                card_image
+                | image_url: width: 900
+                | image_tag:
+                  class: 'content-feature-cards__image',
+                  loading: 'lazy',
+                  widths: '240, 360, 540, 720, 900',
+                  sizes: '(min-width: 990px) 33vw, (min-width: 750px) 50vw, 100vw',
+                  alt: card_image_alt
+              }}
+            </div>
+          {% elsif card_icon != blank %}
+            <div class="content-feature-cards__media" aria-hidden="true">
+              <span class="content-feature-cards__icon">{{ card_icon | escape }}</span>
+            </div>
+          {% endif %}
+
+          {% if card_heading != blank %}
+            <h3 class="content-feature-cards__heading">
+              {{ card_heading | escape }}
+            </h3>
+          {% endif %}
+
+          {% if card_text != blank %}
+            <div class="content-feature-cards__text">
+              {{ card_text }}
+            </div>
+          {% endif %}
+
+          {% if card_link_label != blank and card_link_url != blank %}
+            <a class="content-feature-cards__link" href="{{ card_link_url | escape }}">
+              <span>{{ card_link_label | escape }}</span>
+              <span aria-hidden="true">→</span>
+            </a>
+          {% endif %}
+        </article>
+        {% endif %}
+      {%- endif -%}
+    {%- endfor -%}
+  </div>
+{% endcapture %}
+
 <div
   id="{{ block_id }}"
   class="
@@ -22,10 +100,10 @@
     content-feature-cards--width-{{ width }}
     content-feature-cards--desktop-{{ desktop_columns }}
     content-feature-cards--mobile-{{ mobile_columns }}
-    {% unless show_desktop %} content-feature-cards--hide-desktop{% endunless %}
-    {% unless show_tablet %} content-feature-cards--hide-tablet{% endunless %}
-    {% unless show_mobile %} content-feature-cards--hide-mobile{% endunless %}
-    {% if block.settings.animation != 'none' %} content-feature-cards--animate content-feature-cards--animate-{{ block.settings.animation }}{% endif %}
+    {% unless show_desktop or request.design_mode %} content-feature-cards--hide-desktop{% endunless %}
+    {% unless show_tablet or request.design_mode %} content-feature-cards--hide-tablet{% endunless %}
+    {% unless show_mobile or request.design_mode %} content-feature-cards--hide-mobile{% endunless %}
+    {% if block.settings.animation != 'none' and request.design_mode == false %} content-feature-cards--animate content-feature-cards--animate-{{ block.settings.animation }}{% endif %}
   "
   style="
     --content-feature-cards-margin-top: {{ block.settings.margin_top }}px;
@@ -47,17 +125,21 @@
     --content-feature-cards-icon-size: {{ block.settings.icon_size }}px;
     --content-feature-cards-image-radius: {{ block.settings.image_radius }}px;
   "
-  {{ block.shopify_attributes }}
+  {% unless has_content or request.design_mode %}hidden{% endunless %}
 >
+  {% if has_content == false and request.design_mode %}<p role="note">Add an image, heading, text or destination to a card.</p>{% endif %}
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--content-feature-cards-margin-top);
       margin-bottom: var(--content-feature-cards-margin-bottom);
       padding-top: var(--content-feature-cards-padding-top);
       padding-bottom: var(--content-feature-cards-padding-bottom);
-      padding-left: var(--content-feature-cards-padding-left);
-      padding-right: var(--content-feature-cards-padding-right);
+      padding-left: min(var(--content-feature-cards-padding-left), 12%);
+      padding-right: min(var(--content-feature-cards-padding-right), 12%);
       background: var(--content-feature-cards-background-color);
       color: var(--content-feature-cards-text-color);
     }
@@ -131,7 +213,7 @@
       background: var(--content-feature-cards-card-background-color);
       border: var(--content-feature-cards-border-width) solid var(--content-feature-cards-border-color);
       border-radius: var(--content-feature-cards-card-radius);
-      padding: var(--content-feature-cards-card-padding);
+      padding: min(var(--content-feature-cards-card-padding), 12%);
       overflow: hidden;
     }
 
@@ -226,7 +308,7 @@
     }
 
     #{{ block_id }}.content-feature-cards--animate {
-      opacity: 0;
+      opacity: 1;
       animation-duration: 700ms;
       animation-fill-mode: forwards;
       animation-timing-function: ease;
@@ -354,69 +436,14 @@
         transform: none;
       }
     }
-  </style>
+    #{{ block_id }}[hidden] { display: none !important; }
+  #{{ block_id }}, #{{ block_id }} * { box-sizing: border-box; }
+  #{{ block_id }} :is(div,article,ul,li,a,span) { min-width: 0; }
+  #{{ block_id }} :is(img,a,button) { max-width: 100%; }
+  #{{ block_id }} a:focus-visible { outline: 3px solid var(--content-feature-cards-link-color); outline-offset: 3px; }
+</style>
 
-  <div class="content-feature-cards__grid">
-    {%- for index in (1..8) -%}
-      {%- if index <= card_count -%}
-        {%- liquid
-          assign image_key = 'card_' | append: index | append: '_image'
-          assign icon_key = 'card_' | append: index | append: '_icon'
-          assign heading_key = 'card_' | append: index | append: '_heading'
-          assign text_key = 'card_' | append: index | append: '_text'
-          assign link_label_key = 'card_' | append: index | append: '_link_label'
-          assign link_url_key = 'card_' | append: index | append: '_link_url'
-          assign alt_key = 'card_' | append: index | append: '_image_alt'
-
-          assign card_image = block.settings[image_key]
-          assign card_icon = block.settings[icon_key]
-          assign card_heading = block.settings[heading_key]
-          assign card_text = block.settings[text_key]
-          assign card_link_label = block.settings[link_label_key]
-          assign card_link_url = block.settings[link_url_key]
-          assign card_image_alt = block.settings[alt_key]
-        -%}
-
-        <article class="content-feature-cards__item">
-          {% if card_image != blank %}
-            <div class="content-feature-cards__media">
-              {{
-                card_image
-                | image_url: width: 900
-                | image_tag:
-                  class: 'content-feature-cards__image',
-                  loading: 'lazy',
-                  alt: card_image_alt
-              }}
-            </div>
-          {% elsif card_icon != blank %}
-            <div class="content-feature-cards__media" aria-hidden="true">
-              <span class="content-feature-cards__icon">{{ card_icon }}</span>
-            </div>
-          {% endif %}
-
-          {% if card_heading != blank %}
-            <h3 class="content-feature-cards__heading">
-              {{ card_heading | escape }}
-            </h3>
-          {% endif %}
-
-          {% if card_text != blank %}
-            <div class="content-feature-cards__text">
-              {{ card_text }}
-            </div>
-          {% endif %}
-
-          {% if card_link_label != blank and card_link_url != blank %}
-            <a class="content-feature-cards__link" href="{{ card_link_url }}">
-              <span>{{ card_link_label | escape }}</span>
-              <span aria-hidden="true">→</span>
-            </a>
-          {% endif %}
-        </article>
-      {%- endif -%}
-    {%- endfor -%}
-  </div>
+  {{ cards_markup }}
 </div>
 
 {% schema %}
@@ -585,20 +612,17 @@
     {
       "type": "text",
       "id": "card_1_icon",
-      "label": "Icon",
-      "default": "✦"
+      "label": "Icon"
     },
     {
       "type": "text",
       "id": "card_1_heading",
-      "label": "Heading",
-      "default": "Premium design"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "card_1_text",
-      "label": "Text",
-      "default": "<p>Create polished sections with flexible feature cards built for modern storefronts.</p>"
+      "label": "Text"
     },
     {
       "type": "text",
@@ -628,20 +652,17 @@
     {
       "type": "text",
       "id": "card_2_icon",
-      "label": "Icon",
-      "default": "✓"
+      "label": "Icon"
     },
     {
       "type": "text",
       "id": "card_2_heading",
-      "label": "Heading",
-      "default": "Easy to customize"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "card_2_text",
-      "label": "Text",
-      "default": "<p>Adjust columns, spacing, borders, colors, icons, images, and links without custom code.</p>"
+      "label": "Text"
     },
     {
       "type": "text",
@@ -671,20 +692,17 @@
     {
       "type": "text",
       "id": "card_3_icon",
-      "label": "Icon",
-      "default": "★"
+      "label": "Icon"
     },
     {
       "type": "text",
       "id": "card_3_heading",
-      "label": "Heading",
-      "default": "Built to convert"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "card_3_text",
-      "label": "Text",
-      "default": "<p>Highlight benefits, services, product features, and trust points in a clean grid.</p>"
+      "label": "Text"
     },
     {
       "type": "text",
@@ -1115,17 +1133,17 @@
         "width": "auto",
         "gap": 24,
         "card_padding": 28,
-        "card_1_icon": "✦",
-        "card_1_heading": "Premium design",
-        "card_1_text": "<p>Create polished sections with flexible feature cards built for modern storefronts.</p>",
+        "card_1_icon": "",
+        "card_1_heading": "",
+        "card_1_text": "",
         "card_1_link_label": "Learn more",
-        "card_2_icon": "✓",
-        "card_2_heading": "Easy to customize",
-        "card_2_text": "<p>Adjust columns, spacing, borders, colors, icons, images, and links without custom code.</p>",
+        "card_2_icon": "",
+        "card_2_heading": "",
+        "card_2_text": "",
         "card_2_link_label": "View details",
-        "card_3_icon": "★",
-        "card_3_heading": "Built to convert",
-        "card_3_text": "<p>Highlight benefits, services, product features, and trust points in a clean grid.</p>",
+        "card_3_icon": "",
+        "card_3_heading": "",
+        "card_3_text": "",
         "card_3_link_label": "Explore",
         "heading_color": "#111111",
         "text_color": "#444444",
