@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 48/102 blocks and 13 dependencies individually reviewed; 61/115 Family 8 entries have dispositions (60 live queued, 1 dormant retained), 54 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 49/102 blocks and 15 dependencies individually reviewed; 64/117 Family 8 entries have dispositions (63 live queued, 1 dormant retained), 53 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1145,3 +1145,17 @@ B8-PRODUCT-UTILITIES live queue after engineering batches: native Liquid epoch p
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Product utility checkpoint Theme Check: 504 (3 errors, 501 warnings) to 505 (3 errors, 502 warnings), one deadline-helper orphan report despite actual consumers. No new errors or suppression.
+
+## Batch 8 checkpoint — native product media gallery — 2026-09-22
+
+Previous checkpoint published as `60de065bdf99b34680a29c2874f6fc0a52c80854`; PR #22 remains DRAFT. Product Gallery retains its four merchant layouts and native media contracts with progressive navigation and scoped lifecycle. A shared native media helper removes repeated rendering branches and defers external frames behind real links. The gallery uses compact selected/native ID data, actual product-form ownership, native scroll, corrected thumbnail layout controls and explicit autoplay pause/resume. Both actual new dependencies are individually inventoried; legacy product-host controllers and all section sources remain untouched.
+
+49/102 blocks and 15 dependencies individually reviewed; 64/117 Family 8 entries have dispositions (63 live queued, 1 dormant retained), 53 NOT REVIEWED. Global dispositions: 396 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 78 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-product-gallery/`. 80 actual default/control/preset/media/selected/empty renders plus runtime fixtures cover all four modes, no-JS media and native scroll source, selected records outside enumeration, safe native filters/links, active video/model/iframe teardown, actual two-product-host form/controller composition, scoped variant/restoration/invalid states, keyboard/RTL/manual scroll geometry, focus before pane hiding, independent autoplay/explicit pause/motion/visibility and editor insertion/load/unload/reorder/removal. Initial fixture assertion used an unsupported JSDOM img.loading property; reading the actual rendered loading attribute reconciles it without runtime changes. All 22 affected suites pass; 44 settings, 3 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-PRODUCT-GALLERY live queue after engineering batches: actual native Shopify image/video/model filters and model-viewer runtime/preview fallback; YouTube/Vimeo activation/player retirement, native controls/audio/model interaction; browser scroll-snap/RTL/inert/focus and selected variant media, 320/390/768/1280/1440px thumbnail/order/masonry sizing and long labels, no-JS/AT/zoom/reduced motion; native Theme Editor insertion/select/reorder/load/unload and multi-product instances. All prior queues carry forward; no live Shopify QA performed.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Gallery checkpoint Theme Check: 505 (3 errors, 502 warnings) to 506 (3 errors, 503 warnings); one new media-helper orphan report despite its actual caller. No new errors or suppression.

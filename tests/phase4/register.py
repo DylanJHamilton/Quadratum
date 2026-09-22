@@ -7,7 +7,7 @@ def family(name):
  if name in ['blog-card', 'section-main-blog-single']:return '3 Collection / Discovery'
  if name in ['forms-sections', 'frontend-form-logic', 'frontend-form-logic-form-sections']:return '6 Forms / Conversion'
  if name in ['card-product', 'icon-social', 'q-social-micro-post-card', 'q-social-pinterest-card', 'q-social-pinterest-thumb', 'q-social-profile-icon']:return '7 Social / Third Party / Utilities'
- if name in ['qtm-content-block-wrapper-end', 'qtm-content-block-wrapper-start', 'qtm-content-blocks', 'qtm-content-blocks-engine', 'qtm-product-block-metadata', 'qtm-product-block-commerce', 'qtm-product-block-data', 'qtm-product-block-variant', 'qtm-product-information-value', 'qtm-block-metafield', 'qtm-block-panels', 'qtm-block-deadline', 'qtm-product-block-utilities']:return '8 Theme Blocks'
+ if name in ['qtm-content-block-wrapper-end', 'qtm-content-block-wrapper-start', 'qtm-content-blocks', 'qtm-content-blocks-engine', 'qtm-product-block-metadata', 'qtm-product-block-commerce', 'qtm-product-block-data', 'qtm-product-block-variant', 'qtm-product-information-value', 'qtm-block-metafield', 'qtm-block-panels', 'qtm-block-deadline', 'qtm-product-block-utilities', 'qtm-block-product-media', 'qtm-product-block-gallery']:return '8 Theme Blocks'
  if name in ['boxed-content-media', 'contrast-text', 'icon-sprite', 'icons', 'q-base.css', 'q-disclosure', 'q-spacing', 'qtm-section-surfaces', 'quadratum-tokens', 'section-slideshow', 'styles', 'tailwind', 'theme', 'theme-tokens', 'utilities', 'worm']:return '9 Snippet / Asset Closure'
  if name == 'global-theme-vars':return '1 Global / Structural'
  if name in ['pb-bundle-card','interactive-content-helper-product-slider']:return '4 Product / Commerce'
