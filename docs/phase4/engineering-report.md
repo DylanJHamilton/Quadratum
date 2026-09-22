@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 91/102 blocks and 27 dependencies individually reviewed; 118/129 Family 8 entries have dispositions (117 live queued, 1 dormant retained), 11 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 95/102 blocks and 27 dependencies individually reviewed; 122/129 Family 8 entries have dispositions (121 live queued, 1 dormant retained), 7 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1299,3 +1299,17 @@ B8-RECENTLY-VIEWED live queue after engineering batches: actual Shopify section 
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Unsuppressed Theme Check: 512 findings: 3 unchanged out-of-group errors and 509 warnings. One new shared-renderer orphan diagnostic despite both traced block callers; no suppression.
+
+## Batch 8 checkpoint — logos, press, trust badges and timeline — 2026-09-22
+
+Previous checkpoint published as `d9e1fcdf2d074208d40675d5c50e5eecba32336b`; PR #22 remains DRAFT. Four static proof/timeline blocks now have neutral new insertion, complete safe native content and useful empty/editor states. Repairs address logo/press naming, independently sized badge images and sparse ordered timelines with logical/nested geometry.
+
+95/102 blocks and 27 dependencies individually reviewed; 122/129 Family 8 entries have dispositions (121 live queued, 1 dormant retained), 7 NOT REVIEWED. Global dispositions: 454 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 32 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-proof-timeline/`. 266 actual renders cover all 333 original settings, eight real presets and select/checkbox/range endpoints with populated data. Original saved preset/default content remains visible. Sparse last slots and limits, header-only logos, image/quote/source/badge-only press links, complete action-only badges/timeline entries, escaped text/icons/URLs, intact rich text, native alt/geometry, empty storefront/editor states, raw-ID duplicate instances and all CSS custom-property definitions pass. Source checks cover every layout, nested/container constraints, reduced motion and logical/minimal/narrow timeline geometry. All 9 affected suites pass; 333 settings, 8 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-PROOF-TIMELINE live queue after engineering batches: merchant-supplied logo/press/trust/testimonial claims remain owner content; actual native image/alt and destination behavior, 320–1440px/RTL/zoom/nested grids and timeline markers, contrast/keyboard/AT and Theme Editor lifecycle. LiquidJS/native-image/DOM adapters are not browser acceptance. No live Shopify QA; prior queues carry forward.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Unsuppressed Theme Check: 512 unchanged findings: 3 unchanged out-of-group errors and 509 warnings. Four retained settings-count warnings in this group, zero group errors; no suppression.
