@@ -15,4 +15,4 @@ async function render(name,opts={}){const{schema,liquid}=unpack(name),id=opts.id
 function dom(html,url='https://shop.test/fr/products/test'){const d=new JSDOM(html,{url,runScripts:'outside-only',pretendToBeVisual:true}),w=d.window;w.HTMLElement.prototype.scrollIntoView=()=>{};w.HTMLMediaElement.prototype.pause=function(){this.dataset.paused='true'};w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'))};w.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});return d;}
 function boot(w,files){for(const file of files){w.eval(read('assets/'+file));w.eval(read('assets/'+file));}w.document.dispatchEvent(new w.Event('DOMContentLoaded'));}
 const drain=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
-module.exports={read,engine,unpack,defaults,render,dom,boot,drain,product,variants,media,photo};
+module.exports={read,engine,unpack,defaults,render,dom,boot,drain,product,variants,media,photo,platform};

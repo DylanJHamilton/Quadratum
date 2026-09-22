@@ -28,11 +28,8 @@ async function section(id, design = false) {
   input.value = ''; input.dispatchEvent(new w.Event('change', { bubbles: true })); assert.equal(value(one), 'Not available'); assert.ok(sku(one).classList.contains('product-sku--empty'));
   event(one, { productId: 1, variant: { id: 100 } }, 'product:variant-change'); assert.equal(value(one), 'SKU100');
   event(one, { productId: 1, variant: null }); assert.equal(value(one), 'Not available');
-  // The actual form/picker producer bodies now dispatch bubbling events from their own roots.
-  for (const name of ['form', 'variant-picker']) {
-    const source = f.unpack('product-' + name).liquid, body = source.match(/const dispatchVariantChange = \(variant\) => \{([\s\S]*?)\n\s*};/)[1].replace(/{{ product_context.id \| json }}/g, '1');
-    w.__producerRoot = one; w.__variant = f.variants[1]; w.eval('((root, variant) => {' + body + '})(window.__producerRoot, window.__variant)'); assert.equal(value(one), 'SKU100'); assert.equal(value(two), 'OUT');
-  }
+  // Actual form and picker emission is covered through their shared controller in theme-block-commerce.cjs.
+  input.value = '100'; input.dispatchEvent(new w.CustomEvent('qtm:variant-restored', { bubbles: true })); assert.equal(value(one), 'SKU100');
   one.dispatchEvent(new w.CustomEvent('shopify:section:unload', { bubbles: true })); assert.ok(observers[0].disconnected); assert.ok(!desc(one).classList.contains('is-enhanced'));
   const old = value(one); event(one, { productId: 1, variantId: 101 }); assert.equal(value(one), old); height = 1000; observers[0].callback(); assert.ok(!desc(one).classList.contains('is-enhanced'), 'stale resize is inert');
   one.dispatchEvent(new w.CustomEvent('shopify:section:load', { bubbles: true })); assert.equal(observers.length, 3); event(one, { productId: 1, variantId: 101 }); assert.equal(value(one), 'OUT');
@@ -45,5 +42,5 @@ async function section(id, design = false) {
     const late = f.dom(await section('late', design)), win = late.window; Object.defineProperty(win.document, 'readyState', { value: 'complete' });
     win.eval(script); const root = win.document.querySelector('[data-product-description]'); assert.ok(!root.classList.contains('is-enhanced')); assert.ok(root.querySelector('button').hidden); late.window.close();
   }
-  console.log('PASS metadata singleton/late/dynamic boot, scoped real producer bodies, native variant controls, cross-product/cross-instance and legacy event policy, null variant, description no-JS/short/long/toggle/focus/resize/load/editor behavior, unload/reload/reorder/disposal and stale observer delivery. Browser geometry remains queued.');
+  console.log('PASS metadata singleton/late/dynamic boot, scoped producer events, native variant controls/restoration, cross-product/cross-instance and legacy event policy, null variant, description no-JS/short/long/toggle/focus/resize/load/editor behavior, unload/reload/reorder/disposal and stale observer delivery. Browser geometry remains queued.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

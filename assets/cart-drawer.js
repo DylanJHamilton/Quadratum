@@ -148,7 +148,7 @@
       status.setAttribute('role', 'status');
       form.append(status);
     }
-    status.textContent = '';
+    status.textContent = form.dataset.cartAddingMessage || '';
     form.setAttribute('aria-busy', 'true');
     try {
       const url = new URL(form.action, window.location.href);
@@ -156,7 +156,7 @@
       const response = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' }, body: new FormData(form) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.description || 'Unable to add this item.');
-      status.textContent = 'Added to cart.';
+      status.textContent = form.dataset.cartAddedMessage || 'Added to cart.';
       try {
         if (window.QuadratumSettings.cart.openAfterAdd) await open(event.submitter);
         else await refresh();

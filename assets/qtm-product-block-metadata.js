@@ -52,7 +52,7 @@
       });
       const initial = scope.querySelector('[data-product-form-block-form] [name="id"], form [name="id"]');
       if (initial && !initial.disabled) update(initial.value);
-      on(scope, 'qtm:variant:restored', event => { const input = event.target.querySelector?.('[name="id"]'); if (input) update(input.value); });
+      on(scope, 'qtm:variant-restored', event => { const input = event.target.matches?.('[name="id"]') ? event.target : event.target.querySelector?.('[name="id"]'); if (input) update(input.value); });
     } else {
       const content = root.querySelector('[data-product-description-content]');
       const toggle = root.querySelector('[data-product-description-toggle]');

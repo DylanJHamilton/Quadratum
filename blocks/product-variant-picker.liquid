@@ -1,8 +1,13 @@
+{% if product != blank %}
 {%- liquid
   assign block_id = 'product-variant-picker-' | append: block.id
 
   assign product_context = product
   assign current_variant = product_context.selected_or_first_available_variant
+  assign selected_allocation = current_variant.selected_selling_plan_allocation
+  if selected_allocation == blank and product_context.requires_selling_plan
+    assign selected_allocation = current_variant.selling_plan_allocations.first
+  endif
 
   assign width = block.settings.width | default: 'auto'
   assign alignment = block.settings.alignment | default: 'left'
@@ -13,7 +18,7 @@
   assign show_on_mobile = block.settings.show_on_mobile
 -%}
 
-{% unless product_context.has_only_default_variant %}
+{% if product_context.has_only_default_variant == false or request.design_mode %}
   <div
     id="{{ block_id }}"
     class="
@@ -21,10 +26,10 @@
       product-variant-picker--{{ picker_style }}
       product-variant-picker--width-{{ width }}
       product-variant-picker--align-{{ alignment }}
-      {% unless show_on_desktop %} product-variant-picker--hide-desktop{% endunless %}
-      {% unless show_on_tablet %} product-variant-picker--hide-tablet{% endunless %}
-      {% unless show_on_mobile %} product-variant-picker--hide-mobile{% endunless %}
-      {% if block.settings.animation_style != 'none' %} product-variant-picker--animate product-variant-picker--animate-{{ block.settings.animation_style }}{% endif %}
+      {% unless show_on_desktop or request.design_mode %} product-variant-picker--hide-desktop{% endunless %}
+      {% unless show_on_tablet or request.design_mode %} product-variant-picker--hide-tablet{% endunless %}
+      {% unless show_on_mobile or request.design_mode %} product-variant-picker--hide-mobile{% endunless %}
+      {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-variant-picker--animate product-variant-picker--animate-{{ block.settings.animation_style }}{% endif %}
     "
     style="
       --product-variant-picker-margin-top: {{ block.settings.margin_top }}px;
@@ -45,13 +50,27 @@
       --product-variant-picker-active-border: {{ block.settings.active_border_color }};
       --product-variant-picker-disabled-opacity: {{ block.settings.disabled_opacity | divided_by: 100.0 }};
     "
-    data-product-id="{{ product_context.id }}"
+    data-qtm-product-block-commerce="variant-picker"
+  data-product-url="{{ product_context.url | escape }}"
+  data-requires-plan="{{ product_context.requires_selling_plan }}"
+  data-initial-plan="{{ selected_allocation.selling_plan.id }}"
+  data-add-label="{{ 'Add to cart' | escape }}"
+  data-sold-label="{{ block.settings.sold_out_text | default: 'Sold out' | escape }}"
+  data-unavailable-label="{{ block.settings.unavailable_text | default: 'Unavailable' | escape }}"
+  data-available-label="{{ block.settings.available_text | default: 'Available' | escape }}"
+  data-cart-adding-message="{{ 'Adding to cart...' | escape }}"
+  data-cart-added-message="{{ 'Added to cart.' | escape }}"
+  data-product-id="{{ product_context.id }}"
     data-variant-id="{{ current_variant.id }}"
     data-product-variant-picker
-    {{ block.shopify_attributes }}
+
   >
-    <style>
+    {% render 'qtm-product-block-data', product: product_context %}
+  <style>
       #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
         width: 100%;
         margin-top: var(--product-variant-picker-margin-top);
         margin-bottom: var(--product-variant-picker-margin-bottom);
@@ -190,11 +209,11 @@
       }
 
       #{{ block_id }}.product-variant-picker--buttons .product-variant-picker__button {
-        border-radius: max(calc(var(--product-variant-picker-border-radius) - 8px), 6px);
+        border-radius: max(calc(var(--product-variant-picker-border-radius) - 8px), 0px);
       }
 
       #{{ block_id }}.product-variant-picker--pills .product-variant-picker__button {
-        border-radius: 999px;
+        border-radius: var(--product-variant-picker-border-radius);
       }
 
       #{{ block_id }} .product-variant-picker__button:hover {
@@ -247,17 +266,7 @@
         box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
       }
 
-      #{{ block_id }} .product-variant-picker__swatch-label {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0 0 0 0);
-        white-space: nowrap;
-        border: 0;
-      }
+      #{{ block_id }} .product-variant-picker__swatch-label { overflow-wrap: anywhere; }
 
       #{{ block_id }} .product-variant-picker__status {
         min-height: 1.3em;
@@ -398,13 +407,23 @@
           transform: none;
         }
       }
-    </style>
+      #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} :is(button, select, input, a):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    #{{ block_id }} :is(button, select, input) { max-width: 100%; }
+    #{{ block_id }}:focus-within { opacity: 1; transform: none; animation: none; }
+    #{{ block_id }} [data-b8-fallback] { display: grid; gap: 6px; min-width: 0; }
+    #{{ block_id }} [data-b8-fallback] select, #{{ block_id }} [name="selling_plan"] { width: 100%; min-width: 0; min-height: 44px; }
+  {% unless block.settings.show_on_desktop or request.design_mode %}@media screen and (min-width: 990px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+{% unless block.settings.show_on_tablet or request.design_mode %}@media screen and (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+{% unless block.settings.show_on_mobile or request.design_mode %}@media screen and (max-width: 749px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+  </style>
 
-    <div class="product-variant-picker__inner">
+    <div data-b8-variant-links><ul>{% for variant in product_context.variants %}<li><a href="{{ variant.url | escape }}">{{ variant.title | escape }}{% unless variant.available %} — Sold out{% endunless %}</a></li>{% endfor %}</ul></div>
+    <div class="product-variant-picker__inner" data-b8-option-controls hidden>
       {% for option in product_context.options_with_values %}
         <fieldset class="product-variant-picker__option" data-product-variant-option data-option-position="{{ option.position }}">
-          <div class="product-variant-picker__label-row">
-            <legend class="product-variant-picker__label">
+          <legend class="product-variant-picker__label">
               {{ option.name | escape }}
             </legend>
 
@@ -413,77 +432,58 @@
                 {{ option.selected_value | escape }}
               </span>
             {% endif %}
-          </div>
 
           <select
             class="product-variant-picker__select"
-            data-product-variant-select
+            data-product-variant-select data-b8-option-select
             data-option-position="{{ option.position }}"
             aria-label="{{ option.name | escape }}"
           >
             {% for value in option.values %}
+              {% assign value_text = value.name | default: value | append: '' %}
               <option
-                value="{{ value | escape }}"
-                {% if option.selected_value == value %}selected{% endif %}
+                value="{{ value_text | escape }}"
+                {% if value.selected or option.selected_value == value_text %}selected{% endif %}
               >
-                {{ value | escape }}
+                {{ value_text | escape }}
               </option>
             {% endfor %}
           </select>
 
-          <div class="product-variant-picker__values" role="radiogroup" aria-label="{{ option.name | escape }}">
+          <div class="product-variant-picker__values" role="group" aria-label="{{ option.name | escape }}">
             {% for value in option.values %}
+              {% assign value_text = value.name | default: value | append: '' %}
               {%- liquid
-                assign value_handle = value | handle
-                assign swatch_color = value_handle
-
-                if value_handle == 'white'
-                  assign swatch_color = '#ffffff'
-                elsif value_handle == 'black'
-                  assign swatch_color = '#000000'
-                elsif value_handle == 'gray' or value_handle == 'grey'
-                  assign swatch_color = '#808080'
-                elsif value_handle == 'silver'
-                  assign swatch_color = '#c0c0c0'
-                elsif value_handle == 'gold'
-                  assign swatch_color = '#d4af37'
-                elsif value_handle == 'red'
-                  assign swatch_color = '#d92d20'
-                elsif value_handle == 'orange'
-                  assign swatch_color = '#f97316'
-                elsif value_handle == 'yellow'
-                  assign swatch_color = '#facc15'
-                elsif value_handle == 'green'
-                  assign swatch_color = '#16a34a'
-                elsif value_handle == 'blue'
-                  assign swatch_color = '#2563eb'
-                elsif value_handle == 'purple'
-                  assign swatch_color = '#7c3aed'
-                elsif value_handle == 'pink'
-                  assign swatch_color = '#ec4899'
-                elsif value_handle == 'brown'
-                  assign swatch_color = '#92400e'
+                assign swatch_color = '#d8d8d8'
+                assign has_swatch = false
+                if value.swatch.color != blank
+                  assign swatch_color = value.swatch.color
+                  assign has_swatch = true
                 endif
+
               -%}
 
               <button
                 type="button"
-                class="product-variant-picker__button {% if option.selected_value == value %}is-active{% endif %}"
+                class="product-variant-picker__button {% if value.selected or option.selected_value == value_text %}is-active{% endif %}"
                 data-product-variant-value
                 data-option-position="{{ option.position }}"
-                data-option-value="{{ value | escape }}"
-                aria-pressed="{% if option.selected_value == value %}true{% else %}false{% endif %}"
+                data-option-value="{{ value_text | escape }}"
+                aria-pressed="{% if value.selected or option.selected_value == value_text %}true{% else %}false{% endif %}"
               >
-                {% if picker_style == 'swatches' %}
+                {% if picker_style == 'swatches' and value.swatch.image != blank %}
+                  {{ value.swatch.image | image_url: width: 144 | image_tag: loading: 'lazy', alt: '', class: 'product-variant-picker__swatch' }}
+                  <span>{{ value_text | escape }}</span>
+                {% elsif picker_style == 'swatches' and has_swatch %}
                   <span class="product-variant-picker__swatch" aria-hidden="true">
-                    <span class="product-variant-picker__swatch-color" style="--swatch-color: {{ swatch_color }};"></span>
+                    <span class="product-variant-picker__swatch-color" style="--swatch-color: {{ swatch_color | escape }};"></span>
                   </span>
                   <span class="product-variant-picker__swatch-label">
-                    {{ value | escape }}
+                    {{ value_text | escape }}
                   </span>
                 {% else %}
                   <span class="product-variant-picker__button-text">
-                    {{ value | escape }}
+                    {{ value_text | escape }}
                   </span>
                 {% endif %}
               </button>
@@ -502,221 +502,10 @@
         </div>
       {% endif %}
     </div>
-
-    <script type="application/json" data-product-variant-picker-variants>
-      {{ product_context.variants | json }}
-    </script>
-
-    <script>
-      (() => {
-        const root = document.getElementById({{ block_id | json }});
-
-        if (!root || root.dataset.productVariantPickerReady === 'true') return;
-
-        root.dataset.productVariantPickerReady = 'true';
-
-        const variantsJson = root.querySelector('[data-product-variant-picker-variants]');
-        const optionGroups = Array.from(root.querySelectorAll('[data-product-variant-option]'));
-        const selects = Array.from(root.querySelectorAll('[data-product-variant-select]'));
-        const buttons = Array.from(root.querySelectorAll('[data-product-variant-value]'));
-        const statusEl = root.querySelector('[data-product-variant-status]');
-
-        if (!variantsJson) return;
-
-        let variants = [];
-
-        try {
-          variants = JSON.parse(variantsJson.textContent || '[]');
-        } catch (error) {
-          variants = [];
-        }
-
-        const availableText = {{ block.settings.available_text | json }};
-        const soldOutText = {{ block.settings.sold_out_text | json }};
-        const unavailableText = {{ block.settings.unavailable_text | json }};
-
-        const getSelectedOptions = () => {
-          return optionGroups.map((group) => {
-            const activeButton = group.querySelector('[data-product-variant-value].is-active');
-            const select = group.querySelector('[data-product-variant-select]');
-
-            if (activeButton) return activeButton.dataset.optionValue;
-            if (select) return select.value;
-
-            return '';
-          });
-        };
-
-        const findVariant = (selectedOptions) => {
-          return variants.find((variant) => {
-            return selectedOptions.every((value, index) => variant.options[index] === value);
-          });
-        };
-
-        const optionValueHasVariant = (optionPosition, value) => {
-          const selectedOptions = getSelectedOptions();
-          selectedOptions[optionPosition - 1] = value;
-
-          return variants.some((variant) => {
-            return selectedOptions.every((selectedValue, index) => {
-              if (!selectedValue) return true;
-              return variant.options[index] === selectedValue;
-            });
-          });
-        };
-
-        const optionValueHasAvailableVariant = (optionPosition, value) => {
-          const selectedOptions = getSelectedOptions();
-          selectedOptions[optionPosition - 1] = value;
-
-          return variants.some((variant) => {
-            if (!variant.available) return false;
-
-            return selectedOptions.every((selectedValue, index) => {
-              if (!selectedValue) return true;
-              return variant.options[index] === selectedValue;
-            });
-          });
-        };
-
-        const dispatchVariantChange = (variant) => {
-          if (!variant) return;
-
-          root.dataset.variantId = String(variant.id);
-
-          root.dispatchEvent(new CustomEvent('variant:change', {
-            bubbles: true,
-            detail: {
-              productId: {{ product_context.id | json }},
-              variantId: Number(variant.id),
-              variant
-            }
-          }));
-
-          root.dispatchEvent(new CustomEvent('qtm:variant:change', {
-            bubbles: true,
-            detail: {
-              productId: {{ product_context.id | json }},
-              variantId: Number(variant.id),
-              variant
-            }
-          }));
-        };
-
-        const updateUi = () => {
-          const selectedOptions = getSelectedOptions();
-          const variant = findVariant(selectedOptions);
-
-          optionGroups.forEach((group) => {
-            const optionPosition = Number(group.dataset.optionPosition);
-            const selectedValueEl = group.querySelector('[data-product-variant-selected-value]');
-            const select = group.querySelector('[data-product-variant-select]');
-
-            if (selectedValueEl) {
-              selectedValueEl.textContent = selectedOptions[optionPosition - 1] || '';
-            }
-
-            if (select && select.value !== selectedOptions[optionPosition - 1]) {
-              select.value = selectedOptions[optionPosition - 1] || select.value;
-            }
-
-            group.querySelectorAll('[data-product-variant-value]').forEach((button) => {
-              const value = button.dataset.optionValue;
-              const hasVariant = optionValueHasVariant(optionPosition, value);
-              const hasAvailableVariant = optionValueHasAvailableVariant(optionPosition, value);
-              const isActive = selectedOptions[optionPosition - 1] === value;
-
-              button.classList.toggle('is-active', isActive);
-              button.classList.toggle('is-unavailable', !hasAvailableVariant);
-              button.disabled = !hasVariant;
-              button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-            });
-          });
-
-          if (statusEl) {
-            if (!variant) {
-              statusEl.textContent = unavailableText;
-            } else if (variant.available) {
-              statusEl.textContent = availableText;
-            } else {
-              statusEl.textContent = soldOutText;
-            }
-          }
-
-          dispatchVariantChange(variant);
-        };
-
-        buttons.forEach((button) => {
-          button.addEventListener('click', () => {
-            if (button.disabled) return;
-
-            const group = button.closest('[data-product-variant-option]');
-
-            if (!group) return;
-
-            group.querySelectorAll('[data-product-variant-value]').forEach((item) => {
-              item.classList.remove('is-active');
-              item.setAttribute('aria-pressed', 'false');
-            });
-
-            button.classList.add('is-active');
-            button.setAttribute('aria-pressed', 'true');
-
-            const select = group.querySelector('[data-product-variant-select]');
-
-            if (select) {
-              select.value = button.dataset.optionValue;
-            }
-
-            updateUi();
-          });
-        });
-
-        selects.forEach((select) => {
-          select.addEventListener('change', () => {
-            const group = select.closest('[data-product-variant-option]');
-
-            if (!group) return;
-
-            group.querySelectorAll('[data-product-variant-value]').forEach((button) => {
-              const isActive = button.dataset.optionValue === select.value;
-              button.classList.toggle('is-active', isActive);
-              button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-            });
-
-            updateUi();
-          });
-        });
-
-        document.addEventListener('variant:change', (event) => {
-          const detail = event.detail || {};
-          const variant = detail.variant;
-
-          if (!variant || !Array.isArray(variant.options)) return;
-          if (String(detail.productId) !== String({{ product_context.id | json }})) return;
-          if (String(variant.id) === String(root.dataset.variantId)) return;
-
-          optionGroups.forEach((group, index) => {
-            const value = variant.options[index];
-            const select = group.querySelector('[data-product-variant-select]');
-
-            if (select) select.value = value;
-
-            group.querySelectorAll('[data-product-variant-value]').forEach((button) => {
-              const isActive = button.dataset.optionValue === value;
-              button.classList.toggle('is-active', isActive);
-              button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-            });
-          });
-
-          updateUi();
-        });
-
-        updateUi();
-      })();
-    </script>
   </div>
-{% endunless %}
+{% endif %}
+
+{% elsif request.design_mode %}<p>Select a product to configure this block.</p>{% endif %}
 
 {% schema %}
 {

@@ -1,8 +1,21 @@
+{% if product != blank %}
 {%- liquid
   assign block_id = 'product-sticky-add-to-cart-' | append: block.id
 
   assign product_context = product
   assign current_variant = product_context.selected_or_first_available_variant
+  assign form_id = block_id | append: '-form'
+  assign quantity_min = current_variant.quantity_rule.min | default: 1
+  assign quantity_step = current_variant.quantity_rule.increment | default: 1
+  assign quantity_max = current_variant.quantity_rule.max
+  assign selected_allocation = current_variant.selected_selling_plan_allocation
+  if selected_allocation == blank and product_context.requires_selling_plan
+    assign selected_allocation = current_variant.selling_plan_allocations.first
+  endif
+  assign purchase_available = current_variant.available
+  if product_context.requires_selling_plan and selected_allocation == blank
+    assign purchase_available = false
+  endif
 
   assign block_width = block.settings.block_width | default: 'full'
   assign alignment = block.settings.alignment | default: 'left'
@@ -12,6 +25,11 @@
   assign show_on_tablet = block.settings.show_on_tablet
   assign show_on_mobile = block.settings.show_on_mobile
 
+  assign sticky_price = selected_allocation.price | default: current_variant.price
+  assign sticky_compare = current_variant.compare_at_price
+  if selected_allocation != blank
+    assign sticky_compare = selected_allocation.compare_at_price | default: current_variant.price
+  endif
   assign featured_image = current_variant.featured_image | default: product_context.featured_image
 -%}
 
@@ -22,10 +40,10 @@
     product-sticky-add-to-cart--{{ layout_style }}
     product-sticky-add-to-cart--width-{{ block_width }}
     product-sticky-add-to-cart--align-{{ alignment }}
-    {% unless show_on_desktop %} product-sticky-add-to-cart--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-sticky-add-to-cart--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-sticky-add-to-cart--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-sticky-add-to-cart--animate product-sticky-add-to-cart--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-sticky-add-to-cart--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-sticky-add-to-cart--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-sticky-add-to-cart--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-sticky-add-to-cart--animate product-sticky-add-to-cart--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-sticky-add-to-cart-margin-top: {{ block.settings.margin_top }}px;
@@ -44,15 +62,30 @@
     --product-sticky-add-to-cart-button-text: {{ block.settings.button_text_color }};
     --product-sticky-add-to-cart-offset: {{ block.settings.sticky_offset }}px;
   "
+  data-qtm-product-block-commerce="sticky-add-to-cart"
+  data-product-url="{{ product_context.url | escape }}"
+  data-requires-plan="{{ product_context.requires_selling_plan }}"
+  data-initial-plan="{{ selected_allocation.selling_plan.id }}"
+  data-add-label="{{ block.settings.add_to_cart_label | default: 'Add to cart' | escape }}"
+  data-sold-label="{{ block.settings.sold_out_label | default: 'Sold out' | escape }}"
+  data-unavailable-label="{{ 'Unavailable' | escape }}"
+  data-available-label="{{ 'Available' | escape }}"
+  data-cart-adding-message="{{ block.settings.adding_message | default: 'Adding to cart...' | escape }}"
+  data-cart-added-message="{{ block.settings.added_message | default: 'Added to cart.' | escape }}"
   data-product-id="{{ product_context.id }}"
   data-variant-id="{{ current_variant.id }}"
   data-product-sticky-add-to-cart
-  {{ block.shopify_attributes }}
+
 >
+  {% render 'qtm-product-block-data', product: product_context %}
   <style>
+    #shopify-block-{{ block.id }} { position: sticky; bottom: {{ block.settings.sticky_offset }}px; z-index: 30; align-self: end; }
     #{{ block_id }} {
-      position: sticky;
-      bottom: var(--product-sticky-add-to-cart-offset);
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      position: relative;
+      bottom: auto;
       z-index: 30;
       width: 100%;
       margin-top: var(--product-sticky-add-to-cart-margin-top);
@@ -108,7 +141,7 @@
 
     #{{ block_id }} .product-sticky-add-to-cart__inner {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       align-items: center;
       gap: var(--product-sticky-add-to-cart-gap);
       width: 100%;
@@ -179,7 +212,7 @@
       line-height: 1.2;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
+      white-space: normal;
     }
 
     #{{ block_id }} .product-sticky-add-to-cart__title a {
@@ -205,24 +238,25 @@
 
     #{{ block_id }} .product-sticky-add-to-cart__price {
       color: var(--product-sticky-add-to-cart-heading-color);
-      white-space: nowrap;
+      white-space: normal;
     }
 
     #{{ block_id }} .product-sticky-add-to-cart__compare-price {
       opacity: 0.65;
       text-decoration: line-through;
-      white-space: nowrap;
+      white-space: normal;
     }
 
     #{{ block_id }} .product-sticky-add-to-cart__variant-label {
       opacity: 0.75;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
+      white-space: normal;
     }
 
     #{{ block_id }} .product-sticky-add-to-cart__controls {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: flex-end;
       gap: 10px;
@@ -249,7 +283,7 @@
       color: var(--product-sticky-add-to-cart-heading-color);
       background: var(--product-sticky-add-to-cart-background-color);
       border: var(--product-sticky-add-to-cart-border-width) solid var(--product-sticky-add-to-cart-border-color);
-      border-radius: max(calc(var(--product-sticky-add-to-cart-border-radius) - 10px), 6px);
+      border-radius: max(calc(var(--product-sticky-add-to-cart-border-radius) - 10px), 0px);
     }
 
     #{{ block_id }} .product-sticky-add-to-cart__select {
@@ -275,12 +309,12 @@
       align-items: center;
       justify-content: center;
       min-height: 46px;
-      min-width: 150px;
+      min-width: min(150px, 100%);
       padding: 12px 18px;
       color: var(--product-sticky-add-to-cart-button-text);
       background: var(--product-sticky-add-to-cart-button-background);
       border: var(--product-sticky-add-to-cart-border-width) solid var(--product-sticky-add-to-cart-button-background);
-      border-radius: max(calc(var(--product-sticky-add-to-cart-border-radius) - 10px), 6px);
+      border-radius: max(calc(var(--product-sticky-add-to-cart-border-radius) - 10px), 0px);
       cursor: pointer;
       line-height: 1.2;
       text-align: center;
@@ -312,7 +346,7 @@
     }
 
     #{{ block_id }}.product-sticky-add-to-cart--minimal .product-sticky-add-to-cart__message {
-      display: none;
+      display: block;
     }
 
     #{{ block_id }}.product-sticky-add-to-cart--animate {
@@ -441,7 +475,7 @@
 
     @media screen and (max-width: 749px) {
       #{{ block_id }} {
-        bottom: 0;
+        bottom: auto;
         padding-left: 0;
         padding-right: 0;
         padding-bottom: max(var(--product-sticky-add-to-cart-padding), env(safe-area-inset-bottom));
@@ -502,7 +536,7 @@
       }
 
       #{{ block_id }}.product-sticky-add-to-cart--mobile_focused .product-sticky-add-to-cart__select-wrap {
-        display: none;
+        display: grid;
       }
     }
 
@@ -521,23 +555,33 @@
         transform: none;
       }
     }
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} :is(button, select, input, a):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    #{{ block_id }} :is(button, select, input) { max-width: 100%; }
+    #{{ block_id }}:focus-within { opacity: 1; transform: none; animation: none; }
+    #{{ block_id }} [data-b8-fallback] { display: grid; gap: 6px; min-width: 0; }
+    #{{ block_id }} [data-b8-fallback] select, #{{ block_id }} [name="selling_plan"] { width: 100%; min-width: 0; min-height: 44px; }
+  {% unless block.settings.show_on_desktop or request.design_mode %}@media screen and (min-width: 990px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+{% unless block.settings.show_on_tablet or request.design_mode %}@media screen and (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+{% unless block.settings.show_on_mobile or request.design_mode %}@media screen and (max-width: 749px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
   </style>
 
   <form
+    id="{{ form_id }}"
     class="product-sticky-add-to-cart__form"
-    action="{{ routes.cart_add_url }}"
+    action="{{ routes.cart_add_url | escape }}"
     method="post"
     enctype="multipart/form-data"
     data-product-form
-    data-ajax-cart-form
-    data-cart-add-form
+    data-cart-drawer-add
     data-product-sticky-add-to-cart-form
   >
     <div class="product-sticky-add-to-cart__inner">
       <div class="product-sticky-add-to-cart__product">
         {% if block.settings.show_image %}
           {% if featured_image != blank %}
-            <a class="product-sticky-add-to-cart__image-wrap" href="{{ product_context.url }}" aria-label="{{ product_context.title | escape }}">
+            <a class="product-sticky-add-to-cart__image-wrap" href="{{ product_context.url | escape }}" aria-label="{{ product_context.title | escape }}">
               {{
                 featured_image
                 | image_url: width: 180
@@ -557,22 +601,22 @@
         <div class="product-sticky-add-to-cart__details">
           {% if block.settings.show_title %}
             <h3 class="product-sticky-add-to-cart__title">
-              <a href="{{ product_context.url }}">{{ product_context.title | escape }}</a>
+              <a href="{{ product_context.url | escape }}">{{ product_context.title | escape }}</a>
             </h3>
           {% endif %}
 
           <div class="product-sticky-add-to-cart__meta">
             {% if block.settings.show_price %}
               <span class="product-sticky-add-to-cart__price" data-product-sticky-price>
-                {{ current_variant.price | money }}
+                {{ sticky_price | money }}
               </span>
 
               <span
                 class="product-sticky-add-to-cart__compare-price"
                 data-product-sticky-compare-price
-                {% unless current_variant.compare_at_price > current_variant.price %}hidden{% endunless %}
+                {% unless sticky_compare > sticky_price %}hidden{% endunless %}
               >
-                {{ current_variant.compare_at_price | money }}
+                {{ sticky_compare | money }}
               </span>
             {% endif %}
 
@@ -589,17 +633,17 @@
         {% if block.settings.show_variant_selector and product_context.has_only_default_variant == false %}
           <div class="product-sticky-add-to-cart__select-wrap">
             <label class="product-sticky-add-to-cart__label" for="{{ block_id }}-variant">
-              {{ block.settings.variant_label | escape }}
+              {{ block.settings.variant_label | default: 'Variant' | escape }}
             </label>
 
             <select
               id="{{ block_id }}-variant"
               class="product-sticky-add-to-cart__select"
               name="id"
-              data-product-sticky-variant-select
-              aria-label="{{ block.settings.variant_label | escape }}"
+              data-product-sticky-variant-select data-b8-variant-id
+              aria-label="{{ block.settings.variant_label | default: 'Variant' | escape }}"
             >
-              {%- for variant in product_context.variants -%}
+              {% assign selected_listed = false %}{%- for variant in product_context.variants -%}{% if variant.id == current_variant.id %}{% assign selected_listed = true %}{% endif %}
                 <option
                   value="{{ variant.id }}"
                   {% if variant.id == current_variant.id %}selected{% endif %}
@@ -613,16 +657,23 @@
                   {{ variant.title | escape }}{% unless variant.available %} — Sold out{% endunless %}
                 </option>
               {%- endfor -%}
-            </select>
+            {% unless selected_listed %}<option value="{{ current_variant.id }}" selected>{{ current_variant.title | escape }}{% unless current_variant.available %} — Sold out{% endunless %}</option>{% endunless %}
+        </select>
           </div>
         {% else %}
-          <input type="hidden" name="id" value="{{ current_variant.id }}" data-product-sticky-variant-input>
+          <div data-b8-fallback>
+        <label for="{{ block_id }}-native-variant">{{ block.settings.variant_label | default: 'Variant' | escape }}</label>
+        <select id="{{ block_id }}-native-variant" name="id" class="product-sticky-add-to-cart__select" data-b8-variant-id>
+          {% assign selected_listed = false %}{% for variant in product_context.variants %}{% if variant.id == current_variant.id %}{% assign selected_listed = true %}{% endif %}<option value="{{ variant.id }}" {% if variant.id == current_variant.id %}selected{% endif %}>{{ variant.title | escape }}{% unless variant.available %} — Sold out{% endunless %}</option>{% endfor %}
+        {% unless selected_listed %}<option value="{{ current_variant.id }}" selected>{{ current_variant.title | escape }}{% unless current_variant.available %} — Sold out{% endunless %}</option>{% endunless %}
+        </select>
+      </div>
         {% endif %}
 
         {% if block.settings.show_quantity %}
           <div class="product-sticky-add-to-cart__quantity-wrap">
             <label class="product-sticky-add-to-cart__label" for="{{ block_id }}-quantity">
-              {{ block.settings.quantity_label | escape }}
+              {{ block.settings.quantity_label | default: 'Quantity' | escape }}
             </label>
 
             <input
@@ -630,166 +681,48 @@
               class="product-sticky-add-to-cart__quantity"
               type="number"
               name="quantity"
-              min="1"
-              value="1"
+              min="{{ quantity_min }}"
+              step="{{ quantity_step }}"
+              {% if quantity_max != blank %}max="{{ quantity_max }}"{% endif %}
+              value="{{ quantity_min }}"
               inputmode="numeric"
-              aria-label="{{ block.settings.quantity_label | escape }}"
+              aria-label="{{ block.settings.quantity_label | default: 'Quantity' | escape }}"
               data-product-sticky-quantity
             >
           </div>
         {% else %}
-          <input type="hidden" name="quantity" value="1">
+          <input type="hidden" name="quantity" value="{{ quantity_min }}">
         {% endif %}
 
         <button
           class="product-sticky-add-to-cart__button"
           type="submit"
-          {% unless current_variant.available %}disabled{% endunless %}
+          {% unless purchase_available %}disabled{% endunless %}
           data-add-to-cart
-          data-ajax-cart-submit
-          data-cart-drawer-trigger
-          data-product-sticky-submit
+          data-product-sticky-submit name="add" data-b8-submit
         >
           {% if current_variant.available %}
-            {{ block.settings.add_to_cart_label | escape }}
+            {{ block.settings.add_to_cart_label | default: 'Add to cart' | escape }}
           {% else %}
-            {{ block.settings.sold_out_label | escape }}
+            {{ block.settings.sold_out_label | default: 'Sold out' | escape }}
           {% endif %}
         </button>
       </div>
 
+      {% render 'product-selling-plans', product: product_context, id: block_id %}
+
       <div
         class="product-sticky-add-to-cart__message"
         data-product-sticky-message
+        data-cart-add-status
         role="status"
         aria-live="polite"
       ></div>
     </div>
   </form>
-
-  <script type="application/json" data-product-sticky-variants>
-    {{ product_context.variants | json }}
-  </script>
-
-  <script>
-    (() => {
-      const root = document.getElementById({{ block_id | json }});
-
-      if (!root || root.dataset.productStickyAddToCartReady === 'true') return;
-
-      root.dataset.productStickyAddToCartReady = 'true';
-
-      const form = root.querySelector('[data-product-sticky-add-to-cart-form]');
-      const select = root.querySelector('[data-product-sticky-variant-select]');
-      const hiddenInput = root.querySelector('[data-product-sticky-variant-input]');
-      const button = root.querySelector('[data-product-sticky-submit]');
-      const priceEl = root.querySelector('[data-product-sticky-price]');
-      const comparePriceEl = root.querySelector('[data-product-sticky-compare-price]');
-      const variantLabelEl = root.querySelector('[data-product-sticky-variant-label]');
-      const imageEl = root.querySelector('.product-sticky-add-to-cart__image');
-      const messageEl = root.querySelector('[data-product-sticky-message]');
-
-      if (!form || !button) return;
-
-      const currency = {{ cart.currency.iso_code | default: shop.currency | json }};
-
-      const formatMoney = (cents) => {
-        const amount = Number(cents || 0) / 100;
-
-        try {
-          return new Intl.NumberFormat(document.documentElement.lang || 'en-US', {
-            style: 'currency',
-            currency
-          }).format(amount);
-        } catch (error) {
-          return `$${amount.toFixed(2)}`;
-        }
-      };
-
-      const setMessage = (text) => {
-        if (messageEl) messageEl.textContent = text || '';
-      };
-
-      const dispatchVariantChange = (variantId) => {
-        root.dataset.variantId = String(variantId);
-
-        document.dispatchEvent(new CustomEvent('variant:change', {
-          bubbles: true,
-          detail: {
-            productId: {{ product_context.id | json }},
-            variantId: Number(variantId)
-          }
-        }));
-      };
-
-      const updateFromSelectedOption = () => {
-        if (!select) return;
-
-        const selectedOption = select.options[select.selectedIndex];
-
-        if (!selectedOption) return;
-
-        const variantId = selectedOption.value;
-        const price = Number(selectedOption.dataset.price || 0);
-        const comparePrice = Number(selectedOption.dataset.comparePrice || 0);
-        const available = selectedOption.dataset.available === 'true';
-        const title = selectedOption.dataset.title || '';
-        const image = selectedOption.dataset.image || '';
-
-        if (hiddenInput) hiddenInput.value = variantId;
-
-        if (priceEl) priceEl.textContent = formatMoney(price);
-
-        if (comparePriceEl) {
-          if (comparePrice > price) {
-            comparePriceEl.textContent = formatMoney(comparePrice);
-            comparePriceEl.hidden = false;
-          } else {
-            comparePriceEl.hidden = true;
-          }
-        }
-
-        if (variantLabelEl) {
-          variantLabelEl.textContent = title;
-          variantLabelEl.hidden = !title || title === 'Default Title';
-        }
-
-        if (imageEl && image) {
-          imageEl.src = image;
-        }
-
-        button.disabled = !available;
-        button.textContent = available
-          ? {{ block.settings.add_to_cart_label | json }}
-          : {{ block.settings.sold_out_label | json }};
-
-        setMessage('');
-        dispatchVariantChange(variantId);
-      };
-
-      if (select) {
-        select.addEventListener('change', updateFromSelectedOption);
-        updateFromSelectedOption();
-      }
-
-      form.addEventListener('submit', () => {
-        setMessage({{ block.settings.adding_message | json }});
-
-        window.setTimeout(() => {
-          setMessage('');
-        }, 3500);
-      });
-
-      document.addEventListener('cart:updated', () => {
-        setMessage({{ block.settings.added_message | json }});
-      });
-
-      document.addEventListener('ajaxCart:refresh', () => {
-        setMessage({{ block.settings.added_message | json }});
-      });
-    })();
-  </script>
 </div>
+
+{% elsif request.design_mode %}<p>Select a product to configure this block.</p>{% endif %}
 
 {% schema %}
 {
@@ -881,7 +814,6 @@
       "label": "Added message",
       "default": "Added to cart."
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -974,7 +906,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1027,7 +958,6 @@
       "label": "Button text",
       "default": "#ffffff"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1052,7 +982,6 @@
       "unit": "px",
       "default": 24
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1087,7 +1016,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1110,7 +1038,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1245,7 +1172,7 @@
         "variant_label": "Variant",
         "show_quantity": true,
         "quantity_label": "Qty",
-        "add_to_cart_label": "Buy now",
+        "add_to_cart_label": "Add to cart",
         "sold_out_label": "Sold out",
         "adding_message": "Adding to cart...",
         "added_message": "Added to cart.",
