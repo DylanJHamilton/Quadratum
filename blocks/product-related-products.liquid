@@ -15,7 +15,7 @@
     assign fallback_collection = product_context.collections.first
   endif
 
-  if fallback_collection == blank
+  if fallback_collection == blank and product_source != 'same_collection'
     assign fallback_collection = collections.all
   endif
 
@@ -29,6 +29,18 @@
   assign rendered_products = 0
 -%}
 
+{% assign card_products = fallback_collection.products %}{% if product_source == 'manual' %}{% assign card_products = block.settings.products %}{% endif %}
+{% capture product_cards %}
+  {% for card_product in card_products %}
+    {% if card_product == blank or card_product.id == product_context.id %}{% continue %}{% endif %}
+    {% if product_source == 'vendor' %}{% if product_context.vendor == blank or card_product.vendor != product_context.vendor %}{% continue %}{% endif %}{% endif %}
+{% if product_source == 'product_type' %}{% if product_context.type == blank or card_product.type != product_context.type %}{% continue %}{% endif %}{% endif %}
+    {% render 'qtm-block-product-card', card_product: card_product, prefix: 'product-related-products', block: block %}
+    {% assign rendered_products = rendered_products | plus: 1 %}
+    {% if rendered_products >= product_limit %}{% break %}{% endif %}
+  {% endfor %}
+{% endcapture %}
+{% assign has_card_controls = false %}{% if related_layout == 'carousel' and block.settings.show_arrows %}{% assign has_card_controls = true %}{% endif %}
 <div
   id="{{ block_id }}"
   class="
@@ -36,10 +48,10 @@
     product-related-products--{{ related_layout }}
     product-related-products--width-{{ width }}
     product-related-products--align-{{ alignment }}
-    {% unless show_on_desktop %} product-related-products--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-related-products--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-related-products--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-related-products--animate product-related-products--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-related-products--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-related-products--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-related-products--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-related-products--animate product-related-products--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-related-margin-top: {{ block.settings.margin_top }}px;
@@ -72,10 +84,15 @@
     data-variant-id="{{ current_variant.id }}"
   {% endif %}
   data-product-related-products
-  {{ block.shopify_attributes }}
+  data-qtm-product-cards
+  data-carousel="{% if related_layout == 'carousel' %}true{% else %}false{% endif %}"
+  {% if rendered_products == 0 and block.settings.show_empty_state == false and request.design_mode == false %}hidden{% endif %}
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-related-margin-top);
       margin-bottom: var(--product-related-margin-bottom);
@@ -224,13 +241,10 @@
       overflow-x: auto;
       scroll-snap-type: x mandatory;
       scroll-behavior: smooth;
-      scrollbar-width: none;
-      padding-bottom: 2px;
+      scrollbar-width: thin;
+      padding-bottom: 6px;
     }
 
-    #{{ block_id }}.product-related-products--carousel .product-related-products__items::-webkit-scrollbar {
-      display: none;
-    }
 
     #{{ block_id }}.product-related-products--carousel .product-related-products__item {
       flex: 0 0 calc((100% - (var(--product-related-gap) * (var(--product-related-columns-desktop) - 1))) / var(--product-related-columns-desktop));
@@ -435,7 +449,7 @@
     }
 
     #{{ block_id }}.product-related-products--animate {
-      opacity: 0;
+      opacity: 1;
       animation-duration: 700ms;
       animation-fill-mode: forwards;
       animation-timing-function: ease;
@@ -563,313 +577,34 @@
         transform: none;
       }
     }
+    #{{ block_id }}[hidden], #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} .product-related-products__item { min-width: 0; }
+    #{{ block_id }} .product-related-products__items:focus-visible { outline: 2px solid var(--product-related-focus-color); outline-offset: 2px; }
+    #{{ block_id }} .product-related-products__card a:focus-visible { outline-offset: -3px; }
+    #{{ block_id }} .product-related-products__button { max-width: 100%; }
+    #{{ block_id }} .product-related-products__arrow:dir(rtl) { transform: scaleX(-1); }
   </style>
 
   <div class="product-related-products__inner">
-    {% if block.settings.show_header %}
-      <div class="product-related-products__header-row">
-        <div class="product-related-products__header">
-          {% if block.settings.eyebrow != blank %}
-            <p class="product-related-products__eyebrow">
-              {{ block.settings.eyebrow | escape }}
-            </p>
-          {% endif %}
-
-          {% if block.settings.heading != blank %}
-            <h2 class="product-related-products__heading">
-              {{ block.settings.heading | escape }}
-            </h2>
-          {% endif %}
-
-          {% if block.settings.description != blank %}
-            <p class="product-related-products__description">
-              {{ block.settings.description | escape }}
-            </p>
-          {% endif %}
-        </div>
-
-        {% if related_layout == 'carousel' and block.settings.show_arrows %}
-          <div class="product-related-products__controls">
-            <button
-              type="button"
-              class="product-related-products__arrow"
-              data-product-related-products-prev
-              aria-label="{{ block.settings.previous_label | escape }}"
-            >
-              ‹
-            </button>
-
-            <button
-              type="button"
-              class="product-related-products__arrow"
-              data-product-related-products-next
-              aria-label="{{ block.settings.next_label | escape }}"
-            >
-              ›
-            </button>
-          </div>
-        {% endif %}
+    <div class="product-related-products__header-row" {% unless block.settings.show_header or has_card_controls %}hidden{% endunless %}>
+      {% if block.settings.show_header %}
+      <div class="product-related-products__header">
+        {% if block.settings.eyebrow != blank %}<p class="product-related-products__eyebrow">{{ block.settings.eyebrow | escape }}</p>{% endif %}
+        {% if block.settings.heading != blank %}<h2 class="product-related-products__heading">{{ block.settings.heading | escape }}</h2>{% endif %}
+        {% if block.settings.description != blank %}<p class="product-related-products__description">{{ block.settings.description | escape }}</p>{% endif %}
       </div>
-    {% endif %}
-
-    <div
-      class="product-related-products__items"
-      data-product-related-products-items
-      aria-label="{{ block.settings.related_products_label | escape }}"
-      {% if related_layout == 'carousel' %}tabindex="0"{% endif %}
-    >
-      {% if product_source == 'manual' %}
-        {% for related_product in block.settings.products limit: product_limit %}
-          {% if related_product != blank %}
-            {% unless product_context != blank and related_product.id == product_context.id %}
-              {%- liquid
-                assign rendered_products = rendered_products | plus: 1
-                assign related_variant = related_product.selected_or_first_available_variant
-                assign is_on_sale = false
-                assign image_alt = related_product.title
-
-                if related_product.featured_image.alt != blank
-                  assign image_alt = related_product.featured_image.alt
-                endif
-
-                if related_variant.compare_at_price > related_variant.price
-                  assign is_on_sale = true
-                endif
-              -%}
-
-              <article class="product-related-products__item" data-product-related-products-item>
-                <div class="product-related-products__card">
-                  <a class="product-related-products__media" href="{{ related_product.url }}" aria-label="{{ related_product.title | escape }}">
-                    {% if related_product.featured_image %}
-                      {% if forloop.first %}
-                        {{ related_product.featured_image | image_url: width: 900 | image_tag: loading: 'eager', widths: '260, 360, 480, 640, 800, 900', alt: image_alt }}
-                      {% else %}
-                        {{ related_product.featured_image | image_url: width: 900 | image_tag: loading: 'lazy', widths: '260, 360, 480, 640, 800, 900', alt: image_alt }}
-                      {% endif %}
-                    {% else %}
-                      <span class="product-related-products__placeholder" aria-hidden="true"></span>
-                    {% endif %}
-
-                    {% if block.settings.show_sale_badge and is_on_sale %}
-                      <span class="product-related-products__badge">
-                        {{ block.settings.sale_badge_text | escape }}
-                      </span>
-                    {% endif %}
-                  </a>
-
-                  <div class="product-related-products__content">
-                    {% if block.settings.show_vendor and related_product.vendor != blank %}
-                      <div class="product-related-products__vendor">
-                        {{ related_product.vendor | escape }}
-                      </div>
-                    {% endif %}
-
-                    <h3 class="product-related-products__title">
-                      <a href="{{ related_product.url }}">
-                        {{ related_product.title | escape }}
-                      </a>
-                    </h3>
-
-                    {% if block.settings.show_price %}
-                      <div class="product-related-products__price-row">
-                        <span class="product-related-products__price">
-                          {{ related_variant.price | money }}
-                        </span>
-
-                        {% if is_on_sale %}
-                          <span class="product-related-products__compare">
-                            {{ related_variant.compare_at_price | money }}
-                          </span>
-                        {% endif %}
-                      </div>
-                    {% endif %}
-
-                    {% if block.settings.show_button %}
-                      <a class="product-related-products__button" href="{{ related_product.url }}">
-                        {{ block.settings.button_label | escape }}
-                      </a>
-                    {% endif %}
-                  </div>
-                </div>
-              </article>
-            {% endunless %}
-          {% endif %}
-        {% endfor %}
-      {% elsif fallback_collection != blank %}
-        {% for related_product in fallback_collection.products %}
-          {% if rendered_products < product_limit %}
-            {% unless product_context != blank and related_product.id == product_context.id %}
-              {%- liquid
-                assign should_render = false
-
-                if product_source == 'same_collection'
-                  assign should_render = true
-                endif
-
-                if product_source == 'vendor'
-                  if product_context != blank and related_product.vendor == product_context.vendor
-                    assign should_render = true
-                  endif
-                endif
-
-                if product_source == 'product_type'
-                  if product_context != blank and related_product.type == product_context.type
-                    assign should_render = true
-                  endif
-                endif
-              -%}
-
-              {% if should_render %}
-                {%- liquid
-                  assign rendered_products = rendered_products | plus: 1
-                  assign related_variant = related_product.selected_or_first_available_variant
-                  assign is_on_sale = false
-                  assign image_alt = related_product.title
-
-                  if related_product.featured_image.alt != blank
-                    assign image_alt = related_product.featured_image.alt
-                  endif
-
-                  if related_variant.compare_at_price > related_variant.price
-                    assign is_on_sale = true
-                  endif
-                -%}
-
-                <article class="product-related-products__item" data-product-related-products-item>
-                  <div class="product-related-products__card">
-                    <a class="product-related-products__media" href="{{ related_product.url }}" aria-label="{{ related_product.title | escape }}">
-                      {% if related_product.featured_image %}
-                        {% if rendered_products == 1 %}
-                          {{ related_product.featured_image | image_url: width: 900 | image_tag: loading: 'eager', widths: '260, 360, 480, 640, 800, 900', alt: image_alt }}
-                        {% else %}
-                          {{ related_product.featured_image | image_url: width: 900 | image_tag: loading: 'lazy', widths: '260, 360, 480, 640, 800, 900', alt: image_alt }}
-                        {% endif %}
-                      {% else %}
-                        <span class="product-related-products__placeholder" aria-hidden="true"></span>
-                      {% endif %}
-
-                      {% if block.settings.show_sale_badge and is_on_sale %}
-                        <span class="product-related-products__badge">
-                          {{ block.settings.sale_badge_text | escape }}
-                        </span>
-                      {% endif %}
-                    </a>
-
-                    <div class="product-related-products__content">
-                      {% if block.settings.show_vendor and related_product.vendor != blank %}
-                        <div class="product-related-products__vendor">
-                          {{ related_product.vendor | escape }}
-                        </div>
-                      {% endif %}
-
-                      <h3 class="product-related-products__title">
-                        <a href="{{ related_product.url }}">
-                          {{ related_product.title | escape }}
-                        </a>
-                      </h3>
-
-                      {% if block.settings.show_price %}
-                        <div class="product-related-products__price-row">
-                          <span class="product-related-products__price">
-                            {{ related_variant.price | money }}
-                          </span>
-
-                          {% if is_on_sale %}
-                            <span class="product-related-products__compare">
-                              {{ related_variant.compare_at_price | money }}
-                            </span>
-                          {% endif %}
-                        </div>
-                      {% endif %}
-
-                      {% if block.settings.show_button %}
-                        <a class="product-related-products__button" href="{{ related_product.url }}">
-                          {{ block.settings.button_label | escape }}
-                        </a>
-                      {% endif %}
-                    </div>
-                  </div>
-                </article>
-              {% endif %}
-            {% endunless %}
-          {% endif %}
-        {% endfor %}
+      {% endif %}
+      {% if has_card_controls %}
+      <div class="product-related-products__controls" data-card-controls hidden>
+        <button type="button" class="product-related-products__arrow" data-card-prev aria-controls="{{ block_id }}-items" aria-label="{{ block.settings.previous_label | default: 'Previous products' | escape }}">‹</button>
+        <button type="button" class="product-related-products__arrow" data-card-next aria-controls="{{ block_id }}-items" aria-label="{{ block.settings.next_label | default: 'Next products' | escape }}">›</button>
+      </div>
       {% endif %}
     </div>
-
-    {% if rendered_products == 0 and block.settings.show_empty_state %}
-      <div class="product-related-products__empty">
-        {{ block.settings.empty_text | escape }}
-      </div>
-    {% endif %}
+    <div id="{{ block_id }}-items" class="product-related-products__items" data-card-items role="region" aria-label="{{ block.settings.related_products_label | default: 'Products' | escape }}" {% if related_layout == 'carousel' %}tabindex="0"{% endif %}>{{ product_cards }}</div>
+    {% if rendered_products == 0 %}{% if block.settings.show_empty_state or request.design_mode %}<div class="product-related-products__empty" data-card-empty>{{ block.settings.empty_text | escape }}</div>{% endif %}{% endif %}
   </div>
-
-  {% if related_layout == 'carousel' %}
-    <script>
-      (() => {
-        const root = document.getElementById({{ block_id | json }});
-
-        if (!root || root.dataset.productRelatedProductsReady === 'true') return;
-
-        root.dataset.productRelatedProductsReady = 'true';
-
-        const items = root.querySelector('[data-product-related-products-items]');
-        const previousButton = root.querySelector('[data-product-related-products-prev]');
-        const nextButton = root.querySelector('[data-product-related-products-next]');
-
-        if (!items) return;
-
-        const updateControls = () => {
-          const maxScroll = items.scrollWidth - items.clientWidth - 2;
-
-          if (previousButton) {
-            previousButton.disabled = items.scrollLeft <= 2;
-          }
-
-          if (nextButton) {
-            nextButton.disabled = items.scrollLeft >= maxScroll;
-          }
-        };
-
-        const scrollCarousel = (direction) => {
-          const firstItem = items.querySelector('[data-product-related-products-item]');
-          const amount = firstItem ? firstItem.getBoundingClientRect().width + 20 : items.clientWidth * 0.8;
-
-          items.scrollBy({
-            left: amount * direction,
-            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
-          });
-        };
-
-        if (previousButton) {
-          previousButton.addEventListener('click', () => scrollCarousel(-1));
-        }
-
-        if (nextButton) {
-          nextButton.addEventListener('click', () => scrollCarousel(1));
-        }
-
-        items.addEventListener('scroll', () => {
-          window.requestAnimationFrame(updateControls);
-        }, { passive: true });
-
-        items.addEventListener('keydown', (event) => {
-          if (event.key === 'ArrowLeft') {
-            event.preventDefault();
-            scrollCarousel(-1);
-          }
-
-          if (event.key === 'ArrowRight') {
-            event.preventDefault();
-            scrollCarousel(1);
-          }
-        });
-
-        window.addEventListener('resize', updateControls, { passive: true });
-        updateControls();
-      })();
-    </script>
-  {% endif %}
 </div>
 
 {% schema %}
@@ -902,7 +637,8 @@
           "value": "manual",
           "label": "Manual products"
         }
-      ]
+      ],
+      "info": "Same collection uses the selected collection or the current product’s first collection. Vendor/type filter that collection, or the first 50 catalog products if no collection is available."
     },
     {
       "type": "collection",
@@ -924,7 +660,6 @@
       "step": 1,
       "default": 4
     },
-
     {
       "type": "header",
       "content": "Header"
@@ -950,8 +685,7 @@
     {
       "type": "text",
       "id": "description",
-      "label": "Description",
-      "default": "Show shoppers similar products based on collection, vendor, or product type."
+      "label": "Description"
     },
     {
       "type": "range",
@@ -983,7 +717,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -1020,7 +753,6 @@
       "label": "Show arrows on mobile",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Product cards"
@@ -1071,7 +803,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Images"
@@ -1122,7 +853,6 @@
       "unit": "px",
       "default": 72
     },
-
     {
       "type": "header",
       "content": "Columns"
@@ -1154,7 +884,6 @@
       "step": 1,
       "default": 1
     },
-
     {
       "type": "header",
       "content": "Empty state"
@@ -1163,7 +892,7 @@
       "type": "checkbox",
       "id": "show_empty_state",
       "label": "Show empty state",
-      "default": true
+      "default": false
     },
     {
       "type": "text",
@@ -1171,7 +900,6 @@
       "label": "Empty state text",
       "default": "Related products will appear when matching products are available."
     },
-
     {
       "type": "header",
       "content": "Accessibility labels"
@@ -1194,7 +922,6 @@
       "label": "Next label",
       "default": "Next related products"
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1277,7 +1004,6 @@
       "label": "Focus color",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1302,7 +1028,6 @@
       "unit": "px",
       "default": 18
     },
-
     {
       "type": "header",
       "content": "Container"
@@ -1355,7 +1080,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1420,7 +1144,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1443,7 +1166,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1482,7 +1204,7 @@
         "show_header": true,
         "eyebrow": "Related",
         "heading": "Related products",
-        "description": "Show shoppers similar products based on collection, vendor, or product type.",
+        "description": "",
         "heading_size": 36,
         "heading_size_mobile": 28,
         "description_size": 16,
@@ -1503,7 +1225,7 @@
         "columns_desktop": 4,
         "columns_tablet": 3,
         "columns_mobile": 1,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Related products will appear when matching products are available.",
         "related_products_label": "Related products",
         "previous_label": "Previous related products",
@@ -1545,7 +1267,7 @@
         "show_header": true,
         "eyebrow": "Keep browsing",
         "heading": "More from this collection",
-        "description": "Display more products from the current product collection.",
+        "description": "",
         "heading_size": 36,
         "heading_size_mobile": 28,
         "description_size": 16,
@@ -1566,7 +1288,7 @@
         "columns_desktop": 4,
         "columns_tablet": 3,
         "columns_mobile": 1,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Related products will appear when matching products are available.",
         "related_products_label": "More products from this collection",
         "previous_label": "Previous collection products",
@@ -1608,7 +1330,7 @@
         "show_header": true,
         "eyebrow": "Similar styles",
         "heading": "Similar styles",
-        "description": "Show similar products using product type or a fallback collection.",
+        "description": "",
         "heading_size": 34,
         "heading_size_mobile": 26,
         "description_size": 15,
@@ -1629,7 +1351,7 @@
         "columns_desktop": 3,
         "columns_tablet": 2,
         "columns_mobile": 1,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Related products will appear when matching products are available.",
         "related_products_label": "Similar style products",
         "previous_label": "Previous similar products",

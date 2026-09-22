@@ -30,6 +30,7 @@
         for (const field of root.querySelectorAll('[data-product-info-value]')) {
           const key = field.dataset.infoKey;
           field.textContent = variant?.values?.[key] ?? (['availability', 'inventory'].includes(key) ? (root.dataset.unavailableText || 'Unavailable') : '');
+          if (field.hasAttribute('data-hide-empty')) field.hidden = !field.textContent.trim();
         }
         root.dataset.variantId = variant ? String(variant.id) : '';
       };

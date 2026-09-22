@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 49/102 blocks and 15 dependencies individually reviewed; 64/117 Family 8 entries have dispositions (63 live queued, 1 dormant retained), 53 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 53/102 blocks and 17 dependencies individually reviewed; 70/119 Family 8 entries have dispositions (69 live queued, 1 dormant retained), 49 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1159,3 +1159,17 @@ B8-PRODUCT-GALLERY live queue after engineering batches: actual native Shopify i
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Gallery checkpoint Theme Check: 505 (3 errors, 502 warnings) to 506 (3 errors, 503 warnings); one new media-helper orphan report despite its actual caller. No new errors or suppression.
+
+## Batch 8 checkpoint — product recommendation and upsell cards — 2026-09-22
+
+Previous checkpoint published as `5a51da22a4597d5069ded0f1e559668936da64d9`; PR #22 remains DRAFT. Four product discovery Theme Blocks retain saved settings/layout contracts while sharing native product card rendering and a scoped progressive carousel/recommendation lifecycle. Correct native complementary results supersede manual fallback; product limits and collection/vendor/type sources are truthful. Upsell base-price differences follow actual selected variants through the existing metadata controller. Neutral new insertion copy avoids invented claims; saved merchant state is unchanged.
+
+53/102 blocks and 17 dependencies individually reviewed; 70/119 Family 8 entries have dispositions (69 live queued, 1 dormant retained), 49 NOT REVIEWED. Global dispositions: 402 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 74 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-product-merchandising/`. 353 actual default/control/preset/source/price/empty renders plus runtime fixtures cover current-product exclusion, native/manual/wrong-intent/empty recommendation precedence, cap-10 locale routes and cross-origin rejection, escaped native tracking links and money, two RTL/configured-gap carousel compositions, keyboard/focus/success/failure/abort, dynamic insertion/removal/reorder, and two real commerce-form/metadata hosts with variant restoration, invalid states and selected records outside enumeration. All 23 affected suites pass; 230 settings, 12 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-PRODUCT-MERCHANDISING live queue after engineering batches: native complementary Search & Discovery/section/block/market context, locale tracking URLs, cap-10/manual/empty fallback; native variant/money/compare/image drops; browser no-JS/RTL scroll-snap, 320/390/768/1280/1440px grid/compact/split/long copy, keyboard/AT/reduced-motion/zoom; native editor insertion/select/reorder/load/unload and multiple product hosts/restoration. Upsell difference compares base unit prices before selling plans, quantity and cart discounts. All prior queues carry forward; no live Shopify QA performed.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Product merchandising Theme Check: 506 (3 errors, 503 warnings) to 507 (3 errors, 504 warnings); one new card-helper OrphanedSnippet despite three actual callers. No new errors or suppression.
