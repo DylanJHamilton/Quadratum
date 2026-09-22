@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 89/102 blocks and 25 dependencies individually reviewed; 114/127 Family 8 entries have dispositions (113 live queued, 1 dormant retained), 13 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 91/102 blocks and 27 dependencies individually reviewed; 118/129 Family 8 entries have dispositions (117 live queued, 1 dormant retained), 11 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1285,3 +1285,17 @@ B8-FEATURED-PRODUCT live queue after engineering batches: actual native product 
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Unsuppressed Theme Check: 511 findings: 3 unchanged out-of-group errors and 508 warnings. One new shared-gallery orphan diagnostic despite traced Featured Product caller; no suppression.
+
+## Batch 8 checkpoint — recently-viewed history and its legacy alias — 2026-09-22
+
+Previous checkpoint published as `ba03eb0a35072dbcc2c1f2fc786f233f178a344f`; PR #22 remains DRAFT. Recently Viewed and its historical Collection Grid alias now share a native-card history renderer and scoped controller. Only validated handles persist; current native product data is rendered through the owning section, replacing stale and unsafe stored card snapshots.
+
+91/102 blocks and 27 dependencies individually reviewed; 118/129 Family 8 entries have dispositions (117 live queued, 1 dormant retained), 11 NOT REVIEWED. Global dispositions: 450 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 36 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-recently-viewed/`. 174 actual renders cover both aliases' original controls, select/checkbox/range endpoints, six actual presets, no-JS/editor/empty states, native card labels/alt/prices and section/root context. Actual controller tests cover legacy migration, malicious snapshot fields, locale URLs, same-origin and exact response identity, count/history limits, current exclusion/inclusion, missing/foreign/failed responses, unavailable storage, editor isolation, abort/removal, dynamic insertion/reload/reorder and independent custom-key instances. Actual native-card geometry validates configured-gap LTR/RTL controls and nested-link keyboard ownership. All 11 affected suites pass; 116 settings, 6 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-RECENTLY-VIEWED live queue after engineering batches: actual Shopify section rendering for each owning builder/template and product context (missing/mismatched owner responses intentionally stay empty), current localized prices/images/product availability, real browser history/storage restrictions, 320–1440px/RTL/zoom/nested layouts, actual scroll/focus/keyboard/AT and Theme Editor lifecycle. Native-filter/response/DOM/geometry adapters are not acceptance. No live Shopify QA; prior queues carry forward.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Unsuppressed Theme Check: 512 findings: 3 unchanged out-of-group errors and 509 warnings. One new shared-renderer orphan diagnostic despite both traced block callers; no suppression.

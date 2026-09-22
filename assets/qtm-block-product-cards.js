@@ -55,6 +55,7 @@
       if ('ResizeObserver' in window) { observer = new ResizeObserver(schedule); observer.observe(items); }
       update();
     }
+    on(root, 'qtm:cards-updated', event => { if (event.target === root) update(); });
     const apply = () => {
       // Retain a focused fallback product until the shopper leaves the card list.
       if (!active || !incoming || items.contains(document.activeElement)) return;
