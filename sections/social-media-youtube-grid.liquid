@@ -1,3 +1,8 @@
+{% assign social_count = 0 %}{% for block in section.blocks %}{% if block.settings.youtube_url != blank and block.settings.youtube_url != '#' %}{% assign social_count = social_count | plus: 1 %}{% endif %}{% endfor %}
+{% assign social_visible = false %}{% if social_count > 0 %}{% assign social_visible = true %}{% endif %}
+{% if section.settings.data_source_mode != 'manual' %}{% assign social_visible = false %}{% endif %}
+{% if request.design_mode %}{% assign social_visible = true %}{% endif %}
+{% if social_visible %}
 {%- liquid
   assign s = section.settings
   assign cols_d = s.columns_desktop | default: 3
@@ -19,10 +24,10 @@
   endcase
 -%}
 
-{%- if s.enable_section -%}
+{%- if s.enable_section or request.design_mode -%}
 <section
   id="social-media-youtube-grid-{{ section.id }}"
-  class="q-section q-social-youtube-grid"
+  class="q-section q-social-youtube-grid" data-source="{{ s.data_source_mode | escape }}" data-playlist-handle="{{ s.playlist_handle | escape }}"
   aria-label="{{ s.aria_label | escape }}"
 >
   <div class="q-social-youtube-grid__inner">
@@ -39,7 +44,7 @@
 
       {%- if s.body != blank -%}
         <div class="q-social-youtube-grid__body">
-          {{ s.body }}
+          {{ s.body | escape | newline_to_br }}
         </div>
       {%- endif -%}
     </header>
@@ -64,15 +69,16 @@
             {%- assign link_aria = b.aria_label | default: 'Watch video on YouTube' -%}
             {%- assign thumb_alt = b.title | default: 'YouTube video thumbnail' -%}
 
-            <article class="q-video-card q-video-card--{{ card_style }}" {{ block.shopify_attributes }}>
+            {% capture youtube_id %}{% render 'social-media-youtube-id', url: url %}{% endcapture %}
+            {% if has_url or request.design_mode %}<article class="q-video-card q-video-card--{{ card_style }}" {{ block.shopify_attributes }}>
               {%- if has_url -%}
                 <a
                   class="q-video-card__link"
-                  href="{{ url }}"
+                  href="{{ url | escape }}"
                   aria-label="{{ link_aria | escape }}"
                   data-q-yt-trigger="{{ section.id }}"
-                  data-q-yt-url="{{ url | escape }}"
-                  {%- if s.open_in_new_tab -%} data-q-yt-fallback-tab="1"{%- endif -%}
+                  data-q-yt-id="{{ youtube_id | strip }}"
+                  {% if s.open_in_new_tab %} target="_blank" rel="noopener noreferrer"{% endif %}
                 >
                   <div class="q-video-card__media q-ratio q-ratio--{{ ratio_class }}">
                     {%- if b.thumbnail_override != blank -%}
@@ -80,12 +86,12 @@
                     {%- else -%}
                       <img
                         class="q-video-card__thumb q-video-card__thumb--auto"
-                        src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+                        src="{% if youtube_id != blank %}https://i.ytimg.com/vi/{{ youtube_id | strip }}/hqdefault.jpg{% else %}data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=={% endif %}" width="480" height="360"
                         loading="lazy"
                         decoding="async"
                         alt="{{ thumb_alt | escape }}"
                         data-q-yt-thumb="1"
-                        data-q-yt-url="{{ url | escape }}"
+                        data-q-yt-id="{{ youtube_id | strip }}"
                       >
                     {%- endif -%}
 
@@ -138,318 +144,107 @@
                   </div>
                 </div>
               {%- endif -%}
-            </article>
+            </article>{% endif %}
           {%- endfor -%}
         </div>
       {%- endif -%}
     {%- else -%}
       {%- if request.design_mode -%}
         <div class="q-video-grid__placeholder">
-          <p>Playlist mode is enabled. Connect this section to a Quadratum Link playlist feed.</p>
+          <p>Playlist mode is enabled. The theme does not fetch a playlist. Use Manual blocks or configure an external integration.</p>
         </div>
       {%- endif -%}
     {%- endif -%}
   </div>
 
-  <!-- Modal (Hybrid player) -->
-  <div
-    class="q-yt-modal"
-    id="q-yt-modal-{{ section.id }}"
-    hidden
-    style="--q-yt-modal-aspect: {{ modal_ratio }};"
-  >
-    <div class="q-yt-modal__overlay" data-q-yt-close="{{ section.id }}"></div>
-    <div class="q-yt-modal__dialog" role="dialog" aria-modal="true" aria-label="YouTube video player">
-      <button type="button" class="q-yt-modal__close" aria-label="Close" data-q-yt-close="{{ section.id }}">
-        <span aria-hidden="true">×</span>
-      </button>
-
-      <div class="q-yt-modal__player">
-        <div id="q-yt-player-{{ section.id }}"></div>
-      </div>
-
-      <p class="q-yt-modal__fallback">
-        If this video can’t be embedded, you’ll be sent to YouTube automatically.
-        <a class="q-yt-modal__fallback-link" href="https://example.com" target="_blank" rel="noopener noreferrer">
-          Watch on YouTube
-        </a>
-      </p>
+  <dialog class="q-yt-modal" id="q-yt-modal-{{ section.id }}" data-social-youtube-dialog aria-label="YouTube video player" style="--q-yt-modal-aspect: {{ modal_ratio }};">
+    <div class="q-yt-modal__dialog">
+      <button type="button" class="q-yt-modal__close" aria-label="Close video" data-q-yt-close><span aria-hidden="true">×</span></button>
+      <div class="q-yt-modal__player" data-q-yt-player></div>
+      <p class="q-yt-modal__fallback">If playback is unavailable, <a class="q-yt-modal__fallback-link" data-q-yt-fallback>watch on YouTube</a>.</p>
     </div>
-  </div>
-
-  <script>
-    (function () {
-      var sectionId = {{ section.id | json }};
-      var modal = document.getElementById('q-yt-modal-' + sectionId);
-      if (!modal) return;
-
-      var playerHostId = 'q-yt-player-' + sectionId;
-      var playerHost = document.getElementById(playerHostId);
-      if (!playerHost) return;
-
-      var fallbackLink = modal.querySelector('.q-yt-modal__fallback-link');
-      var closeEls = modal.querySelectorAll('[data-q-yt-close="' + sectionId + '"]');
-      var triggers = document.querySelectorAll('[data-q-yt-trigger="' + sectionId + '"]');
-
-      var activeUrl = null;
-      var activeFallbackNewTab = true;
-
-      function parseYouTubeId(url) {
-        try {
-          var u = new URL(url);
-          var host = (u.hostname || '').replace('www.', '');
-
-          if (host === 'youtu.be') {
-            var p = u.pathname.replace('/', '');
-            if (p) return p;
-          }
-
-          var v = u.searchParams.get('v');
-          if (v) return v;
-
-          var path = u.pathname || '';
-          // /shorts/VIDEOID
-          if (path.indexOf('/shorts/') === 0) {
-            return path.split('/shorts/')[1].split('/')[0];
-          }
-          // /embed/VIDEOID
-          if (path.indexOf('/embed/') === 0) {
-            return path.split('/embed/')[1].split('/')[0];
-          }
-        } catch (e) {}
-        return null;
-      }
-
-      function openFallback(url) {
-        try { closeModal(); } catch (e) {}
-        if (!url) return;
-
-        if (activeFallbackNewTab) {
-          window.open(url, '_blank', 'noopener,noreferrer');
-        } else {
-          window.location.href = url;
-        }
-      }
-
-      function openModal() {
-        modal.hidden = false;
-        document.documentElement.classList.add('q-yt-modal-open');
-        // focus close for keyboard users
-        var btn = modal.querySelector('.q-yt-modal__close');
-        if (btn) btn.focus();
-      }
-
-      function closeModal() {
-        modal.hidden = true;
-        document.documentElement.classList.remove('q-yt-modal-open');
-        stopPlayer();
-      }
-
-      function stopPlayer() {
-        if (window.__qYTPlayer && window.__qYTPlayer[sectionId]) {
-          try { window.__qYTPlayer[sectionId].stopVideo(); } catch (e) {}
-        }
-      }
-
-      // Lazy-load YT Iframe API once
-      function loadYouTubeAPI() {
-        if (window.__qYTApiPromise) return window.__qYTApiPromise;
-
-        window.__qYTApiPromise = new Promise(function (resolve, reject) {
-          if (window.YT && window.YT.Player) {
-            resolve(window.YT);
-            return;
-          }
-
-          var tag = document.createElement('script');
-          tag.src = 'https://www.youtube.com/iframe_api';
-          tag.async = true;
-          tag.onload = function () {};
-          tag.onerror = function () { reject(new Error('YT API load failed')); };
-          document.head.appendChild(tag);
-
-          var timeout = setTimeout(function () {
-            reject(new Error('YT API timeout'));
-          }, 8000);
-
-          window.onYouTubeIframeAPIReady = function () {
-            clearTimeout(timeout);
-            resolve(window.YT);
-          };
-        });
-
-        return window.__qYTApiPromise;
-      }
-
-      function ensurePlayer(videoId, watchUrl) {
-        return loadYouTubeAPI().then(function () {
-          if (!window.__qYTPlayer) window.__qYTPlayer = {};
-          if (window.__qYTPlayer[sectionId]) {
-            try {
-              window.__qYTPlayer[sectionId].loadVideoById(videoId);
-              return;
-            } catch (e) {
-              try { window.__qYTPlayer[sectionId].destroy(); } catch (e2) {}
-              window.__qYTPlayer[sectionId] = null;
-            }
-          }
-
-          window.__qYTPlayer[sectionId] = new window.YT.Player(playerHostId, {
-            videoId: videoId,
-            playerVars: {
-              autoplay: 1,
-              rel: 0,
-              modestbranding: 1,
-              playsinline: 1
-            },
-            events: {
-              onReady: function (ev) {
-                try { ev.target.playVideo(); } catch (e) {}
-              },
-              onError: function () {
-                // Embedding disabled (101/150) and other failures -> fallback
-                openFallback(watchUrl);
-              }
-            }
-          });
-        }).catch(function () {
-          // If API fails, fallback immediately
-          openFallback(watchUrl);
-        });
-      }
-
-      function handleTriggerClick(e) {
-        var url = e.currentTarget.getAttribute('data-q-yt-url') || e.currentTarget.getAttribute('href');
-        if (!url) return;
-
-        activeUrl = url;
-        activeFallbackNewTab = e.currentTarget.getAttribute('data-q-yt-fallback-tab') === '1';
-
-        var id = parseYouTubeId(url);
-        if (!id) return; // allow normal navigation if we can't parse
-
-        e.preventDefault();
-
-        if (fallbackLink) {
-          fallbackLink.setAttribute('href', url);
-          if (activeFallbackNewTab) {
-            fallbackLink.setAttribute('target', '_blank');
-            fallbackLink.setAttribute('rel', 'noopener noreferrer');
-          } else {
-            fallbackLink.removeAttribute('target');
-            fallbackLink.removeAttribute('rel');
-          }
-        }
-
-        openModal();
-        ensurePlayer(id, url);
-      }
-
-      // Close interactions
-      closeEls.forEach(function (el) {
-        el.addEventListener('click', function () { closeModal(); });
-      });
-
-      document.addEventListener('keydown', function (e) {
-        if (modal.hidden) return;
-        if (e.key === 'Escape') closeModal();
-      });
-
-      // Bind triggers
-      triggers.forEach(function (t) {
-        t.addEventListener('click', handleTriggerClick);
-      });
-
-      // Auto thumbnails (no API): i.ytimg.com/vi/ID/hqdefault.jpg
-      var autoThumbs = document.querySelectorAll('#social-media-youtube-grid-' + sectionId + ' [data-q-yt-thumb="1"]');
-      autoThumbs.forEach(function (img) {
-        var url = img.getAttribute('data-q-yt-url');
-        var id = parseYouTubeId(url || '');
-        if (!id) return;
-        img.src = 'https://i.ytimg.com/vi/' + id + '/hqdefault.jpg';
-      });
-    })();
-  </script>
+  </dialog>
+  <script src="{{ 'social-media-youtube.js' | asset_url }}" defer></script>
 
   <style>
     /* scoped, minimal, token-friendly */
-    .q-social-youtube-grid__inner {
-      max-width: var(--q-container, 1152px);
+    #social-media-youtube-grid-{{ section.id }} .q-social-youtube-grid__inner {
+      max-width: var(--container-lg, 1152px);
       margin: 0 auto;
       padding: var(--q-section-pad-y, 48px) var(--q-section-pad-x, 20px);
     }
-    .q-social-youtube-grid__header { margin-bottom: 20px; }
-    .q-align-left { text-align: left; }
-    .q-align-center { text-align: center; }
+    #social-media-youtube-grid-{{ section.id }} .q-social-youtube-grid__header { margin-bottom: 20px; }
+    #social-media-youtube-grid-{{ section.id }} .q-align-left { text-align: left; }
+    #social-media-youtube-grid-{{ section.id }} .q-align-center { text-align: center; }
 
-    .q-social-youtube-grid__kicker {
+    #social-media-youtube-grid-{{ section.id }} .q-social-youtube-grid__kicker {
       margin: 0 0 6px;
       font-size: 0.9rem;
       opacity: 0.75;
     }
-    .q-social-youtube-grid__heading {
+    #social-media-youtube-grid-{{ section.id }} .q-social-youtube-grid__heading {
       margin: 0;
       font-size: 1.8rem;
       line-height: 1.15;
     }
-    .q-social-youtube-grid__body {
+    #social-media-youtube-grid-{{ section.id }} .q-social-youtube-grid__body {
       margin-top: 10px;
       opacity: 0.9;
     }
 
-    .q-video-grid {
+    #social-media-youtube-grid-{{ section.id }} .q-video-grid {
       display: grid;
       gap: var(--q-video-grid-gap, 20px);
       grid-template-columns: repeat(var(--q-video-grid-cols-desktop, 3), minmax(0, 1fr));
     }
     @media (max-width: 767px) {
-      .q-video-grid {
+      #social-media-youtube-grid-{{ section.id }} .q-video-grid {
         grid-template-columns: repeat(var(--q-video-grid-cols-mobile, 1), minmax(0, 1fr));
       }
     }
 
-    .q-video-card {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card {
       border-radius: var(--q-radius, 16px);
       overflow: hidden;
     }
-    .q-video-card--surface {
-      background: var(--q-surface, rgba(0,0,0,0.03));
+    #social-media-youtube-grid-{{ section.id }} .q-video-card--surface {
+      background: var(--c-surface, rgba(0,0,0,0.03));
     }
-    .q-video-card--bordered {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card--bordered {
       border: 1px solid rgba(0,0,0,0.12);
       background: transparent;
     }
-    .q-video-card--minimal {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card--minimal {
       background: transparent;
     }
 
-    .q-video-card__link,
-    .q-video-card__placeholder {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__link,
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__placeholder {
       display: grid;
       grid-template-rows: auto 1fr;
       text-decoration: none;
       color: inherit;
     }
 
-    .q-ratio { position: relative; width: 100%; }
-    .q-ratio--16-9 { aspect-ratio: 16 / 9; }
-    .q-ratio--9-16 { aspect-ratio: 9 / 16; }
-    .q-ratio--4-5  { aspect-ratio: 4 / 5; }
-    .q-ratio--1-1  { aspect-ratio: 1 / 1; }
+    #social-media-youtube-grid-{{ section.id }} .q-ratio { position: relative; width: 100%; }
+    #social-media-youtube-grid-{{ section.id }} .q-ratio--16-9 { aspect-ratio: 16 / 9; }
+    #social-media-youtube-grid-{{ section.id }} .q-ratio--9-16 { aspect-ratio: 9 / 16; }
+    #social-media-youtube-grid-{{ section.id }} .q-ratio--4-5  { aspect-ratio: 4 / 5; }
+    #social-media-youtube-grid-{{ section.id }} .q-ratio--1-1  { aspect-ratio: 1 / 1; }
 
-    .q-video-card__media {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__media {
       position: relative;
       background: rgba(0,0,0,0.06);
       overflow: hidden;
     }
-    .q-video-card__thumb {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__thumb {
       width: 100%;
       height: 100%;
       display: block;
       object-fit: cover;
     }
 
-    .q-video-card__play {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__play {
       position: absolute;
       inset: auto auto 12px 12px;
       width: 40px;
@@ -460,9 +255,9 @@
       background: rgba(0,0,0,0.55);
       color: #fff;
     }
-    .q-video-card__play svg { fill: currentColor; transform: translateX(1px); }
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__play svg { fill: currentColor; transform: translateX(1px); }
 
-    .q-video-card__badge {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__badge {
       position: absolute;
       top: 12px;
       right: 12px;
@@ -474,9 +269,9 @@
       background: rgba(0,0,0,0.6);
       color: #fff;
     }
-    .q-video-card__badge svg { fill: currentColor; }
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__badge svg { fill: currentColor; }
 
-    .q-video-card__duration {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__duration {
       position: absolute;
       bottom: 12px;
       right: 12px;
@@ -487,24 +282,24 @@
       color: #fff;
     }
 
-    .q-video-card__body {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__body {
       padding: 14px 14px 16px;
       display: grid;
       gap: 8px;
     }
-    .q-video-card__tag {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__tag {
       margin: 0;
       font-size: 0.8rem;
       letter-spacing: 0.02em;
       text-transform: uppercase;
       opacity: 0.7;
     }
-    .q-video-card__title {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__title {
       margin: 0;
       font-size: 1.05rem;
       line-height: 1.25;
     }
-    .q-video-card__description {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__description {
       margin: 0;
       opacity: 0.85;
       display: -webkit-box;
@@ -512,20 +307,20 @@
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
-    .q-video-card__watch {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__watch {
       margin-top: 2px;
       font-weight: 600;
       text-decoration: underline;
     }
 
-    .q-video-card__link:focus-visible {
+    #social-media-youtube-grid-{{ section.id }} .q-video-card__link:focus-visible {
       outline: 2px solid currentColor;
-      outline-offset: 3px;
+      outline-offset: -3px;
     }
 
     /* Modal */
-    .q-yt-modal[hidden] { display: none; }
-    .q-yt-modal {
+    #social-media-youtube-grid-{{ section.id }} .q-yt-modal[hidden] { display: none; }
+    #social-media-youtube-grid-{{ section.id }} .q-yt-modal {
       position: fixed;
       inset: 0;
       z-index: 9999;
@@ -533,12 +328,12 @@
       place-items: center;
       padding: 18px;
     }
-    .q-yt-modal__overlay {
+    #social-media-youtube-grid-{{ section.id }} .q-yt-modal__overlay {
       position: absolute;
       inset: 0;
       background: rgba(0,0,0,0.6);
     }
-    .q-yt-modal__dialog {
+    #social-media-youtube-grid-{{ section.id }} .q-yt-modal__dialog {
       position: relative;
       width: min(960px, 100%);
       border-radius: 18px;
@@ -547,7 +342,7 @@
       overflow: hidden;
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
     }
-    .q-yt-modal__close {
+    #social-media-youtube-grid-{{ section.id }} .q-yt-modal__close {
       position: absolute;
       top: 10px;
       right: 10px;
@@ -560,36 +355,56 @@
       cursor: pointer;
       z-index: 2;
     }
-    .q-yt-modal__close:focus-visible {
+    #social-media-youtube-grid-{{ section.id }} .q-yt-modal__close:focus-visible {
       outline: 2px solid #fff;
       outline-offset: 2px;
     }
-    .q-yt-modal__player {
+    #social-media-youtube-grid-{{ section.id }} .q-yt-modal__player {
       width: 100%;
       aspect-ratio: var(--q-yt-modal-aspect, 16 / 9);
       background: #000;
     }
-    .q-yt-modal__player iframe {
+    #social-media-youtube-grid-{{ section.id }} .q-yt-modal__player iframe {
       width: 100%;
       height: 100%;
       border: 0;
       display: block;
     }
-    .q-yt-modal__fallback {
+    #social-media-youtube-grid-{{ section.id }} .q-yt-modal__fallback {
       margin: 0;
       padding: 12px 16px 16px;
       font-size: 0.95rem;
       opacity: 0.9;
     }
-    .q-yt-modal__fallback-link {
+    #social-media-youtube-grid-{{ section.id }} .q-yt-modal__fallback-link {
       font-weight: 700;
       text-decoration: underline;
     }
 
-    .q-yt-modal-open { overflow: hidden; }
+
+
+    #social-media-youtube-grid-{{ section.id }} .q-yt-modal:not([open]){display:none}
+    #social-media-youtube-grid-{{ section.id }} .q-yt-modal{width:min(960px,calc(100vw - 32px));max-height:calc(100dvh - 32px);margin:auto;padding:0;border:0;overflow:auto;display:block;background:#fff;border-radius:18px}
+    #social-media-youtube-grid-{{ section.id }} .q-yt-modal::backdrop{background:rgba(0,0,0,.65)}
+    #social-media-youtube-grid-{{ section.id }} .q-yt-modal__player{min-height:200px}
   </style>
 </section>
 {%- endif -%}
+
+
+<style>
+#social-media-youtube-grid-{{ section.id }}{font-family:var(--font-body);overflow-wrap:anywhere}
+#social-media-youtube-grid-{{ section.id }} :is(h2,h3){font-family:var(--font-head)}
+#social-media-youtube-grid-{{ section.id }} *{box-sizing:border-box;min-width:0}
+#social-media-youtube-grid-{{ section.id }} :focus-visible{outline:2px solid currentColor;outline-offset:3px}
+#social-media-youtube-grid-{{ section.id }} :is(.q-text-left,.q-align-left,.q-section-heading--left){text-align:start}
+#social-media-youtube-grid-{{ section.id }} :is(.q-text-center,.q-align-center,.q-section-heading--center){text-align:center}
+#social-media-youtube-grid-{{ section.id }} .q-section__inner{max-width:var(--container-lg);margin-inline:auto;padding:var(--section-pt,48px) 20px var(--section-pb,48px)}
+#social-media-youtube-grid-{{ section.id }} :is(a,button){max-width:100%;white-space:normal}
+#social-media-youtube-grid-{{ section.id }} [hidden]{display:none!important}
+@media(prefers-reduced-motion:reduce){#social-media-youtube-grid-{{ section.id }} *{transition:none!important;scroll-behavior:auto!important}}
+</style>
+{% endif %}
 
 {% schema %}
 {
@@ -597,6 +412,10 @@
   "tag": "section",
   "class": "q-section q-social-youtube-grid",
   "settings": [
+    {
+      "type": "paragraph",
+      "content": "Merchant-curated content and native links unless an explicit provider embed is configured. The theme does not fetch social posts, authorize accounts, verify claims or implement feed synchronization. Future feed/playlist choices are retained configuration placeholders, not connected integrations."
+    },
     {
       "type": "checkbox",
       "id": "enable_section",
@@ -627,8 +446,14 @@
       "label": "Text alignment",
       "default": "center",
       "options": [
-        { "value": "left", "label": "Left" },
-        { "value": "center", "label": "Center" }
+        {
+          "value": "left",
+          "label": "Left"
+        },
+        {
+          "value": "center",
+          "label": "Center"
+        }
       ]
     },
     {
@@ -668,9 +493,18 @@
       "label": "Card style",
       "default": "surface",
       "options": [
-        { "value": "surface", "label": "Soft surface" },
-        { "value": "bordered", "label": "Bordered" },
-        { "value": "minimal", "label": "Minimal (no background)" }
+        {
+          "value": "surface",
+          "label": "Soft surface"
+        },
+        {
+          "value": "bordered",
+          "label": "Bordered"
+        },
+        {
+          "value": "minimal",
+          "label": "Minimal (no background)"
+        }
       ]
     },
     {
@@ -679,10 +513,22 @@
       "label": "Video aspect ratio",
       "default": "16:9",
       "options": [
-        { "value": "16:9", "label": "16:9 (YouTube default)" },
-        { "value": "1:1", "label": "Square (1:1)" },
-        { "value": "9:16", "label": "Vertical (9:16)" },
-        { "value": "4:5", "label": "Portrait (4:5)" }
+        {
+          "value": "16:9",
+          "label": "16:9 (YouTube default)"
+        },
+        {
+          "value": "1:1",
+          "label": "Square (1:1)"
+        },
+        {
+          "value": "9:16",
+          "label": "Vertical (9:16)"
+        },
+        {
+          "value": "4:5",
+          "label": "Portrait (4:5)"
+        }
       ]
     },
     {
@@ -729,9 +575,16 @@
       "label": "Data source",
       "default": "manual",
       "options": [
-        { "value": "manual", "label": "Manual videos (theme editor)" },
-        { "value": "playlist", "label": "Playlist feed (Quadratum Link, future)" }
-      ]
+        {
+          "value": "manual",
+          "label": "Manual videos (theme editor)"
+        },
+        {
+          "value": "playlist",
+          "label": "Playlist feed (requires integration)"
+        }
+      ],
+      "info": "Manual blocks are implemented. Other choices require an external integration; without one, the section shows setup guidance only in the editor."
     },
     {
       "type": "text",
@@ -755,7 +608,7 @@
           "type": "text",
           "id": "title",
           "label": "Title",
-          "default": "How to get the most from your purchase"
+          "default": "Video"
         },
         {
           "type": "text",
@@ -771,14 +624,12 @@
         {
           "type": "textarea",
           "id": "description",
-          "label": "Short description",
-          "default": "Add an optional short description for this video."
+          "label": "Short description"
         },
         {
           "type": "text",
           "id": "duration_label",
-          "label": "Duration label (optional)",
-          "default": "Optional"
+          "label": "Duration label (optional)"
         },
         {
           "type": "image_picker",
@@ -800,9 +651,15 @@
       "name": "Social Media - YouTube Grid",
       "category": "Social Media",
       "blocks": [
-        { "type": "youtube_video" },
-        { "type": "youtube_video" },
-        { "type": "youtube_video" }
+        {
+          "type": "youtube_video"
+        },
+        {
+          "type": "youtube_video"
+        },
+        {
+          "type": "youtube_video"
+        }
       ]
     }
   ]
