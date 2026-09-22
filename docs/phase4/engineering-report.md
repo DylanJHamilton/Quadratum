@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 75/102 blocks and 22 dependencies individually reviewed; 97/124 Family 8 entries have dispositions (96 live queued, 1 dormant retained), 27 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 81/102 blocks and 23 dependencies individually reviewed; 104/125 Family 8 entries have dispositions (103 live queued, 1 dormant retained), 21 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1229,3 +1229,17 @@ B8-NATIVE-FORMS live queue after engineering batches: real contact/customer POST
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Native forms/information lint checkpoint: 508 → 509 unsuppressed findings (3 unchanged out-of-group errors; 505 → 506 warnings). The new shared location helper adds one OrphanedSnippet warning despite two explicit callers. This group has no errors; no suppressions.
+
+## Batch 8 checkpoint — comparison images, feature media, hotspots, image stacks, maps and lookbooks — 2026-09-22
+
+Previous checkpoint published as `8b11d42c0d2108927227c1b6b546d2bb2de1fed7`; PR #22 remains DRAFT. Six visual media blocks now preserve progressive native content, repair full-size comparison alignment and actual enabled feature selection, replace fragile hotspot positioning with bounded pins and in-flow callouts, and keep sparse/long-content compositions useful. One scoped controller supplies interactive behavior and media policy/lifecycle handling through the existing deferred asset chain.
+
+81/102 blocks and 23 dependencies individually reviewed; 104/125 Family 8 entries have dispositions (103 live queued, 1 dormant retained), 21 NOT REVIEWED. Global dispositions: 436 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 46 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-visual-media/`. 468 actual control/default/preset/data-state renders exercise all original IDs/options/range endpoints, empty/populated/partially selected images and points, native alt overrides, native product/custom/collection precedence and zero/variable prices, safe plain text and URLs, no-JS readable comparison/panels/disclosures/video, meaningful copied-only and card-only layouts and duplicate raw IDs. Actual controller fixtures cover two instances, range updates, scoped Escape/outside close, keyboard/Home/End, active enabled-slot selection, mobile expanded state, reduced-motion/editor video gating, rejected/detached playback promises, and insert/reorder/remove/unload/reload. All 16 affected suites pass; 396 settings, 18 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-VISUAL-MEDIA live queue after engineering batches: native responsive image geometry and exact crop/point alignment, real 320–1440px/zoom/RTL/nested builder layouts, image-stack overlap/caption readability and lookbook overlay contrast, real range/disclosure/feature-map keyboard/AT, native video controls/autoplay/rejection/visibility/reduced-motion behavior, actual product prices/media and Theme Editor lifecycle. DOM/media/geometry adapters are not acceptance. No live Shopify QA; prior queues carry forward.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Unsuppressed CLI 4.8.0 remains at 509 findings (3 unchanged out-of-group errors, 506 warnings); no group errors and no suppression.

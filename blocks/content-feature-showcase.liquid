@@ -1,77 +1,18 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 %}
 
-<div
-  class="
-    qtm-feature-showcase
-    qtm-feature-showcase-{{ block_id }}
-    qtm-feature-showcase--width-{{ block_width }}
-    qtm-feature-showcase--align-{{ block_alignment }}
-    qtm-feature-showcase--layout-{{ block.settings.layout_style }}
-    qtm-feature-showcase--media-position-{{ block.settings.media_position }}
-    qtm-feature-showcase--animation-{{ animation }}
-    {% if block.settings.enable_sticky_media %} qtm-feature-showcase--sticky-media{% endif %}
-    {% if block.settings.enable_progressive_reveal %} qtm-feature-showcase--progressive{% endif %}
-    {% unless block.settings.show_desktop %} qtm-feature-showcase--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-feature-showcase--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-feature-showcase--hide-mobile{% endunless %}
-  "
-  style="
-    --qtm-feature-showcase-margin-top: {{ block.settings.margin_top }}px;
-    --qtm-feature-showcase-margin-bottom: {{ block.settings.margin_bottom }}px;
-    --qtm-feature-showcase-padding: {{ block.settings.padding }}px;
-    --qtm-feature-showcase-gap: {{ block.settings.gap }}px;
-    --qtm-feature-showcase-heading-color: {{ block.settings.heading_color }};
-    --qtm-feature-showcase-text-color: {{ block.settings.text_color }};
-    --qtm-feature-showcase-background-color: {{ block.settings.background_color }};
-    --qtm-feature-showcase-border-color: {{ block.settings.border_color }};
-    --qtm-feature-showcase-link-color: {{ block.settings.link_color }};
-    --qtm-feature-showcase-card-background: {{ block.settings.card_background_color }};
-    --qtm-feature-showcase-card-border: {{ block.settings.card_border_color }};
-    --qtm-feature-showcase-accent-color: {{ block.settings.accent_color }};
-    --qtm-feature-showcase-media-background: {{ block.settings.media_background_color }};
-    --qtm-feature-showcase-border-width: {{ block.settings.border_width }}px;
-    --qtm-feature-showcase-border-radius: {{ block.settings.border_radius }}px;
-    --qtm-feature-showcase-card-radius: {{ block.settings.card_radius }}px;
-    --qtm-feature-showcase-media-height: {{ block.settings.media_height }}px;
-    --qtm-feature-showcase-mobile-media-height: {{ block.settings.mobile_media_height }}px;
-  "
-  {{ block.shopify_attributes }}
->
-  <div class="qtm-feature-showcase__inner">
-    <div class="qtm-feature-showcase__content">
-      {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank or block.settings.cta_text != blank %}
-        <div class="qtm-feature-showcase__header">
-          {% if block.settings.eyebrow != blank %}
-            <p class="qtm-feature-showcase__eyebrow">
-              {{ block.settings.eyebrow | escape }}
-            </p>
-          {% endif %}
-
-          {% if block.settings.heading != blank %}
-            <h2 class="qtm-feature-showcase__heading">
-              {{ block.settings.heading | escape }}
-            </h2>
-          {% endif %}
-
-          {% if block.settings.text != blank %}
-            <div class="qtm-feature-showcase__text">
-              {{ block.settings.text }}
-            </div>
-          {% endif %}
-
-          {% if block.settings.cta_text != blank and block.settings.cta_url != blank %}
-            <a class="qtm-feature-showcase__button" href="{{ block.settings.cta_url }}">
-              {{ block.settings.cta_text | escape }}
-            </a>
-          {% endif %}
-        </div>
-      {% endif %}
-
+{% assign has_intro = false %}
+{% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank %}{% assign has_intro = true %}{% endif %}
+{% if block.settings.cta_text != blank and block.settings.cta_url != blank %}{% assign has_intro = true %}{% endif %}
+{% assign feature_count = 0 %}
+{% capture features_markup %}
       <div class="qtm-feature-showcase__features" role="list">
         {% for i in (1..6) %}
           {% liquid
@@ -90,8 +31,11 @@
             assign feature_link_text = block.settings[link_text_key]
           %}
 
-          {% if feature_enabled %}
-            <article class="qtm-feature-showcase__feature qtm-feature-showcase__feature--{{ i }}" role="listitem">
+          {% assign populated = false %}
+          {% if feature_heading != blank or feature_text != blank %}{% assign populated = true %}{% endif %}
+          {% if feature_link != blank and feature_link_text != blank %}{% assign populated = true %}{% endif %}
+          {% if feature_enabled and populated %}{% assign feature_count = feature_count | plus: 1 %}
+            <article class="qtm-feature-showcase__feature qtm-feature-showcase__feature--{{ i }}{% if feature_icon == blank and block.settings.show_feature_numbers == false %} qtm-feature-showcase__feature--no-icon{% endif %}" role="listitem">
               {% if feature_icon != blank or block.settings.show_feature_numbers %}
                 <div class="qtm-feature-showcase__feature-icon" aria-hidden="true">
                   {% if feature_icon != blank %}
@@ -116,7 +60,7 @@
                 {% endif %}
 
                 {% if feature_link != blank and feature_link_text != blank %}
-                  <a class="qtm-feature-showcase__feature-link" href="{{ feature_link }}">
+                  <a class="qtm-feature-showcase__feature-link" href="{{ feature_link | escape }}">
                     {{ feature_link_text | escape }}
                   </a>
                 {% endif %}
@@ -125,9 +69,106 @@
           {% endif %}
         {% endfor %}
       </div>
+{% endcapture %}
+{% liquid
+  assign has_media = false
+  if block.settings.image != blank
+    assign has_media = true
+  endif
+  if block.settings.media_type == 'video' and block.settings.video != blank
+    assign has_media = true
+  endif
+  if block.settings.media_type == 'external_video' and block.settings.external_video_url != blank
+    assign has_media = true
+  endif
+  assign has_copy = false
+  if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank or feature_count > 0
+    assign has_copy = true
+  endif
+  if block.settings.cta_text != blank and block.settings.cta_url != blank
+    assign has_copy = true
+  endif
+  assign has_content = has_copy
+  if has_media
+    assign has_content = true
+  endif
+%}
+
+<div
+  {% if has_content == false and request.design_mode == false %}hidden{% endif %}
+  class="
+    qtm-feature-showcase
+    qtm-feature-showcase-{{ block_id }}
+    {% unless has_media %}qtm-feature-showcase--no-media{% endunless %}
+    {% unless has_copy %}qtm-feature-showcase--no-copy{% endunless %}
+    qtm-feature-showcase--width-{{ block_width }}
+    qtm-feature-showcase--align-{{ block_alignment }}
+    qtm-feature-showcase--layout-{{ block.settings.layout_style }}
+    qtm-feature-showcase--media-position-{{ block.settings.media_position }}
+    qtm-feature-showcase--animation-{{ animation }}
+    {% if block.settings.enable_sticky_media %} qtm-feature-showcase--sticky-media{% endif %}
+    {% if block.settings.enable_progressive_reveal and request.design_mode == false %} qtm-feature-showcase--progressive{% endif %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-feature-showcase--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-feature-showcase--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-feature-showcase--hide-mobile{% endunless %}
+  "
+  style="
+    --qtm-feature-showcase-margin-top: {{ block.settings.margin_top }}px;
+    --qtm-feature-showcase-margin-bottom: {{ block.settings.margin_bottom }}px;
+    --qtm-feature-showcase-padding: {{ block.settings.padding }}px;
+    --qtm-feature-showcase-gap: {{ block.settings.gap }}px;
+    --qtm-feature-showcase-heading-color: {{ block.settings.heading_color }};
+    --qtm-feature-showcase-text-color: {{ block.settings.text_color }};
+    --qtm-feature-showcase-background-color: {{ block.settings.background_color }};
+    --qtm-feature-showcase-border-color: {{ block.settings.border_color }};
+    --qtm-feature-showcase-link-color: {{ block.settings.link_color }};
+    --qtm-feature-showcase-card-background: {{ block.settings.card_background_color }};
+    --qtm-feature-showcase-card-border: {{ block.settings.card_border_color }};
+    --qtm-feature-showcase-accent-color: {{ block.settings.accent_color }};
+    --qtm-feature-showcase-media-background: {{ block.settings.media_background_color }};
+    --qtm-feature-showcase-border-width: {{ block.settings.border_width }}px;
+    --qtm-feature-showcase-border-radius: {{ block.settings.border_radius }}px;
+    --qtm-feature-showcase-card-radius: {{ block.settings.card_radius }}px;
+    --qtm-feature-showcase-media-height: {{ block.settings.media_height }}px;
+    --qtm-feature-showcase-mobile-media-height: {{ block.settings.mobile_media_height }}px;
+  "
+>
+  <div class="qtm-feature-showcase__inner">
+    {% if has_content == false and request.design_mode %}<p role="note">Add feature content or choose an image or video.</p>{% endif %}
+    <div class="qtm-feature-showcase__content">
+      {% if has_intro %}
+        <div class="qtm-feature-showcase__header">
+          {% if block.settings.eyebrow != blank %}
+            <p class="qtm-feature-showcase__eyebrow">
+              {{ block.settings.eyebrow | escape }}
+            </p>
+          {% endif %}
+
+          {% if block.settings.heading != blank %}
+            <h2 class="qtm-feature-showcase__heading">
+              {{ block.settings.heading | escape }}
+            </h2>
+          {% endif %}
+
+          {% if block.settings.text != blank %}
+            <div class="qtm-feature-showcase__text">
+              {{ block.settings.text }}
+            </div>
+          {% endif %}
+
+          {% if block.settings.cta_text != blank and block.settings.cta_url != blank %}
+            <a class="qtm-feature-showcase__button" href="{{ block.settings.cta_url | escape }}">
+              {{ block.settings.cta_text | escape }}
+            </a>
+          {% endif %}
+        </div>
+      {% endif %}
+
+{% if feature_count > 0 %}{{ features_markup }}{% endif %}
     </div>
 
-    <div class="qtm-feature-showcase__media-column">
+    <div class="qtm-feature-showcase__media-column"{% unless has_media or request.design_mode %} hidden{% endunless %}
+      data-qtm-visual-block="video" data-autoplay="{{ block.settings.autoplay_video }}" data-controls="{{ block.settings.show_video_controls }}" data-design-mode="{{ request.design_mode }}">
       <div class="qtm-feature-showcase__media-frame">
         {% if block.settings.media_type == 'video' and block.settings.video != blank %}
           {{
@@ -135,13 +176,14 @@
             | video_tag:
               class: 'qtm-feature-showcase__video',
               image_size: '1600x',
-              autoplay: block.settings.autoplay_video,
+              autoplay: false,
               loop: true,
               muted: true,
-              controls: block.settings.show_video_controls
+              controls: true, playsinline: true, preload: 'metadata'
           }}
+          <button type="button" class="qtm-feature-showcase__video-toggle" data-qtm-video-toggle hidden>Play video</button>
         {% elsif block.settings.media_type == 'external_video' and block.settings.external_video_url != blank %}
-          <a class="qtm-feature-showcase__external-video" href="{{ block.settings.external_video_url }}" target="_blank" rel="noopener">
+          <a class="qtm-feature-showcase__external-video" href="{{ block.settings.external_video_url | escape }}" target="_blank" rel="noopener">
             {% if block.settings.image != blank %}
               {{
                 block.settings.image
@@ -175,7 +217,7 @@
           }}
         {% else %}
           <div class="qtm-feature-showcase__placeholder">
-            {{ 'product-1' | placeholder_svg_tag: 'qtm-feature-showcase__placeholder-svg' }}
+            <p role="note">Add an image or video.</p>
           </div>
         {% endif %}
 
@@ -199,7 +241,7 @@
   .qtm-feature-showcase-{{ block_id }} {
     margin-top: var(--qtm-feature-showcase-margin-top);
     margin-bottom: var(--qtm-feature-showcase-margin-bottom);
-    padding: var(--qtm-feature-showcase-padding);
+    padding: min(var(--qtm-feature-showcase-padding), 12%);
     color: var(--qtm-feature-showcase-text-color);
     background: var(--qtm-feature-showcase-background-color);
     border: var(--qtm-feature-showcase-border-width) solid var(--qtm-feature-showcase-border-color);
@@ -391,8 +433,8 @@
   }
 
   .qtm-feature-showcase-{{ block_id }}.qtm-feature-showcase--progressive .qtm-feature-showcase__feature {
-    opacity: 0;
-    transform: translateY(16px);
+    opacity: 1;
+    transform: none;
     animation: qtm-feature-card-reveal-{{ block_id }} 620ms ease both;
   }
 
@@ -421,6 +463,7 @@
   }
 
   @keyframes qtm-feature-card-reveal-{{ block_id }} {
+    from { opacity: 0; transform: translateY(16px); }
     to {
       opacity: 1;
       transform: translateY(0);
@@ -673,9 +716,7 @@
   }
 
   @media screen and (max-width: 989px) {
-    .qtm-feature-showcase-{{ block_id }}.qtm-feature-showcase--hide-tablet {
-      display: none !important;
-    }
+
 
     .qtm-feature-showcase-{{ block_id }}.qtm-feature-showcase--layout-split .qtm-feature-showcase__inner,
     .qtm-feature-showcase-{{ block_id }}.qtm-feature-showcase--layout-immersive .qtm-feature-showcase__inner {
@@ -704,7 +745,7 @@
 
   @media screen and (max-width: 749px) {
     .qtm-feature-showcase-{{ block_id }} {
-      padding: min(var(--qtm-feature-showcase-padding), 24px);
+      padding: min(var(--qtm-feature-showcase-padding), 24px, 12%);
     }
 
     .qtm-feature-showcase-{{ block_id }}.qtm-feature-showcase--hide-mobile {
@@ -754,6 +795,23 @@
       transform: none;
     }
   }
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-feature-showcase-{{ block_id }}.qtm-feature-showcase--hide-tablet {
+      display: none !important;
+    }
+  }
+  .qtm-feature-showcase-{{ block_id }} { box-sizing: border-box; min-width: 0; overflow-wrap: anywhere; container-type: inline-size; }
+  .qtm-feature-showcase-{{ block_id }} *, .qtm-feature-showcase-{{ block_id }} *::before, .qtm-feature-showcase-{{ block_id }} *::after { box-sizing: border-box; }
+  .qtm-feature-showcase-{{ block_id }} :is(div,article,figure,figcaption,span,a,button) { min-width: 0; }
+  .qtm-feature-showcase-{{ block_id }} :is(img,video,a,button) { max-width: 100%; }
+  .qtm-feature-showcase-{{ block_id }} [hidden], .qtm-feature-showcase-{{ block_id }}[hidden] { display: none !important; }
+  .qtm-feature-showcase-{{ block_id }} a:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
+.qtm-feature-showcase-{{ block_id }}.qtm-feature-showcase--no-media .qtm-feature-showcase__inner, .qtm-feature-showcase-{{ block_id }}.qtm-feature-showcase--no-copy .qtm-feature-showcase__inner { grid-template-columns: minmax(0, 1fr); }
+.qtm-feature-showcase-{{ block_id }}.qtm-feature-showcase--no-copy .qtm-feature-showcase__content { display: none; }
+.qtm-feature-showcase-{{ block_id }} .qtm-feature-showcase__feature--no-icon { grid-template-columns: minmax(0, 1fr); }
+.qtm-feature-showcase-{{ block_id }} .qtm-feature-showcase__video-toggle { position: absolute; inset: 1rem auto auto 1rem; z-index: 5; min-height: 44px; padding: 0.6rem; color: #111; background: #fff; border: 1px solid; border-radius: 6px; }
+.qtm-feature-showcase-{{ block_id }} .qtm-feature-showcase__video-toggle:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
+@container (max-width: 580px) { .qtm-feature-showcase-{{ block_id }} .qtm-feature-showcase__inner, .qtm-feature-showcase-{{ block_id }} .qtm-feature-showcase__features { grid-template-columns: minmax(0, 1fr) !important; } .qtm-feature-showcase-{{ block_id }} .qtm-feature-showcase__media-column { position: static !important; } }
 </style>
 
 {% schema %}
@@ -767,20 +825,17 @@
     {
       "type": "text",
       "id": "eyebrow",
-      "label": "Eyebrow",
-      "default": "Feature showcase"
+      "label": "Eyebrow"
     },
     {
       "type": "text",
       "id": "heading",
-      "label": "Heading",
-      "default": "Designed around the details that matter"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "text",
-      "label": "Text",
-      "default": "<p>Explain product technology, materials, features, process, or brand advantages with premium media and structured feature cards.</p>"
+      "label": "Text"
     },
     {
       "type": "text",
@@ -847,14 +902,12 @@
     {
       "type": "text",
       "id": "media_badge",
-      "label": "Media badge",
-      "default": "Premium detail"
+      "label": "Media badge"
     },
     {
       "type": "richtext",
       "id": "media_caption",
-      "label": "Media caption",
-      "default": "<p>Use this caption to explain the visual, product technology, material choice, or brand process.</p>"
+      "label": "Media caption"
     },
     {
       "type": "range",
@@ -895,20 +948,17 @@
     {
       "type": "text",
       "id": "feature_1_icon",
-      "label": "Feature 1 icon or symbol",
-      "default": "✓"
+      "label": "Feature 1 icon or symbol"
     },
     {
       "type": "text",
       "id": "feature_1_heading",
-      "label": "Feature 1 heading",
-      "default": "Premium construction"
+      "label": "Feature 1 heading"
     },
     {
       "type": "richtext",
       "id": "feature_1_text",
-      "label": "Feature 1 text",
-      "default": "<p>Highlight the material, build quality, process, or engineering decision that improves the experience.</p>"
+      "label": "Feature 1 text"
     },
     {
       "type": "url",
@@ -930,20 +980,17 @@
     {
       "type": "text",
       "id": "feature_2_icon",
-      "label": "Feature 2 icon or symbol",
-      "default": "★"
+      "label": "Feature 2 icon or symbol"
     },
     {
       "type": "text",
       "id": "feature_2_heading",
-      "label": "Feature 2 heading",
-      "default": "Designed for daily use"
+      "label": "Feature 2 heading"
     },
     {
       "type": "richtext",
       "id": "feature_2_text",
-      "label": "Feature 2 text",
-      "default": "<p>Explain how the product feels better, works better, or solves a practical customer need.</p>"
+      "label": "Feature 2 text"
     },
     {
       "type": "url",
@@ -965,20 +1012,17 @@
     {
       "type": "text",
       "id": "feature_3_icon",
-      "label": "Feature 3 icon or symbol",
-      "default": "↗"
+      "label": "Feature 3 icon or symbol"
     },
     {
       "type": "text",
       "id": "feature_3_heading",
-      "label": "Feature 3 heading",
-      "default": "Better long-term value"
+      "label": "Feature 3 heading"
     },
     {
       "type": "richtext",
       "id": "feature_3_text",
-      "label": "Feature 3 text",
-      "default": "<p>Connect the feature story to durability, trust, usability, performance, or premium value.</p>"
+      "label": "Feature 3 text"
     },
     {
       "type": "url",
@@ -1000,20 +1044,17 @@
     {
       "type": "text",
       "id": "feature_4_icon",
-      "label": "Feature 4 icon or symbol",
-      "default": "+"
+      "label": "Feature 4 icon or symbol"
     },
     {
       "type": "text",
       "id": "feature_4_heading",
-      "label": "Feature 4 heading",
-      "default": "Refined detail"
+      "label": "Feature 4 heading"
     },
     {
       "type": "richtext",
       "id": "feature_4_text",
-      "label": "Feature 4 text",
-      "default": "<p>Add another product, technology, process, or brand highlight.</p>"
+      "label": "Feature 4 text"
     },
     {
       "type": "url",
@@ -1034,20 +1075,17 @@
     {
       "type": "text",
       "id": "feature_5_icon",
-      "label": "Feature 5 icon or symbol",
-      "default": "◆"
+      "label": "Feature 5 icon or symbol"
     },
     {
       "type": "text",
       "id": "feature_5_heading",
-      "label": "Feature 5 heading",
-      "default": "Signature experience"
+      "label": "Feature 5 heading"
     },
     {
       "type": "richtext",
       "id": "feature_5_text",
-      "label": "Feature 5 text",
-      "default": "<p>Add another supporting feature or proof point.</p>"
+      "label": "Feature 5 text"
     },
     {
       "type": "url",
@@ -1068,20 +1106,17 @@
     {
       "type": "text",
       "id": "feature_6_icon",
-      "label": "Feature 6 icon or symbol",
-      "default": "→"
+      "label": "Feature 6 icon or symbol"
     },
     {
       "type": "text",
       "id": "feature_6_heading",
-      "label": "Feature 6 heading",
-      "default": "Final advantage"
+      "label": "Feature 6 heading"
     },
     {
       "type": "richtext",
       "id": "feature_6_text",
-      "label": "Feature 6 text",
-      "default": "<p>Add a final differentiator, trust cue, or conversion-focused detail.</p>"
+      "label": "Feature 6 text"
     },
     {
       "type": "url",
@@ -1400,32 +1435,32 @@
     {
       "name": "Product Features",
       "settings": {
-        "eyebrow": "Product features",
-        "heading": "Built for performance, comfort, and confidence",
-        "text": "<p>Use premium media and feature cards to explain what makes the product better, clearer, and easier to choose.</p>",
+        "eyebrow": "",
+        "heading": "",
+        "text": "",
         "cta_text": "Shop product",
-        "media_badge": "Product detail",
-        "media_caption": "<p>Show the hero product, material close-up, lifestyle use, or technical feature in context.</p>",
+        "media_badge": "",
+        "media_caption": "",
         "layout_style": "split",
         "media_position": "right",
         "enable_sticky_media": true,
         "enable_progressive_reveal": true,
-        "feature_1_heading": "Premium construction",
-        "feature_1_text": "<p>Explain the material, build quality, or craftsmanship behind the product.</p>",
-        "feature_2_heading": "Designed for daily use",
-        "feature_2_text": "<p>Show how the product improves the actual customer experience.</p>",
-        "feature_3_heading": "Better long-term value",
-        "feature_3_text": "<p>Connect the feature story to durability, confidence, performance, or value.</p>"
+        "feature_1_heading": "",
+        "feature_1_text": "",
+        "feature_2_heading": "",
+        "feature_2_text": "",
+        "feature_3_heading": "",
+        "feature_3_text": ""
       }
     },
     {
       "name": "Technology Showcase",
       "settings": {
-        "eyebrow": "Technology",
-        "heading": "A smarter system behind the experience",
-        "text": "<p>Break down product technology, materials, performance advantages, or process innovations with a premium feature-led layout.</p>",
+        "eyebrow": "",
+        "heading": "",
+        "text": "",
         "cta_text": "Explore technology",
-        "media_badge": "Innovation",
+        "media_badge": "",
         "layout_style": "immersive",
         "media_position": "left",
         "media_height": 620,
@@ -1433,43 +1468,43 @@
         "enable_sticky_media": true,
         "enable_progressive_reveal": true,
         "accent_color": "#1F4B99",
-        "feature_1_icon": "01",
-        "feature_1_heading": "Engineered foundation",
-        "feature_1_text": "<p>Explain the core system or technology that powers the product experience.</p>",
-        "feature_2_icon": "02",
-        "feature_2_heading": "Optimized performance",
-        "feature_2_text": "<p>Show how the technology creates measurable or noticeable customer benefits.</p>",
-        "feature_3_icon": "03",
-        "feature_3_heading": "Built to scale",
-        "feature_3_text": "<p>Use this feature to explain durability, flexibility, compatibility, or future readiness.</p>",
+        "feature_1_icon": "",
+        "feature_1_heading": "",
+        "feature_1_text": "",
+        "feature_2_icon": "",
+        "feature_2_heading": "",
+        "feature_2_text": "",
+        "feature_3_icon": "",
+        "feature_3_heading": "",
+        "feature_3_text": "",
         "feature_4_enabled": true,
-        "feature_4_icon": "04",
-        "feature_4_heading": "Refined details",
-        "feature_4_text": "<p>Add another technical or premium detail that helps justify the purchase.</p>"
+        "feature_4_icon": "",
+        "feature_4_heading": "",
+        "feature_4_text": ""
       }
     },
     {
       "name": "Brand Highlights",
       "settings": {
-        "eyebrow": "Brand highlights",
-        "heading": "A premium experience from start to finish",
-        "text": "<p>Use this section to explain brand values, service standards, quality commitments, or process advantages.</p>",
+        "eyebrow": "",
+        "heading": "",
+        "text": "",
         "cta_text": "Our story",
-        "media_badge": "Brand standard",
+        "media_badge": "",
         "layout_style": "stacked",
         "media_position": "right",
         "enable_sticky_media": false,
         "enable_progressive_reveal": true,
         "media_height": 520,
-        "feature_1_icon": "✓",
-        "feature_1_heading": "Customer-first guidance",
-        "feature_1_text": "<p>Explain how the brand helps customers make better decisions.</p>",
-        "feature_2_icon": "★",
-        "feature_2_heading": "Premium presentation",
-        "feature_2_text": "<p>Show how quality, design, and storytelling support a better experience.</p>",
-        "feature_3_icon": "◆",
-        "feature_3_heading": "Built for trust",
-        "feature_3_text": "<p>Highlight policies, support, proof points, or values that reinforce confidence.</p>"
+        "feature_1_icon": "",
+        "feature_1_heading": "",
+        "feature_1_text": "",
+        "feature_2_icon": "",
+        "feature_2_heading": "",
+        "feature_2_text": "",
+        "feature_3_icon": "",
+        "feature_3_heading": "",
+        "feature_3_text": ""
       }
     }
   ]
