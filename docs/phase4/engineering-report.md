@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 81/102 blocks and 23 dependencies individually reviewed; 104/125 Family 8 entries have dispositions (103 live queued, 1 dormant retained), 21 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 85/102 blocks and 24 dependencies individually reviewed; 109/126 Family 8 entries have dispositions (108 live queued, 1 dormant retained), 17 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1243,3 +1243,17 @@ B8-VISUAL-MEDIA live queue after engineering batches: native responsive image ge
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Unsuppressed CLI 4.8.0 remains at 509 findings (3 unchanged out-of-group errors, 506 warnings); no group errors and no suppression.
+
+## Batch 8 checkpoint — collection banners, cards, carousel and featured collection — 2026-09-22
+
+Previous checkpoint published as `c838b84fd52d160f99c9847a55b0e44635077366`; PR #22 remains DRAFT. Four collection discovery blocks now use truthful native content, complete links, safe image/price fallbacks and bounded responsive layouts. One collection-card helper removes repeated rendering. Collection Carousel composes with the existing shared engine for progressive native scrolling and correctly scoped navigation/rotation/editor behavior.
+
+85/102 blocks and 24 dependencies individually reviewed; 109/126 Family 8 entries have dispositions (108 live queued, 1 dormant retained), 17 NOT REVIEWED. Global dispositions: 441 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 42 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-collection-discovery/`. 378 actual default/preset/control/data-state renders cover all original IDs/types/options/range endpoints, native collection list/single/manual fallback and limits, zero counts/prices and variable prices, empty/partial images, escaped native/merchant copy and destinations, cleared labels, neutral insertion, one native wrapper and editor visibility. Actual shared-engine fixtures cover duplicate loading, two raw-ID instances, measured/clamped page targets, RTL arrows/Home/End, nested-key ownership, persistent pause and translated labels, reduced motion/page visibility/intersection, resize pagination focus, mutation insert/reorder/remove and section unload/reload. All prior content carousel/gallery-text fixtures retain their assertions. All 16 affected suites pass; 238 settings, 12 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-COLLECTION-DISCOVERY live queue after engineering batches: actual native collection/product image and price rendering, 320–1440px/zoom/RTL/nested-builder layout and image/caption contrast, real scroll-snap and measured pagination/keyboard/AT, autoplay pause/visibility/reduced motion, native Theme Editor insertion/reorder/removal. DOM geometry/timer/native-drop adapters are not acceptance. No live Shopify QA; earlier queues carry forward.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Unsuppressed CLI 4.8.0 moves from 509 to 510 findings: 3 unchanged out-of-group errors and 507 warnings. The one new helper orphan warning retains two traced callers; no suppression.

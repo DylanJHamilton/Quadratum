@@ -20,20 +20,58 @@
   if banner_image == blank and selected_collection != blank
     assign banner_image = selected_collection.image | default: selected_collection.featured_image
   endif
+
+  assign banner_heading = block.settings.heading | default: selected_collection.title | default: block.settings.fallback_heading
+  assign banner_text = ''
+  if block.settings.show_text
+    if block.settings.text_source == 'custom'
+      assign banner_text = block.settings.text
+    elsif selected_collection.description != blank
+      assign banner_text = selected_collection.description | strip_html | truncatewords: block.settings.description_words
+    else
+      assign banner_text = block.settings.fallback_text
+    endif
+  endif
+  assign primary_url = selected_collection.url | default: block.settings.custom_button_link
+  assign secondary_url = block.settings.secondary_button_link | default: selected_collection.url | default: routes.collections_url
+  assign has_primary = false
+  if block.settings.show_primary_button and block.settings.primary_button_label != blank and primary_url != blank
+    assign has_primary = true
+  endif
+  assign has_secondary = false
+  if block.settings.show_secondary_button and block.settings.secondary_button_label != blank and secondary_url != blank
+    assign has_secondary = true
+  endif
+  assign has_count = false
+  if selected_collection != blank and block.settings.show_product_count
+    assign has_count = true
+  endif
+  assign has_copy = false
+  if block.settings.eyebrow != blank or banner_heading != blank or banner_text != blank or has_primary or has_secondary or has_count
+    assign has_copy = true
+  endif
+  assign has_banner = false
+  if selected_collection != blank or block.settings.allow_custom_banner
+    if banner_image != blank or has_copy
+      assign has_banner = true
+    endif
+  endif
 -%}
 
 <div
   id="{{ block_id }}"
   class="
     content-collection-banner
+    {% if banner_image == blank %}content-collection-banner--no-media{% endif %}
+    {% unless has_copy %}content-collection-banner--no-copy{% endunless %}
     content-collection-banner--{{ banner_layout }}
     content-collection-banner--position-{{ content_position }}
     content-collection-banner--width-{{ width }}
     content-collection-banner--align-{{ alignment }}
-    {% unless show_on_desktop %} content-collection-banner--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} content-collection-banner--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} content-collection-banner--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} content-collection-banner--animate content-collection-banner--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} content-collection-banner--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} content-collection-banner--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} content-collection-banner--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} content-collection-banner--animate content-collection-banner--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --content-collection-banner-margin-top: {{ block.settings.margin_top }}px;
@@ -62,37 +100,37 @@
     data-product-id="{{ product_context.id }}"
     data-variant-id="{{ current_variant.id }}"
   {% endif %}
+  {% unless has_banner or request.design_mode %}hidden{% endunless %}
   data-content-collection-banner
-  {{ block.shopify_attributes }}
 >
   <style>
     #{{ block_id }} {
       width: 100%;
       margin-top: var(--content-collection-banner-margin-top);
       margin-bottom: var(--content-collection-banner-margin-bottom);
-      padding: var(--content-collection-banner-padding);
+      padding: min(var(--content-collection-banner-padding), 8%);
       color: var(--content-collection-banner-text-color);
       background: var(--content-collection-banner-background);
     }
 
     #{{ block_id }}.content-collection-banner--width-auto {
-      max-width: none;
+      max-width: 100%;
     }
 
     #{{ block_id }}.content-collection-banner--width-small {
-      max-width: 920px;
+      max-width: min(100%, 920px);
     }
 
     #{{ block_id }}.content-collection-banner--width-medium {
-      max-width: 1120px;
+      max-width: min(100%, 1120px);
     }
 
     #{{ block_id }}.content-collection-banner--width-large {
-      max-width: 1360px;
+      max-width: min(100%, 1360px);
     }
 
     #{{ block_id }}.content-collection-banner--width-full {
-      max-width: none;
+      max-width: 100%;
     }
 
     #{{ block_id }}.content-collection-banner--align-left {
@@ -192,7 +230,7 @@
       display: grid;
       align-items: center;
       min-width: 0;
-      padding: var(--content-collection-banner-inner-padding);
+      padding: min(var(--content-collection-banner-inner-padding), 8%);
     }
 
     #{{ block_id }}.content-collection-banner--position-top-left .content-collection-banner__content-wrap,
@@ -366,7 +404,7 @@
     }
 
     #{{ block_id }}.content-collection-banner--animate {
-      opacity: 0;
+      opacity: 1;
       animation-duration: 700ms;
       animation-fill-mode: forwards;
       animation-timing-function: ease;
@@ -459,7 +497,7 @@
       }
 
       #{{ block_id }} .content-collection-banner__content-wrap {
-        padding: max(calc(var(--content-collection-banner-inner-padding) - 12px), 20px);
+        padding: min(max(calc(var(--content-collection-banner-inner-padding) - 12px), 20px), 8%);
       }
 
       #{{ block_id }} .content-collection-banner__heading {
@@ -491,85 +529,44 @@
         transform: none;
       }
     }
+
+    #{{ block_id }} { min-width: 0; max-width: 100%; overflow-wrap: anywhere; container-type: inline-size; }
+    #{{ block_id }}, #{{ block_id }} * { box-sizing: border-box; }
+    #{{ block_id }}[hidden], #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} a, #{{ block_id }} button { max-width: 100%; overflow-wrap: anywhere; }
+    #{{ block_id }} :focus-visible { outline: 2px solid var(--content-collection-banner-focus-color); outline-offset: 3px; }
+    #{{ block_id }} img { max-width: 100%; }
+    #{{ block_id }} .content-collection-banner__button { white-space: normal; min-width: 0; }
+
+    #{{ block_id }}.content-collection-banner--no-media .content-collection-banner__shell,
+    #{{ block_id }}.content-collection-banner--no-copy .content-collection-banner__shell { grid-template-columns: minmax(0, 1fr); }
+    @container (max-width: 600px) {
+      #{{ block_id }}.content-collection-banner--split .content-collection-banner__shell { grid-template-columns: minmax(0, 1fr); }
+      #{{ block_id }}.content-collection-banner--split .content-collection-banner__media,
+      #{{ block_id }}.content-collection-banner--split .content-collection-banner__content-wrap { order: initial; min-height: var(--content-collection-banner-min-height-mobile); }
+      #{{ block_id }} .content-collection-banner__heading { font-size: {{ block.settings.heading_size_mobile }}px; }
+    }
   </style>
 
-  {% if selected_collection != blank or block.settings.allow_custom_banner %}
+  {% if has_banner %}
     <div class="content-collection-banner__shell">
-      <div class="content-collection-banner__media" aria-hidden="true">
-        {% if banner_image %}
-          {%- liquid
-            assign qtm_image_alt = banner_image.alt | default: selected_collection.title
-          -%}
-          {{ banner_image | image_url: width: 2200 | image_tag: loading: 'eager', widths: '600, 900, 1200, 1600, 2000, 2200', alt: qtm_image_alt }}
-        {% else %}
-          <span class="content-collection-banner__placeholder" aria-hidden="true"></span>
-        {% endif %}
-      </div>
-
-      <div class="content-collection-banner__content-wrap">
-        <div class="content-collection-banner__content">
-          {% if block.settings.eyebrow != blank %}
-            <p class="content-collection-banner__eyebrow">
-              {{ block.settings.eyebrow | escape }}
-            </p>
-          {% endif %}
-
-          <h2 class="content-collection-banner__heading">
-            {% if block.settings.heading != blank %}
-              {{ block.settings.heading | escape }}
-            {% elsif selected_collection != blank %}
-              {{ selected_collection.title | escape }}
-            {% else %}
-              {{ block.settings.fallback_heading | escape }}
-            {% endif %}
-          </h2>
-
-          {% if block.settings.show_text %}
-            <div class="content-collection-banner__text">
-              {% if block.settings.text_source == 'custom' %}
-                {{ block.settings.text | escape }}
-              {% elsif selected_collection != blank and selected_collection.description != blank %}
-                {{ selected_collection.description | strip_html | truncatewords: block.settings.description_words }}
-              {% else %}
-                {{ block.settings.fallback_text | escape }}
-              {% endif %}
-            </div>
-          {% endif %}
-
-          {% if selected_collection != blank and block.settings.show_product_count %}
-            <div class="content-collection-banner__meta">
-              <span>
-                {{ selected_collection.products_count }} {{ block.settings.product_count_label | escape }}
-              </span>
-            </div>
-          {% endif %}
-
-          <div class="content-collection-banner__buttons">
-            {% if block.settings.show_primary_button %}
-              <a
-                class="content-collection-banner__button"
-                href="{% if selected_collection != blank %}{{ selected_collection.url }}{% else %}{{ block.settings.custom_button_link }}{% endif %}"
-              >
-                {{ block.settings.primary_button_label | escape }}
-              </a>
-            {% endif %}
-
-            {% if block.settings.show_secondary_button %}
-              <a
-                class="content-collection-banner__button content-collection-banner__button--secondary"
-                href="{% if block.settings.secondary_button_link != blank %}{{ block.settings.secondary_button_link }}{% elsif selected_collection != blank %}{{ selected_collection.url }}{% else %}{{ routes.collections_url }}{% endif %}"
-              >
-                {{ block.settings.secondary_button_label | escape }}
-              </a>
-            {% endif %}
-          </div>
-        </div>
-      </div>
+      {% if banner_image %}<div class="content-collection-banner__media">
+        {%- assign qtm_image_alt = banner_image.alt | default: selected_collection.title -%}
+        {{ banner_image | image_url: width: 2200 | image_tag: loading: 'lazy', widths: '600, 900, 1200, 1600, 2000, 2200', sizes: '100vw', alt: qtm_image_alt }}
+      </div>{% endif %}
+      {% if has_copy %}<div class="content-collection-banner__content-wrap"><div class="content-collection-banner__content">
+        {% if block.settings.eyebrow != blank %}<p class="content-collection-banner__eyebrow">{{ block.settings.eyebrow | escape }}</p>{% endif %}
+        {% if banner_heading != blank %}<h2 class="content-collection-banner__heading">{{ banner_heading | escape }}</h2>{% endif %}
+        {% if banner_text != blank %}<div class="content-collection-banner__text">{{ banner_text | escape }}</div>{% endif %}
+        {% if has_count %}<div class="content-collection-banner__meta"><span>{{ selected_collection.products_count }} {{ block.settings.product_count_label | escape }}</span></div>{% endif %}
+        {% if has_primary or has_secondary %}<div class="content-collection-banner__buttons">
+          {% if has_primary %}<a class="content-collection-banner__button" href="{{ primary_url | escape }}">{{ block.settings.primary_button_label | escape }}</a>{% endif %}
+          {% if has_secondary %}<a class="content-collection-banner__button content-collection-banner__button--secondary" href="{{ secondary_url | escape }}">{{ block.settings.secondary_button_label | escape }}</a>{% endif %}
+        </div>{% endif %}
+      </div></div>{% endif %}
     </div>
-  {% elsif block.settings.show_empty_state %}
-    <div class="content-collection-banner__empty">
-      {{ block.settings.empty_text | escape }}
-    </div>
+  {% elsif request.design_mode and block.settings.show_empty_state %}
+    <div class="content-collection-banner__empty" role="note">{{ block.settings.empty_text | default: 'Select a collection or add custom banner content.' | escape }}</div>
   {% endif %}
 </div>
 
@@ -592,7 +589,6 @@
       "label": "Allow custom banner without collection",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Banner image"
@@ -618,7 +614,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -717,7 +712,6 @@
       "unit": "px",
       "default": 620
     },
-
     {
       "type": "header",
       "content": "Content"
@@ -725,20 +719,17 @@
     {
       "type": "text",
       "id": "eyebrow",
-      "label": "Eyebrow",
-      "default": "Featured collection"
+      "label": "Eyebrow"
     },
     {
       "type": "text",
       "id": "heading",
-      "label": "Custom heading",
-      "default": "Shop the collection"
+      "label": "Custom heading"
     },
     {
       "type": "text",
       "id": "fallback_heading",
-      "label": "Fallback heading",
-      "default": "Collection promotion"
+      "label": "Fallback heading"
     },
     {
       "type": "checkbox",
@@ -765,14 +756,12 @@
     {
       "type": "text",
       "id": "text",
-      "label": "Custom text",
-      "default": "Promote a collection, campaign, or seasonal shopping moment with a high-impact banner."
+      "label": "Custom text"
     },
     {
       "type": "text",
       "id": "fallback_text",
-      "label": "Fallback text",
-      "default": "Use this banner to guide shoppers into a focused collection or campaign."
+      "label": "Fallback text"
     },
     {
       "type": "range",
@@ -795,7 +784,6 @@
       "label": "Product count label",
       "default": "products"
     },
-
     {
       "type": "header",
       "content": "Buttons"
@@ -854,7 +842,6 @@
       "unit": "px",
       "default": 12
     },
-
     {
       "type": "header",
       "content": "Typography"
@@ -889,7 +876,6 @@
       "unit": "px",
       "default": 17
     },
-
     {
       "type": "header",
       "content": "Overlay"
@@ -910,7 +896,6 @@
       "unit": "%",
       "default": 35
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -969,7 +954,6 @@
       "label": "Focus color",
       "default": "#ffffff"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -994,7 +978,6 @@
       "unit": "px",
       "default": 28
     },
-
     {
       "type": "header",
       "content": "Container"
@@ -1047,7 +1030,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1102,7 +1084,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Empty state"
@@ -1119,7 +1100,6 @@
       "label": "Empty state text",
       "default": "Select a collection or enable custom banner mode to display this banner."
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1142,7 +1122,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1183,13 +1162,13 @@
         "min_height": 520,
         "min_height_mobile": 420,
         "content_width": 620,
-        "eyebrow": "Featured collection",
-        "heading": "Shop the collection",
-        "fallback_heading": "Collection promotion",
+        "eyebrow": "",
+        "heading": "",
+        "fallback_heading": "",
         "show_text": true,
         "text_source": "custom",
-        "text": "Promote a collection, campaign, or seasonal shopping moment with a high-impact banner.",
-        "fallback_text": "Use this banner to guide shoppers into a focused collection or campaign.",
+        "text": "",
+        "fallback_text": "",
         "description_words": 28,
         "show_product_count": true,
         "product_count_label": "products",
@@ -1240,19 +1219,19 @@
         "min_height": 560,
         "min_height_mobile": 440,
         "content_width": 700,
-        "eyebrow": "Campaign",
-        "heading": "Limited-time collection",
-        "fallback_heading": "Campaign promotion",
+        "eyebrow": "",
+        "heading": "",
+        "fallback_heading": "",
         "show_text": true,
         "text_source": "custom",
-        "text": "Create a focused campaign banner for launches, promotions, and high-value merchandising moments.",
-        "fallback_text": "Use this banner to guide shoppers into a focused collection or campaign.",
+        "text": "",
+        "fallback_text": "",
         "description_words": 28,
         "show_product_count": false,
         "product_count_label": "products",
         "show_primary_button": true,
         "primary_button_label": "Shop now",
-        "show_secondary_button": true,
+        "show_secondary_button": false,
         "secondary_button_label": "Explore more",
         "button_height": 54,
         "button_radius": 14,
@@ -1297,19 +1276,19 @@
         "min_height": 520,
         "min_height_mobile": 360,
         "content_width": 600,
-        "eyebrow": "Seasonal promotion",
-        "heading": "Shop the seasonal edit",
-        "fallback_heading": "Seasonal promotion",
+        "eyebrow": "",
+        "heading": "",
+        "fallback_heading": "",
         "show_text": true,
         "text_source": "custom",
-        "text": "Promote a seasonal collection with strong editorial copy, visual impact, and a clear path to shop.",
-        "fallback_text": "Use this banner to guide shoppers into a focused collection or campaign.",
+        "text": "",
+        "fallback_text": "",
         "description_words": 28,
         "show_product_count": true,
         "product_count_label": "products",
         "show_primary_button": true,
         "primary_button_label": "Shop collection",
-        "show_secondary_button": true,
+        "show_secondary_button": false,
         "secondary_button_label": "View all",
         "button_height": 52,
         "button_radius": 12,

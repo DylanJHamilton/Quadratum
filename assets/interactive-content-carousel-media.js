@@ -28,8 +28,8 @@
       this.manualPause = false;
       this.hovered = false;
       this.focused = root.contains(document.activeElement);
-      this.onScreen = true;
-      this.editorPause = false;
+      this.onScreen = !root.hasAttribute('data-qtm-block-carousel') || !window.IntersectionObserver;
+      this.editorPause = root.dataset.designMode === 'true';
       this.destroyed = false;
       this.status = document.createElement('span');
       this.status.className = 'sr-only';
@@ -144,7 +144,7 @@
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'q-carousel__dot q-th__dot';
         button.dataset.carouselPage = String(i);
-        button.setAttribute('aria-label', `Go to page ${i + 1}`);
+        button.setAttribute('aria-label', `${this.root.dataset.goToLabel || 'Go to page'} ${i + 1}`);
         return button;
       }));
       if (focused) this.dots.children[Math.min(focusedPage, this.targets.length - 1)]?.focus();
@@ -188,9 +188,10 @@
         this.toggle.hidden = !this.autoplay || this.targets.length < 2;
         this.toggle.disabled = this.motion.matches;
         this.toggle.setAttribute('aria-pressed', String(this.manualPause || this.motion.matches));
-        this.toggle.textContent = this.motion.matches ? 'Rotation paused (reduced motion)' : this.manualPause ? 'Resume rotation' : 'Pause rotation';
+        this.toggle.textContent = this.motion.matches ? (this.root.dataset.reducedMotionLabel || 'Rotation paused (reduced motion)') : this.manualPause ? (this.root.dataset.resumeLabel || 'Resume rotation') : (this.root.dataset.pauseLabel || 'Pause rotation');
       }
       const paused = this.manualPause || this.motion.matches || document.hidden || !this.onScreen || this.editorPause ||
+        (this.root.hasAttribute('data-qtm-block-carousel') && !this.root.getClientRects().length) ||
         (this.hovered && this.root.dataset.pauseHover === 'true') || (this.focused && this.root.dataset.pauseFocus === 'true');
       if (!this.destroyed && this.autoplay && this.targets.length > 1 && !paused && (this.loop || this.index < this.targets.length - 1)) {
         this.timer = window.setInterval(() => this.step(1), this.speed);
@@ -231,13 +232,24 @@
   }
 
   function scan(scope = document) {
+    if (!scope?.querySelectorAll) return;
     roots(scope).forEach(root => {
       if (!root.__qCarousel && root.querySelector('.q-carousel__viewport') && root.querySelector('.q-carousel__track') && root.querySelector('.q-carousel__slide')) root.__qCarousel = new QCarousel(root);
     });
   }
   window.QuadratumCarousel = { scan };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => scan(), { once: true });
-  else scan();
+  function start() {
+    scan();
+    // Theme Blocks can be inserted/removed without replacing their host section.
+    if (window.MutationObserver && document.body) new MutationObserver(records => {
+      for (const record of records) {
+        for (const node of record.removedNodes) if (!node.isConnected && node.querySelectorAll) roots(node).filter(root => root.hasAttribute('data-qtm-block-carousel')).forEach(root => root.__qCarousel?.destroy());
+        for (const node of record.addedNodes) if (node.querySelectorAll) roots(node).filter(root => root.hasAttribute('data-qtm-block-carousel')).forEach(root => scan(root));
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
   document.addEventListener('shopify:section:load', e => scan(e.target));
   document.addEventListener('shopify:section:unload', e => roots(e.target).forEach(root => root.__qCarousel?.destroy()));
   document.addEventListener('shopify:block:select', e => {
@@ -247,6 +259,6 @@
   });
   document.addEventListener('shopify:block:deselect', e => {
     const instance = e.target.closest(selector)?.__qCarousel;
-    if (instance) { instance.editorPause = false; instance.syncAutoplay(); }
+    if (instance) { instance.editorPause = instance.root.dataset.designMode === 'true'; instance.syncAutoplay(); }
   });
 })();
