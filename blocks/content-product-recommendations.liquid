@@ -16,8 +16,42 @@
   assign show_on_tablet = block.settings.show_on_tablet
   assign show_on_mobile = block.settings.show_on_mobile
 
-  assign recommendation_url = routes.product_recommendations_url | append: '?section_id=' | append: section.id | append: '&product_id=' | append: product_context.id | append: '&limit=' | append: recommendation_limit
+
+  assign card_products = selected_collection.products
+  if source == 'manual'
+    assign card_products = block.settings.products
+  endif
+  assign rendered_products = 0
+
+  assign product_limit = recommendation_limit
+  assign performed_for_block = false
+  assign native_recommendations = false
+  assign can_request_recommendations = false
+  if source == 'recommendations'
+    assign card_products = blank
+    assign native_limit = recommendation_limit | at_most: 10
+    if recommendations.performed and recommendations.intent == 'related'
+      assign performed_for_block = true
+      assign card_products = recommendations.products
+      assign product_limit = native_limit
+      if recommendations.products_count > 0
+        assign native_recommendations = true
+      endif
+    elsif product_context != blank and section.id != blank and routes.product_recommendations_url != blank
+      assign can_request_recommendations = true
+    endif
+    assign recommendation_url = routes.product_recommendations_url | append: '?section_id=' | append: section.id | append: '&product_id=' | append: product_context.id | append: '&limit=' | append: native_limit | append: '&intent=related'
+  endif
 -%}
+
+{%- capture product_cards -%}
+  {%- for card_product in card_products limit: product_limit -%}
+    {%- if card_product != blank and card_product.url != blank -%}
+      {%- render 'qtm-block-product-card', card_product: card_product, block: block, prefix: 'content-product-recommendations', price_scope: 'product', media_policy: 'omit-missing' -%}
+      {%- assign rendered_products = rendered_products | plus: 1 -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endcapture -%}
 
 <div
   id="{{ block_id }}"
@@ -26,10 +60,10 @@
     content-product-recommendations--{{ recommendation_layout }}
     content-product-recommendations--width-{{ width }}
     content-product-recommendations--align-{{ alignment }}
-    {% unless show_on_desktop %} content-product-recommendations--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} content-product-recommendations--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} content-product-recommendations--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} content-product-recommendations--animate content-product-recommendations--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} content-product-recommendations--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} content-product-recommendations--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} content-product-recommendations--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} content-product-recommendations--animate content-product-recommendations--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --content-product-recommendations-margin-top: {{ block.settings.margin_top }}px;
@@ -60,41 +94,41 @@
     data-product-id="{{ product_context.id }}"
     data-variant-id="{{ current_variant.id }}"
   {% endif %}
+  {% if rendered_products == 0 and request.design_mode == false %}hidden{% endif %}
   data-content-product-recommendations
-  data-recommendations-source="{{ source }}"
-  {% if product_context != blank %}
-    data-recommendations-url="{{ recommendation_url }}"
-  {% endif %}
-  {{ block.shopify_attributes }}
+  data-qtm-product-cards data-carousel="{% if recommendation_layout == 'carousel' %}true{% else %}false{% endif %}"
+  data-dynamic-recommendations="{{ can_request_recommendations }}" data-recommendations-intent="related"
+  data-recommendations-performed="{{ performed_for_block }}" data-native-recommendations="{{ native_recommendations }}"
+  {% if can_request_recommendations %}data-recommendations-url="{{ recommendation_url | escape }}"{% endif %}
 >
   <style>
     #{{ block_id }} {
       width: 100%;
       margin-top: var(--content-product-recommendations-margin-top);
       margin-bottom: var(--content-product-recommendations-margin-bottom);
-      padding: var(--content-product-recommendations-padding);
+      padding: min(var(--content-product-recommendations-padding), 8%);
       color: var(--content-product-recommendations-text-color);
       background: var(--content-product-recommendations-background);
     }
 
     #{{ block_id }}.content-product-recommendations--width-auto {
-      max-width: none;
+      max-width: 100%;
     }
 
     #{{ block_id }}.content-product-recommendations--width-small {
-      max-width: 900px;
+      max-width: min(100%, 900px);
     }
 
     #{{ block_id }}.content-product-recommendations--width-medium {
-      max-width: 1100px;
+      max-width: min(100%, 1100px);
     }
 
     #{{ block_id }}.content-product-recommendations--width-large {
-      max-width: 1320px;
+      max-width: min(100%, 1320px);
     }
 
     #{{ block_id }}.content-product-recommendations--width-full {
-      max-width: none;
+      max-width: 100%;
     }
 
     #{{ block_id }}.content-product-recommendations--align-left {
@@ -245,7 +279,7 @@
     #{{ block_id }}.content-product-recommendations--grid .content-product-recommendations__card,
     #{{ block_id }}.content-product-recommendations--carousel .content-product-recommendations__card,
     #{{ block_id }}.content-product-recommendations--cards .content-product-recommendations__card {
-      padding: var(--content-product-recommendations-card-padding);
+      padding: min(var(--content-product-recommendations-card-padding), 8%);
       background: var(--content-product-recommendations-card-background);
       border: var(--content-product-recommendations-border-width) solid var(--content-product-recommendations-border-color);
       border-radius: var(--content-product-recommendations-card-radius);
@@ -408,7 +442,7 @@
     }
 
     #{{ block_id }}.content-product-recommendations--animate {
-      opacity: 0;
+      opacity: 1;
       animation-duration: 700ms;
       animation-fill-mode: forwards;
       animation-timing-function: ease;
@@ -527,401 +561,46 @@
         transform: none;
       }
     }
+
+    #{{ block_id }} { min-width: 0; max-width: 100%; overflow-wrap: anywhere; container-type: inline-size; }
+    #{{ block_id }}, #{{ block_id }} * { box-sizing: border-box; }
+    #{{ block_id }}[hidden], #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} a, #{{ block_id }} button, #{{ block_id }} img { max-width: 100%; }
+    #{{ block_id }} .content-product-recommendations__item, #{{ block_id }} .content-product-recommendations__header { min-width: 0; }
+    #{{ block_id }} .content-product-recommendations__card { height: 100%; }
+    #{{ block_id }} .content-product-recommendations__button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+    #{{ block_id }} .content-product-recommendations__title a { color: inherit; text-decoration: none; }
+    #{{ block_id }} .content-product-recommendations__badge { max-width: calc(100% - 20px); }
+    #{{ block_id }} .content-product-recommendations__badge--inline { position: static; width: fit-content; max-width: 100%; }
+    #{{ block_id }} :focus-visible { outline: 2px solid var(--content-product-recommendations-focus-color); outline-offset: -3px; }
+
+    @container (max-width: 600px) {
+      #{{ block_id }} .content-product-recommendations__items { grid-template-columns: repeat(var(--content-product-recommendations-columns-mobile), minmax(0, 1fr)); }
+      #{{ block_id }}.content-product-recommendations--carousel .content-product-recommendations__item { flex-basis: calc((100% - (var(--content-product-recommendations-gap) * (var(--content-product-recommendations-columns-mobile) - 1))) / var(--content-product-recommendations-columns-mobile)); }
+      #{{ block_id }} .content-product-recommendations__heading { font-size: {{ block.settings.heading_size_mobile }}px; }
+    }
+    #{{ block_id }}:dir(rtl) .content-product-recommendations__arrow span { transform: scaleX(-1); }
+    #{{ block_id }} .content-product-recommendations__controls { flex-wrap: wrap; }
+    #{{ block_id }}.content-product-recommendations--carousel .content-product-recommendations__item { min-width: min(100%, 160px); }
   </style>
-
-  <div class="content-product-recommendations__inner">
+<div class="content-product-recommendations__inner">
     {% if block.settings.show_header %}
-      <div class="content-product-recommendations__header-row">
-        <div class="content-product-recommendations__header">
-          {% if block.settings.eyebrow != blank %}
-            <p class="content-product-recommendations__eyebrow">
-              {{ block.settings.eyebrow | escape }}
-            </p>
-          {% endif %}
-
-          {% if block.settings.heading != blank %}
-            <h2 class="content-product-recommendations__heading">
-              {{ block.settings.heading | escape }}
-            </h2>
-          {% endif %}
-
-          {% if block.settings.description != blank %}
-            <p class="content-product-recommendations__description">
-              {{ block.settings.description | escape }}
-            </p>
-          {% endif %}
-        </div>
-
-        {% if recommendation_layout == 'carousel' and block.settings.show_arrows %}
-          <div class="content-product-recommendations__controls">
-            <button
-              type="button"
-              class="content-product-recommendations__arrow"
-              data-content-product-recommendations-prev
-              aria-label="{{ block.settings.previous_label | escape }}"
-            >
-              ‹
-            </button>
-
-            <button
-              type="button"
-              class="content-product-recommendations__arrow"
-              data-content-product-recommendations-next
-              aria-label="{{ block.settings.next_label | escape }}"
-            >
-              ›
-            </button>
-          </div>
-        {% endif %}
-      </div>
+      {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.description != blank %}
+      <div class="content-product-recommendations__header-row"><div class="content-product-recommendations__header">
+        {% if block.settings.eyebrow != blank %}<p class="content-product-recommendations__eyebrow">{{ block.settings.eyebrow | escape }}</p>{% endif %}
+        {% if block.settings.heading != blank %}<h2 class="content-product-recommendations__heading">{{ block.settings.heading | escape }}</h2>{% endif %}
+        {% if block.settings.description != blank %}<p class="content-product-recommendations__description">{{ block.settings.description | escape }}</p>{% endif %}
+      </div></div>{% endif %}
     {% endif %}
 
-    {%- liquid
-      assign rendered_products = 0
-    -%}
+    {% if recommendation_layout == 'carousel' and block.settings.show_arrows %}<div class="content-product-recommendations__controls" data-card-controls hidden>
+      <button type="button" class="content-product-recommendations__arrow" data-card-prev aria-controls="{{ block_id }}-items" aria-label="{{ block.settings.previous_label | default: 'Previous products' | escape }}"><span aria-hidden="true">‹</span></button>
+      <button type="button" class="content-product-recommendations__arrow" data-card-next aria-controls="{{ block_id }}-items" aria-label="{{ block.settings.next_label | default: 'Next products' | escape }}"><span aria-hidden="true">›</span></button>
+    </div>{% endif %}
+    <div id="{{ block_id }}-items" class="content-product-recommendations__items" data-card-items role="region" aria-label="{{ block.settings.recommendations_label | default: 'Related products' | escape }}" {% if recommendation_layout == 'carousel' %}tabindex="0"{% endif %}>{{ product_cards }}</div>
 
-    <div
-      class="content-product-recommendations__items"
-      data-content-product-recommendations-items
-      aria-label="{{ block.settings.recommendations_label | escape }}"
-      {% if recommendation_layout == 'carousel' %}tabindex="0"{% endif %}
-    >
-      {% if source == 'recommendations' and recommendations.performed and recommendations.products_count > 0 %}
-        {% for recommended_product in recommendations.products limit: recommendation_limit %}
-          {%- liquid
-            assign rendered_products = rendered_products | plus: 1
-            assign recommended_variant = recommended_product.selected_or_first_available_variant
-            assign is_on_sale = false
-
-            if recommended_variant.compare_at_price > recommended_variant.price
-              assign is_on_sale = true
-            endif
-          -%}
-
-          <article class="content-product-recommendations__item" data-content-product-recommendations-item>
-            <div class="content-product-recommendations__card">
-              <a class="content-product-recommendations__media" href="{{ recommended_product.url }}" aria-label="{{ recommended_product.title | escape }}">
-                {% if recommended_product.featured_image %}
-                  {% if forloop.first %}
-                    {%- liquid
-                      assign qtm_image_alt = recommended_product.featured_image.alt | default: recommended_product.title
-                    -%}
-                    {{ recommended_product.featured_image | image_url: width: 900 | image_tag: loading: 'eager', widths: '320, 480, 640, 800, 900', alt: qtm_image_alt }}
-                  {% else %}
-                    {%- liquid
-                      assign qtm_image_alt = recommended_product.featured_image.alt | default: recommended_product.title
-                    -%}
-                    {{ recommended_product.featured_image | image_url: width: 900 | image_tag: loading: 'lazy', widths: '320, 480, 640, 800, 900', alt: qtm_image_alt }}
-                  {% endif %}
-                {% else %}
-                  <span class="content-product-recommendations__placeholder" aria-hidden="true"></span>
-                {% endif %}
-
-                {% if block.settings.show_sale_badge and is_on_sale %}
-                  <span class="content-product-recommendations__badge">
-                    {{ block.settings.sale_badge_text | escape }}
-                  </span>
-                {% endif %}
-              </a>
-
-              <div class="content-product-recommendations__content">
-                {% if block.settings.show_vendor and recommended_product.vendor != blank %}
-                  <div class="content-product-recommendations__vendor">
-                    {{ recommended_product.vendor | escape }}
-                  </div>
-                {% endif %}
-
-                <h3 class="content-product-recommendations__title">
-                  <a href="{{ recommended_product.url }}">
-                    {{ recommended_product.title | escape }}
-                  </a>
-                </h3>
-
-                {% if block.settings.show_price %}
-                  <div class="content-product-recommendations__price-row">
-                    <span class="content-product-recommendations__price">
-                      {{ recommended_variant.price | money }}
-                    </span>
-
-                    {% if is_on_sale %}
-                      <span class="content-product-recommendations__compare">
-                        {{ recommended_variant.compare_at_price | money }}
-                      </span>
-                    {% endif %}
-                  </div>
-                {% endif %}
-
-                {% if block.settings.show_button %}
-                  <a class="content-product-recommendations__button" href="{{ recommended_product.url }}">
-                    {{ block.settings.button_label | escape }}
-                  </a>
-                {% endif %}
-              </div>
-            </div>
-          </article>
-        {% endfor %}
-
-      {% elsif source == 'manual' %}
-        {% for recommended_product in block.settings.products limit: recommendation_limit %}
-          {%- liquid
-            assign rendered_products = rendered_products | plus: 1
-            assign recommended_variant = recommended_product.selected_or_first_available_variant
-            assign is_on_sale = false
-
-            if recommended_variant.compare_at_price > recommended_variant.price
-              assign is_on_sale = true
-            endif
-          -%}
-
-          <article class="content-product-recommendations__item" data-content-product-recommendations-item>
-            <div class="content-product-recommendations__card">
-              <a class="content-product-recommendations__media" href="{{ recommended_product.url }}" aria-label="{{ recommended_product.title | escape }}">
-                {% if recommended_product.featured_image %}
-                  {% if forloop.first %}
-                    {%- liquid
-                      assign qtm_image_alt = recommended_product.featured_image.alt | default: recommended_product.title
-                    -%}
-                    {{ recommended_product.featured_image | image_url: width: 900 | image_tag: loading: 'eager', widths: '320, 480, 640, 800, 900', alt: qtm_image_alt }}
-                  {% else %}
-                    {%- liquid
-                      assign qtm_image_alt = recommended_product.featured_image.alt | default: recommended_product.title
-                    -%}
-                    {{ recommended_product.featured_image | image_url: width: 900 | image_tag: loading: 'lazy', widths: '320, 480, 640, 800, 900', alt: qtm_image_alt }}
-                  {% endif %}
-                {% else %}
-                  <span class="content-product-recommendations__placeholder" aria-hidden="true"></span>
-                {% endif %}
-
-                {% if block.settings.show_sale_badge and is_on_sale %}
-                  <span class="content-product-recommendations__badge">
-                    {{ block.settings.sale_badge_text | escape }}
-                  </span>
-                {% endif %}
-              </a>
-
-              <div class="content-product-recommendations__content">
-                {% if block.settings.show_vendor and recommended_product.vendor != blank %}
-                  <div class="content-product-recommendations__vendor">
-                    {{ recommended_product.vendor | escape }}
-                  </div>
-                {% endif %}
-
-                <h3 class="content-product-recommendations__title">
-                  <a href="{{ recommended_product.url }}">
-                    {{ recommended_product.title | escape }}
-                  </a>
-                </h3>
-
-                {% if block.settings.show_price %}
-                  <div class="content-product-recommendations__price-row">
-                    <span class="content-product-recommendations__price">
-                      {{ recommended_variant.price | money }}
-                    </span>
-
-                    {% if is_on_sale %}
-                      <span class="content-product-recommendations__compare">
-                        {{ recommended_variant.compare_at_price | money }}
-                      </span>
-                    {% endif %}
-                  </div>
-                {% endif %}
-
-                {% if block.settings.show_button %}
-                  <a class="content-product-recommendations__button" href="{{ recommended_product.url }}">
-                    {{ block.settings.button_label | escape }}
-                  </a>
-                {% endif %}
-              </div>
-            </div>
-          </article>
-        {% endfor %}
-
-      {% elsif source == 'collection' and selected_collection != blank %}
-        {% for recommended_product in selected_collection.products limit: recommendation_limit %}
-          {%- liquid
-            assign rendered_products = rendered_products | plus: 1
-            assign recommended_variant = recommended_product.selected_or_first_available_variant
-            assign is_on_sale = false
-
-            if recommended_variant.compare_at_price > recommended_variant.price
-              assign is_on_sale = true
-            endif
-          -%}
-
-          <article class="content-product-recommendations__item" data-content-product-recommendations-item>
-            <div class="content-product-recommendations__card">
-              <a class="content-product-recommendations__media" href="{{ recommended_product.url }}" aria-label="{{ recommended_product.title | escape }}">
-                {% if recommended_product.featured_image %}
-                  {% if forloop.first %}
-                    {%- liquid
-                      assign qtm_image_alt = recommended_product.featured_image.alt | default: recommended_product.title
-                    -%}
-                    {{ recommended_product.featured_image | image_url: width: 900 | image_tag: loading: 'eager', widths: '320, 480, 640, 800, 900', alt: qtm_image_alt }}
-                  {% else %}
-                    {%- liquid
-                      assign qtm_image_alt = recommended_product.featured_image.alt | default: recommended_product.title
-                    -%}
-                    {{ recommended_product.featured_image | image_url: width: 900 | image_tag: loading: 'lazy', widths: '320, 480, 640, 800, 900', alt: qtm_image_alt }}
-                  {% endif %}
-                {% else %}
-                  <span class="content-product-recommendations__placeholder" aria-hidden="true"></span>
-                {% endif %}
-
-                {% if block.settings.show_sale_badge and is_on_sale %}
-                  <span class="content-product-recommendations__badge">
-                    {{ block.settings.sale_badge_text | escape }}
-                  </span>
-                {% endif %}
-              </a>
-
-              <div class="content-product-recommendations__content">
-                {% if block.settings.show_vendor and recommended_product.vendor != blank %}
-                  <div class="content-product-recommendations__vendor">
-                    {{ recommended_product.vendor | escape }}
-                  </div>
-                {% endif %}
-
-                <h3 class="content-product-recommendations__title">
-                  <a href="{{ recommended_product.url }}">
-                    {{ recommended_product.title | escape }}
-                  </a>
-                </h3>
-
-                {% if block.settings.show_price %}
-                  <div class="content-product-recommendations__price-row">
-                    <span class="content-product-recommendations__price">
-                      {{ recommended_variant.price | money }}
-                    </span>
-
-                    {% if is_on_sale %}
-                      <span class="content-product-recommendations__compare">
-                        {{ recommended_variant.compare_at_price | money }}
-                      </span>
-                    {% endif %}
-                  </div>
-                {% endif %}
-
-                {% if block.settings.show_button %}
-                  <a class="content-product-recommendations__button" href="{{ recommended_product.url }}">
-                    {{ block.settings.button_label | escape }}
-                  </a>
-                {% endif %}
-              </div>
-            </div>
-          </article>
-        {% endfor %}
-      {% endif %}
-    </div>
-
-    {% if rendered_products == 0 and block.settings.show_empty_state %}
-      <div class="content-product-recommendations__empty" data-content-product-recommendations-empty>
-        {{ block.settings.empty_text | escape }}
-      </div>
-    {% endif %}
+    {% if rendered_products == 0 and request.design_mode and block.settings.show_empty_state %}<div class="content-product-recommendations__empty" role="note" data-card-empty>{{ block.settings.empty_text | default: 'Select products or a collection for this block.' | escape }}</div>{% endif %}
   </div>
-
-  <script>
-    (() => {
-      const root = document.getElementById({{ block_id | json }});
-
-      if (!root || root.dataset.contentProductRecommendationsReady === 'true') return;
-
-      root.dataset.contentProductRecommendationsReady = 'true';
-
-      const items = root.querySelector('[data-content-product-recommendations-items]');
-      const previousButton = root.querySelector('[data-content-product-recommendations-prev]');
-      const nextButton = root.querySelector('[data-content-product-recommendations-next]');
-      const emptyState = root.querySelector('[data-content-product-recommendations-empty]');
-      const source = root.dataset.recommendationsSource;
-      const url = root.dataset.recommendationsUrl;
-
-      if (!items) return;
-
-      const updateControls = () => {
-        if (!previousButton && !nextButton) return;
-
-        const maxScroll = items.scrollWidth - items.clientWidth - 2;
-
-        if (previousButton) {
-          previousButton.disabled = items.scrollLeft <= 2;
-        }
-
-        if (nextButton) {
-          nextButton.disabled = items.scrollLeft >= maxScroll;
-        }
-      };
-
-      const scrollCarousel = (direction) => {
-        const firstItem = items.querySelector('[data-content-product-recommendations-item]');
-        const amount = firstItem ? firstItem.getBoundingClientRect().width + 20 : items.clientWidth * 0.8;
-
-        items.scrollBy({
-          left: amount * direction,
-          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
-        });
-      };
-
-      if (previousButton) {
-        previousButton.addEventListener('click', () => scrollCarousel(-1));
-      }
-
-      if (nextButton) {
-        nextButton.addEventListener('click', () => scrollCarousel(1));
-      }
-
-      items.addEventListener('scroll', () => {
-        window.requestAnimationFrame(updateControls);
-      }, { passive: true });
-
-      items.addEventListener('keydown', (event) => {
-        if (event.key === 'ArrowLeft') {
-          event.preventDefault();
-          scrollCarousel(-1);
-        }
-
-        if (event.key === 'ArrowRight') {
-          event.preventDefault();
-          scrollCarousel(1);
-        }
-      });
-
-      const hydrateRecommendations = async () => {
-        if (source !== 'recommendations' || !url) return;
-        if (items.children.length > 0) return;
-
-        root.classList.add('content-product-recommendations--is-loading');
-
-        try {
-          const response = await fetch(url);
-
-          if (!response.ok) return;
-
-          const html = await response.text();
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(html, 'text/html');
-          const incomingRoot = doc.querySelector(`#${CSS.escape(root.id)}`);
-          const incomingItems = incomingRoot ? incomingRoot.querySelector('[data-content-product-recommendations-items]') : null;
-
-          if (incomingItems && incomingItems.children.length > 0) {
-            items.innerHTML = incomingItems.innerHTML;
-
-            if (emptyState) {
-              emptyState.hidden = true;
-            }
-          }
-        } catch (error) {
-          return;
-        } finally {
-          root.classList.remove('content-product-recommendations--is-loading');
-          updateControls();
-        }
-      };
-
-      hydrateRecommendations();
-      updateControls();
-      window.addEventListener('resize', updateControls, { passive: true });
-    })();
-  </script>
 </div>
 
 {% schema %}
@@ -970,9 +649,9 @@
       "min": 2,
       "max": 24,
       "step": 1,
-      "default": 4
+      "default": 4,
+      "info": "Shopify recommendations return up to 10 products. Manual and collection sources use the full limit."
     },
-
     {
       "type": "header",
       "content": "Header"
@@ -986,20 +665,17 @@
     {
       "type": "text",
       "id": "eyebrow",
-      "label": "Eyebrow",
-      "default": "Recommended"
+      "label": "Eyebrow"
     },
     {
       "type": "text",
       "id": "heading",
-      "label": "Heading",
-      "default": "Recommended for you"
+      "label": "Heading"
     },
     {
       "type": "text",
       "id": "description",
-      "label": "Description",
-      "default": "Help shoppers discover related products and useful add-ons."
+      "label": "Description"
     },
     {
       "type": "range",
@@ -1031,7 +707,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -1068,7 +743,6 @@
       "label": "Show arrows on mobile",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Product card"
@@ -1119,7 +793,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Images"
@@ -1150,7 +823,6 @@
       "unit": "%",
       "default": 125
     },
-
     {
       "type": "header",
       "content": "Columns"
@@ -1182,7 +854,6 @@
       "step": 1,
       "default": 1
     },
-
     {
       "type": "header",
       "content": "Empty state"
@@ -1199,7 +870,6 @@
       "label": "Empty state text",
       "default": "Recommendations will appear when products are available."
     },
-
     {
       "type": "header",
       "content": "Accessibility labels"
@@ -1222,7 +892,6 @@
       "label": "Next label",
       "default": "Next recommended products"
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1299,7 +968,6 @@
       "label": "Focus color",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1324,7 +992,6 @@
       "unit": "px",
       "default": 18
     },
-
     {
       "type": "header",
       "content": "Container"
@@ -1377,7 +1044,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1432,7 +1098,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1455,7 +1120,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1483,6 +1147,12 @@
           "label": "Zoom"
         }
       ]
+    },
+    {
+      "type": "text",
+      "id": "price_from_label",
+      "label": "Price range prefix",
+      "default": "From"
     }
   ],
   "presets": [
@@ -1492,9 +1162,9 @@
         "product_source": "recommendations",
         "product_limit": 4,
         "show_header": true,
-        "eyebrow": "Recommended",
-        "heading": "Recommended for you",
-        "description": "Help shoppers discover related products and useful add-ons.",
+        "eyebrow": "",
+        "heading": "",
+        "description": "",
         "heading_size": 36,
         "heading_size_mobile": 28,
         "description_size": 16,
@@ -1551,9 +1221,9 @@
         "product_source": "recommendations",
         "product_limit": 8,
         "show_header": true,
-        "eyebrow": "You may also like",
-        "heading": "Related products",
-        "description": "Display similar products that support product discovery and cross-selling.",
+        "eyebrow": "",
+        "heading": "",
+        "description": "",
         "heading_size": 36,
         "heading_size_mobile": 28,
         "description_size": 16,
@@ -1610,9 +1280,9 @@
         "product_source": "collection",
         "product_limit": 6,
         "show_header": true,
-        "eyebrow": "Explore more",
-        "heading": "Similar products",
-        "description": "Use a collection fallback to manually guide shoppers into a stronger buying path.",
+        "eyebrow": "",
+        "heading": "",
+        "description": "",
         "heading_size": 36,
         "heading_size_mobile": 28,
         "description_size": 16,

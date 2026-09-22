@@ -25,7 +25,7 @@ Repository `DylanJHamilton/Quadratum`; fresh branch `release/v1-phase-4-componen
 | 5 Content / Interactive | FORMALLY CLOSED for engineering: 52 assigned components — 51 live queued, one dormant retained, zero NOT REVIEWED. B5-FINAL live acceptance remains mandatory after Batch 9. |
 | 6 Forms / Conversion | FORMALLY CLOSED for engineering: 20 assigned components — all live queued, zero NOT REVIEWED. B6-FINAL live acceptance remains mandatory after Batch 9. |
 | 7 Social / Third Party / Utilities | FORMALLY CLOSED for engineering: 75 assigned components — 74 live queued, one dormant/source-reviewed, zero NOT REVIEWED. B7-FINAL live acceptance remains queued after Batch 9. Owner checkpoint required before Batch 8. |
-| 8 Theme Blocks | IN PROGRESS: 85/102 blocks and 24 dependencies individually reviewed; 109/126 Family 8 entries have dispositions (108 live queued, 1 dormant retained), 17 NOT REVIEWED. |
+| 8 Theme Blocks | IN PROGRESS: 88/102 blocks and 24 dependencies individually reviewed; 112/126 Family 8 entries have dispositions (111 live queued, 1 dormant retained), 14 NOT REVIEWED. |
 | 9 Snippet / Asset Closure | Inventory started; independent consumer/visual closure pending |
 
 ## Batch 1 findings and repairs
@@ -1257,3 +1257,17 @@ B8-COLLECTION-DISCOVERY live queue after engineering batches: actual native coll
 No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
 
 Unsuppressed CLI 4.8.0 moves from 509 to 510 findings: 3 unchanged out-of-group errors and 507 warnings. The one new helper orphan warning retains two traced callers; no suppression.
+
+## Batch 8 checkpoint — product grids, carousels and native recommendations — 2026-09-22
+
+Previous checkpoint published as `0207ee86a01079efb70dfda3323366e7f019fe1e`; PR #22 remains DRAFT. Three product discovery blocks now reuse existing card and carousel/recommendation controllers, replacing repeated markup and unsafe inline lifecycles. They preserve native source selection/tracking URLs, show accurate product price ranges and guard native related recommendation requests and response ownership.
+
+88/102 blocks and 24 dependencies individually reviewed; 112/126 Family 8 entries have dispositions (111 live queued, 1 dormant retained), 14 NOT REVIEWED. Global dispositions: 444 REQUIRES LIVE VERIFICATION, 1 DELETION CANDIDATE — OWNER REVIEW, 39 NOT REVIEWED, 27 RETAINED — DORMANT SOURCE REVIEWED, 1 REVIEWED — BUILD ONLY.
+
+Evidence: `validation/batch8-product-discovery/`. 276 actual default/preset/control/data-state renders cover every original setting ID/type/option and range endpoint, exact manual/collection/native related source selection, limits 2–24 and native API cap ten, native zero/range prices and compare/badge matching, escaped tracking URLs/text, image/alt and missing-image states, complete labels, neutral new insertion and editor wrappers. Actual controllers cover native related success/failure/empty/wrong root/product/intent/cross-origin/abort, duplicate execution, two independent native-ID carousels and measured/clamped RTL navigation with persistent/intersection pause; previous complementary merchandising and shared engine lifecycle regressions pass. All 16 affected suites pass; 174 settings, 9 actual presets; strict native parsing/schema/reference/architecture/hash/CSS gates pass, all protected sections/state preserved. Exact unsuppressed lint movement and individual source/consumer/disposition records are committed.
+
+B8-PRODUCT-DISCOVERY live queue after engineering batches: actual Shopify related/complementary recommendations and section rendering/settings context, native tracking URLs and presentment prices, native image geometry, 320–1440px/RTL/zoom/nested layouts, real scroll-snap/pagination/keyboard/AT/reduced-motion policy and Theme Editor lifecycle. Response/DOM/geometry adapters are not acceptance. No live Shopify QA; prior queues carry forward.
+
+No Batch 9, preset-family rollout or live QA. Continue Batch 8 to formal engineering closure, then stop for owner approval.
+
+Unsuppressed CLI 4.8.0 remains at 510 findings (3 unchanged out-of-group errors and 507 warnings); no group errors or suppression.

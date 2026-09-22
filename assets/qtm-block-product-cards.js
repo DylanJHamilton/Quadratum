@@ -69,14 +69,15 @@
       let url;
       try { url = new URL(root.dataset.recommendationsUrl, window.location.href); } catch { return; }
       const limit = Number(url.searchParams.get('limit'));
-      if (url.origin !== window.location.origin || !/\/recommendations\/products\/?$/.test(url.pathname) || url.searchParams.get('intent') !== 'complementary' || url.searchParams.get('product_id') !== root.dataset.productId || !url.searchParams.get('section_id') || !Number.isInteger(limit) || limit < 1 || limit > 10) return;
+      const intent = root.dataset.recommendationsIntent || 'complementary';
+      if (!['related', 'complementary'].includes(intent) || url.origin !== window.location.origin || !/\/recommendations\/products\/?$/.test(url.pathname) || url.searchParams.get('intent') !== intent || url.searchParams.get('product_id') !== root.dataset.productId || !url.searchParams.get('section_id') || !Number.isInteger(limit) || limit < 1 || limit > 10) return;
       try {
         const response = await fetch(url, { credentials: 'same-origin', signal: abort.signal });
         if (!response.ok) return;
         const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
         if (!active || !root.isConnected) return;
         const replacement = doc.getElementById(root.id);
-        if (!replacement || replacement.dataset.productId !== root.dataset.productId || replacement.dataset.recommendationsPerformed !== 'true') return;
+        if (!replacement || replacement.dataset.productId !== root.dataset.productId || replacement.dataset.recommendationsPerformed !== 'true' || (replacement.dataset.recommendationsIntent || 'complementary') !== intent) return;
         root.dataset.recommendationsPerformed = 'true';
         const nextItems = replacement.querySelector('[data-card-items]');
         if (replacement.dataset.nativeRecommendations === 'true' && nextItems?.querySelector('[data-qtm-product-card]')) { incoming = nextItems; apply(); }
