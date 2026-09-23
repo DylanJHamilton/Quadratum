@@ -12,7 +12,7 @@ Review, repair, test, commit, publish, verify the remote SHA for each checkpoint
 
 ## Checkpoints
 
-- A: login / registration / recovery / reset / activation — pending.
+- A: login / registration / recovery / reset / activation — engineering verified; checkpoint A publication.
 - B: dashboard / shared navigation — pending.
 - C: orders / order detail / tracking — pending.
 - D: addresses — pending.
@@ -34,3 +34,20 @@ Reuse tests/phase4/account-auth.cjs, tests/phase4/account-pages.cjs and docs/pha
 ## Protected scope
 
 No main writes, merging, settings_data.json changes, unrelated Phase 4 modifications, Phase 6 or demo-store work.
+
+## Checkpoint A — authentication
+
+Reviewed each login, register, activate and reset section, the recovery snippet, eight auth CSS/JS files and their four native customer template mappings. Reviewed contrast-text as their shared direct dependency.
+
+Repairs:
+- Preserve escaped login/recovery email values on Shopify validation responses; never repopulate passwords.
+- Focus native error/success summaries, including when password visibility is disabled. Retain native browser required/email validation and Shopify server validation; activation decline retains formnovalidate.
+- Handle recovery hash changes and scoped recovery IDs; unload removes listeners, restores native visible forms and re-hides enhancement controls.
+- Login/register render account/logout links for an already authenticated customer. Activation/reset remain token-route flows and are not gated by the customer object.
+- Remove the unimplemented remember_me checkbox and its two schema settings. Stored merchant configuration is untouched; obsolete values have no effect. Shopify owns session duration. Remove its unused CSS.
+- Repair password-toggle colors against the white input surface on dark merchant cards.
+- Expand compressed auth controllers into named lifecycle/visibility functions. Existing asset names, selectors and standalone boot behavior are retained. Similar small visibility routines remain intentionally independent to avoid a new script-order dependency.
+
+Validation: 171 reused Phase 4 auth cases (two setting permutations retired with remember_me), 198 reused account-page cases, 13 new auth scenarios, 36-file strict source/reference/template/CSS/JS validation. Baseline had zero Theme Check errors and 609 warnings; full comparison runs at reconciliation. No auth endpoint, email, CAPTCHA, activation token, expired token or screen-reader certification is claimed from fixtures.
+
+Naming retained: account-main-account.css is the login stylesheet, not a global account bundle; the recovery snippet is a real native form despite its historic placeholder suffix. Neither is orphaned. Preserve names for compatibility.
