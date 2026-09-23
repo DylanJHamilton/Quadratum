@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const { chromium } = require('playwright');
 const f = require('./header-fixtures.cjs');
 const axe = f.read(require.resolve('axe-core/axe.min.js'));
-const output = 'docs/phase5/validation/checkpoint-f';
+const output = process.env.ACCOUNT_ENTRY_BROWSER_OUTPUT || 'docs/phase5/validation/checkpoint-f';
 const results = {scope: 'Local Chromium; real header Liquid/CSS/JS with an explicit component adapter. No Shopify account or external request.', cases: [], accessibility: [], keyboard: [], lifecycle: [], errors: []};
 const selectors = {
   one: ['[data-qh1-mobile-toggle]', '[data-qh1-mobile-panel]'],

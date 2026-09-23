@@ -3,7 +3,7 @@ const {Liquid}=require('liquidjs'),{JSDOM}=require('jsdom');
 const source=fs.readFileSync('sections/sub-banner-transparent.liquid','utf8'),start=source.lastIndexOf('{% schema %}');
 const schema=JSON.parse(source.slice(start+12).split('{% endschema %}')[0]);
 const defaults=fields=>Object.fromEntries(fields.filter(x=>x.id).map(x=>[x.id,x.default??null]));
-const globals=Object.assign({},...JSON.parse(fs.readFileSync('config/settings_schema.json')).map(x=>defaults(x.settings)));
+const globals=Object.assign({},...JSON.parse(fs.readFileSync('config/settings_schema.json')).map(x=>defaults(x.settings || [])));
 const engine=new Liquid();engine.registerFilter('color_modify',()=> 'rgba(0,0,0,0)');
 const block=id=>({id,type:schema.blocks[0].type,settings:{...defaults(schema.blocks[0].settings),video_url:`/${id}.mp4`,heading:id,cta_text:'Browse',cta_link:'/collections/all'}});
 const render=(id,overrides={},blocks=[block('first'),block('second')])=>engine.parseAndRender(source.slice(0,start),{section:{id,settings:{...defaults(schema.settings),mode:'slideshow',autoplay:true,nav_arrows:true,nav_dots:true,enable_header_overlap:true,...overrides},blocks},settings:{...globals,video_autoplay:true}});

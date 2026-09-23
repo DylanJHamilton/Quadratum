@@ -3,7 +3,7 @@ const {Liquid}=require('liquidjs'),{JSDOM}=require('jsdom');
 const source=fs.readFileSync('sections/split-banner.liquid','utf8'),start=source.lastIndexOf('{% schema %}');
 const schema=JSON.parse(source.slice(start+12).split('{% endschema %}')[0]);
 const defaults=fields=>Object.fromEntries(fields.filter(x=>x.id).map(x=>[x.id,x.default??null]));
-const globals=Object.assign({},...JSON.parse(fs.readFileSync('config/settings_schema.json')).map(x=>defaults(x.settings)));
+const globals=Object.assign({},...JSON.parse(fs.readFileSync('config/settings_schema.json')).map(x=>defaults(x.settings || [])));
 const engine=new Liquid();engine.registerFilter('image_url',image=>{assert(image,'missing image must not reach image_url');return '/image.jpg'});engine.registerFilter('image_tag',url=>`<img src="${url}">`);
 const render=(id,overrides={},blocks=[])=>engine.parseAndRender(source.slice(0,start),{section:{id,settings:{...defaults(schema.settings),...overrides},blocks},settings:globals});
 (async()=>{

@@ -3,7 +3,11 @@
 Branch: `release/v1-phase-6-theme-settings`
 Baseline: `47664f217cc150b64d68158b3babd38bac2885d6`
 
-Status: IN PROGRESS. Checkpoint A inventories the complete global contract; source repairs and final acceptance are not yet complete.
+Status: PHASE 6 THEME SETTINGS ENGINEERING COMPLETE — READY FOR OWNER REVIEW.
+
+All 252 settings across 13 merchant groups are reconciled, including the 245 original settings. Seven settings were added, 112 existing settings repaired or clarified, 37 retained and deprecated, and none removed. A separate `theme_info` metadata entry was added. The final inventory contains 338 rows, including 86 explicitly documented legacy/dynamic/retired contracts. No unresolved source-level Theme Settings defect remains in the audited scope. Local fixture validation is complete; live Shopify acceptance remains in [owner-review.md](owner-review.md).
+
+`settings-inventory.json` is the authoritative machine-readable contract. `validation/checkpoint-g/reconciliation.json` records exact changed IDs, compatibility assertions, hashes and all 49 changed runtime files' direct settings dependencies. Counts are disjoint: repairs include schema/help/default corrections and demonstrated direct/indirect consumer changes, excluding added and deprecated IDs. A clarification does not necessarily change runtime behavior.
 
 ## Checkpoint A
 
@@ -19,9 +23,9 @@ All six owner-identified saved keys are explicitly retained and dispositioned. `
 
 Every checkpoint must be published with a non-force branch update and independently verified before further engineering. No main writes, merges, demo-store QA, broad redesign, readability refactor or Phase 7. The final handoff will supply the verified remote SHA.
 
-## Remaining sequence
+## Checkpoint sequence
 
-B: branding, typography and tokens. C: headers, footers, commerce and search. D: media, 404, localization and performance. E: integrations against current official guidance. F: popup lifecycle/settings. G: complete dispositions and regression reconciliation.
+B: branding, typography and tokens. C: headers, footers, commerce and search. D: media, 404, localization and performance. E: integrations against current official guidance. F: popup lifecycle/settings. G: complete dispositions and regression reconciliation. All engineering checkpoints are complete. See [publication.md](publication.md) for the verified publication chain and how to identify the closure commit.
 
 ## Checkpoint B — branding, typography and shared design tokens
 
@@ -80,3 +84,52 @@ Repaired enable/device gates for manual opening, first-visit recording, expiry, 
 Frequency uses existing session/day/week keys plus a first-visit flag. Browser persistence is accessed only when Shopify Customer Privacy reports preference processing allowed; otherwise memory is limited to the page. The documented API loader is requested, but no consent is asserted or changed. This can cause repeat display across pages when permission is unavailable and is disclosed in the editor. Manual open bypasses frequency but respects enable/device policy. Automatic promotions yield to an existing visible modal.
 
 Validation includes 49 schema-option permutations and lifecycle/privacy/trigger cases. Real Chromium fixtures additionally check placement, focus, overflow, colors, reduced motion, RTL and native form markup. A browser-only initial-focus failure exposed a visibility-transition timing conflict; removing that conflict made focus available as the dialog opens. Full results are in checkpoint-f; they are local fixtures, not a live Shopify certification.
+
+## Checkpoint G — final reconciliation
+
+F remote verified: `7252d3a0ee294c9fea0ef3155c9d448a7dd024c4`. Every schema control and reverse global read now has a disposition, consumer or explicit compatibility purpose. The final inventory scans 550 runtime source files, resolves all seven dynamic access expressions, distinguishes local form parameters from global settings and traces cart JavaScript property readers beyond the Liquid export. There are no unresolved dispositions, unmapped global reads or active settings without implementation evidence.
+
+Removed the unused `QuadratumSettings.customer` export, which had no JavaScript reader; no account section/template implementation or saved value changed. `account_layout` remains legacy saved state. The exported `orders_show_reorder` and `customer_help_text` names had no schema or saved state and are recorded as retired exports. Retained theme/search exports remain compatibility transport; their Liquid/DOM implementations supply the active behavior. The unused `--c-danger` alias and unloaded `quadratum-tokens.css` asset are documented compatibility surfaces, not evidence of active settings implementation.
+
+Added theme metadata for Quadratum, author DylanJHamilton, engineering version 1.0.0, branch documentation and repository issues. Owner confirmation of the distribution version/support policy remains required. This metadata does not claim a published product release or Theme Store certification.
+
+All 245 original IDs and types, select/radio option values, and range bounds/steps are unchanged. Section/block/platform state is preserved. `settings_data.json` was never rewritten: before and after SHA-256 are both `ffc244582d58f3e6e07713abd6ab1de2cdef7ba109fc00a60cef886235b6b499`. All 55 saved global keys are accounted for, including the six owner-identified legacy keys. See [owner-review.md](owner-review.md) for their exact values and dispositions.
+
+### Reviewed groups
+
+| Merchant group | Final settings |
+| --- | ---: |
+| Theme Settings | 2 |
+| Branding | 41 |
+| User Interface | 22 |
+| Header | 7 |
+| Footer | 5 |
+| Commerce Defaults | 35 |
+| Search Settings | 44 |
+| 404 Settings | 19 |
+| Media Settings | 7 |
+| Integrations | 28 |
+| Popups | 36 |
+| Performance Settings | 2 |
+| Localization Settings | 4 |
+| Total | 252 |
+
+Added IDs: `color_scheme`, `custom_scripts_enabled`, `popup_editor_preview`, `search_page_placeholder`, `search_popup_heading`, `search_popup_max_width`, `search_popup_subheading`. The reconciliation JSON lists every repaired and deprecated ID; the inventory records why each retained setting exists and what takes precedence.
+
+### Final validation
+
+| Gate | Result and evidence |
+| --- | --- |
+| Schema, inventory and compatibility | Pass: no duplicate/invalid defaults, unresolved consumer contracts or merchant-state drift; `checkpoint-g/inventory-summary.json` and `reconciliation.json`. |
+| Phase 3/4 regressions | All 112 executable suites pass; `checkpoint-g/regressions/results.json` and individual logs. |
+| Phase 5/6 targeted suites | All 13 pass, including 66 Phase 5 account-entry scenarios and Phase 6 source/branding/commerce/media/integration/popup contracts; `checkpoint-g/targeted-results.json`. |
+| Popup/commerce/localization browser | 41 Chromium fixtures pass with no runtime errors, axe violations or overflow; `checkpoint-f/browser-results.json`. |
+| Header browser | 72 cases pass, plus 20 account accessibility audits, 15 keyboard checks and five lifecycle checks; `checkpoint-g/header-browser/browser.json`. |
+| Account browser | 63 fixtures pass, including nine no-JavaScript cases; no runtime errors, axe violations or overflow; `checkpoint-g/account-browser-results.json`. |
+| Theme Check 4.8.0 | Zero errors, 517 warnings; baseline zero errors, 510 warnings. Raw output and reconciliation in `checkpoint-g/theme-check*.json`. |
+
+The seven additional Theme Check warnings are `OrphanedSnippet` reports for helpers with real render callers; each caller is recorded in the summary and exercised by fixtures. Existing Footer Two complexity remains 135 with shifted source lines. Existing product-card complexity rises from 122 to 137 for the bounded image default and drawer compatibility logic. These warnings are disclosed, not suppressed; a broad readability refactor remains outside Phase 6.
+
+Retained regression fixtures were adjusted only for the metadata-only schema entry, corrected pixel spacing, nested native localization form parsing, source-aware 404 hidden fields, decorative muted backgrounds and explicit preference permission in the popup persistence fixture. No behavior assertion was removed to conceal a defect. Source/parser and browser adapters approximate platform objects; external requests are intercepted. Provider delivery, Shopify account transport, Markets, real native CAPTCHA, Theme Editor and manual assistive-technology behavior still require live acceptance.
+
+The branch is ready for owner review of the documented visible corrections and integration/distribution decisions. No demo store, preset migration, Phase 7 work, main write or merge is included.

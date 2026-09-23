@@ -7,7 +7,7 @@ engine.registerFilter('json',JSON.stringify);
 engine.registerFilter('t',key=>({'cart.general.title':'Cart','general.search.title':'Search'}[key]||key));
 engine.registerFilter('image_url',image=>{assert(image,'no empty image filter');return '/fixture.jpg';});
 engine.registerFilter('image_tag',url=>'<img src="'+url+'" width="100" height="100" alt="">');
-const globals = Object.assign({},...JSON.parse(read('config/settings_schema.json')).map(group=>defaults(group.settings)));
+const globals = Object.assign({},...JSON.parse(read('config/settings_schema.json')).map(group=>defaults(group.settings || [])));
 function component(name){const text=read('sections/'+name+'.liquid'),start=text.lastIndexOf('{% schema %}');return {text:text.slice(0,start),schema:JSON.parse(text.slice(start+12).split('{% endschema %}')[0])};}
 (async()=>{
  const breadcrumb=component('sub-banner-breadcrumb');

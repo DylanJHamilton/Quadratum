@@ -18,6 +18,17 @@ OUT = ROOT / 'docs/phase6'
 BASE = '47664f217cc150b64d68158b3babd38bac2885d6'
 LOCAL_PARAMETERS = {'form-background', 'form-core', 'form-dispatch', 'form-waitlist-fields', 'pb-bundle-card'}
 RESERVED = {'sections', 'blocks', 'content_for_index'}
+UNRESOLVED = {'REVIEW_REQUIRED', 'NO_SOURCE_CONSUMER', 'MISSING_SCHEMA', 'EXPORT_ONLY'}
+JS_CONTRACTS = {
+    'assets/cart-drawer.js': {
+        'ajaxDrawerEnabled': 'enable_ajax_cart_drawer',
+        'openAfterAdd': 'open_ajax_cart_after_add',
+        'headerTriggerEnabled': 'cart_drawer_enable_header_trigger',
+        'productTriggerEnabled': 'cart_drawer_enable_pdp_trigger',
+        'collectionTriggerEnabled': 'cart_drawer_enable_collection_trigger',
+        'addonTriggerEnabled': 'cart_drawer_enable_addon_trigger',
+    }
+}
 
 def read_json(path):
     return json.loads(re.sub(r'^\s*/\*.*?\*/', '', path.read_text(), count=1, flags=re.S))
@@ -51,6 +62,7 @@ def schema_errors(entries):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--checkpoint', default='current')
+    parser.add_argument('--final', action='store_true', help='Fail on unresolved or undocumented contracts')
     args = parser.parse_args()
     schema = read_json(ROOT/'config/settings_schema.json')
     data = read_json(ROOT/'config/settings_data.json')
@@ -71,6 +83,10 @@ def main():
             text = clean(path.read_text())
             source[rel] = text
             for n, line in enumerate(text.splitlines(), 1):
+                for field, key in JS_CONTRACTS.get(rel, {}).items():
+                    if re.search(r'\b'+field+r'\b', line):
+                        consumers[key].append({'path':rel, 'line':n, 'access':'QuadratumSettings.cart.'+field,
+                                               'source':line.strip(), 'transport_only':False, 'via':'layout/theme.liquid'})
                 for var in re.findall(r'var\(\s*(--[\w-]+)', line):
                     if rel != 'assets/theme.css': css_uses[var].append(f'{rel}:{n}')
                 for var in re.findall(r'(--[\w-]+)\s*:', line):
@@ -114,30 +130,46 @@ def main():
         for key, value in values.items():
             if key not in RESERVED: saved[key][name] = value
     rows = []
-    for key in sorted(set(contract)|set(consumers)|set(saved)):
+    for key in sorted(set(contract)|set(consumers)|set(saved)|set(policies)):
         spec = contract.get(key, {})
         edges = consumers.get(key, [])
         status = 'REVIEW_REQUIRED'
         if not spec: status = 'MISSING_SCHEMA' if edges else 'LEGACY_SAVED_STATE'
         elif not edges: status = 'NO_SOURCE_CONSUMER'
         elif all(e['transport_only'] for e in edges): status = 'EXPORT_ONLY'
-        policy = policies.get(key, {})
+        policy = dict(policies.get(key, {}))
+        if 'reason' in policy: policy['disposition'] = policy.pop('reason')
         if key.startswith('fulfillment_wh_group_'):
-            policy = {'status':'LEGACY_DYNAMIC','disposition':'Retained Phase 4 compatibility fallback for 12 warehouse mappings. Section warehouse_mapping blocks take precedence; no new global controls are added.'}
+            policy = {'status':'LEGACY_DYNAMIC','disposition':'Retained Phase 4 compatibility fallback for 12 warehouse mappings. Section warehouse_mapping blocks take precedence; no new global controls are added.',
+                      'precedence':'Section warehouse_mapping blocks > retained 12-group legacy global lookup.',
+                      'legacy_value_contract':'code/label/desc are text; collection is a collection handle/resource; chip_color is a CSS color.'}
         rows.append({'id':key, 'group':spec.get('group'), 'type':spec.get('type'),
                      'label':spec.get('label'), 'default':spec.get('default'),
                      'allowed':{k:spec[k] for k in ('options','min','max','step','unit') if k in spec},
                      'saved_values':saved.get(key, {}), 'consumers':edges,
-                     'merchant_impact':spec.get('info') or spec.get('label'),
+                     'merchant_impact':spec.get('info') or spec.get('label') or policy.get('disposition'),
                      'precedence':'Global default; explicit section/component controls retain priority. See consumer source and dependency-map.md.',
                      'status':status, **policy})
-    report = {'baseline':BASE, 'schema_groups':len(schema), 'schema_settings':len(entries),
+    final_errors = []
+    for row in rows:
+        if row['status'] in UNRESOLVED: final_errors.append('unresolved: '+row['id'])
+        if not row.get('disposition'): final_errors.append('missing disposition: '+row['id'])
+        if row['status'] == 'ACTIVE' and not any(not c['transport_only'] for c in row['consumers']):
+            final_errors.append('active without implemented consumer: '+row['id'])
+        if not row['group'] and not row['status'].startswith(('LEGACY_', 'RETIRED_')):
+            final_errors.append('uncontracted legacy read: '+row['id'])
+    for item in dynamic:
+        if not item['resolved_ids']: final_errors.append('unresolved dynamic access: '+item['path']+':'+str(item['line']))
+    report = {'inventory_version':2, 'baseline':BASE, 'schema_groups':sum('settings' in g for g in schema), 'schema_settings':len(entries),
+              'theme_metadata':next((g for g in schema if g['name']=='theme_info'), None),
               'source_files_scanned':len(source), 'settings_data_sha256':hashlib.sha256((ROOT/'config/settings_data.json').read_bytes()).hexdigest(),
               'reserved_saved_keys':sorted(RESERVED & current.keys()),
               'platform_customizations':data.get('platform_customizations', {}),
-              'schema_errors':schema_errors(entries), 'dynamic_accesses':dynamic,
+              'schema_errors':schema_errors(entries), 'final_contract_errors':final_errors, 'dynamic_accesses':dynamic,
               'local_parameter_snippets':sorted(LOCAL_PARAMETERS), 'javascript_consumers':js_edges,
               'css_variables':{k:{'definitions':v,'consumers':css_uses.get(k,[])} for k,v in sorted(css_defs.items()) if any(x.startswith('snippets/theme-tokens.liquid:') for x in v)},
+              'css_compatibility':{'--c-danger':'Retained semantic token/extension compatibility. No in-repo var() reader; color_error has direct active form consumers. Do not count this alias alone as implementation.'},
+              'unloaded_compatibility_assets':['assets/quadratum-tokens.css'],
               'settings':rows}
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT/'settings-inventory.json').write_text(json.dumps(report, indent=2, ensure_ascii=False)+'\n')
@@ -146,7 +178,7 @@ def main():
         writer.writerow(['id','group','type','status','source_references','saved_in','disposition'])
         for row in rows:
             writer.writerow([row['id'],row['group'],row['type'],row['status'],len(row['consumers']),';'.join(row['saved_values']),row.get('disposition','Pending checkpoint review')])
-    summary = {k:v for k,v in report.items() if k in ('baseline','schema_groups','schema_settings','source_files_scanned','settings_data_sha256','schema_errors','dynamic_accesses')}
+    summary = {k:v for k,v in report.items() if k in ('baseline','schema_groups','schema_settings','source_files_scanned','settings_data_sha256','schema_errors','final_contract_errors','dynamic_accesses')}
     summary['status_counts'] = dict(collections.Counter(row['status'] for row in rows))
     summary['no_source_consumer'] = [row['id'] for row in rows if row['status']=='NO_SOURCE_CONSUMER']
     summary['export_only'] = [row['id'] for row in rows if row['status']=='EXPORT_ONLY']
@@ -157,5 +189,6 @@ def main():
     (target/'inventory-summary.json').write_text(json.dumps(summary,indent=2)+'\n')
     print(json.dumps(summary, indent=2))
     if summary['schema_errors']: raise SystemExit(1)
+    if args.final and final_errors: raise SystemExit(1)
 
 if __name__ == '__main__': main()

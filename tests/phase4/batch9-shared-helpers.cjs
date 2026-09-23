@@ -57,7 +57,7 @@ const defaults = Object.fromEntries(fields.map(f => [f.id, f.default ?? null]));
     assert.equal(resolve('--qtm-h1-size'), settings.type_h1_size / 100 + 'rem');
     assert.equal(resolve('--qtm-container-xl'), settings.container_xl + 'px');
     assert.equal(resolve('--qtm-page-maxw'), settings.container_lg + 'px');
-    assert.equal(resolve('--qtm-section-padding-top'), settings.section_padding_top / 100 + 'rem');
+    assert.equal(resolve('--qtm-section-padding-top'), settings.section_padding_top + 'px');
     assert.equal(resolve('--qtm-button-border-width'), settings.button_border_width + 'px');
     assert.equal(resolve('--qtm-button-radius'), settings.button_radius + 'px');
     assert.equal(resolve('--qtm-badge-sale-bg'), settings.badge_sale_bg);

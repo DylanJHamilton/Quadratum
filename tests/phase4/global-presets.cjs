@@ -1,6 +1,8 @@
 const assert=require('node:assert/strict'),fs=require('node:fs');
 const {Liquid}=require('liquidjs'),{JSDOM}=require('jsdom');
-const engine=new Liquid({root:['snippets'],extname:'.liquid'});
+// Apply the existing native-form adapter to nested localization helpers as well.
+const baseFS=new Liquid().options.fs;
+const engine=new Liquid({root:['snippets'],extname:'.liquid',fs:{...baseFS,readFile:async p=>platformForms(await baseFS.readFile(p)),readFileSync:p=>platformForms(baseFS.readFileSync(p))}});
 engine.registerFilter('json',JSON.stringify);
 engine.registerFilter('color_contrast',()=>21);
 const read=p=>fs.readFileSync(p,'utf8');

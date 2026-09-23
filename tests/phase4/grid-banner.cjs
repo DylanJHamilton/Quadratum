@@ -4,7 +4,7 @@ const source = fs.readFileSync('sections/grid-banner.liquid', 'utf8');
 const start = source.lastIndexOf('{% schema %}');
 const schema = JSON.parse(source.slice(start + 12).split('{% endschema %}')[0]);
 const defaults = fields => Object.fromEntries(fields.filter(f => f.id).map(f => [f.id, f.default ?? null]));
-const globals = Object.assign({}, ...JSON.parse(fs.readFileSync('config/settings_schema.json')).map(g => defaults(g.settings)));
+const globals = Object.assign({}, ...JSON.parse(fs.readFileSync('config/settings_schema.json')).map(g => defaults(g.settings || [])));
 const engine = new Liquid({root: 'snippets', extname: '.liquid'});
 engine.registerFilter('image_url', image => {assert(image, 'do not transform a missing image'); return '/image.jpg';});
 engine.registerFilter('image_tag', url => `<img src="${url}" width="1000" height="700">`);

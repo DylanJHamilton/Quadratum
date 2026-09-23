@@ -6,7 +6,7 @@
 
 Search uses search-controller/static/predictive/popup snippets and main-search. Commerce uses product-card and cart drawer/shared snippets/controllers. Media defaults are consumed selectively by sections; explicit local media modes and critical hero loading retain priority. Forms pass local controls through a parameter also named `settings`; their `theme_settings` parameter carries actual globals. Social profiles dynamically choose six social URL keys. Warehouse mapping blocks win over the retained 12-group legacy global lookup.
 
-See `settings-inventory.json` for every setting, source path/line, alias, dynamic expansion, CSS use edge and JS consumer. The `transport_only` marker means a JS export by itself, not a working feature. Checkpoints B–G add verified precedence and external integration contracts here.
+See `settings-inventory.json` for every setting, source path/line, alias, dynamic expansion, CSS use edge and JS consumer. The `transport_only` marker means a JS export by itself, not a working feature. This map records the reconciled B–G precedence and integration contracts.
 
 ## Branding precedence
 
@@ -35,3 +35,13 @@ Global country/language selectors are native Shopify localization forms in Foote
 The normal layout owns exactly one `global-popup` host. `popup_enable` controls storefront presence; `request.design_mode && popup_editor_preview` independently permits an editor host. `global-popup.js` reads DOM configuration before the retained JS fallback. Automatic trigger → enabled/device → page/frequency checks; manual open bypasses frequency only. Preview skips storefront eligibility and storage. Native form feedback reopens the eligible host to expose the response.
 
 Popup CSS variables carry merchant styles; fullscreen geometry, screen constraints, image stacking/minimal style and reduced motion are explicit overrides. `popup_type` is retained and deprecated because it never implemented content, age verification or a trigger. Newsletter display is independent of that label. Persistent frequency state requires Shopify preference permission; memory-only fallback does not impersonate consent. Provider-managed campaigns or age verification belong in an app with its own requirements.
+
+## Final compatibility boundaries
+
+`QuadratumSettings.theme` and `.search` remain compatibility transports with no in-repository JavaScript reader; their settings have actual Liquid/CSS/DOM consumers elsewhere. The unused `.customer` export was removed. `account_layout` stays saved and inactive; `orders_show_reorder` and `customer_help_text` are documented retired exports with no schema or saved state. Cart exports have explicit JavaScript consumer mappings in the inventory.
+
+Legacy `bp_md`/`bp_lg` apply only where a retained consumer requests them, with 768/1024px fallbacks; they do not constitute a new global grid system. Legacy provider keys, form metadata, proxy endpoint, CSS hooks, Facebook page fallback and feed radius are explicitly typed and scoped in the inventory. Warehouse blocks take precedence over all 60 retained dynamic warehouse keys. Unsupported saved map/Facebook state has no active override effect.
+
+`--c-danger` is retained as a semantic extension alias without an in-repository `var()` reader; `color_error` has actual form consumers. The unreferenced `assets/quadratum-tokens.css` is retained and not loaded. Neither is counted as functional settings implementation. Deprecated controls remain visible as legacy contracts, with guidance to the supported component/provider owner.
+
+`theme_info` is platform metadata rather than a merchant settings group. Future schema readers must tolerate entries without a `settings` array. Final reconciliation preserves all original IDs, types, option values and numeric bounds/steps and asserts that merchant state remains unchanged.

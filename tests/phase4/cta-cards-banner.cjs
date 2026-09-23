@@ -1,7 +1,7 @@
 const fs=require('node:fs'),assert=require('node:assert/strict');
 const {Liquid}=require('liquidjs'),{JSDOM}=require('jsdom');
 const defaults=fields=>Object.fromEntries(fields.filter(x=>x.id).map(x=>[x.id,x.default??null]));
-const globals=Object.assign({},...JSON.parse(fs.readFileSync('config/settings_schema.json')).map(x=>defaults(x.settings)));
+const globals=Object.assign({},...JSON.parse(fs.readFileSync('config/settings_schema.json')).map(x=>defaults(x.settings || [])));
 function fixture(name){
  const source=fs.readFileSync(`sections/${name}.liquid`,'utf8'),start=source.lastIndexOf('{% schema %}'),schema=JSON.parse(source.slice(start+12).split('{% endschema %}')[0]);
  const engine=new Liquid({root:['snippets'],extname:'.liquid'});engine.registerFilter('asset_url',s=>'/assets/'+s);engine.registerFilter('image_url',image=>{assert(image);return '/'+(image.id||'image')+'.jpg'});engine.registerFilter('image_tag',url=>`<img src="${url}">`);engine.registerFilter('color_modify',color=>color);engine.registerFilter('money',n=>`$${(n/100).toFixed(2)}`);
