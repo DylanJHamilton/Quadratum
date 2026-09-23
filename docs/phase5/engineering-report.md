@@ -15,7 +15,7 @@ Review, repair, test, commit, publish, verify the remote SHA for each checkpoint
 - A: login / registration / recovery / reset / activation — engineering verified; checkpoint A publication.
 - B: dashboard / shared navigation — engineering verified; checkpoint B publication.
 - C: orders / order detail / tracking — engineering verified; checkpoint C publication.
-- D: addresses — pending.
+- D: addresses — engineering verified; checkpoint D publication.
 - E: cross-account assets / template mapping / final reconciliation — pending.
 
 ## Account model
@@ -82,3 +82,16 @@ Object contracts checked 2026-09-23:
 - https://shopify.dev/docs/api/liquid/objects/order
 - https://shopify.dev/docs/api/liquid/objects/line_item
 - https://shopify.dev/docs/api/liquid/objects/fulfillment
+
+## Checkpoint D — addresses
+
+Checkpoint C remote verified: `00d42554d305339dd9cd9410020724888b19b18d`.
+
+Independently reviewed the address section, stylesheet, controller and customer address template. Native customer_address forms create/edit addresses and set defaults while preserving every address field. Delete remains a native locale-aware POST with _method=delete, enhanced by scoped confirmation. There is no fake saved-success state: Shopify documents customer_address form.posted_successfully? as always true, so it cannot certify a successful operation.
+
+Repairs: complete Orders navigation; add error rendering for the set-default form; country-name autocomplete. Refactor the compressed controller into named country enhancement, panel and cleanup functions. Generated province selects retain error/label/required attributes, preserve rejected values, clear stale province when the country changes, use a blank choice rather than silently selecting the first province, and restore the saved country/province on native reset. Countries without provinces omit that field from submission; missing/malformed metadata preserves a text input. Metadata is resolved from the selected index and native country value, including the duplicated no-JS saved-country option. Keyboard Escape/Close returns focus to the opener; returned server errors stay open and receive focus. Unload aborts listeners, removes generated selects and restores complete native forms. Unused legacy navigation CSS and a duplicate declaration removed.
+
+Validation: 14 new address scenarios (native field/default/delete contracts, country transitions/reset, keyboard focus, error associations, no-JS and lifecycle), all 198 account-page regressions, strict source/reference checks. Owner live acceptance remains required for actual saved create/edit/delete/default outcomes, server validation, countries/provinces supplied by Shopify, more than 20 addresses, keyboard/AT and localized address formatting. Source tests never submit an address to a store.
+
+Native form contract: https://shopify.dev/docs/api/liquid/tags/form#form-customer_address
+Form status limitation: https://shopify.dev/docs/api/liquid/objects/form#form-posted_successfully
