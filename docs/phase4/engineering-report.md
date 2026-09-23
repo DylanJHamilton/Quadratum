@@ -1,6 +1,14 @@
 # Quadratum Phase 4 — component hardening progress
 
-Status: **PHASE 4 COMPONENT ENGINEERING CLOSED — LIVE ACCEPTANCE PENDING.** Batch 9 formally closes the remaining 25 entries. All 515 components have explained dispositions; zero NOT REVIEWED. PR #22 remains DRAFT. Source/fixture closure is not live Shopify certification. Earlier checkpoint counts and stop instructions below are historical; the final Batch 9 closure is authoritative for current engineering status.
+Status: **PHASE 4 COMPONENT ENGINEERING CLOSED — LIVE ACCEPTANCE PENDING.** Batch 9 formally closes the remaining 25 entries. All 515 components have explained dispositions; zero NOT REVIEWED. PR #22 remains DRAFT. Source/fixture closure is not live Shopify certification. Earlier checkpoint counts and stop instructions below are historical; the final Batch 9 closure is authoritative for engineering-batch status. The owner subsequently reported the block-width defect documented immediately below.
+
+## Post-closure owner QA — shared block width repair
+
+The owner authorized a narrow GitHub-only correction after `7756be8`; the latest starting commit `23994e325fa9a6c45ac14b24b9538c8194a62aad` includes the owner's homepage edits and is preserved. No live Shopify store or authenticated browser session was accessed. Local Chromium reproduced zero-width Shopify-style wrappers inside a 1342px Card column: non-stretch flex alignment leaves the wrapper auto-sized, and inline-size containment on its child removes the intrinsic width contribution.
+
+The two column containers now give only direct `.shopify-block` children `width:100%`. Four lines added per file; no schema, preset, leaf-block, row, section, global stylesheet or merchant-data change. All seven requested blocks pass 1164 local width/alignment/row scenarios across both builders, Layout/Card/Centered presets and left/center/right/stretch. Configured narrow widths and block alignment controls remain respected. The full existing suite passes 115/115; fresh Theme Check reports 0 errors/509 unchanged warnings. Counts remain 150 sections/102 blocks, protected settings and homepage bytes unchanged, 515 hashes verified, zero NOT REVIEWED and 470 live queued. No additional individual width repair was required in the tested fixtures.
+
+Evidence and reproduction: [validation/live-qa-block-width](validation/live-qa-block-width/README.md). This is a post-closure defect repair, not a new batch. PR #22 remains OPEN / DRAFT / UNMERGED. **Stop for the owner's live Shopify check; local adapter geometry is not native Shopify acceptance.**
 
 **Owner-directed validation schedule (2026-09-20):** complete the remaining engineering work through Batches 4–9 before beginning the accumulated live Shopify storefront/theme-editor acceptance. REQUIRES LIVE VERIFICATION is a queued disposition, not a request to interrupt engineering for merchant testing. All existing live requirements remain; PR #22 stays DRAFT until the full register and eventual live acceptance are complete.
 
