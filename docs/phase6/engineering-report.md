@@ -22,3 +22,15 @@ Every checkpoint must be published with a non-force branch update and independen
 ## Remaining sequence
 
 B: branding, typography and tokens. C: headers, footers, commerce and search. D: media, 404, localization and performance. E: integrations against current official guidance. F: popup lifecycle/settings. G: complete dispositions and regression reconciliation.
+
+## Checkpoint B — branding, typography and shared design tokens
+
+A independently verified at `5754ce90cf801e40566e12cdaaac6a1574c62249`. The API normalized the CSV line endings; its content matches the local audit. Future publication preserves source bytes.
+
+Reviewed all 64 original controls in the first three groups plus one added color-mode selector. Added social sharing metadata with page image → global sharing image → logo precedence and escaped attributes. Both layouts now expose the selected light/dark mode; the existing enable switch still gates dark tokens. New dark on-color text defaults to white for contrast on the existing blue primary. Explicit merchant colors remain respected. Shared chips now consume chip_shape, shared .btn defaults consume the global variant, and common page widths consume style_kit. Explicit section styles retain priority.
+
+Corrected shared spacing output to pixels (12/16/24 spacing and 48px section spacing), matching the numeric range, component fallbacks and existing main-search pixel usage. Labels now state pixels. This fixes the 0.12/0.16/0.24rem compression; it is an intentional visible spacing correction requiring owner review. Numeric saved configuration is untouched. Typography keeps its existing rem×100 and em×1000 contracts with clearer help. Zero padding, zero border width and zero radius remain valid.
+
+Six unused global blog/article controls are explicitly labeled legacy and deprecated. Blog/article sections already own these options; wiring a second hidden override would conflict with Phase 4. All IDs/types/options remain retained. `quadratum-tokens.css` is an unreferenced compatibility asset, not a second active token system; no source deletion. Missing legacy breakpoint/custom-CSS references remain for integration/reconciliation review.
+
+B validation: schema/default checks pass; rendered token/metadata behavior passes; actual theme/password layout, base-token and all 66 Phase 5 header-account entry regressions pass. Full Theme Check is recorded in checkpoint-b. No merchant state change. These are source/fixture results, not live Shopify certification.
