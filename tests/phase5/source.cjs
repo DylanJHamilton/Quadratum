@@ -33,4 +33,4 @@ const mapping = { account: 'dashboard', 'account.orders': 'orders', activate_acc
 for (const [template, section] of Object.entries(mapping)) {
   assert.match(fs.readFileSync('templates/customers/' + template + '.liquid', 'utf8'), new RegExp("section 'account-main-account-" + section + "'"));
 }
-console.log(`PASS ${files.length} account/direct-dependency files; ${parsed} strict Shopify Liquid parses; ${references} asset/snippet/section references; CSS/JS syntax; ${Object.keys(mapping).length} native/alternate customer template mappings.`);
+console.log(`PASS ${files.length} account/direct-dependency files; ${parsed} strict Shopify Liquid parses; ${references} asset/snippet/section references; CSS/JS syntax; seven native customer templates and full-orders alternate template mapped.`);
