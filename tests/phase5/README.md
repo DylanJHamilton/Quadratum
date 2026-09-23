@@ -44,3 +44,18 @@ git -c core.whitespace=cr-at-eol diff --check
 ```
 
 LiquidJS/DOM fixtures use explicit Shopify form, filter and pagination adapters. They certify source and client behavior, not Shopify endpoint processing, email delivery, CAPTCHA, platform redirects or account migrations. The browser uses the same adapters, so it adds browser layout/focus/accessibility evidence without claiming a live Shopify test. See `docs/phase5/validation/` for recorded results and the engineering report for live acceptance boundaries.
+
+## Checkpoint F — current + legacy header entry
+
+Using the same dependencies and repository-root working directory:
+
+```sh
+node tests/phase5/account-entry.cjs
+node tests/phase5/account-entry-browser.cjs
+ACCOUNT_RECONCILE_OUTPUT=docs/phase5/validation/checkpoint-f/reconciliation.json python tests/phase5/reconcile.py
+ACCOUNT_REGRESSION_OUTPUT=docs/phase5/validation/checkpoint-f/regressions python tests/phase5/regressions.py
+```
+
+The new suites write only `docs/phase5/validation/checkpoint-f/`. `CHROMIUM_EXECUTABLE` can select an installed browser; `ACCOUNT_ENTRY_SCREENSHOTS` optionally writes intermediate captures outside the repository. Header fixtures use real section settings, Liquid, CSS and existing controllers. The custom-element shadow/button/sheet implementation in the browser suite is an explicit test adapter for the documented slot, part, size variables and open event. It does not emulate Shopify authentication, menu resolution or hosted pages and must never be shipped as a theme asset.
+
+Source checks verify all five headers, exact dependencies, preserved settings, account-state ownership, menu escaping/defaults, and byte-identical A–E account files/settings_data against checkpoint E. The reconciler permits only the 13 explicitly named runtime paths authorized by Checkpoint F; it does not allow arbitrary header or global changes. Browser cases exercise delayed upgrade, native fallback, viewport bounds and pointer access, adjacent navigation/cart controls, RTL/dark styles, keyboard focus and actual header controller cleanup/remount. The broader regression runner retains all 112 prior executable suites; affected header/search suites are rerun after final repairs.

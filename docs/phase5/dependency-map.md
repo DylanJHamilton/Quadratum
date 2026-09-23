@@ -1,6 +1,6 @@
 # Account dependency and route reconciliation
 
-The reviewed implementation targets **legacy Shopify customer accounts**. All seven existing customer templates remain. Account data and authorization come from Shopify's native Liquid drops and form handlers; JavaScript only enhances rendered controls.
+The account-page implementation targets **eligible legacy Shopify customer accounts**. Checkpoint F adds a shared storefront entry for **current and legacy account models**. All seven existing customer templates remain. Account data and authorization come from Shopify's native Liquid drops and form handlers; JavaScript only enhances rendered controls.
 
 | Account section suffix | Template/placement | Stylesheet basename | Controller basename | Direct snippets |
 | --- | --- | --- | --- | --- |
@@ -29,7 +29,19 @@ Section filenames use the prefix `sections/account-main-account-`. All 17 existi
 
 Customer templates use the existing normal layout. Account fixtures include compiled theme CSS, rendered global theme variables, `q-base.css.liquid` and `styles.css`. The latter two names follow Shopify's native Liquid-asset serving convention. Header/footer structure, search, cart, global block controllers and global settings remain Phase 4-owned; layout/head, delivery and five-header lifecycle regressions were rerun. Account source does not add dependencies on those controllers.
 
-The five retained headers use native `routes.account_*` entry points. Header Two/Five also expose an Orders shortcut to the account landing route; on legacy accounts the landing dashboard provides the full-history link, while current hosted accounts control their own landing page. This remains a valid entry route, not an additional theme-controlled Orders endpoint. The historical `header-two-account` and `header-two-mobile-menu` snippets are unconsumed legacy header alternatives and are outside the account-page dependency graph; no account page relies on them. No header redesign or migration is part of this phase.
+The five active header sections (`header-one` through `header-five`) render `snippets/header-account-entry.liquid`, which loads only `assets/header-account-entry.css`. Each existing header controller owns its direct component `open` listener through its existing abort lifecycle. No account page depends on these listeners.
+
+| Entry path | Visibility and ownership |
+| --- | --- |
+| Header One | Existing icon and independent mobile settings; mobile-only mode supported when only mobile entry is enabled. Native drawer link is fallback-only. |
+| Header Two | Existing show/display settings; native details dropdown and optional mobile registration stay fallback-only. Tracking remains in ordinary mobile navigation. |
+| Header Three | Existing show/display settings; current component remains in the mobile toolbar. Narrow logo text yields space to menu/account/cart. |
+| Header Four | Existing show setting (default off); enable for review. Component remains in the mobile toolbar; collapsed grid reserves action space. |
+| Header Five | Existing show/display settings; hover dropdown and drawer links are fallback-only. Addresses now respects the account visibility gate. |
+
+Every path is also gated by `shop.customer_accounts_enabled`. The shared menu setting/default is described in `current-account-contract.md`; the component has no Liquid-customer authentication branch. The signed-out slot receives each header’s existing icon/trigger classes. Shopify controls the signed-in avatar, sheet and hosted pages.
+
+`layout/theme.liquid` selects exactly one of the five static header sections (defaulting to One); its platform delivery is unchanged. `header-basic.liquid` is empty/unselected. `header-two-actions` and `header-two-mobile-menu` have no active consumers; `header-two-account` is only called by the unconsumed actions helper. They are not renamed, deleted or silently reactivated. The 25-file active header dependency closure, including unchanged search/conversion/marketplace helpers, is recorded in `validation/checkpoint-f/source.json`.
 
 ## Platform boundary and release decision
 
@@ -37,7 +49,7 @@ Shopify owns sessions, logout, credentials, activation/reset tokens, email deliv
 
 Current Shopify Customer Accounts are hosted independently. Their sign-in, orders, addresses, branding and extensions are **not** customized by these Liquid templates or account assets. Native account links hand off to Shopify's configured account experience. `?view=orders` is an alternate legacy template, not a hosted-accounts customization API.
 
-As of Shopify's February 26, 2026 notice, legacy accounts are deprecated and unavailable to new stores or existing stores that were not already using them. Removing customer templates can migrate a legacy store; this phase deliberately retains all existing templates. Shopify's July 30, 2026 notice requires the `shopify-account` component in desktop/mobile headers for new Theme Store submissions and updates. The current repository does not contain that component. This engineering closure therefore **does not certify Theme Store submission readiness**. The owner must choose and scope current-account header adoption before that distribution gate; merchant account migration and Customer Account UI extensions are separate architectural work.
+As of Shopify's February 26, 2026 notice, legacy accounts are deprecated and unavailable to new stores or existing stores that were not already using them. Removing customer templates can migrate a legacy store; this phase deliberately retains all existing templates. Shopify's July 30, 2026 notice requires the `shopify-account` component in desktop/mobile headers for new Theme Store submissions and updates. Checkpoint F now supplies that component through every active header. Its source integration gap is resolved; enabled visibility and live Shopify acceptance remain distribution gates. Merchant account migration and Customer Account UI extensions remain separate architectural work.
 
 Sources checked 2026-09-23:
 

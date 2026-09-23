@@ -1,9 +1,9 @@
 """Run retained Phase 3/4 executable source/DOM regressions from the repository root."""
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
-import subprocess,json,time
+import subprocess,json,time,os
 paths=sorted(Path('tests/phase3').glob('*.cjs'))+sorted(Path('tests/phase4').glob('*.cjs'))
-out=Path('docs/phase5/validation/final/regressions');out.mkdir(parents=True,exist_ok=True)
+out=Path(os.environ.get('ACCOUNT_REGRESSION_OUTPUT', 'docs/phase5/validation/final/regressions'));out.mkdir(parents=True,exist_ok=True)
 def run(p):
  start=time.monotonic()
  try:

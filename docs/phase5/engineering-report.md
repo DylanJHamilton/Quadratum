@@ -1,6 +1,6 @@
 # Phase 5 — Account infrastructure
 
-Status: ENGINEERING COMPLETE — READY FOR OWNER REVIEW. No unresolved source-level account defect remains in the reviewed scope. Live Shopify acceptance remains explicitly separate from these source, DOM and local-browser results.
+Status: PHASE 5 ACCOUNT INFRASTRUCTURE ENGINEERING COMPLETE — CURRENT + LEGACY ACCOUNT ENTRY COMPATIBILITY READY FOR OWNER REVIEW. No unresolved source-level account defect remains in the reviewed scope. Live Shopify acceptance remains explicitly separate from these source, DOM and local-browser results.
 
 Repository: DylanJHamilton/Quadratum
 Branch: release/v1-phase-5-account-infrastructure
@@ -16,11 +16,11 @@ Review, repair, test, commit, publish, verify the remote SHA for each checkpoint
 - B: dashboard / shared navigation — published and independently verified at `7f2ccd2506b556c0aa109c6209fbb32a20e45680`.
 - C: orders / order detail / tracking — published and independently verified at `00d42554d305339dd9cd9410020724888b19b18d`.
 - D: addresses — published and independently verified at `1b9c206866aab2feed10dd7b0a18557022127328`.
-- E: cross-account assets / template mapping / final reconciliation — initial checkpoint published at `d005b5f428800a54b01033edbc75a6496bfda0e9`; this follow-up retains that work and adds the complete final regression/dependency inventory. The final remote SHA is supplied in the owner handoff after fetch verification; source hashes are recorded in validation/final/reconciliation.json.
+- E: cross-account assets / template mapping / final reconciliation — final verified checkpoint `8e114764138cf5a5967ff56b75064808d6366bed`; initial checkpoint published at `d005b5f428800a54b01033edbc75a6496bfda0e9`; this follow-up retains that work and adds the complete final regression/dependency inventory. The final remote SHA is supplied in the owner handoff after fetch verification; source hashes are recorded in validation/final/reconciliation.json.
 
 ## Account model
 
-These customer Liquid templates implement legacy/classic customer accounts. Current Shopify Customer Accounts are hosted independently of themes; Liquid templates and account CSS/JS cannot customize their hosted screens. Native storefront account entry routes remain in place for either account model, but this is not a second implementation of hosted accounts. Existing legacy templates are retained per owner scope. Shopify deprecated legacy accounts on February 26, 2026: new stores and stores not already using them cannot enable them. Its notice says the final sunset date will be announced later in 2026. Removing legacy templates can trigger an account migration; this phase does not do that.
+These customer Liquid templates implement legacy/classic customer accounts. Current Shopify Customer Accounts are hosted independently of themes; Liquid templates and account CSS/JS cannot customize their hosted screens. Checkpoint F adds Shopify’s documented storefront account component to all five headers; native routes remain as progressive fallbacks. This is not a second implementation of hosted accounts. Existing legacy templates are retained per owner scope. Shopify deprecated legacy accounts on February 26, 2026: new stores and stores not already using them cannot enable them. Its notice says the final sunset date will be announced later in 2026. Removing legacy templates can trigger an account migration; this phase does not do that.
 
 Shopify owns authentication, authorization, sessions/logout, token validity, CAPTCHA, email delivery and persisted customer/order/address data. This theme owns legacy presentation and progressive enhancement. Hosted-account customization belongs in Shopify's checkout/accounts branding tools and supported customer account extensions, not these Liquid templates. No account model was changed and no store configuration was queried or modified.
 
@@ -148,10 +148,46 @@ No unresolved account source defect is deferred. Live platform acceptance above 
 
 The owner must decide the deployment account model and migration plan: retain these screens only for stores still eligible for legacy accounts, or use Shopify-hosted Customer Accounts and separately scope supported branding/extensions. Shopify's deprecation makes that a deployment decision; this theme cannot enable legacy accounts on an ineligible store. Optional tracking also needs a selected provider or can remain disabled. Neither decision requires changing the reviewed source to hand this branch over.
 
-For Theme Store distribution, Shopify's July 30, 2026 requirement additionally mandates the `shopify-account` header component on desktop/mobile. The retained headers do not include it. Owner action: separately scope current-account header adoption before Theme Store submission. This legacy infrastructure closure does not certify Theme Store submission readiness. That architectural header adoption and account migration remain outside the protected scope here; see [owner acceptance](owner-review.md) and [platform dependency summary](dependency-map.md).
+For Theme Store distribution, Shopify's July 30, 2026 requirement additionally mandates the `shopify-account` header component on desktop/mobile. At checkpoint E the headers lacked it; checkpoint F below resolves that source integration gap. Migration and hosted-account extensions remain separate decisions. Theme Store approval still requires live acceptance; see [owner acceptance](owner-review.md) and [platform dependency summary](dependency-map.md).
 
-No merge, main write, template removal, config/settings_data.json change, global Theme Settings rewrite or unrelated header/footer modification occurred. All checkpoint work is published to the specified release branch; the final handoff supplies the independently verified remote SHA. Phase 5 engineering stops here.
+No merge, main write, template removal, config/settings_data.json change, global Theme Settings rewrite or unrelated header/footer modification occurred. All checkpoint work is published to the specified release branch; the final handoff supplies the independently verified remote SHA. Checkpoint E ended here; the authorized Checkpoint F continuation follows.
 
 CAPTCHA boundary source checked 2026-09-23: https://shopify.dev/docs/storefronts/themes/trust-security/captcha
 
 Theme Store account-component requirement checked 2026-09-23: https://shopify.dev/changelog/the-shopify-account-component-for-customer-accounts-is-now-a-theme-store-requirement
+
+
+## Checkpoint F — current + legacy storefront entry
+
+Parent: `8e114764138cf5a5967ff56b75064808d6366bed`. Official contract and access date: [current-account-contract.md](current-account-contract.md). No customer template, legacy account source, global setting or saved merchant configuration changed from A–E.
+
+All five active headers now render `header-account-entry`; it owns the account-enabled gate, escaped menu handle/default, the documented `shopify-account` element, signed-out slot and stylesheet. Header-specific native controls remain loading/no-JS fallbacks. Once the custom element is defined, those controls and the old drawer account links are removed from layout and accessibility trees by scoped CSS. No extra theme authentication controller or component loader was introduced. The component owns signed-in identity and its sheet; Liquid customer state only affects native fallback markup.
+
+Existing visibility and display setting IDs/defaults are retained. Header One keeps its separate mobile setting: when the main icon is off and mobile entry is on, the component and native fallback are mobile-only. Header Four still defaults account visibility to off; enable it when presenting a Theme Store review configuration. Text/icon choices style the signed-out trigger; the signed-in avatar is Shopify-owned. Every header adds the documented `customer_account_menu` section setting. A blank selection uses the platform’s system handle; no local menu object is required. Custom menu contents, absent/deleted menu behavior and tracking links need merchant/live acceptance.
+
+Repairs directly required by entry integration:
+- Preserve account target visibility at narrow widths; account controls have a 44px minimum, and header-specific icon styles remain in place.
+- Keep toolbar and drawer entries from competing after upgrade. Correct Header Five’s Addresses fallback so account visibility also gates it.
+- Close a competing drawer on the documented component `open` event without returning focus to the hamburger. Existing abort lifecycle disposes listeners. Headers Three/Four/Five ignore an already-closing drawer, preventing focus theft and Escape cancellation while the account sheet is open.
+- Constrain logo text locally around the added target; Header Four’s collapsed grid now allocates room to both account and cart. Browser hit-testing and neighboring-control bounds protect the menu/cart controls as well as the account trigger.
+
+The component’s native legacy behavior is retained; all 37 A–E owned components plus merchant settings_data are byte-identical to checkpoint E. The expanded register has 68 rows: 38 prior account/dependency rows, 25 active header dependency paths, the unchanged layout boundary, and four inactive/header-alternative dispositions. `header-basic.liquid` is empty and not selected by layout. Unconsumed Header Two helper alternatives remain untouched.
+
+### Checkpoint F evidence
+
+| Validation | Result |
+| --- | --- |
+| Header entry source/render contracts | 66 scenarios passed across all five headers; account visibility, signed-in/out independence, menu fallback/escaping, preserved settings, noninteractive slot and exact dependency references |
+| Strict parsing | 7 new/touched header/snippet Liquid files plus 21 retained account Liquid files pass; CSS and JS syntax pass |
+| Phase 5 account regressions | All 56 A–E behavior scenarios plus reconciliation/source suites pass |
+| Broader regressions | All 112 Phase 3/4 executable suites pass, including 171 auth and 198 account-page cases; affected header/navigation suites rerun after final lifecycle edits |
+| Local Chromium | 72 layout/fallback cases at 320/768/1440 CSS px, signed-in/out adapters, light/dark, LTR/RTL, long merchant names, no-component fallback and delayed upgrade; account and neighboring controls remain in bounds |
+| Account accessibility/keyboard | 20 scoped axe audits with zero violations; 15 keyboard cases, visible focus, Enter/Escape return, 5 drawer/unload/remount cases; no browser script errors |
+| Theme Check 4.8.0 | 0 errors, 510 warnings, versus checkpoint E’s 0/509. One new `OrphanedSnippet` false positive on the shared entry despite five actual render consumers. Existing five excessive-setting warnings update their counts; the existing Header Two complexity warning changes its count. No suppressions or ignored files added. |
+| Preservation | 38 protected paths byte-identical to E; main remains the Phase 4 baseline; exact Checkpoint F change allowlist and whitespace check pass |
+
+Evidence: [checkpoint-f/](validation/checkpoint-f/). [Exact changed files](validation/checkpoint-f/changed-files.txt) and [source/dependency inventory](validation/checkpoint-f/source.json). Test-only component adapters exercise our integration; they do not certify Shopify’s live shadow DOM, authentication, account menu service, hosted pages or platform keyboard behavior. Prior account-page browser results remain valid source evidence because A–E files did not change. Selected mobile header captures were visually inspected during this checkpoint.
+
+No known source-level account-entry blocker remains. The missing-component Theme Store integration gap is resolved. Submission acceptance still depends on enabled account visibility and real Shopify current/eligible-legacy tests, particularly hosted sign-in/session handling, actual menu resolution, Shop/social methods where configured, no-JS redirects, dynamic editor replacement, browser/AT behavior and focus while the platform sheet is open. See [owner-review.md](owner-review.md). Retaining legacy templates is intentional and does not force migration; theme acceptance itself is Shopify’s decision.
+
+Publication uses a non-forced commit/ref update to the specified Phase 5 branch, followed by independent fetch, remote SHA/tree/changed-file verification and a protected-main check. The final verified commit is the owner handoff; no merge or Phase 6 work follows.
