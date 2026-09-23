@@ -1,15 +1,15 @@
 {% comment %}
   Quadratum Account System
-  File 5 of 5 — Order Tracking
+  Order Tracking
 
   Handles:
   - Customer-facing tracking lookup UI
   - Order number / email / optional tracking number fields
-  - Presentational tracking status panel
-  - Visual tracking timeline
+  - Order-information guidance
+  - Explanatory shipment stages (never live status)
   - Support CTA
   - Back to account/orders links
-  - Stable API-ready hooks for future QuadratumLink integration
+  - Merchant-configured redirect; no carrier/API integration
 
   Does NOT handle:
   - FedEx API
@@ -29,6 +29,9 @@
   assign orders_url = section.settings.orders_page_url
   if orders_url == blank
     assign orders_url = routes.account_url
+    if template.directory == 'customers'
+      assign orders_url = routes.account_url | append: '?view=orders'
+    endif
   endif
 -%}
 
@@ -66,6 +69,7 @@
       </div>
     </header>
 
+    {% if customer %}
     {% render 'account-main-account-nav', section: section,
       active: 'tracking',
       show_tracking: true,
@@ -73,6 +77,9 @@
       orders_url: orders_url,
       layout: 'horizontal'
     %}
+    {% else %}
+      <p><a href="{{ routes.account_login_url | escape }}">Sign in to view your orders</a></p>
+    {% endif %}
 
     <div class="qtmAccountTracking__layout">
       <div class="qtmAccountTracking__lookupCard">
@@ -142,7 +149,7 @@
           <div
             class="qtmAccountTracking__message"
             id="TrackingMessage-{{ section.id }}" data-qtm-tracking-message
-            aria-live="polite"
+            role="alert" tabindex="-1"
             hidden
           ></div>
 
@@ -159,8 +166,7 @@
       <div
         class="qtmAccountTracking__results"
         data-qtm-tracking-results
-        aria-live="polite"
-      >
+        >
         <section class="qtmAccountTracking__statusCard">
           <h2 class="qtmAccountTracking__cardTitle">Your order information</h2>
           <p>Use your order confirmation link or open your account for available fulfillment details. This page does not retrieve carrier status.</p>
@@ -180,7 +186,7 @@
         </section>
 
         {% if section.settings.show_support_cta %}
-          <section class="qtmAccountTracking__supportCard" aria-labelledby="QtmTrackingSupportHeading-{{ section.id }}">
+          <section class="qtmAccountTracking__supportCard" {% if section.settings.support_heading != blank %}aria-labelledby="QtmTrackingSupportHeading-{{ section.id }}"{% else %}aria-label="Order support"{% endif %}>
             {% if section.settings.support_heading != blank %}
               <h2 id="QtmTrackingSupportHeading-{{ section.id }}" class="qtmAccountTracking__cardTitle">
                 {{ section.settings.support_heading | escape }}
@@ -222,7 +228,7 @@
       "type": "text",
       "id": "provider_url",
       "label": "Tracking provider URL",
-      "info": "HTTPS URL or store-relative path. Optional {order}, {email}, {tracking} placeholders are encoded. Otherwise values are sent as order, email and tracking query parameters. Configure only a provider that accepts this contract. Blank disables the form."
+      "info": "HTTPS URL or store-relative path. No credentials or placeholders in the host. Optional {order}, {email}, {tracking} placeholders are encoded. Otherwise values are sent as order, email and tracking query parameters. Configure only a provider that accepts this contract. Blank disables the form."
     },
     {
       "type": "text",
@@ -397,7 +403,7 @@
     {
       "type": "color",
       "id": "timeline_inactive_color",
-      "label": "Timeline inactive color",
+      "label": "Stage connector color",
       "default": "#d1d5db"
     },
     {

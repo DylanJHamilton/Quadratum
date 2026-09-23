@@ -1,6 +1,7 @@
 (() => {
 'use strict';
-if(window.__qAccountOrders)return;window.__qAccountOrders=true;
+if (window.__qAccountOrders) return;
+window.__qAccountOrders = true;
 class QtmAccountOrders {
   constructor(root) {
     this.root = root;
@@ -32,7 +33,9 @@ class QtmAccountOrders {
     if(this.controls)this.controls.hidden=true;
     if(this.countNode)this.countNode.hidden=true;
     if(this.noMatchesNode)this.noMatchesNode.hidden=true;
-    [...this.tableItems,...this.cardItems].forEach(item=>item.hidden=false);
+    [...this.tableItems, ...this.cardItems].forEach(item => { item.hidden = false; });
+    this.tableItems.forEach(item => this.tableBody.appendChild(item));
+    this.cardItems.forEach(item => this.cardList.appendChild(item));
   }
 
   bindEvents() {
@@ -76,7 +79,7 @@ class QtmAccountOrders {
     const renderedCount = Math.max(this.tableItems.length, this.cardItems.length);
 
     if (this.countNode) {
-      this.countNode.textContent = `${totalCount} of ${renderedCount} orders shown`;
+      this.countNode.textContent = `${totalCount} of ${renderedCount} orders shown on this page`;
     }
 
     if (this.noMatchesNode) {
@@ -132,10 +135,30 @@ class QtmAccountOrders {
 }
 
 
-const instances=new Map(),selector='[data-qtm-account-orders]';
-const mount=root=>{if(!instances.has(root))instances.set(root,new QtmAccountOrders(root));};
-const scan=scope=>{if(scope.matches?.(selector))mount(scope);scope.querySelectorAll?.(selector).forEach(mount);};
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>scan(document),{once:true});else scan(document);
-document.addEventListener('shopify:section:load',e=>scan(e.target));
-document.addEventListener('shopify:section:unload',e=>{for(const[root,instance]of instances)if(root===e.target||e.target.contains(root)){instance.dispose();instances.delete(root);}});
+const instances = new Map();
+const selector = '[data-qtm-account-orders]';
+
+function mount(root) {
+  if (!instances.has(root)) instances.set(root, new QtmAccountOrders(root));
+}
+
+function scan(scope) {
+  if (scope.matches?.(selector)) mount(scope);
+  scope.querySelectorAll?.(selector).forEach(mount);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => scan(document), { once: true });
+} else {
+  scan(document);
+}
+document.addEventListener('shopify:section:load', event => scan(event.target));
+document.addEventListener('shopify:section:unload', event => {
+  for (const [root, instance] of instances) {
+    if (root === event.target || event.target.contains(root)) {
+      instance.dispose();
+      instances.delete(root);
+    }
+  }
+});
 })();

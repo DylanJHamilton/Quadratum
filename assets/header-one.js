@@ -51,7 +51,7 @@
         if (dropdown) dropdown.hidden = isOpen;
       }
 
-      function setOpen(isOpen) {
+      function setOpen(isOpen, restoreFocus = true) {
         if (!toggle || !panel || (!isOpen && panel.hidden)) return;
 
         toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
@@ -77,7 +77,7 @@
           document.documentElement.classList.remove('qh1-mobile-open');
           document.body.classList.remove('qh1-mobile-open');
 
-          if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+          if (restoreFocus && lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
             lastFocusedElement.focus();
           }
         }
@@ -157,6 +157,10 @@
         on(trigger, 'click', function() {
           if (panel && !panel.hidden) setOpen(false);
         });
+      });
+
+      root.querySelectorAll('shopify-account').forEach(function(account) {
+        on(account, 'open', function() { setOpen(false, false); closeDropdowns(); });
       });
 
       on(document, 'qtm:header-mobile-open', function(event) { if (event.detail !== root) setOpen(false); });

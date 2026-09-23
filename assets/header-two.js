@@ -185,6 +185,9 @@
     var closeTimer = null;
 
     on(header, header, 'qtm:header-destroy', function() { closeDrawer(); window.clearTimeout(closeTimer); drawer.hidden = true; if (overlay) overlay.hidden = true; });
+    header.querySelectorAll('shopify-account').forEach(function(account) {
+      on(header, account, 'open', function() { closeDrawer(null, false); });
+    });
     on(header, document, 'qtm:header-mobile-open', function(event) { if (event.detail !== header) closeDrawer(); });
     on(header, document, 'focusin', function(event) {
       if (isOpen && header.isConnected && !drawer.contains(event.target)) (getFocusable(drawer)[0] || drawer).focus();
@@ -230,12 +233,12 @@
       });
     }
 
-    function closeDrawer(event) {
+    function closeDrawer(event, restoreFocus = true) {
       if (event) event.preventDefault();
       if (!isOpen) return;
 
       isOpen = false;
-      if (lastFocused?.isConnected) lastFocused.focus();
+      if (restoreFocus && lastFocused?.isConnected) lastFocused.focus();
       drawer.classList.remove('is-open');
       drawer.setAttribute('aria-hidden', 'true');
       if (overlay) overlay.classList.remove('is-open');

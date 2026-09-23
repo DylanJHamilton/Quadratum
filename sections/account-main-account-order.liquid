@@ -1,6 +1,6 @@
 {% comment %}
   Quadratum Account System
-  File 4 of 5 — Single Order Detail Page
+  Single Order Detail Page
 
   Handles:
   - Single customer order detail
@@ -33,13 +33,10 @@
 
   assign back_url = section.settings.orders_page_url
   if back_url == blank
-    assign back_url = routes.account_url
+    assign back_url = routes.account_url | append: '?view=orders'
   endif
 
   assign tax_price = order.tax_price
-  if tax_price == blank
-    assign tax_price = order.total_tax
-  endif
 -%}
 
 <section
@@ -89,11 +86,11 @@
         </div>
 
         <div class="qtmAccountOrder__statusGroup" aria-label="Order statuses">
-          <span class="qtmAccountOrder__badge qtmAccountOrder__badge--{{ financial_status }}">
+          <span class="qtmAccountOrder__badge qtmAccountOrder__badge--{{ financial_status | escape }}">
             {{ order.financial_status_label | escape }}
           </span>
 
-          <span class="qtmAccountOrder__badge qtmAccountOrder__badge--{{ fulfillment_status }}">
+          <span class="qtmAccountOrder__badge qtmAccountOrder__badge--{{ fulfillment_status | escape }}">
             {{ order.fulfillment_status_label | escape }}
           </span>
 
@@ -139,12 +136,6 @@
                       {{ line_item.title | escape }}
                     </h3>
 
-                    {% if line_item.variant_title != blank and line_item.variant_title != 'Default Title' %}
-                      <p class="qtmAccountOrder__itemMeta">
-                        {{ line_item.variant_title | escape }}
-                      </p>
-                    {% endif %}
-
                     {% if line_item.sku != blank %}
                       <p class="qtmAccountOrder__itemMeta">
                         SKU: {{ line_item.sku | escape }}
@@ -173,8 +164,11 @@
                           <span>{{ line_item.fulfillment.tracking_company | escape }}</span>
                         {% endif %}
 
-                        {% if line_item.fulfillment.tracking_url != blank %}<a href="{{ line_item.fulfillment.tracking_url | escape }}">Track shipment</a>{% endif %}
-                        {% if line_item.fulfillment.tracking_number != blank %}
+                        {% capture shipment_url %}{% render 'account-safe-link', url: line_item.fulfillment.tracking_url %}{% endcapture %}
+                        {% if shipment_url != blank %}<a href="{{ shipment_url | strip | escape }}">Track shipment</a>{% endif %}
+                        {% if line_item.fulfillment.tracking_numbers.size > 1 %}
+                          <ul aria-label="Tracking numbers">{% for number in line_item.fulfillment.tracking_numbers %}<li>{{ number | escape }}</li>{% endfor %}</ul>
+                        {% elsif line_item.fulfillment.tracking_number != blank %}
                           <span>{{ line_item.fulfillment.tracking_number | escape }}</span>
                         {% endif %}
                       </div>
@@ -285,10 +279,11 @@
             </dl>
 
             {% if section.settings.show_tracking_cta and section.settings.tracking_button_label != blank %}
-              {% assign actual_tracking_url = tracking_page_url | default: order.order_status_url %}
+              {% assign tracking_destination = tracking_page_url | default: order.order_status_url %}
+              {% capture actual_tracking_url %}{% render 'account-safe-link', url: tracking_destination %}{% endcapture %}
               {% if actual_tracking_url != blank %}
               <a
-                href="{{ actual_tracking_url | escape }}"
+                href="{{ actual_tracking_url | strip | escape }}"
                 class="qtmAccountOrder__button qtmAccountOrder__button--{{ section.settings.button_style }}"
               >
                 {{ section.settings.tracking_button_label | escape }}
@@ -306,7 +301,7 @@
               <div>
                 <dt>Payment</dt>
                 <dd>
-                  <span class="qtmAccountOrder__badge qtmAccountOrder__badge--{{ financial_status }}">
+                  <span class="qtmAccountOrder__badge qtmAccountOrder__badge--{{ financial_status | escape }}">
                     {{ order.financial_status_label | escape }}
                   </span>
                 </dd>
@@ -315,7 +310,7 @@
               <div>
                 <dt>Fulfillment</dt>
                 <dd>
-                  <span class="qtmAccountOrder__badge qtmAccountOrder__badge--{{ fulfillment_status }}">
+                  <span class="qtmAccountOrder__badge qtmAccountOrder__badge--{{ fulfillment_status | escape }}">
                     {{ order.fulfillment_status_label | escape }}
                   </span>
                 </dd>
@@ -335,7 +330,11 @@
           Order
         </h1>
 
-        <p>This order could not be found, or you need to sign in to view it.</p>
+        {% if customer %}
+          <p>This order is unavailable. Return to your orders to choose another order.</p>
+          <a href="{{ back_url | escape }}">View orders</a>
+        {% else %}
+        <p>Please sign in to view this order.</p>
 
         <a
           href="{{ routes.account_login_url | escape }}"
@@ -343,6 +342,7 @@
         >
           Sign in
         </a>
+        {% endif %}
       </div>
     {% endif %}
   </div>

@@ -117,12 +117,12 @@
       });
     }
 
-    function closeMobileMenu(event) {
+    function closeMobileMenu(event, restoreFocus = true) {
+      if (!mobilePanel || !mobileOpenButton || mobilePanel.hidden || mobileOpenButton.getAttribute('aria-expanded') !== 'true') return;
       if (event) event.preventDefault();
-      if (!mobilePanel || !mobileOpenButton || mobilePanel.hidden) return;
 
       mobileOpenButton.setAttribute('aria-expanded', 'false');
-      if (lastFocusedElement && lastFocusedElement.isConnected) lastFocusedElement.focus({ preventScroll: true });
+      if (restoreFocus && lastFocusedElement && lastFocusedElement.isConnected) lastFocusedElement.focus({ preventScroll: true });
       mobilePanel.setAttribute('aria-hidden', 'true');
 
       mobilePanel.classList.remove('is-open');
@@ -188,6 +188,9 @@
       on(button, 'click', closeMobileMenu);
     });
 
+    root.querySelectorAll('shopify-account').forEach(function(account) {
+      on(account, 'open', function() { closeMobileMenu(null, false); });
+    });
     on(document, 'qtm:header-mobile-open', function(event) { if (event.detail !== root) closeMobileMenu(); });
     on(root, 'click', function(event) {
       if (mobilePanel && mobilePanel.contains(event.target) && event.target.closest('[data-search-popup-open], [data-cart-drawer-open]')) closeMobileMenu();
