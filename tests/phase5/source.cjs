@@ -24,7 +24,9 @@ for (const file of files) {
     for (const ref of source.matchAll(/{%-?\s*(render|section)\s+['"]([^'"]+)['"]/g)) {
       assert(fs.existsSync((ref[1] === 'render' ? 'snippets/' : 'sections/') + ref[2] + '.liquid'), file + ': ' + ref[2]); references++;
     }
-  } else if (file.endsWith('.css')) postcss.parse(source, { from: file });
+  } else if (file.endsWith('.css')) {
+    postcss.parse(source, { from: file }).walkRules(rule => assert(rule.selector.trim(), file + ': nonempty CSS selector'));
+  }
   else if (file.endsWith('.js')) cp.execFileSync(process.execPath, ['--check', file]);
 }
 const mapping = { account: 'dashboard', activate_account: 'activate', addresses: 'addresses', login: 'login', order: 'order', register: 'register', reset_password: 'reset-password' };

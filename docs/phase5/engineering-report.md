@@ -13,7 +13,7 @@ Review, repair, test, commit, publish, verify the remote SHA for each checkpoint
 ## Checkpoints
 
 - A: login / registration / recovery / reset / activation — engineering verified; checkpoint A publication.
-- B: dashboard / shared navigation — pending.
+- B: dashboard / shared navigation — engineering verified; checkpoint B publication.
 - C: orders / order detail / tracking — pending.
 - D: addresses — pending.
 - E: cross-account assets / template mapping / final reconciliation — pending.
@@ -48,6 +48,18 @@ Repairs:
 - Repair password-toggle colors against the white input surface on dark merchant cards.
 - Expand compressed auth controllers into named lifecycle/visibility functions. Existing asset names, selectors and standalone boot behavior are retained. Similar small visibility routines remain intentionally independent to avoid a new script-order dependency.
 
-Validation: 171 reused Phase 4 auth cases (two setting permutations retired with remember_me), 198 reused account-page cases, 13 new auth scenarios, 36-file strict source/reference/template/CSS/JS validation. Baseline had zero Theme Check errors and 609 warnings; full comparison runs at reconciliation. No auth endpoint, email, CAPTCHA, activation token, expired token or screen-reader certification is claimed from fixtures.
+Validation: 171 reused Phase 4 auth cases (two setting permutations retired with remember_me), 198 reused account-page cases, 13 new auth scenarios, 36-file strict source/reference/template/CSS/JS validation. Baseline had zero Theme Check errors and 509 warnings; full comparison runs at reconciliation. No auth endpoint, email, CAPTCHA, activation token, expired token or screen-reader certification is claimed from fixtures.
 
 Naming retained: account-main-account.css is the login stylesheet, not a global account bundle; the recovery snippet is a real native form despite its historic placeholder suffix. Neither is orphaned. Preserve names for compatibility.
+
+## Checkpoint B — dashboard and shared navigation
+
+Checkpoint A remote verified: `2c8c90c5f488b1a1a1c41d9d4c91f57c090949c1`.
+
+Reviewed dashboard section/CSS, shared nav snippet/CSS, account template and the newly added `customers/account.orders.liquid` alternate template. The full orders section previously had no template consumer; Orders duplicated the Dashboard destination. Default shared Orders navigation now uses the locale-aware account route with `?view=orders`, which renders the existing full-history section. Explicit merchant Orders URLs remain supported. This applies to legacy theme routes; newer hosted accounts bypass these templates.
+
+Dashboard keeps a bounded recent-order preview and links to full history; removes competing preview pagination. Greeting no longer silently depends on nonblank subheading when customer-name display is enabled. Corrects the block container for Shopify format_address HTML, logical RTL table alignment and card-link contrast. Removes proven unused pre-shared-nav CSS. Shared nav renders one captured list for horizontal/sidebar/compact modes, preserving keyboard-native details/summary, labels, active state and 44px targets without JavaScript.
+
+Validation: strict source and reference checks, 7 new dashboard/nav scenarios, all 198 account-page regressions. Live QA: alternate-template routing and pagination query preservation, real long customer/address text, card/table semantics with assistive technology and merchant colors. Full orders flow receives independent review at checkpoint C.
+
+Alternate-template contract: https://shopify.dev/docs/storefronts/themes/architecture/templates/alternate-templates (checked 2026-09-23).
