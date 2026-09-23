@@ -17,6 +17,21 @@
   assign show_on_mobile = block.settings.show_on_mobile
 -%}
 
+{%- assign rendered_collections = 0 -%}
+{%- capture collection_cards -%}
+  {%- if collection_source == 'featured' and selected_collection != blank -%}
+    {%- assign rendered_collections = 1 -%}
+    <div class="content-collection-carousel__slide q-carousel__slide">{%- render 'qtm-block-collection-card', card_collection: selected_collection, block: block, prefix: 'content-collection-carousel' -%}</div>
+  {%- else -%}
+    {%- for card_collection in block.settings.collections limit: collection_limit -%}
+      {%- if card_collection != blank and card_collection.url != blank -%}
+        {%- assign rendered_collections = rendered_collections | plus: 1 -%}
+        <div class="content-collection-carousel__slide q-carousel__slide">{%- render 'qtm-block-collection-card', card_collection: card_collection, block: block, prefix: 'content-collection-carousel' -%}</div>
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+{%- endcapture -%}
+
 <div
   id="{{ block_id }}"
   class="
@@ -24,10 +39,10 @@
     content-collection-carousel--{{ carousel_layout }}
     content-collection-carousel--width-{{ width }}
     content-collection-carousel--align-{{ alignment }}
-    {% unless show_on_desktop %} content-collection-carousel--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} content-collection-carousel--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} content-collection-carousel--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} content-collection-carousel--animate content-collection-carousel--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} content-collection-carousel--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} content-collection-carousel--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} content-collection-carousel--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} content-collection-carousel--animate content-collection-carousel--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --content-collection-carousel-margin-top: {{ block.settings.margin_top }}px;
@@ -60,39 +75,43 @@
     data-product-id="{{ product_context.id }}"
     data-variant-id="{{ current_variant.id }}"
   {% endif %}
+  {% if rendered_collections == 0 and request.design_mode == false %}hidden{% endif %}
   data-content-collection-carousel
+  data-q-carousel-engine="shared" data-qtm-block-carousel data-design-mode="{{ request.design_mode }}"
+  data-loop="true" data-show-arrows="{{ block.settings.show_arrows }}" data-pause-hover="true" data-pause-focus="true"
+  data-go-to-label="{{ block.settings.go_to_slide_label | default: 'Go to collection page' | escape }}"
+  data-pause-label="{{ block.settings.pause_label | escape }}" data-resume-label="{{ block.settings.resume_label | escape }}" data-reduced-motion-label="{{ block.settings.reduced_motion_label | escape }}"
   data-autoplay="{{ block.settings.enable_autoplay }}"
   data-autoplay-speed="{{ block.settings.autoplay_speed }}"
-  {{ block.shopify_attributes }}
 >
   <style>
     #{{ block_id }} {
       width: 100%;
       margin-top: var(--content-collection-carousel-margin-top);
       margin-bottom: var(--content-collection-carousel-margin-bottom);
-      padding: var(--content-collection-carousel-padding);
+      padding: min(var(--content-collection-carousel-padding), 8%);
       color: var(--content-collection-carousel-text-color);
       background: var(--content-collection-carousel-background);
     }
 
     #{{ block_id }}.content-collection-carousel--width-auto {
-      max-width: none;
+      max-width: 100%;
     }
 
     #{{ block_id }}.content-collection-carousel--width-small {
-      max-width: 900px;
+      max-width: min(100%, 900px);
     }
 
     #{{ block_id }}.content-collection-carousel--width-medium {
-      max-width: 1100px;
+      max-width: min(100%, 1100px);
     }
 
     #{{ block_id }}.content-collection-carousel--width-large {
-      max-width: 1320px;
+      max-width: min(100%, 1320px);
     }
 
     #{{ block_id }}.content-collection-carousel--width-full {
-      max-width: none;
+      max-width: 100%;
     }
 
     #{{ block_id }}.content-collection-carousel--align-left {
@@ -207,20 +226,19 @@
 
     #{{ block_id }} .content-collection-carousel__viewport {
       width: 100%;
-      overflow: hidden;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      scroll-behavior: smooth;
     }
 
     #{{ block_id }}.content-collection-carousel--peek .content-collection-carousel__viewport {
-      overflow: visible;
+      overflow-x: auto;
     }
 
     #{{ block_id }} .content-collection-carousel__track {
       display: flex;
       gap: var(--content-collection-carousel-gap);
-      overflow-x: auto;
-      scroll-snap-type: x mandatory;
-      scroll-behavior: smooth;
-      scrollbar-width: none;
+      overflow: visible;
       padding-bottom: 2px;
     }
 
@@ -251,7 +269,7 @@
       text-decoration: none;
       overflow: hidden;
       isolation: isolate;
-      padding: var(--content-collection-carousel-card-padding);
+      padding: min(var(--content-collection-carousel-card-padding), 8%);
       background: var(--content-collection-carousel-card-background);
       border: var(--content-collection-carousel-border-width) solid var(--content-collection-carousel-border-color);
       border-radius: var(--content-collection-carousel-card-radius);
@@ -303,11 +321,13 @@
 
     #{{ block_id }}.content-collection-carousel--carousel .content-collection-carousel__content,
     #{{ block_id }}.content-collection-carousel--peek .content-collection-carousel__content {
-      position: absolute;
-      inset: auto 18px 18px 18px;
+      position: relative;
+      grid-area: 1 / 1;
+      align-self: end;
+      margin: min(18px, 5%);
       z-index: 2;
       padding: 0;
-      color: #ffffff;
+      color: {{ block.settings.overlay_text_color }};
     }
 
     #{{ block_id }}.content-collection-carousel--centered .content-collection-carousel__content {
@@ -324,7 +344,7 @@
 
     #{{ block_id }}.content-collection-carousel--carousel .content-collection-carousel__title,
     #{{ block_id }}.content-collection-carousel--peek .content-collection-carousel__title {
-      color: #ffffff;
+      color: {{ block.settings.overlay_text_color }};
       text-shadow: 0 1px 18px rgba(0, 0, 0, 0.24);
     }
 
@@ -337,7 +357,7 @@
 
     #{{ block_id }}.content-collection-carousel--carousel .content-collection-carousel__meta,
     #{{ block_id }}.content-collection-carousel--peek .content-collection-carousel__meta {
-      color: #ffffff;
+      color: {{ block.settings.overlay_text_color }};
       opacity: 0.9;
       text-shadow: 0 1px 18px rgba(0, 0, 0, 0.24);
     }
@@ -352,7 +372,7 @@
 
     #{{ block_id }}.content-collection-carousel--carousel .content-collection-carousel__copy,
     #{{ block_id }}.content-collection-carousel--peek .content-collection-carousel__copy {
-      color: #ffffff;
+      color: {{ block.settings.overlay_text_color }};
       opacity: 0.92;
       text-shadow: 0 1px 18px rgba(0, 0, 0, 0.24);
     }
@@ -423,7 +443,7 @@
     }
 
     #{{ block_id }}.content-collection-carousel--animate {
-      opacity: 0;
+      opacity: 1;
       animation-duration: 700ms;
       animation-fill-mode: forwards;
       animation-timing-function: ease;
@@ -511,7 +531,7 @@
       }
 
       #{{ block_id }}.content-collection-carousel--peek .content-collection-carousel__slide {
-        flex-basis: 82%;
+        flex-basis: calc((92% - (var(--content-collection-carousel-gap) * (var(--content-collection-carousel-columns-mobile) - 1))) / var(--content-collection-carousel-columns-mobile));
       }
 
       #{{ block_id }} .content-collection-carousel__heading {
@@ -520,7 +540,7 @@
 
       #{{ block_id }}.content-collection-carousel--carousel .content-collection-carousel__content,
       #{{ block_id }}.content-collection-carousel--peek .content-collection-carousel__content {
-        inset: auto 12px 12px 12px;
+        margin: min(12px, 5%);
       }
     }
 
@@ -547,329 +567,69 @@
         transform: none;
       }
     }
+
+    #{{ block_id }} { min-width: 0; max-width: 100%; overflow-wrap: anywhere; container-type: inline-size; }
+    #{{ block_id }}, #{{ block_id }} * { box-sizing: border-box; }
+    #{{ block_id }}[hidden], #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} a, #{{ block_id }} button { max-width: 100%; overflow-wrap: anywhere; }
+    #{{ block_id }} :focus-visible { outline: 2px solid var(--content-collection-carousel-focus-color); outline-offset: 3px; }
+    #{{ block_id }} img { max-width: 100%; }
+    #{{ block_id }} .content-collection-carousel__button { white-space: normal; min-width: 0; }
+
+    #{{ block_id }} .content-collection-carousel__card--no-image .content-collection-carousel__title { color: var(--content-collection-carousel-heading-color); text-shadow: none; }
+    #{{ block_id }} .content-collection-carousel__card--no-image .content-collection-carousel__meta,
+    #{{ block_id }} .content-collection-carousel__card--no-image .content-collection-carousel__copy { color: var(--content-collection-carousel-text-color); text-shadow: none; }
+    #{{ block_id }} .content-collection-carousel__card--no-image { grid-template-columns: minmax(0, 1fr); }
+
+    #{{ block_id }} .content-collection-carousel__viewport, #{{ block_id }} .content-collection-carousel__track { min-width: 0; }
+    #{{ block_id }} .content-collection-carousel__header { min-width: 0; }
+    #{{ block_id }} .content-collection-carousel__controls { flex-wrap: wrap; }
+    #{{ block_id }}.content-collection-carousel--align-center .content-collection-carousel__controls,
+    #{{ block_id }}.content-collection-carousel--centered .content-collection-carousel__controls { justify-content: center; }
+    #{{ block_id }}:dir(rtl) .content-collection-carousel__arrow span { transform: scaleX(-1); }
+    #{{ block_id }} .content-collection-carousel__media { min-width: 0; }
+    #{{ block_id }}.content-collection-carousel--carousel .content-collection-carousel__media,
+    #{{ block_id }}.content-collection-carousel--peek .content-collection-carousel__media { grid-area: 1 / 1; height: 100%; }
+    #{{ block_id }} .content-collection-carousel__dots { flex-wrap: wrap; }
+    #{{ block_id }} .q-carousel__dot { width: 24px; height: 24px; border: 6px solid transparent; background-clip: padding-box; border-radius: 50%; background-color: var(--content-collection-carousel-dot-color); padding: 0; cursor: pointer; }
+    #{{ block_id }} .q-carousel__dot[aria-current="true"] { background-color: var(--content-collection-carousel-dot-active); }
+    #{{ block_id }} .content-collection-carousel__pause { color: var(--content-collection-carousel-arrow-text); background: var(--content-collection-carousel-arrow-background); padding: 8px 12px; min-height: 44px; border-radius: 4px; white-space: normal; }
+    #{{ block_id }} .content-collection-carousel__slide { min-width: min(100%, 160px); }
+    #{{ block_id }} .content-collection-carousel__card:focus-visible { outline-offset: -3px; }
+    @media (prefers-reduced-motion: reduce) { #{{ block_id }} .content-collection-carousel__viewport { scroll-behavior: auto; } }
+    @container (max-width: 600px) {
+      #{{ block_id }} .content-collection-carousel__slide { flex-basis: calc((100% - (var(--content-collection-carousel-gap) * (var(--content-collection-carousel-columns-mobile) - 1))) / var(--content-collection-carousel-columns-mobile)); }
+      #{{ block_id }}.content-collection-carousel--peek .content-collection-carousel__slide { flex-basis: calc((92% - (var(--content-collection-carousel-gap) * (var(--content-collection-carousel-columns-mobile) - 1))) / var(--content-collection-carousel-columns-mobile)); }
+      #{{ block_id }} .content-collection-carousel__heading { font-size: {{ block.settings.heading_size_mobile }}px; }
+    }
   </style>
-
-  <div class="content-collection-carousel__inner">
+<div class="content-collection-carousel__inner">
     {% if block.settings.show_header %}
-      <div class="content-collection-carousel__header-row">
-        <div class="content-collection-carousel__header">
-          {% if block.settings.eyebrow != blank %}
-            <p class="content-collection-carousel__eyebrow">
-              {{ block.settings.eyebrow | escape }}
-            </p>
-          {% endif %}
-
-          {% if block.settings.heading != blank %}
-            <h2 class="content-collection-carousel__heading">
-              {{ block.settings.heading | escape }}
-            </h2>
-          {% endif %}
-
-          {% if block.settings.description != blank %}
-            <p class="content-collection-carousel__description">
-              {{ block.settings.description | escape }}
-            </p>
-          {% endif %}
-        </div>
-
-        {% if block.settings.show_arrows %}
-          <div class="content-collection-carousel__controls">
-            <button
-              type="button"
-              class="content-collection-carousel__arrow"
-              data-content-collection-carousel-prev
-              aria-label="{{ block.settings.previous_label | escape }}"
-            >
-              ‹
-            </button>
-
-            <button
-              type="button"
-              class="content-collection-carousel__arrow"
-              data-content-collection-carousel-next
-              aria-label="{{ block.settings.next_label | escape }}"
-            >
-              ›
-            </button>
-          </div>
-        {% endif %}
-      </div>
+      {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.description != blank %}
+      <div class="content-collection-carousel__header-row"><div class="content-collection-carousel__header">
+        {% if block.settings.eyebrow != blank %}<p class="content-collection-carousel__eyebrow">{{ block.settings.eyebrow | escape }}</p>{% endif %}
+        {% if block.settings.heading != blank %}<h2 class="content-collection-carousel__heading">{{ block.settings.heading | escape }}</h2>{% endif %}
+        {% if block.settings.description != blank %}<p class="content-collection-carousel__description">{{ block.settings.description | escape }}</p>{% endif %}
+      </div></div>
+      {% endif %}
     {% endif %}
 
-    {%- liquid
-      assign rendered_collections = 0
-    -%}
-
-    <div class="content-collection-carousel__viewport">
-      <div
-        class="content-collection-carousel__track"
-        data-content-collection-carousel-track
-        tabindex="0"
-        aria-label="{{ block.settings.carousel_label | escape }}"
-      >
-        {% if collection_source == 'featured' and selected_collection != blank %}
-          {%- liquid
-            assign rendered_collections = rendered_collections | plus: 1
-            assign carousel_collection = selected_collection
-            assign collection_image = carousel_collection.image | default: carousel_collection.featured_image
-          -%}
-
-          <div class="content-collection-carousel__slide" data-content-collection-carousel-slide>
-            <a class="content-collection-carousel__card" href="{{ carousel_collection.url }}" aria-label="{{ carousel_collection.title | escape }}">
-              <span class="content-collection-carousel__media">
-                {% if collection_image %}
-                  {%- liquid
-                    assign qtm_image_alt = collection_image.alt | default: carousel_collection.title
-                  -%}
-                  {{ collection_image | image_url: width: 1200 | image_tag: loading: 'eager', widths: '360, 540, 720, 900, 1200', alt: qtm_image_alt }}
-                {% else %}
-                  <span class="content-collection-carousel__placeholder" aria-hidden="true"></span>
-                {% endif %}
-              </span>
-
-              <span class="content-collection-carousel__content">
-                <span class="content-collection-carousel__title">
-                  {{ carousel_collection.title | escape }}
-                </span>
-
-                {% if block.settings.show_product_count %}
-                  <span class="content-collection-carousel__meta">
-                    {{ carousel_collection.products_count }} {{ block.settings.product_count_label | escape }}
-                  </span>
-                {% endif %}
-
-                {% if block.settings.show_collection_description and carousel_collection.description != blank %}
-                  <span class="content-collection-carousel__copy">
-                    {{ carousel_collection.description | strip_html | truncatewords: block.settings.description_words }}
-                  </span>
-                {% endif %}
-
-                {% if block.settings.show_button %}
-                  <span class="content-collection-carousel__button">
-                    {{ block.settings.button_label | escape }}
-                  </span>
-                {% endif %}
-              </span>
-            </a>
-          </div>
-        {% else %}
-          {% for carousel_collection in block.settings.collections limit: collection_limit %}
-            {%- liquid
-              assign rendered_collections = rendered_collections | plus: 1
-              assign collection_image = carousel_collection.image | default: carousel_collection.featured_image
-            -%}
-
-            <div class="content-collection-carousel__slide" data-content-collection-carousel-slide>
-              <a class="content-collection-carousel__card" href="{{ carousel_collection.url }}" aria-label="{{ carousel_collection.title | escape }}">
-                <span class="content-collection-carousel__media">
-                  {% if collection_image %}
-                    {% if forloop.first %}
-                      {%- liquid
-                        assign qtm_image_alt = collection_image.alt | default: carousel_collection.title
-                      -%}
-                      {{ collection_image | image_url: width: 1200 | image_tag: loading: 'eager', widths: '360, 540, 720, 900, 1200', alt: qtm_image_alt }}
-                    {% else %}
-                      {%- liquid
-                        assign qtm_image_alt = collection_image.alt | default: carousel_collection.title
-                      -%}
-                      {{ collection_image | image_url: width: 1200 | image_tag: loading: 'lazy', widths: '360, 540, 720, 900, 1200', alt: qtm_image_alt }}
-                    {% endif %}
-                  {% else %}
-                    <span class="content-collection-carousel__placeholder" aria-hidden="true"></span>
-                  {% endif %}
-                </span>
-
-                <span class="content-collection-carousel__content">
-                  <span class="content-collection-carousel__title">
-                    {{ carousel_collection.title | escape }}
-                  </span>
-
-                  {% if block.settings.show_product_count %}
-                    <span class="content-collection-carousel__meta">
-                      {{ carousel_collection.products_count }} {{ block.settings.product_count_label | escape }}
-                    </span>
-                  {% endif %}
-
-                  {% if block.settings.show_collection_description and carousel_collection.description != blank %}
-                    <span class="content-collection-carousel__copy">
-                      {{ carousel_collection.description | strip_html | truncatewords: block.settings.description_words }}
-                    </span>
-                  {% endif %}
-
-                  {% if block.settings.show_button %}
-                    <span class="content-collection-carousel__button">
-                      {{ block.settings.button_label | escape }}
-                    </span>
-                  {% endif %}
-                </span>
-              </a>
-            </div>
-          {% endfor %}
-        {% endif %}
+    {% if rendered_collections > 0 %}
+      {% if block.settings.show_arrows %}<div class="content-collection-carousel__controls">
+        <button type="button" class="content-collection-carousel__arrow" data-q-carousel-prev hidden aria-controls="{{ block_id }}-viewport" aria-label="{{ block.settings.previous_label | default: 'Previous collections' | escape }}"><span aria-hidden="true">‹</span></button>
+        <button type="button" class="content-collection-carousel__arrow" data-q-carousel-next hidden aria-controls="{{ block_id }}-viewport" aria-label="{{ block.settings.next_label | default: 'Next collections' | escape }}"><span aria-hidden="true">›</span></button>
+      </div>{% endif %}
+      <div id="{{ block_id }}-viewport" class="content-collection-carousel__viewport q-carousel__viewport" tabindex="0" role="region" aria-label="{{ block.settings.carousel_label | default: 'Collection carousel' | escape }}">
+        <div class="content-collection-carousel__track q-carousel__track">{{ collection_cards }}</div>
       </div>
-    </div>
-
-    {% if block.settings.show_dots %}
-      <div class="content-collection-carousel__dots" data-content-collection-carousel-dots aria-label="{{ block.settings.dots_label | escape }}"></div>
+      {% if block.settings.show_dots %}<div class="content-collection-carousel__dots" data-q-carousel-dots hidden role="group" aria-label="{{ block.settings.dots_label | default: 'Collection pages' | escape }}"></div>{% endif %}
+      {% if block.settings.enable_autoplay %}<button type="button" class="content-collection-carousel__pause" data-q-carousel-pause hidden aria-pressed="false">{{ block.settings.pause_label | default: 'Pause rotation' | escape }}</button>{% endif %}
     {% endif %}
 
-    {% if rendered_collections == 0 and block.settings.show_empty_state %}
-      <div class="content-collection-carousel__empty">
-        {{ block.settings.empty_text | escape }}
-      </div>
+    {% if rendered_collections == 0 and request.design_mode and block.settings.show_empty_state %}
+      <div class="content-collection-carousel__empty" role="note">{{ block.settings.empty_text | default: 'Select collections for this block.' | escape }}</div>
     {% endif %}
   </div>
-
-  <script>
-    (() => {
-      const root = document.getElementById({{ block_id | json }});
-
-      if (!root || root.dataset.contentCollectionCarouselReady === 'true') return;
-
-      root.dataset.contentCollectionCarouselReady = 'true';
-
-      const track = root.querySelector('[data-content-collection-carousel-track]');
-      const slides = Array.from(root.querySelectorAll('[data-content-collection-carousel-slide]'));
-      const previousButton = root.querySelector('[data-content-collection-carousel-prev]');
-      const nextButton = root.querySelector('[data-content-collection-carousel-next]');
-      const dotsWrap = root.querySelector('[data-content-collection-carousel-dots]');
-
-      if (!track || !slides.length) return;
-
-      let autoplayTimer = null;
-
-      const getActiveIndex = () => {
-        const trackLeft = track.scrollLeft;
-        let activeIndex = 0;
-        let activeDistance = Infinity;
-
-        slides.forEach((slide, index) => {
-          const distance = Math.abs(slide.offsetLeft - trackLeft);
-
-          if (distance < activeDistance) {
-            activeDistance = distance;
-            activeIndex = index;
-          }
-        });
-
-        return activeIndex;
-      };
-
-      const scrollToIndex = (index) => {
-        const normalizedIndex = Math.max(0, Math.min(index, slides.length - 1));
-        const slide = slides[normalizedIndex];
-
-        if (!slide) return;
-
-        track.scrollTo({
-          left: slide.offsetLeft,
-          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
-        });
-      };
-
-      const updateControls = () => {
-        const activeIndex = getActiveIndex();
-        const maxScroll = track.scrollWidth - track.clientWidth - 2;
-
-        if (previousButton) {
-          previousButton.disabled = track.scrollLeft <= 2;
-        }
-
-        if (nextButton) {
-          nextButton.disabled = track.scrollLeft >= maxScroll;
-        }
-
-        if (dotsWrap) {
-          dotsWrap.querySelectorAll('[data-content-collection-carousel-dot]').forEach((dot, index) => {
-            dot.classList.toggle('is-active', index === activeIndex);
-          });
-        }
-      };
-
-      const buildDots = () => {
-        if (!dotsWrap) return;
-
-        dotsWrap.innerHTML = '';
-
-        const goToSlideLabel = {{ block.settings.go_to_slide_label | json }};
-
-        slides.forEach((slide, index) => {
-          const dot = document.createElement('button');
-          dot.type = 'button';
-          dot.className = 'content-collection-carousel__dot';
-          dot.dataset.contentCollectionCarouselDot = 'true';
-          dot.setAttribute('aria-label', `${goToSlideLabel} ${index + 1}`);
-
-          dot.addEventListener('click', () => {
-            scrollToIndex(index);
-          });
-
-          dotsWrap.appendChild(dot);
-        });
-      };
-
-      const startAutoplay = () => {
-        if (root.dataset.autoplay !== 'true' || slides.length < 2) return;
-
-        const speed = Math.max(Number(root.dataset.autoplaySpeed || 5000), 2000);
-
-        stopAutoplay();
-
-        autoplayTimer = window.setInterval(() => {
-          const activeIndex = getActiveIndex();
-          const nextIndex = activeIndex >= slides.length - 1 ? 0 : activeIndex + 1;
-
-          scrollToIndex(nextIndex);
-        }, speed);
-      };
-
-      const stopAutoplay = () => {
-        if (autoplayTimer) {
-          window.clearInterval(autoplayTimer);
-          autoplayTimer = null;
-        }
-      };
-
-      if (previousButton) {
-        previousButton.addEventListener('click', () => {
-          scrollToIndex(getActiveIndex() - 1);
-        });
-      }
-
-      if (nextButton) {
-        nextButton.addEventListener('click', () => {
-          scrollToIndex(getActiveIndex() + 1);
-        });
-      }
-
-      track.addEventListener('scroll', () => {
-        window.requestAnimationFrame(updateControls);
-      }, { passive: true });
-
-      root.addEventListener('mouseenter', stopAutoplay);
-      root.addEventListener('mouseleave', startAutoplay);
-      root.addEventListener('focusin', stopAutoplay);
-      root.addEventListener('focusout', startAutoplay);
-
-      track.addEventListener('keydown', (event) => {
-        if (event.key === 'ArrowLeft') {
-          event.preventDefault();
-          scrollToIndex(getActiveIndex() - 1);
-        }
-
-        if (event.key === 'ArrowRight') {
-          event.preventDefault();
-          scrollToIndex(getActiveIndex() + 1);
-        }
-      });
-
-      window.addEventListener('resize', updateControls, { passive: true });
-
-      buildDots();
-      updateControls();
-      startAutoplay();
-    })();
-  </script>
 </div>
 
 {% schema %}
@@ -916,7 +676,6 @@
       "step": 1,
       "default": 8
     },
-
     {
       "type": "header",
       "content": "Header"
@@ -930,20 +689,17 @@
     {
       "type": "text",
       "id": "eyebrow",
-      "label": "Eyebrow",
-      "default": "Browse collections"
+      "label": "Eyebrow"
     },
     {
       "type": "text",
       "id": "heading",
-      "label": "Heading",
-      "default": "Featured collections"
+      "label": "Heading"
     },
     {
       "type": "text",
       "id": "description",
-      "label": "Description",
-      "default": "Create a swipeable path into important shopping categories."
+      "label": "Description"
     },
     {
       "type": "range",
@@ -975,7 +731,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Carousel"
@@ -1034,7 +789,6 @@
       "unit": "ms",
       "default": 5000
     },
-
     {
       "type": "header",
       "content": "Collection cards"
@@ -1088,7 +842,6 @@
       "unit": "px",
       "default": 24
     },
-
     {
       "type": "header",
       "content": "Images"
@@ -1119,7 +872,6 @@
       "unit": "%",
       "default": 125
     },
-
     {
       "type": "header",
       "content": "Columns"
@@ -1151,7 +903,6 @@
       "step": 1,
       "default": 1
     },
-
     {
       "type": "header",
       "content": "Overlay"
@@ -1172,7 +923,6 @@
       "unit": "%",
       "default": 30
     },
-
     {
       "type": "header",
       "content": "Empty state"
@@ -1189,7 +939,6 @@
       "label": "Empty state text",
       "default": "Select collections to display this collection carousel."
     },
-
     {
       "type": "header",
       "content": "Accessibility labels"
@@ -1224,7 +973,6 @@
       "label": "Go to slide label",
       "default": "Go to collection slide"
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1301,7 +1049,6 @@
       "label": "Focus color",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1326,7 +1073,6 @@
       "unit": "px",
       "default": 22
     },
-
     {
       "type": "header",
       "content": "Container"
@@ -1379,7 +1125,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1434,7 +1179,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1457,7 +1201,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1485,6 +1228,30 @@
           "label": "Zoom"
         }
       ]
+    },
+    {
+      "type": "text",
+      "id": "pause_label",
+      "label": "Pause rotation label",
+      "default": "Pause rotation"
+    },
+    {
+      "type": "text",
+      "id": "resume_label",
+      "label": "Resume rotation label",
+      "default": "Resume rotation"
+    },
+    {
+      "type": "text",
+      "id": "reduced_motion_label",
+      "label": "Reduced motion label",
+      "default": "Rotation paused (reduced motion)"
+    },
+    {
+      "type": "color",
+      "id": "overlay_text_color",
+      "label": "Overlay text color",
+      "default": "#ffffff"
     }
   ],
   "presets": [
@@ -1494,9 +1261,9 @@
         "collection_source": "manual",
         "collection_limit": 8,
         "show_header": true,
-        "eyebrow": "Featured",
-        "heading": "Featured collections",
-        "description": "Create a swipeable path into important shopping categories.",
+        "eyebrow": "",
+        "heading": "",
+        "description": "",
         "heading_size": 40,
         "heading_size_mobile": 30,
         "description_size": 16,
@@ -1560,9 +1327,9 @@
         "collection_source": "manual",
         "collection_limit": 6,
         "show_header": true,
-        "eyebrow": "Shop categories",
-        "heading": "Shop categories",
-        "description": "Help shoppers browse key categories from one focused carousel.",
+        "eyebrow": "",
+        "heading": "",
+        "description": "",
         "heading_size": 40,
         "heading_size_mobile": 30,
         "description_size": 16,
@@ -1621,14 +1388,14 @@
       }
     },
     {
-      "name": "Popular Collections",
+      "name": "Collection Peek",
       "settings": {
         "collection_source": "manual",
         "collection_limit": 10,
         "show_header": true,
-        "eyebrow": "Popular",
-        "heading": "Popular collections",
-        "description": "Showcase high-traffic collections with a modern peek layout.",
+        "eyebrow": "",
+        "heading": "",
+        "description": "",
         "heading_size": 40,
         "heading_size_mobile": 30,
         "description_size": 16,

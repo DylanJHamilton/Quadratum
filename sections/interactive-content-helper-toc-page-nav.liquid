@@ -15,7 +15,14 @@
   assign collapse_on_mobile = section.settings.collapse_on_mobile
 
   assign blocks = section.blocks | where: 'type', 'item'
-  assign item_count = blocks.size
+  assign item_count = 0
+  for block in blocks
+    assign label = block.settings.label | strip
+    assign target = block.settings.anchor_id | strip | remove_first: '#'
+    if label != blank and target != blank
+      assign item_count = item_count | plus: 1
+    endif
+  endfor
 
   assign should_render = false
   if mode == 'manual' and item_count > 0
@@ -24,9 +31,6 @@
     assign should_render = true
   endif
 
-  if should_render == false
-    break
-  endif
 
   assign title = section.settings.title
   if title == blank
@@ -36,10 +40,12 @@
   assign shadow_strength = section.settings.shadow_strength | default: 1
 -%}
 
+{% if should_render %}
 <section
   class="q-section q-toc q-toc--{{ position }}"
   data-q-toc
   data-q-toc-mode="{{ mode }}"
+  {% if mode == 'auto_blog_headings' %}hidden{% endif %}
   data-q-toc-max-depth="{{ section.settings.max_depth }}"
   data-q-toc-offset="{{ section.settings.scroll_offset }}"
   data-q-toc-smooth="{{ section.settings.enable_smooth_scroll }}"
@@ -79,8 +85,8 @@
 
     #shopify-section-{{ section.id }} .q-toc {
       /* fallbacks to Quadratum tokens */
-      --q-toc-bg: var(--q-surface, transparent);
-      --q-toc-text: var(--q-text, currentColor);
+      --q-toc-bg: var(--q-surface, var(--c-bg, transparent));
+      --q-toc-text: var(--q-text, var(--c-text, #111));
       --q-toc-muted: var(--q-muted, rgba(0,0,0,.65));
       --q-toc-accent: var(--q-accent, currentColor);
       --q-toc-border: var(--q-border, rgba(0,0,0,.12));
@@ -153,7 +159,7 @@
       gap: 10px;
 
       padding: 10px 12px;
-      border-radius: calc(var(--q-toc-radius) - 4px);
+      border-radius: max(0px, calc(var(--q-toc-radius) - 4px));
 
       text-decoration: none;
       color: var(--q-toc-text);
@@ -204,7 +210,7 @@
     #shopify-section-{{ section.id }} .q-toc__link.is-active::after {
       content: "";
       position: absolute;
-      left: 0;
+      inset-inline-start: 0;
       top: 10px;
       bottom: 10px;
       width: 3px;
@@ -214,9 +220,9 @@
     }
 
     /* indentation */
-    #shopify-section-{{ section.id }} .q-toc__item.q-indent--0 .q-toc__link { padding-left: 12px; }
-    #shopify-section-{{ section.id }} .q-toc__item.q-indent--1 .q-toc__link { padding-left: calc(12px + var(--q-toc-indent-step)); }
-    #shopify-section-{{ section.id }} .q-toc__item.q-indent--2 .q-toc__link { padding-left: calc(12px + (var(--q-toc-indent-step) * 2)); }
+    #shopify-section-{{ section.id }} .q-toc__item.q-indent--0 .q-toc__link { padding-inline-start: 12px; }
+    #shopify-section-{{ section.id }} .q-toc__item.q-indent--1 .q-toc__link { padding-inline-start: calc(12px + var(--q-toc-indent-step)); }
+    #shopify-section-{{ section.id }} .q-toc__item.q-indent--2 .q-toc__link { padding-inline-start: calc(12px + (var(--q-toc-indent-step) * 2)); }
 
     /* disclosure */
     #shopify-section-{{ section.id }} .q-toc__disclosure { border: 0; padding: 0; margin: 0; }
@@ -230,7 +236,7 @@
       gap: 12px;
 
       padding: 10px 2px;
-      border-radius: calc(var(--q-toc-radius) - 6px);
+      border-radius: max(0px, calc(var(--q-toc-radius) - 6px));
     }
     #shopify-section-{{ section.id }} .q-toc__summary::-webkit-details-marker { display: none; }
 
@@ -261,6 +267,14 @@
       #shopify-section-{{ section.id }} .q-toc__inner { max-width: 100%; }
       /* in sidebar modes, still looks like a premium inline block */
     }
+    #shopify-section-{{ section.id }} .q-toc, #shopify-section-{{ section.id }} .q-toc * { box-sizing: border-box; min-width: 0; overflow-wrap: anywhere; }
+    #shopify-section-{{ section.id }} .q-toc[hidden] { display: none !important; }
+    #shopify-section-{{ section.id }} .q-toc__link, #shopify-section-{{ section.id }} .q-toc__summary { min-height: 44px; }
+    #shopify-section-{{ section.id }} .q-toc__summary:focus-visible { outline: 2px solid var(--q-toc-accent); outline-offset: -2px; }
+    #shopify-section-{{ section.id }} .q-toc__toggle { white-space: normal; }
+    #shopify-section-{{ section.id }} .q-toc--sidebar .q-toc__inner, #shopify-section-{{ section.id }} .q-toc--sticky_sidebar .q-toc__inner { margin-inline: 0; }
+    @media (min-width: 750px) { #shopify-section-{{ section.id }} .q-toc__toggle { display: none; } #shopify-section-{{ section.id }} .q-toc__summary { cursor: default; } }
+    @media (prefers-reduced-motion: reduce) { #shopify-section-{{ section.id }} .q-toc__link { transition: none; transform: none; } }
   </style>
 
   <div class="q-toc__inner">
@@ -270,8 +284,8 @@
           {%- if mode == 'manual' -%}
             {%- for block in blocks -%}
               {%- liquid
-                assign label = block.settings.label
-                assign anchor_id = block.settings.anchor_id
+                assign label = block.settings.label | strip
+                assign anchor_id = block.settings.anchor_id | strip | remove_first: '#'
                 assign indent = block.settings.indent_level
                 if label == blank or anchor_id == blank
                   continue
@@ -280,11 +294,11 @@
               <li class="q-toc__item q-indent--{{ indent }}" {{ block.shopify_attributes }}>
                 <a
                   class="q-toc__link"
-                  href="#{{ anchor_id | strip | escape }}"
+                  href="#{{ anchor_id | url_encode | replace: '+', '%20' | escape }}"
                   data-q-toc-link
                   data-q-toc-target="{{ anchor_id | strip | escape }}"
                 >
-                  <span class="q-toc__label">{{ label }}</span>
+                  <span class="q-toc__label">{{ label | escape }}</span>
                 </a>
               </li>
             {%- endfor -%}
@@ -294,12 +308,12 @@
     {%- endcapture -%}
 
     {%- if collapse_on_mobile -%}
-      <details class="q-toc__disclosure" data-q-toc-disclosure>
+      <details class="q-toc__disclosure" data-q-toc-disclosure open>
         <summary class="q-toc__summary">
-          <span class="q-toc__title">{{ title }}</span>
+          <span class="q-toc__title">{{ title | escape }}</span>
           <span class="q-toc__toggle">
-            <span class="q-toc__toggle-open">{{ section.settings.mobile_toggle_label }}</span>
-            <span class="q-toc__toggle-close">{{ section.settings.mobile_toggle_label_close }}</span>
+            <span class="q-toc__toggle-open">{{ section.settings.mobile_toggle_label | escape }}</span>
+            <span class="q-toc__toggle-close">{{ section.settings.mobile_toggle_label_close | escape }}</span>
           </span>
         </summary>
         <div class="q-toc__panel">
@@ -308,7 +322,7 @@
       </details>
     {%- else -%}
       <div class="q-toc__header">
-        <div class="q-toc__title">{{ title }}</div>
+        <div class="q-toc__title">{{ title | escape }}</div>
       </div>
       {{ toc_list }}
     {%- endif -%}
@@ -317,153 +331,24 @@
       {%- if mode == 'auto_blog_headings' -%}
         <style>
           #shopify-section-{{ section.id }} .q-toc[data-q-toc-mode="auto_blog_headings"] { display:none !important; }
-        </style>
+          #shopify-section-{{ section.id }} .q-toc, #shopify-section-{{ section.id }} .q-toc * { box-sizing: border-box; min-width: 0; overflow-wrap: anywhere; }
+    #shopify-section-{{ section.id }} .q-toc[hidden] { display: none !important; }
+    #shopify-section-{{ section.id }} .q-toc__link, #shopify-section-{{ section.id }} .q-toc__summary { min-height: 44px; }
+    #shopify-section-{{ section.id }} .q-toc__summary:focus-visible { outline: 2px solid var(--q-toc-accent); outline-offset: -2px; }
+    #shopify-section-{{ section.id }} .q-toc__toggle { white-space: normal; }
+    #shopify-section-{{ section.id }} .q-toc--sidebar .q-toc__inner, #shopify-section-{{ section.id }} .q-toc--sticky_sidebar .q-toc__inner { margin-inline: 0; }
+    @media (min-width: 750px) { #shopify-section-{{ section.id }} .q-toc__toggle { display: none; } #shopify-section-{{ section.id }} .q-toc__summary { cursor: default; } }
+    @media (prefers-reduced-motion: reduce) { #shopify-section-{{ section.id }} .q-toc__link { transition: none; transform: none; } }
+  </style>
       {%- endif -%}
     </noscript>
   </div>
 
-  <script>
-  (function () {
-    function slugify(str) {
-      return String(str || "")
-        .trim()
-        .toLowerCase()
-        .replace(/['"]/g, "")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-    }
-
-    function init(section) {
-      var mode = section.getAttribute("data-q-toc-mode") || "manual";
-      var offset = parseInt(section.getAttribute("data-q-toc-offset") || "0", 10) || 0;
-      var smooth = section.getAttribute("data-q-toc-smooth") === "true";
-      var active = section.getAttribute("data-q-toc-active") === "true";
-      var maxDepth = section.getAttribute("data-q-toc-max-depth") || "h2";
-
-      var list = section.querySelector("[data-q-toc-list]");
-      if (!list) return;
-
-      var targets = [];
-
-      if (mode === "auto_blog_headings") {
-        list.innerHTML = "";
-
-        var scope =
-          document.querySelector("main") ||
-          document.querySelector('[role="main"]') ||
-          document;
-
-        var selector = (maxDepth === "h2_h3") ? "h2, h3" : "h2";
-        var headings = Array.prototype.slice.call(scope.querySelectorAll(selector))
-          .filter(function(h){ return h && h.textContent && h.textContent.trim().length; });
-
-        headings.forEach(function (h) {
-          var level = (h.tagName === "H3") ? 1 : 0;
-
-          if (!h.id) {
-            var base = slugify(h.textContent);
-            if (!base) return;
-
-            var id = base;
-            var i = 2;
-            while (document.getElementById(id)) {
-              id = base + "-" + i++;
-            }
-            h.id = id;
-          }
-
-          var li = document.createElement("li");
-          li.className = "q-toc__item q-indent--" + Math.min(2, level);
-
-          var a = document.createElement("a");
-          a.className = "q-toc__link";
-          a.href = "#" + h.id;
-          a.setAttribute("data-q-toc-link", "");
-          a.setAttribute("data-q-toc-target", h.id);
-
-          var span = document.createElement("span");
-          span.className = "q-toc__label";
-          span.textContent = h.textContent.trim();
-
-          a.appendChild(span);
-          li.appendChild(a);
-          list.appendChild(li);
-
-          targets.push(h.id);
-        });
-
-        if (!targets.length) {
-          section.style.display = "none";
-          return;
-        }
-      } else {
-        var links = section.querySelectorAll("[data-q-toc-target]");
-        Array.prototype.forEach.call(links, function (a) {
-          var id = a.getAttribute("data-q-toc-target");
-          if (id) targets.push(id);
-        });
-        if (!targets.length) {
-          section.style.display = "none";
-          return;
-        }
-      }
-
-      if (smooth) {
-        section.addEventListener("click", function (e) {
-          var link = e.target && e.target.closest ? e.target.closest("[data-q-toc-link]") : null;
-          if (!link) return;
-
-          var id = link.getAttribute("data-q-toc-target");
-          if (!id) return;
-
-          var target = document.getElementById(id);
-          if (!target) return; /* degrade: normal anchor will still work */
-
-          e.preventDefault();
-
-          var y = target.getBoundingClientRect().top + window.pageYOffset - offset;
-          window.history.pushState(null, "", "#" + id);
-          window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
-        });
-      }
-
-      if (active && "IntersectionObserver" in window) {
-        var tocLinks = section.querySelectorAll("[data-q-toc-link]");
-        var map = {};
-        Array.prototype.forEach.call(tocLinks, function (l) {
-          var id = l.getAttribute("data-q-toc-target");
-          if (id) map[id] = l;
-        });
-
-        function setActive(id) {
-          Array.prototype.forEach.call(tocLinks, function (l) { l.classList.remove("is-active"); });
-          if (map[id]) map[id].classList.add("is-active");
-        }
-
-        var io = new IntersectionObserver(function (entries) {
-          var visible = entries
-            .filter(function(en){ return en.isIntersecting; })
-            .sort(function(a,b){ return a.boundingClientRect.top - b.boundingClientRect.top; });
-
-          if (visible.length) setActive(visible[0].target.id);
-        }, {
-          root: null,
-          rootMargin: (-offset) + "px 0px -70% 0px",
-          threshold: [0.01, 0.1, 0.25]
-        });
-
-        targets.forEach(function (id) {
-          var el = document.getElementById(id);
-          if (el) io.observe(el);
-        });
-      }
-    }
-
-    var sections = document.querySelectorAll("[data-q-toc]");
-    Array.prototype.forEach.call(sections, init);
-  })();
-  </script>
+  <script src="{{ 'interactive-content-toc.js' | asset_url }}" defer></script>
 </section>
+{% else %}
+  {% render 'section-empty-state', section: section %}
+{% endif %}
 
 {% schema %}
 {
@@ -484,6 +369,7 @@
       "type": "select",
       "id": "position",
       "label": "Position / layout",
+      "info": "Sidebar modes align to the start of their container. Sticky positioning is bounded by the containing layout.",
       "default": "inline",
       "options": [
         { "value": "inline", "label": "Inline" },

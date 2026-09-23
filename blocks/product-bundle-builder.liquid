@@ -7,34 +7,34 @@
   assign block_width = block.settings.block_width | default: 'auto'
   assign alignment = block.settings.alignment | default: 'left'
   assign layout_style = block.settings.layout_style | default: 'cards'
-  assign product_count = block.settings.product_count | default: 3
 
   assign show_on_desktop = block.settings.show_on_desktop
   assign show_on_tablet = block.settings.show_on_tablet
   assign show_on_mobile = block.settings.show_on_mobile
 
-  assign bundle_total = 0
-  assign available_item_count = 0
-
-  if block.settings.include_current_product and current_variant.available
-    assign bundle_total = bundle_total | plus: current_variant.price
-    assign available_item_count = available_item_count | plus: 1
-  endif
-
-  for index in (1..4)
-    if index <= product_count
-      assign product_key = 'bundle_product_' | append: index
-      assign bundle_product = block.settings[product_key]
-      if bundle_product != blank
-        assign bundle_variant = bundle_product.selected_or_first_available_variant
-        if bundle_variant.available
-          assign bundle_total = bundle_total | plus: bundle_variant.price
-          assign available_item_count = available_item_count | plus: 1
-        endif
-      endif
-    endif
-  endfor
 -%}
+
+{% assign rendered_items = 0 %}{% assign extra_items = 0 %}{% assign bundle_total = 0 %}{% assign available_item_count = 0 %}{% assign bundle_seen = '|' %}
+{% assign bundle_limit = block.settings.product_count %}
+{% capture bundle_items_markup %}
+  {% for bundle_index in (0..bundle_limit) %}
+    {% if bundle_index == 0 %}
+      {% unless block.settings.include_current_product %}{% continue %}{% endunless %}
+      {% assign bundle_product = product_context %}
+    {% else %}
+      {% assign bundle_key = 'bundle_product_' | append: bundle_index %}{% assign bundle_product = block.settings[bundle_key] %}
+    {% endif %}
+    {% if bundle_product == blank %}{% continue %}{% endif %}
+    {% assign bundle_token = '|' | append: bundle_product.id | append: '|' %}{% if bundle_seen contains bundle_token %}{% continue %}{% endif %}
+    {% if bundle_index > 0 and extra_items >= bundle_limit %}{% break %}{% endif %}
+    {% assign bundle_seen = bundle_seen | append: bundle_token %}
+    {% assign is_current = false %}{% if bundle_product.id == product_context.id %}{% assign is_current = true %}{% endif %}
+    {% render 'qtm-block-bundle-item', bundle_product: bundle_product, prefix: 'product-bundle-builder', block: block, index: available_item_count, selectable: false, is_current: is_current %}
+    {% capture bundle_line %}{% render 'qtm-block-bundle-item', bundle_product: bundle_product, output: 'line' %}{% endcapture %}{% assign bundle_line = bundle_line | plus: 0 %}{% assign bundle_total = bundle_total | plus: bundle_line %}
+    {% capture bundle_available %}{% render 'qtm-block-bundle-item', bundle_product: bundle_product, output: 'available' %}{% endcapture %}{% if bundle_available == 'true' %}{% assign available_item_count = available_item_count | plus: 1 %}{% endif %}
+    {% assign rendered_items = rendered_items | plus: 1 %}{% if bundle_index > 0 %}{% assign extra_items = extra_items | plus: 1 %}{% endif %}
+  {% endfor %}
+{% endcapture %}
 
 <div
   id="{{ block_id }}"
@@ -43,10 +43,10 @@
     product-bundle-builder--{{ layout_style }}
     product-bundle-builder--width-{{ block_width }}
     product-bundle-builder--align-{{ alignment }}
-    {% unless show_on_desktop %} product-bundle-builder--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-bundle-builder--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-bundle-builder--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-bundle-builder--animate product-bundle-builder--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-bundle-builder--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-bundle-builder--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-bundle-builder--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-bundle-builder--animate product-bundle-builder--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-bundle-builder-margin-top: {{ block.settings.margin_top }}px;
@@ -69,10 +69,19 @@
   "
   data-product-id="{{ product_context.id }}"
   data-variant-id="{{ current_variant.id }}"
-  {{ block.shopify_attributes }}
+  data-qtm-block-bundle
+  data-money-format="{{ shop.money_format | strip_html | escape }}"
+  data-currency="{{ cart.currency.iso_code | default: shop.currency | escape }}"
+  data-base-currency="{{ shop.currency | escape }}"
+  data-options-required="{{ block.settings.options_required_label | escape }}"
+  data-item-unavailable="{{ block.settings.item_unavailable_label | escape }}"
+  {% if rendered_items == 0 and request.design_mode == false %}hidden{% endif %}
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-bundle-builder-margin-top);
       margin-bottom: var(--product-bundle-builder-margin-bottom);
@@ -181,7 +190,7 @@
     }
 
     #{{ block_id }}.product-bundle-builder--inline .product-bundle-builder__layout {
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 0.6fr);
       align-items: center;
     }
 
@@ -204,10 +213,10 @@
       position: relative;
       min-width: 0;
       display: grid;
-      grid-template-columns: 88px minmax(0, 1fr) auto;
+      grid-template-columns: min(88px, 30%) minmax(0, 1fr);
       gap: 14px;
       align-items: center;
-      padding: var(--product-bundle-builder-card-padding);
+      padding: min(var(--product-bundle-builder-card-padding), 12%);
       color: var(--product-bundle-builder-text-color);
       background: var(--product-bundle-builder-card-background-color);
       border: var(--product-bundle-builder-border-width) solid var(--product-bundle-builder-border-color);
@@ -279,20 +288,20 @@
     #{{ block_id }} .product-bundle-builder__price {
       color: var(--product-bundle-builder-heading-color);
       line-height: 1.2;
-      white-space: nowrap;
+      white-space: normal;
     }
 
     #{{ block_id }} .product-bundle-builder__unavailable {
       color: var(--product-bundle-builder-text-color);
       opacity: 0.72;
-      white-space: nowrap;
+      white-space: normal;
     }
 
     #{{ block_id }} .product-bundle-builder__summary {
       display: grid;
       gap: 12px;
       min-width: 0;
-      padding: var(--product-bundle-builder-card-padding);
+      padding: min(var(--product-bundle-builder-card-padding), 12%);
       color: var(--product-bundle-builder-text-color);
       background: var(--product-bundle-builder-card-background-color);
       border: var(--product-bundle-builder-border-width) solid var(--product-bundle-builder-border-color);
@@ -358,7 +367,7 @@
     }
 
     #{{ block_id }}.product-bundle-builder--animate {
-      opacity: 0;
+      opacity: 1;
       animation-duration: 700ms;
       animation-fill-mode: forwards;
       animation-timing-function: ease;
@@ -475,8 +484,8 @@
       }
 
       #{{ block_id }} .product-bundle-builder__item {
-        grid-template-columns: 72px minmax(0, 1fr);
-        padding: min(var(--product-bundle-builder-card-padding), 20px);
+        grid-template-columns: min(72px, 30%) minmax(0, 1fr);
+        padding: min(var(--product-bundle-builder-card-padding), 20px, 12%);
       }
 
       #{{ block_id }} .product-bundle-builder__price,
@@ -491,7 +500,7 @@
       }
 
       #{{ block_id }} .product-bundle-builder__summary {
-        padding: min(var(--product-bundle-builder-card-padding), 20px);
+        padding: min(var(--product-bundle-builder-card-padding), 20px, 12%);
       }
     }
 
@@ -510,8 +519,18 @@
         transform: none;
       }
     }
+    #{{ block_id }}[hidden], #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} a:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+    #{{ block_id }} .product-bundle-builder__button { max-width: 100%; white-space: normal; }
+    #{{ block_id }} .product-bundle-builder__summary-row, #{{ block_id }} .product-bundle-builder__total-row { flex-wrap: wrap; }
+    #{{ block_id }} [aria-busy="true"] .product-bundle-builder__button { opacity: .6; }
+    #{{ block_id }} .product-bundle-builder__placeholder { display: block; width: 100%; height: 100%; }
+    #{{ block_id }} .product-bundle-builder__image-wrap { max-width: 100%; height: auto; aspect-ratio: 1; }
   </style>
 
+
+  {% if rendered_items > 0 %}
   <div class="product-bundle-builder__inner">
     {% if block.settings.bundle_title != blank or block.settings.bundle_description != blank or block.settings.bundle_savings != blank %}
       <div class="product-bundle-builder__header">
@@ -537,130 +556,20 @@
 
     <form
       class="product-bundle-builder__form"
-      action="{{ routes.cart_add_url }}"
+      action="{{ routes.cart_add_url | escape }}"
       method="post"
       enctype="multipart/form-data"
-      data-product-bundle-builder-form
-      data-product-form
-      data-ajax-cart-form
-      data-cart-add-form
+      data-bundle-form data-cart-drawer-add data-empty-message="{{ block.settings.unavailable_label | escape }}"
     >
       <div class="product-bundle-builder__layout">
         <div class="product-bundle-builder__items">
-          {% if block.settings.include_current_product %}
-            <article class="product-bundle-builder__item">
-              {% if product_context.featured_image != blank %}
-                <a class="product-bundle-builder__image-wrap" href="{{ product_context.url }}" aria-label="{{ product_context.title | escape }}">
-                  {{
-                    product_context.featured_image
-                    | image_url: width: 240
-                    | image_tag:
-                      class: 'product-bundle-builder__image',
-                      loading: 'lazy',
-                      alt: product_context.featured_image.alt
-                  }}
-                </a>
-              {% else %}
-                <div class="product-bundle-builder__image-placeholder">
-                  Product
-                </div>
-              {% endif %}
-
-              <div class="product-bundle-builder__item-content">
-                <h4 class="product-bundle-builder__item-title">
-                  <a href="{{ product_context.url }}">{{ product_context.title | escape }}</a>
-                </h4>
-
-                {% unless current_variant.title == 'Default Title' %}
-                  <span class="product-bundle-builder__variant">
-                    {{ current_variant.title | escape }}
-                  </span>
-                {% endunless %}
-
-                {% if current_variant.available %}
-                  <input type="hidden" name="items[][id]" value="{{ current_variant.id }}" data-bundle-variant-id>
-                  <input type="hidden" name="items[][quantity]" value="1" data-bundle-quantity>
-                {% endif %}
-              </div>
-
-              {% if current_variant.available %}
-                <span class="product-bundle-builder__price">
-                  {{ current_variant.price | money }}
-                </span>
-              {% else %}
-                <span class="product-bundle-builder__unavailable">
-                  Unavailable
-                </span>
-              {% endif %}
-            </article>
-          {% endif %}
-
-          {%- for index in (1..4) -%}
-            {%- if index <= product_count -%}
-              {%- liquid
-                assign product_key = 'bundle_product_' | append: index
-                assign bundle_product = block.settings[product_key]
-              -%}
-
-              {% if bundle_product != blank %}
-                {%- liquid
-                  assign bundle_variant = bundle_product.selected_or_first_available_variant
-                -%}
-
-                <article class="product-bundle-builder__item">
-                  {% if bundle_product.featured_image != blank %}
-                    <a class="product-bundle-builder__image-wrap" href="{{ bundle_product.url }}" aria-label="{{ bundle_product.title | escape }}">
-                      {{
-                        bundle_product.featured_image
-                        | image_url: width: 240
-                        | image_tag:
-                          class: 'product-bundle-builder__image',
-                          loading: 'lazy',
-                          alt: bundle_product.featured_image.alt
-                      }}
-                    </a>
-                  {% else %}
-                    <div class="product-bundle-builder__image-placeholder">
-                      Product
-                    </div>
-                  {% endif %}
-
-                  <div class="product-bundle-builder__item-content">
-                    <h4 class="product-bundle-builder__item-title">
-                      <a href="{{ bundle_product.url }}">{{ bundle_product.title | escape }}</a>
-                    </h4>
-
-                    {% unless bundle_variant.title == 'Default Title' %}
-                      <span class="product-bundle-builder__variant">
-                        {{ bundle_variant.title | escape }}
-                      </span>
-                    {% endunless %}
-
-                    {% if bundle_variant.available %}
-                      <input type="hidden" name="items[][id]" value="{{ bundle_variant.id }}" data-bundle-variant-id>
-                      <input type="hidden" name="items[][quantity]" value="1" data-bundle-quantity>
-                    {% endif %}
-                  </div>
-
-                  {% if bundle_variant.available %}
-                    <span class="product-bundle-builder__price">
-                      {{ bundle_variant.price | money }}
-                    </span>
-                  {% else %}
-                    <span class="product-bundle-builder__unavailable">
-                      Unavailable
-                    </span>
-                  {% endif %}
-                </article>
-              {% endif %}
-            {%- endif -%}
-          {%- endfor -%}
+          {{ bundle_items_markup }}
         </div>
 
         <div class="product-bundle-builder__summary">
           <div class="product-bundle-builder__total-row">
             <span>{{ block.settings.total_label | escape }}</span>
-            <strong>{{ bundle_total | money }}</strong>
+            <strong data-bundle-total>{{ bundle_total | money }}</strong>
           </div>
 
           {% if block.settings.bundle_savings != blank %}
@@ -673,12 +582,10 @@
             class="product-bundle-builder__button"
             type="submit"
             {% if available_item_count == 0 %}disabled{% endif %}
-            data-add-to-cart
-            data-ajax-cart-submit
-            data-cart-drawer-trigger
+            data-bundle-submit data-available-label="{{ block.settings.cta_label | default: 'Add bundle to cart' | escape }}" data-unavailable-label="{{ block.settings.unavailable_label | escape }}"
           >
             {% if available_item_count > 0 %}
-              {{ block.settings.cta_label | escape }}
+              {{ block.settings.cta_label | default: 'Add bundle to cart' | escape }}
             {% else %}
               {{ block.settings.unavailable_label | escape }}
             {% endif %}
@@ -686,7 +593,7 @@
 
           <div
             class="product-bundle-builder__message"
-            data-product-bundle-builder-message
+            data-cart-add-status
             role="status"
             aria-live="polite"
           ></div>
@@ -694,82 +601,8 @@
       </div>
     </form>
   </div>
-
-  <script>
-    (() => {
-      const root = document.getElementById({{ block_id | json }});
-
-      if (!root || root.dataset.productBundleBuilderReady === 'true') return;
-
-      root.dataset.productBundleBuilderReady = 'true';
-
-      const form = root.querySelector('[data-product-bundle-builder-form]');
-      const button = root.querySelector('[data-add-to-cart]');
-      const message = root.querySelector('[data-product-bundle-builder-message]');
-
-      if (!form || !button) return;
-
-      const setMessage = (text) => {
-        if (message) message.textContent = text;
-      };
-
-      const dispatchCartEvents = () => {
-        document.dispatchEvent(new CustomEvent('cart:refresh', { bubbles: true }));
-        document.dispatchEvent(new CustomEvent('cart:updated', { bubbles: true }));
-        document.dispatchEvent(new CustomEvent('ajaxCart:refresh', { bubbles: true }));
-        document.dispatchEvent(new CustomEvent('mini-cart:open', { bubbles: true }));
-        document.dispatchEvent(new CustomEvent('cart-drawer:open', { bubbles: true }));
-      };
-
-      form.addEventListener('submit', async (event) => {
-        event.preventDefault();
-
-        const variantInputs = Array.from(form.querySelectorAll('[data-bundle-variant-id]'));
-
-        if (!variantInputs.length) {
-          setMessage('No available bundle items to add.');
-          return;
-        }
-
-        const items = variantInputs.map((input) => ({
-          id: Number(input.value),
-          quantity: 1
-        })).filter((item) => item.id);
-
-        if (!items.length) {
-          setMessage('No available bundle items to add.');
-          return;
-        }
-
-        button.disabled = true;
-        setMessage('Adding bundle...');
-
-        try {
-          const response = await fetch({{ routes.cart_add_url | json }}, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify({ items })
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.description || data.message || 'Unable to add bundle.');
-          }
-
-          setMessage('Bundle added to cart.');
-          dispatchCartEvents();
-        } catch (error) {
-          setMessage(error.message || 'Unable to add bundle.');
-        } finally {
-          button.disabled = false;
-        }
-      });
-    })();
-  </script>
+  {% elsif request.design_mode %}<p>Select products to build a bundle.</p>{% endif %}
+{% if product_context != blank %}{% render 'qtm-product-block-data', product: product_context, image_width: 600 %}{% endif %}
 </div>
 
 {% schema %}
@@ -784,19 +617,18 @@
       "type": "text",
       "id": "bundle_title",
       "label": "Bundle title",
-      "default": "Complete the set"
+      "default": "Selected products"
     },
     {
       "type": "richtext",
       "id": "bundle_description",
-      "label": "Bundle description",
-      "default": "<p>Pair this product with recommended items to increase value and make checkout easier.</p>"
+      "label": "Bundle description"
     },
     {
       "type": "text",
       "id": "bundle_savings",
-      "label": "Bundle savings",
-      "default": "Bundle and save"
+      "label": "Optional bundle offer text",
+      "info": "Merchant-written offer only. This text does not create a discount."
     },
     {
       "type": "text",
@@ -851,7 +683,6 @@
       "id": "bundle_product_4",
       "label": "Bundle product 4"
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -944,7 +775,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1009,7 +839,6 @@
       "label": "Button text",
       "default": "#ffffff"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1034,7 +863,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1069,7 +897,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1092,7 +919,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1132,15 +958,33 @@
           "label": "Zoom"
         }
       ]
+    },
+    {
+      "type": "text",
+      "id": "quantity_label",
+      "label": "Quantity label",
+      "default": "Quantity:"
+    },
+    {
+      "type": "text",
+      "id": "item_unavailable_label",
+      "label": "Item unavailable label",
+      "default": "Unavailable"
+    },
+    {
+      "type": "text",
+      "id": "options_required_label",
+      "label": "Purchase options required message",
+      "default": "Choose purchase options on the product page."
     }
   ],
   "presets": [
     {
-      "name": "Bundle Offer",
+      "name": "Bundle Cards",
       "settings": {
-        "bundle_title": "Bundle and save",
-        "bundle_description": "<p>Add the recommended products together for a stronger complete purchase.</p>",
-        "bundle_savings": "Bundle offer",
+        "bundle_title": "Selected products",
+        "bundle_description": "",
+        "bundle_savings": "",
         "total_label": "Bundle total",
         "cta_label": "Add bundle to cart",
         "unavailable_label": "Bundle unavailable",
@@ -1173,11 +1017,11 @@
       }
     },
     {
-      "name": "Frequently Bought Together",
+      "name": "Inline Bundle",
       "settings": {
-        "bundle_title": "Frequently bought together",
-        "bundle_description": "<p>Make it easy for shoppers to add the most common companion products in one click.</p>",
-        "bundle_savings": "Customer favorite bundle",
+        "bundle_title": "Selected products",
+        "bundle_description": "",
+        "bundle_savings": "",
         "total_label": "Total",
         "cta_label": "Add all to cart",
         "unavailable_label": "Items unavailable",
@@ -1210,11 +1054,11 @@
       }
     },
     {
-      "name": "Complete The Set",
+      "name": "Bundle Grid",
       "settings": {
-        "bundle_title": "Complete the set",
-        "bundle_description": "<p>Recommend related products that complete the look, routine, setup, or package.</p>",
-        "bundle_savings": "Recommended add-ons",
+        "bundle_title": "Selected products",
+        "bundle_description": "",
+        "bundle_savings": "",
         "total_label": "Set total",
         "cta_label": "Complete the set",
         "unavailable_label": "Set unavailable",

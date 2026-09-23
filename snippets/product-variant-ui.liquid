@@ -1,92 +1,76 @@
-{%- comment -%}
-  Q ADD-ON: Variant UI Enhancements (Classic)
-  - Does NOT modify existing picker markup
-  - Mirrors options and sets the existing variant <select name="id"> value
-  Inputs:
-    - product
-    - section
-    - current_variant
-{%- endcomment -%}
-
 {%- liquid
   assign p = product
   assign s = section.settings
   assign v = current_variant
-
   assign ui_style = s.variant_ui_style | default: 'default'
-  if ui_style == 'default'
-    break
-  endif
-
-  assign target_csv = s.variant_ui_target_options | default: ''
   assign label_mode = s.variant_label_mode | default: 'show_selected_value'
-  assign swatch_source = s.variant_swatch_source | default: 'variant_image'
-
-  assign mf_ns = s.variant_swatch_metafield_namespace | default: ''
-  assign mf_key = s.variant_swatch_metafield_key | default: ''
-
-  assign select_id = 'q-variant-' | append: section.id
+  assign targets = s.variant_ui_target_options | default: 'Color' | downcase | split: ','
+  assign mf_ns = s.variant_swatch_metafield_namespace | default: 'custom'
+  assign mf_key = s.variant_swatch_metafield_key | default: 'swatch'
 -%}
-
-<div
-  class="q-variant-ui"
-  hidden
-  data-product-variant-ui
-  data-product-section-id="{{ section.id }}"
-  data-product-select-id="{{ select_id }}"
-  data-product-style="{{ ui_style }}"
-  data-product-label-mode="{{ label_mode }}"
-  data-product-target-options="{{ target_csv | escape }}"
-  data-product-swatch-source="{{ swatch_source }}"
-  data-product-mf-ns="{{ mf_ns | escape }}"
-  data-product-mf-key="{{ mf_key | escape }}"
->
-  {%- if s.variant_size_guide_enable and s.variant_size_guide_url != blank -%}
-    <div class="q-variant-ui__sizeguide">
-      <a class="q-variant-ui__sizeguide-link" href="{{ s.variant_size_guide_url }}" target="_blank" rel="noopener">
-        Size guide
-      </a>
-    </div>
-  {%- endif -%}
-
-  {%- for opt in p.options_with_values -%}
-    {%- assign opt_index = forloop.index -%}
-    {%- assign opt_name = opt.name | default: '' -%}
-
-    <div class="q-variant-ui__group" data-product-option-index="{{ opt_index }}" aria-label="{{ opt_name | escape }}">
-      {%- if label_mode != 'hide' -%}
-        <div class="q-variant-ui__label">
-          <span class="q-variant-ui__label-name">{{ opt_name }}</span>
-          <span class="q-variant-ui__label-value" data-product-selected-value>
-            {%- case opt_index -%}
-              {%- when 1 -%}{{ v.option1 }}
-              {%- when 2 -%}{{ v.option2 }}
-              {%- when 3 -%}{{ v.option3 }}
-            {%- endcase -%}
-          </span>
+{% if p != blank and ui_style != 'default' %}
+<div class="q-variant-ui" hidden data-product-variant-ui data-product-select-id="q-variant-{{ section.id | escape }}" data-product-style="{{ ui_style | escape }}">
+  {% if s.variant_size_guide_enable and s.variant_size_guide_url != blank %}<div class="q-variant-ui__sizeguide"><a class="q-variant-ui__sizeguide-link" href="{{ s.variant_size_guide_url | escape }}" target="_blank" rel="noopener">Size guide</a></div>{% endif %}
+  {% for opt in p.options_with_values %}
+    {%- liquid
+      assign opt_index = forloop.index0
+      assign option_key = 'option' | append: forloop.index
+      assign selected_value = v.options[opt_index] | default: v[option_key]
+      assign option_name = opt.name | downcase
+      assign is_target = false
+      for target in targets
+        assign target_name = target | strip
+        if target_name == option_name
+          assign is_target = true
+        endif
+      endfor
+    -%}
+    <div class="q-variant-ui__group" data-product-option-index="{{ forloop.index }}" aria-label="{{ opt.name | escape }}">
+      {% unless label_mode == 'hide' %}<div class="q-variant-ui__label"><span class="q-variant-ui__label-name">{{ opt.name | escape }}</span><span class="q-variant-ui__label-value" data-product-selected-value>{{ selected_value | escape }}</span></div>{% endunless %}
+      {% if ui_style == 'dropdown' %}
+        <select data-product-option-select aria-label="{{ opt.name | escape }}">
+          {% for val in opt.values %}<option value="{{ val | escape }}" {% if val == selected_value %}selected{% endif %}>{{ val | escape }}</option>{% endfor %}
+        </select>
+      {% else %}
+        <div class="q-variant-ui__controls" role="radiogroup" aria-label="{{ opt.name | escape }}" data-product-controls>
+          {% for val in opt.values %}
+            <label class="q-variant-ui__item" data-product-option-value="{{ val | escape }}">
+              <input type="radio" name="variant-option-{{ section.id | escape }}-{{ opt_index }}" value="{{ val | escape }}" {% if val == selected_value %}checked{% endif %}>
+              {% if ui_style == 'swatches' and is_target %}
+                {%- liquid
+                  assign swatch_image = blank
+                  assign swatch_color = blank
+                  for candidate in p.variants
+                    assign candidate_value = candidate.options[opt_index] | default: candidate[option_key]
+                    if candidate_value == val
+                      if s.variant_swatch_source == 'metafield'
+                        assign swatch = candidate.metafields[mf_ns][mf_key]
+                        if swatch.type == 'color'
+                          assign swatch_color = swatch.value
+                        elsif swatch.type == 'file_reference' and swatch.value.media_type == 'image'
+                          assign swatch_image = swatch.value.preview_image
+                        endif
+                      else
+                        assign swatch_image = candidate.featured_image | default: candidate.featured_media.preview_image
+                      endif
+                      if swatch_image != blank or swatch_color != blank
+                        break
+                      endif
+                    endif
+                  endfor
+                -%}
+                {% if swatch_image != blank %}<img class="q-variant-ui__swatch" src="{{ swatch_image | image_url: width: 80 }}" width="40" height="40" alt="" loading="lazy">
+                {% elsif swatch_color != blank %}<span class="q-variant-ui__swatch" style="background-color: {{ swatch_color | escape }}" aria-hidden="true"></span>{% endif %}
+              {% endif %}
+              <span class="q-variant-ui__text">{{ val | escape }}</span>
+            </label>
+          {% endfor %}
         </div>
-      {%- endif -%}
-
-      <div
-        class="q-variant-ui__controls"
-        role="radiogroup"
-        aria-label="{{ opt_name | escape }}"
-        data-product-controls
-      >
-        {%- for val in opt.values -%}
-          {%- assign display_value = val -%}
-          <label class="q-variant-ui__item" data-product-option-value="{{ display_value | escape }}">
-            <input type="radio" name="variant-option-{{ section.id }}-{{ opt_index }}" value="{{ display_value | escape }}"
-              {% if opt_index == 1 and v.option1 == display_value %}checked{% elsif opt_index == 2 and v.option2 == display_value %}checked{% elsif opt_index == 3 and v.option3 == display_value %}checked{% endif %}>
-            <span class="q-variant-ui__swatch" aria-hidden="true"></span>
-            <span class="q-variant-ui__text">{{ display_value | escape }}</span>
-          </label>
-        {%- endfor -%}
-      </div>
+      {% endif %}
     </div>
-  {%- endfor -%}
-
-  <script type="application/json" data-product-variants-json>
-    {{ p.variants | json }}
-  </script>
+  {% endfor %}
+  {% capture json_less_than %}\u003c{% endcapture %}
+  {% capture variants_json %}[{% for candidate in p.variants %}{"id":{{ candidate.id | json }},"options":[{% for opt in p.options_with_values %}{% assign option_key = 'option' | append: forloop.index %}{% assign option_value = candidate.options[forloop.index0] | default: candidate[option_key] %}{{ option_value | append: '' | json }}{% unless forloop.last %},{% endunless %}{% endfor %}]}{% unless forloop.last %},{% endunless %}{% endfor %}]{% endcapture %}
+  <script type="application/json" data-product-variants-json>{{ variants_json | replace: '<', json_less_than }}</script>
 </div>
+{% endif %}

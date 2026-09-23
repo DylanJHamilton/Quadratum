@@ -10,7 +10,6 @@
 {% endcomment %}
 
 {%- assign s = section.settings -%}
-{%- assign g = settings -%}
 {%- assign section_id = 'qmap-basic-' | append: section.id -%}
 
 {%- assign layout = s.layout | default: 'split' -%}
@@ -20,45 +19,19 @@
 
 {%- assign mode = s.mode | default: 'embed' -%}
 
-{%- comment %}
-  Pull global defaults (theme settings are strings for lat/lng)
-{% endcomment -%}
-{%- assign g_lat = g.gmap_default_lat | default: '' -%}
-{%- assign g_lng = g.gmap_default_lng | default: '' -%}
-{%- assign g_zoom = g.gmap_default_zoom | default: 12 -%}
+{%- assign lat = s.lat | strip -%}
+{%- assign lng = s.lng | strip -%}
 
-{%- assign lat = s.lat -%}
-{%- assign lng = s.lng -%}
-{%- assign zoom = s.zoom | default: g_zoom | default: 12 -%}
-
-{%- if lat == blank -%}
-  {%- if g_lat != blank and g_lat != 'none' -%}
-    {%- assign lat = g_lat -%}
-  {%- else -%}
-    {%- assign lat = '40.7128' -%}
-  {%- endif -%}
-{%- endif -%}
-
-{%- if lng == blank -%}
-  {%- if g_lng != blank and g_lng != 'none' -%}
-    {%- assign lng = g_lng -%}
-  {%- else -%}
-    {%- assign lng = '-74.0060' -%}
-  {%- endif -%}
-{%- endif -%}
-
-{%- assign address = s.address | default: 'Times Square, New York, NY' -%}
-
-{%- comment %} Build link fallback for all modes {% endcomment -%}
+{%- capture coordinate_pair -%}{%- render 'maps-coordinates', lat: lat, lng: lng -%}{%- endcapture -%}
+{%- assign address = s.address | strip -%}
 {%- assign map_link = '' -%}
-{%- if mode == 'coords' -%}
-  {%- assign map_link = 'https://www.google.com/maps?q=' | append: lat | append: ',' | append: lng | append: '&z=' | append: zoom -%}
-{%- elsif mode == 'address' -%}
-  {%- assign map_link = 'https://www.google.com/maps/search/?api=1&query=' | append: address | url_encode -%}
-{%- else -%}
-  {%- assign map_link = 'https://www.google.com/maps/search/?api=1&query=' | append: address | url_encode -%}
+{%- if mode == 'coords' and coordinate_pair != blank -%}
+  {%- assign query = coordinate_pair | url_encode -%}
+  {%- assign map_link = 'https://www.google.com/maps/@?api=1&map_action=map&center=' | append: query | append: '&zoom=' | append: s.zoom -%}
+{%- elsif mode != 'coords' and address != blank -%}
+  {%- assign query = address | url_encode -%}
+  {%- assign map_link = 'https://www.google.com/maps/search/?api=1&query=' | append: query -%}
 {%- endif -%}
-
 {%- comment %}
   Safe embed:
   - Only render iframe if we can extract a src
@@ -77,15 +50,9 @@
   {%- endif -%}
 {%- endif -%}
 
+{%- assign embed_prefix = embed_src | slice: 0, 8 -%}
 {%- assign embed_src_ok = false -%}
-{%- if embed_src != blank -%}
-  {%- if embed_src contains 'https://' -%}
-    {%- assign embed_src_ok = true -%}
-  {%- elsif embed_src contains 'http://' -%}
-    {%- assign embed_src_ok = true -%}
-  {%- endif -%}
-{%- endif -%}
-
+{%- if embed_prefix == 'https://' -%}{%- assign embed_src_ok = true -%}{%- endif -%}
 {%- assign can_render_iframe = false -%}
 {%- if mode == 'embed' -%}
   {%- if embed_src_ok -%}
@@ -97,14 +64,14 @@
   id="{{ section_id }}"
   class="qmap-basic qmap-basic--{{ style }} qmap-basic--{{ layout }} qmap-basic--map-{{ map_side }} qmap-basic--align-{{ content_align }}"
 >
-  <div class="qmap-basic__inner">
+  <div class="qmap-basic__inner" {% unless can_render_iframe or map_link != blank or request.design_mode %}style="grid-template-columns:minmax(0,1fr)"{% endunless %}>
     <div class="qmap-basic__content">
       {%- if s.kicker != blank -%}
-        <div class="qmap-basic__kicker">{{ s.kicker }}</div>
+        <div class="qmap-basic__kicker">{{ s.kicker | escape }}</div>
       {%- endif -%}
 
       {%- if s.heading != blank -%}
-        <h2 class="qmap-basic__heading">{{ s.heading }}</h2>
+        <h2 class="qmap-basic__heading">{{ s.heading | escape }}</h2>
       {%- endif -%}
 
       {%- if s.body != blank -%}
@@ -114,19 +81,19 @@
       {%- endif -%}
 
       <div class="qmap-basic__actions">
-        <a class="qmap-basic__btn qmap-basic__btn--primary"
-           href="{{ map_link }}"
+        {% if map_link != blank and s.cta_label != blank %}<a class="qmap-basic__btn qmap-basic__btn--primary"
+           href="{{ map_link | escape }}"
            target="_blank"
            rel="noopener"
            aria-label="{{ s.cta_label | escape }}">
-          {{ s.cta_label }}
-        </a>
+          {{ s.cta_label | escape }}
+        </a>{% endif %}
 
         {%- if s.secondary_label != blank and s.secondary_url != blank -%}
           <a class="qmap-basic__btn qmap-basic__btn--secondary"
-             href="{{ s.secondary_url }}"
+             href="{{ s.secondary_url | escape }}"
              aria-label="{{ s.secondary_label | escape }}">
-            {{ s.secondary_label }}
+            {{ s.secondary_label | escape }}
           </a>
         {%- endif -%}
       </div>
@@ -138,7 +105,7 @@
       {%- endif -%}
     </div>
 
-    <div class="qmap-basic__map" aria-label="{{ s.map_aria_label | escape }}">
+    {% if can_render_iframe or map_link != blank or request.design_mode %}<div class="qmap-basic__map" aria-label="{{ s.map_aria_label | escape }}">
       <div class="qmap-basic__surface">
         {%- if can_render_iframe -%}
           <iframe
@@ -147,7 +114,7 @@
             loading="lazy"
             referrerpolicy="no-referrer-when-downgrade"
             allowfullscreen
-            title="{{ s.iframe_title | escape }}"
+            title="{{ s.iframe_title | default: 'Location map' | escape }}"
           ></iframe>
         {%- else -%}
           <div class="qmap-basic__placeholder">
@@ -159,38 +126,41 @@
             </div>
 
             <div class="qmap-basic__ph-copy">
-              <div class="qmap-basic__ph-title">{{ s.placeholder_title }}</div>
-              <div class="qmap-basic__ph-sub">{{ s.placeholder_sub }}</div>
+              <div class="qmap-basic__ph-title">{{ s.placeholder_title | escape }}</div>
+              <div class="qmap-basic__ph-sub">{{ s.placeholder_sub | escape }}</div>
             </div>
 
             <div class="qmap-basic__ph-cta">
-              <a class="qmap-basic__btn qmap-basic__btn--primary"
-                 href="{{ map_link }}"
+              {% if map_link != blank and s.cta_label != blank %}<a class="qmap-basic__btn qmap-basic__btn--primary"
+                 href="{{ map_link | escape }}"
                  target="_blank"
                  rel="noopener">
-                {{ s.cta_label }}
-              </a>
+                {{ s.cta_label | escape }}
+              </a>{% endif %}
             </div>
 
-            {%- if mode == 'embed' and embed_code != blank and has_iframe == false -%}
-              <div class="qmap-basic__note">{{ s.invalid_embed_note }}</div>
-            {%- elsif mode == 'embed' and embed_src != blank and embed_src_ok == false -%}
-              <div class="qmap-basic__note">{{ s.invalid_embed_note }}</div>
+            {%- if request.design_mode and mode == 'embed' and embed_code != blank and has_iframe == false -%}
+              <div class="qmap-basic__note">{{ s.invalid_embed_note | escape }}</div>
+            {%- elsif request.design_mode and mode == 'embed' and embed_src != blank and embed_src_ok == false -%}
+              <div class="qmap-basic__note">{{ s.invalid_embed_note | escape }}</div>
             {%- endif -%}
           </div>
         {%- endif -%}
       </div>
-    </div>
+    </div>{% endif %}
   </div>
 
+  {% assign button_bg = settings.color_primary %}{% if s.use_custom_colors %}{% assign button_bg = s.custom_accent %}{% endif %}
+  {% capture button_fg %}{% render 'contrast-text', bg: button_bg, preferred: settings.text_on_color %}{% endcapture %}
   <style>
     #{{ section_id }}{
-      --qmap-bg: var(--q-color-bg, transparent);
-      --qmap-surface: var(--q-surface-1, var(--q-color-surface, transparent));
-      --qmap-text: var(--q-color-text, currentColor);
-      --qmap-muted: var(--q-color-muted, currentColor);
-      --qmap-accent: var(--q-color-accent, currentColor);
-      --qmap-border: var(--q-color-border, currentColor);
+      --qmap-on-accent: {{ button_fg | strip }};
+      --qmap-bg: var(--c-bg,#fff);
+      --qmap-surface: var(--c-surface,#f6f7f8);
+      --qmap-text: var(--c-text,#111);
+      --qmap-muted: var(--c-muted,#666);
+      --qmap-accent: var(--c-primary,#111);
+      --qmap-border: var(--c-border,#ddd);
 
       --qmap-radius: var(--q-radius-lg, 16px);
       --qmap-shadow: var(--q-shadow-md, none);
@@ -232,7 +202,7 @@
     }
 
     #{{ section_id }}.qmap-basic--split .qmap-basic__inner{
-      grid-template-columns: minmax(280px, 1fr) minmax(320px, 1fr);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
 
     #{{ section_id }}.qmap-basic--split.qmap-basic--map-left .qmap-basic__content{ order: 2; }
@@ -299,7 +269,7 @@
 
     #{{ section_id }} .qmap-basic__btn--primary{
       background: var(--qmap-accent);
-      color: var(--qmap-text);
+      color: var(--qmap-on-accent);
     }
 
     #{{ section_id }} .qmap-basic__btn--secondary{
@@ -399,6 +369,12 @@
       justify-items: center;
       text-align: center;
     }
+  #{{ section_id }}{font-family:var(--font-body);overflow-wrap:anywhere}
+    #{{ section_id }} :is(h2,h3){font-family:var(--font-head)}
+    #{{ section_id }} :focus-visible{outline:2px solid currentColor;outline-offset:3px}
+    #{{ section_id }} :is(a,button){max-width:100%;white-space:normal}
+    #{{ section_id }} *{box-sizing:border-box;min-width:0}
+    @media(prefers-reduced-motion:reduce){#{{ section_id }} *{transition:none!important;transform:none!important}}
   </style>
 </section>
 
@@ -409,27 +385,38 @@
   "class": "section q-section q-section--maps-basic",
   "settings": [
     {
+      "type": "paragraph",
+      "content": "Configure your real location, coverage and contact information. Native links open Google Maps; embeds load external content. The theme does not verify addresses, coverage, opening hours or service availability. Blank location fields do not select a sample place."
+    },
+    {
       "type": "select",
       "id": "mode",
       "label": "Map mode",
       "default": "embed",
       "options": [
-        { "value": "embed", "label": "Embed code (iframe)" },
-        { "value": "address", "label": "Address (Open in Google Maps)" },
-        { "value": "coords", "label": "Coordinates + zoom (Open in Google Maps)" }
+        {
+          "value": "embed",
+          "label": "Embed code (iframe)"
+        },
+        {
+          "value": "address",
+          "label": "Address (Open in Google Maps)"
+        },
+        {
+          "value": "coords",
+          "label": "Coordinates + zoom (Open in Google Maps)"
+        }
       ]
     },
     {
       "type": "textarea",
       "id": "embed_code",
-      "label": "Google Maps embed code (iframe)",
-      "default": "<iframe src=\"https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3021.8913612276266!2d-73.98648868459363!3d40.75889597932609!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c25855c6480299%3A0x55194ec5a1f6c4f2!2sTimes%20Square!5e0!3m2!1sen!2sus!4v1700000000000\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>"
+      "label": "Google Maps embed code (iframe)"
     },
     {
       "type": "text",
       "id": "address",
-      "label": "Address (used for Address mode + general fallback link)",
-      "default": "Times Square, New York, NY"
+      "label": "Address (used for Address mode + general fallback link)"
     },
     {
       "type": "text",
@@ -450,42 +437,80 @@
       "step": 1,
       "default": 12
     },
-
     {
       "type": "header",
       "content": "Content"
     },
-    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Directions & Location" },
-    { "type": "text", "id": "heading", "label": "Heading", "default": "Find us in person" },
+    {
+      "type": "text",
+      "id": "kicker",
+      "label": "Kicker",
+      "default": "Directions & Location"
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Find us in person"
+    },
     {
       "type": "richtext",
       "id": "body",
       "label": "Body",
-      "default": "<p>Use the map to get directions, check nearby landmarks, and arrive with confidence. This section works instantly with embed code and stays API-ready for later upgrades.</p>"
+      "default": "<p>Find location details and ways to get in touch.</p>"
     },
-    { "type": "text", "id": "cta_label", "label": "Primary button label", "default": "Open in Google Maps" },
-    { "type": "text", "id": "secondary_label", "label": "Secondary button label", "default": "Contact us" },
-    { "type": "url", "id": "secondary_url", "label": "Secondary button link" },
+    {
+      "type": "text",
+      "id": "cta_label",
+      "label": "Primary button label",
+      "default": "Open in Google Maps"
+    },
+    {
+      "type": "text",
+      "id": "secondary_label",
+      "label": "Secondary button label",
+      "default": "Contact us"
+    },
+    {
+      "type": "url",
+      "id": "secondary_url",
+      "label": "Secondary button link"
+    },
     {
       "type": "richtext",
       "id": "details",
-      "label": "Optional details (hours / parking / notes)",
-      "default": "<p><strong>Hours:</strong> Mon–Fri 9–5 • <strong>Parking:</strong> On-site</p>"
+      "label": "Optional details (hours / parking / notes)"
     },
-
     {
       "type": "header",
       "content": "Layout"
     },
-    { "type": "select", "id": "layout", "label": "Layout", "default": "split", "options": [{ "value": "split", "label": "Split (content + map)" }] },
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "split",
+      "options": [
+        {
+          "value": "split",
+          "label": "Split (content + map)"
+        }
+      ]
+    },
     {
       "type": "select",
       "id": "map_side",
       "label": "Map side",
       "default": "right",
       "options": [
-        { "value": "right", "label": "Right" },
-        { "value": "left", "label": "Left" }
+        {
+          "value": "right",
+          "label": "Right"
+        },
+        {
+          "value": "left",
+          "label": "Left"
+        }
       ]
     },
     {
@@ -494,10 +519,22 @@
       "label": "Style",
       "default": "card",
       "options": [
-        { "value": "card", "label": "Card" },
-        { "value": "bordered", "label": "Bordered" },
-        { "value": "minimal", "label": "Minimal" },
-        { "value": "bleed", "label": "Bleed" }
+        {
+          "value": "card",
+          "label": "Card"
+        },
+        {
+          "value": "bordered",
+          "label": "Bordered"
+        },
+        {
+          "value": "minimal",
+          "label": "Minimal"
+        },
+        {
+          "value": "bleed",
+          "label": "Bleed"
+        }
       ]
     },
     {
@@ -506,33 +543,105 @@
       "label": "Content alignment",
       "default": "left",
       "options": [
-        { "value": "left", "label": "Left" },
-        { "value": "center", "label": "Center" }
+        {
+          "value": "left",
+          "label": "Left"
+        },
+        {
+          "value": "center",
+          "label": "Center"
+        }
       ]
     },
-    { "type": "range", "id": "map_height", "label": "Map height", "min": 260, "max": 760, "step": 10, "default": 380 },
-
+    {
+      "type": "range",
+      "id": "map_height",
+      "label": "Map height",
+      "min": 260,
+      "max": 760,
+      "step": 10,
+      "default": 380
+    },
     {
       "type": "header",
       "content": "Accessibility + fallback UI"
     },
-    { "type": "text", "id": "iframe_title", "label": "Iframe title", "default": "Map showing our location" },
-    { "type": "text", "id": "map_aria_label", "label": "Map panel ARIA label", "default": "Location map" },
-    { "type": "text", "id": "placeholder_title", "label": "Placeholder title", "default": "Get directions instantly" },
-    { "type": "text", "id": "placeholder_sub", "label": "Placeholder subtitle", "default": "Open Google Maps to view routes, ETA, and nearby landmarks." },
-    { "type": "text", "id": "invalid_embed_note", "label": "Invalid embed note", "default": "Tip: Paste a valid Google Maps <iframe> embed code to display the map inline." },
-
+    {
+      "type": "text",
+      "id": "iframe_title",
+      "label": "Iframe title",
+      "default": "Map showing our location"
+    },
+    {
+      "type": "text",
+      "id": "map_aria_label",
+      "label": "Map panel ARIA label",
+      "default": "Location map"
+    },
+    {
+      "type": "text",
+      "id": "placeholder_title",
+      "label": "Placeholder title",
+      "default": "Get directions instantly"
+    },
+    {
+      "type": "text",
+      "id": "placeholder_sub",
+      "label": "Placeholder subtitle",
+      "default": "Open Google Maps to view routes, ETA, and nearby landmarks."
+    },
+    {
+      "type": "text",
+      "id": "invalid_embed_note",
+      "label": "Invalid embed note",
+      "default": "Tip: Paste a valid Google Maps <iframe> embed code to display the map inline."
+    },
     {
       "type": "header",
       "content": "Custom colors (scoped)"
     },
-    { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors", "default": false },
-    { "type": "color", "id": "custom_bg", "label": "Background", "default": "#ffffff" },
-    { "type": "color", "id": "custom_surface", "label": "Surface", "default": "#f6f7f8" },
-    { "type": "color", "id": "custom_text", "label": "Text", "default": "#111111" },
-    { "type": "color", "id": "custom_muted", "label": "Muted text", "default": "#6b7280" },
-    { "type": "color", "id": "custom_accent", "label": "Accent", "default": "#2563eb" },
-    { "type": "color", "id": "custom_border", "label": "Border", "default": "#e5e7eb" }
+    {
+      "type": "checkbox",
+      "id": "use_custom_colors",
+      "label": "Use custom colors",
+      "default": false
+    },
+    {
+      "type": "color",
+      "id": "custom_bg",
+      "label": "Background",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "custom_surface",
+      "label": "Surface",
+      "default": "#f6f7f8"
+    },
+    {
+      "type": "color",
+      "id": "custom_text",
+      "label": "Text",
+      "default": "#111111"
+    },
+    {
+      "type": "color",
+      "id": "custom_muted",
+      "label": "Muted text",
+      "default": "#6b7280"
+    },
+    {
+      "type": "color",
+      "id": "custom_accent",
+      "label": "Accent",
+      "default": "#2563eb"
+    },
+    {
+      "type": "color",
+      "id": "custom_border",
+      "label": "Border",
+      "default": "#e5e7eb"
+    }
   ],
   "presets": [
     {

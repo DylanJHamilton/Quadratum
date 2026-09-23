@@ -21,10 +21,10 @@
     product-shipping-returns--{{ layout_style }}
     product-shipping-returns--width-{{ block_width }}
     product-shipping-returns--align-{{ alignment }}
-    {% unless show_on_desktop %} product-shipping-returns--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-shipping-returns--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-shipping-returns--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-shipping-returns--animate product-shipping-returns--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-shipping-returns--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-shipping-returns--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-shipping-returns--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-shipping-returns--animate product-shipping-returns--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-shipping-returns-margin-top: {{ block.settings.margin_top }}px;
@@ -46,10 +46,12 @@
   "
   data-product-id="{{ product_context.id }}"
   data-variant-id="{{ current_variant.id }}"
-  {{ block.shopify_attributes }}
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-shipping-returns-margin-top);
       margin-bottom: var(--product-shipping-returns-margin-bottom);
@@ -442,6 +444,14 @@
         transition: none;
       }
     }
+
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} img { max-width: 100%; }
+    #{{ block_id }} a { color: var(--product-shipping-returns-link-color); text-underline-offset: .2em; }
+    #{{ block_id }} a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+{% unless show_on_desktop or request.design_mode %}@media (min-width: 990px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_tablet or request.design_mode %}@media (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_mobile or request.design_mode %}@media (max-width: 749px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
   </style>
 
   <div class="product-shipping-returns__inner">
@@ -478,24 +488,28 @@
             assign item_link_label = block.settings[link_label_key]
             assign item_link_url = block.settings[link_url_key]
             assign item_open = block.settings[open_key]
+            if index == 1 and item_link_url == blank and item_text == blank
+              assign item_link_url = shop.shipping_policy.url
+            endif
+            if index == 2 and item_link_url == blank and item_text == blank
+              assign item_link_url = shop.refund_policy.url
+            endif
           -%}
 
-          {% if item_heading != blank or item_text != blank %}
+          {% if item_text != blank or item_link_url != blank or request.design_mode %}
             {% if layout_style == 'accordion' %}
               <details class="product-shipping-returns__item" {% if item_open %}open{% endif %}>
                 <summary class="product-shipping-returns__summary">
                   <span class="product-shipping-returns__summary-content">
                     {% if item_icon != blank %}
                       <span class="product-shipping-returns__visual" aria-hidden="true">
-                        <span class="product-shipping-returns__icon">{{ item_icon }}</span>
+                        <span class="product-shipping-returns__icon">{{ item_icon | escape }}</span>
                       </span>
                     {% endif %}
 
-                    {% if item_heading != blank %}
-                      <span class="product-shipping-returns__item-heading">
-                        {{ item_heading | escape }}
+                    <span class="product-shipping-returns__item-heading">
+                        {{ item_heading | default: 'Details' | escape }}
                       </span>
-                    {% endif %}
                   </span>
 
                   <span class="product-shipping-returns__chevron" aria-hidden="true">⌄</span>
@@ -509,7 +523,7 @@
                   {% endif %}
 
                   {% if item_link_label != blank and item_link_url != blank %}
-                    <a class="product-shipping-returns__link" href="{{ item_link_url }}">
+                    <a class="product-shipping-returns__link" href="{{ item_link_url | escape }}">
                       {{ item_link_label | escape }}
                     </a>
                   {% endif %}
@@ -519,7 +533,7 @@
               <article class="product-shipping-returns__item">
                 {% if item_icon != blank %}
                   <span class="product-shipping-returns__visual" aria-hidden="true">
-                    <span class="product-shipping-returns__icon">{{ item_icon }}</span>
+                    <span class="product-shipping-returns__icon">{{ item_icon | escape }}</span>
                   </span>
                 {% endif %}
 
@@ -536,7 +550,7 @@
                 {% endif %}
 
                 {% if item_link_label != blank and item_link_url != blank %}
-                  <a class="product-shipping-returns__link" href="{{ item_link_url }}">
+                  <a class="product-shipping-returns__link" href="{{ item_link_url | escape }}">
                     {{ item_link_label | escape }}
                   </a>
                 {% endif %}
@@ -566,8 +580,7 @@
     {
       "type": "richtext",
       "id": "text",
-      "label": "Text",
-      "default": "<p>Give shoppers clear delivery, return, and support information before they add to cart.</p>"
+      "label": "Text"
     },
     {
       "type": "range",
@@ -578,7 +591,6 @@
       "step": 1,
       "default": 3
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -701,7 +713,6 @@
       "unit": "px",
       "default": 52
     },
-
     {
       "type": "header",
       "content": "Item 1"
@@ -716,13 +727,12 @@
       "type": "text",
       "id": "item_1_heading",
       "label": "Heading",
-      "default": "Shipping information"
+      "default": "Shipping"
     },
     {
       "type": "richtext",
       "id": "item_1_text",
-      "label": "Text",
-      "default": "<p>Orders are processed with clear delivery expectations so customers know what to expect before checkout.</p>"
+      "label": "Text"
     },
     {
       "type": "text",
@@ -741,7 +751,6 @@
       "label": "Open by default",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Item 2"
@@ -756,13 +765,12 @@
       "type": "text",
       "id": "item_2_heading",
       "label": "Heading",
-      "default": "Returns policy"
+      "default": "Returns"
     },
     {
       "type": "richtext",
       "id": "item_2_text",
-      "label": "Text",
-      "default": "<p>Use this area to explain returns, exchanges, eligibility, and what customers should do if they need support.</p>"
+      "label": "Text"
     },
     {
       "type": "text",
@@ -781,7 +789,6 @@
       "label": "Open by default",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Item 3"
@@ -796,13 +803,12 @@
       "type": "text",
       "id": "item_3_heading",
       "label": "Heading",
-      "default": "Delivery promise"
+      "default": "Support"
     },
     {
       "type": "richtext",
       "id": "item_3_text",
-      "label": "Text",
-      "default": "<p>Reassure shoppers with delivery transparency, order support, and a simple promise around fulfillment.</p>"
+      "label": "Text"
     },
     {
       "type": "text",
@@ -820,7 +826,6 @@
       "label": "Open by default",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Item 4"
@@ -856,7 +861,6 @@
       "label": "Open by default",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Item 5"
@@ -892,7 +896,6 @@
       "label": "Open by default",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Item 6"
@@ -928,7 +931,6 @@
       "label": "Open by default",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -981,7 +983,6 @@
       "label": "Icon background",
       "default": "#f4f4f4"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1006,7 +1007,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1041,7 +1041,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1064,7 +1063,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1110,8 +1108,7 @@
     {
       "name": "Shipping Information",
       "settings": {
-        "heading": "Shipping information",
-        "text": "<p>Give shoppers the shipping details they need before checkout.</p>",
+        "heading": "Shipping and returns",
         "item_count": 3,
         "layout_style": "cards",
         "desktop_columns": "3",
@@ -1121,16 +1118,13 @@
         "card_padding": 24,
         "icon_size": 52,
         "item_1_icon": "↗",
-        "item_1_heading": "Shipping information",
-        "item_1_text": "<p>Orders are processed with clear delivery expectations so customers know what to expect before checkout.</p>",
+        "item_1_heading": "Shipping",
         "item_1_link_label": "View shipping policy",
         "item_1_open_by_default": true,
         "item_2_icon": "✓",
-        "item_2_heading": "Order processing",
-        "item_2_text": "<p>Use this space to explain processing time, handling time, or fulfillment expectations.</p>",
+        "item_2_heading": "Returns",
         "item_3_icon": "i",
-        "item_3_heading": "Tracking updates",
-        "item_3_text": "<p>Let customers know how tracking, delivery updates, or order notifications work.</p>",
+        "item_3_heading": "Support",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",
@@ -1147,14 +1141,14 @@
         "show_on_desktop": true,
         "show_on_tablet": true,
         "show_on_mobile": true,
-        "animation_style": "none"
+        "animation_style": "none",
+        "item_2_link_label": "View returns policy"
       }
     },
     {
       "name": "Returns Policy",
       "settings": {
-        "heading": "Returns and exchanges",
-        "text": "<p>Reduce hesitation with a clear, accessible returns policy section.</p>",
+        "heading": "Shipping and returns",
         "item_count": 3,
         "layout_style": "accordion",
         "desktop_columns": "3",
@@ -1164,17 +1158,14 @@
         "card_padding": 20,
         "icon_size": 48,
         "item_1_icon": "↺",
-        "item_1_heading": "Returns policy",
-        "item_1_text": "<p>Explain return eligibility, timing, and what customers should do if they need help.</p>",
-        "item_1_link_label": "View returns policy",
+        "item_1_heading": "Shipping",
+        "item_1_link_label": "View shipping policy",
         "item_1_open_by_default": true,
         "item_2_icon": "✓",
-        "item_2_heading": "Exchanges",
-        "item_2_text": "<p>Clarify whether exchanges are available and how customers can request one.</p>",
+        "item_2_heading": "Returns",
         "item_2_open_by_default": false,
         "item_3_icon": "i",
         "item_3_heading": "Support",
-        "item_3_text": "<p>Tell customers how to contact support if something is wrong with their order.</p>",
         "item_3_open_by_default": false,
         "heading_color": "#111111",
         "text_color": "#444444",
@@ -1192,14 +1183,14 @@
         "show_on_desktop": true,
         "show_on_tablet": true,
         "show_on_mobile": true,
-        "animation_style": "none"
+        "animation_style": "none",
+        "item_2_link_label": "View returns policy"
       }
     },
     {
-      "name": "Delivery Promise",
+      "name": "Delivery Information",
       "settings": {
-        "heading": "Our delivery promise",
-        "text": "<p>Use this section to communicate delivery expectations, order care, and customer support.</p>",
+        "heading": "Shipping and returns",
         "item_count": 3,
         "layout_style": "minimal",
         "desktop_columns": "3",
@@ -1209,14 +1200,11 @@
         "card_padding": 16,
         "icon_size": 44,
         "item_1_icon": "✓",
-        "item_1_heading": "Clear expectations",
-        "item_1_text": "<p>Set expectations before checkout so customers understand delivery timing.</p>",
+        "item_1_heading": "Shipping",
         "item_2_icon": "↗",
-        "item_2_heading": "Reliable fulfillment",
-        "item_2_text": "<p>Reassure shoppers that orders are handled carefully from purchase to delivery.</p>",
+        "item_2_heading": "Returns",
         "item_3_icon": "★",
-        "item_3_heading": "Helpful support",
-        "item_3_text": "<p>Give customers confidence that your team is available if questions come up.</p>",
+        "item_3_heading": "Support",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",
@@ -1233,7 +1221,9 @@
         "show_on_desktop": true,
         "show_on_tablet": true,
         "show_on_mobile": true,
-        "animation_style": "none"
+        "animation_style": "none",
+        "item_1_link_label": "View shipping policy",
+        "item_2_link_label": "View returns policy"
       }
     }
   ]

@@ -6,7 +6,7 @@
   - snippets/q-deal.liquid
 
   Render contract:
-  {% render 'q-deal', section: section, block: block, mode: 'hero'|'card', bg_mode: bg_mode, now_ts: now_ts %}
+  {% render 'q-deal', section: section, block: block, mode: 'hero'|'card', bg_mode: bg_mode, now_day: now_day %}
 
   Doctrine:
   - Content modes: hero (single) / cards (2–4 max rendered)
@@ -20,7 +20,8 @@
   assign layout = section.settings.layout
   assign bg_mode = section.settings.background_mode
 
-  assign now_ts = 'now' | date: '%s' | plus: 0
+  assign now_day = 'now' | date: '%Y%m%d' | plus: 0
+  assign visible_ids = '|'
 
   assign visible_count = 0
   assign hero_block = nil
@@ -47,35 +48,28 @@
     endif
 
     assign start_raw = block.settings.start_date | strip
-    assign end_raw   = block.settings.end_date | strip
-
-    assign start_ts = blank
-    assign end_ts = blank
-
-    if start_raw != blank
-      assign start_ts = start_raw | date: '%s'
-      if start_ts != blank
-        assign start_ts = start_ts | plus: 0
-      endif
+    assign end_raw = block.settings.end_date | strip
+    assign start_date = start_raw | append: ' 00:00:00' | date: '%Y-%m-%d'
+    assign end_date = end_raw | append: ' 00:00:00' | date: '%Y-%m-%d'
+    assign start_day = 0
+    assign end_day = 0
+    if start_raw != blank and start_date == start_raw
+      assign start_day = start_raw | remove: '-' | plus: 0
     endif
-
-    if end_raw != blank
-      assign end_ts = end_raw | date: '%s'
-      if end_ts != blank
-        assign end_ts = end_ts | plus: 0
-      endif
+    if end_raw != blank and end_date == end_raw
+      assign end_day = end_raw | remove: '-' | plus: 0
     endif
-
     assign is_visible = true
-    if start_ts != blank and start_ts > now_ts
+    if start_day > 0 and start_day > now_day
       assign is_visible = false
     endif
-    if end_ts != blank and end_ts < now_ts
+    if end_day > 0 and end_day < now_day
       assign is_visible = false
     endif
 
     if is_visible
       assign visible_count = visible_count | plus: 1
+      assign visible_ids = visible_ids | append: block.id | append: '|'
       if hero_block == nil
         assign hero_block = block
       endif
@@ -85,7 +79,7 @@
 
 {%- liquid
   assign should_render = true
-  if visible_count == 0 and section.settings.hide_if_empty
+  if visible_count == 0 and section.settings.hide_if_empty and request.design_mode == false
     assign should_render = false
   endif
 -%}
@@ -103,7 +97,7 @@
 
     --q-promos-radius: {{ section.settings.radius }}px;
     --q-promos-border-w: {{ section.settings.border_w }}px;
-    --q-promos-border-color: {{ section.settings.border_color }};
+    --q-promos-border-color: {{ section.settings.border_color | escape }};
     --q-promos-shadow-y: {{ section.settings.shadow_y }}px;
     --q-promos-shadow-blur: {{ section.settings.shadow_blur }}px;
     --q-promos-shadow-alpha: {{ section.settings.shadow_alpha | divided_by: 100.0 }};
@@ -199,11 +193,11 @@
     {%- if section.settings.show_header and has_header_content -%}
       <header class="q-promos__header">
         {%- if section.settings.kicker != blank -%}
-          <p class="q-promos__kicker">{{ section.settings.kicker }}</p>
+          <p class="q-promos__kicker">{{ section.settings.kicker | escape }}</p>
         {%- endif -%}
 
         {%- if section.settings.heading != blank -%}
-          <h2 class="q-promos__heading">{{ section.settings.heading }}</h2>
+          <h2 class="q-promos__heading">{{ section.settings.heading | escape }}</h2>
         {%- endif -%}
 
         {%- if section.settings.subheading != blank -%}
@@ -212,6 +206,7 @@
       </header>
     {%- endif -%}
 
+    {% if request.design_mode and visible_count == 0 %}<p class="q-promos__empty">No deals are active for today's rendered date. Add a deal or review its dates.</p>{% endif %}
     {%- if mode == 'hero' -%}
       {%- if hero_block != nil -%}
         {%- render 'q-deal',
@@ -219,13 +214,13 @@
           block: hero_block,
           mode: 'hero',
           bg_mode: bg_mode,
-          now_ts: now_ts
+          now_day: now_day
         -%}
       {%- elsif section.settings.show_empty_state -%}
         <div class="q-promos__empty rte">{{ section.settings.empty_state }}</div>
       {%- endif -%}
     {%- else -%}
-      <div class="q-promos__list" role="list">
+      <div class="q-promos__list">
         {%- liquid
           assign rendered = 0
         -%}
@@ -239,32 +234,10 @@
               break
             endif
 
-            assign start_raw = block.settings.start_date | strip
-            assign end_raw   = block.settings.end_date | strip
-
-            assign start_ts = blank
-            assign end_ts = blank
-
-            if start_raw != blank
-              assign start_ts = start_raw | date: '%s'
-              if start_ts != blank
-                assign start_ts = start_ts | plus: 0
-              endif
-            endif
-
-            if end_raw != blank
-              assign end_ts = end_raw | date: '%s'
-              if end_ts != blank
-                assign end_ts = end_ts | plus: 0
-              endif
-            endif
-
-            assign is_visible = true
-            if start_ts != blank and start_ts > now_ts
-              assign is_visible = false
-            endif
-            if end_ts != blank and end_ts < now_ts
-              assign is_visible = false
+            assign block_token = '|' | append: block.id | append: '|'
+            assign is_visible = false
+            if visible_ids contains block_token
+              assign is_visible = true
             endif
           -%}
 
@@ -274,7 +247,7 @@
               block: block,
               mode: 'card',
               bg_mode: bg_mode,
-              now_ts: now_ts
+              now_day: now_day
             -%}
             {%- assign rendered = rendered | plus: 1 -%}
           {%- endif -%}
@@ -292,6 +265,7 @@
   /* ===== Quadratum Promos — execution layer only (all decisions via CSS vars) ===== */
 
   #q-promos-{{ section.id }}{
+    min-width: 0; overflow-wrap: anywhere;
     position: relative;
     background: var(--q-promos-section-bg);
     color: var(--q-promos-section-fg);
@@ -398,6 +372,10 @@
     border: var(--q-promos-border-w) solid var(--q-promos-border-color);
     background: transparent;
   }
+  #q-promos-{{ section.id }} :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+  #q-promos-{{ section.id }} .q-promo, #q-promos-{{ section.id }} .q-promo__content { min-width: 0; }
+  #q-promos-{{ section.id }} .q-promo__btn { max-width: 100%; white-space: normal; }
+  @media (prefers-reduced-motion: reduce) { #q-promos-{{ section.id }} .q-promo__btn:hover { transform: none; } }
 </style>
 {%- endif -%}
 
@@ -691,6 +669,7 @@
         { "type": "url", "id": "link", "label": "Link (internal or external)" },
 
         { "type": "header", "content": "Time awareness (YYYY-MM-DD)" },
+        { "type": "paragraph", "content": "Dates include the whole end day and use the date when Shopify renders this section. Cached pages may update later. Invalid dates are ignored. Visibility does not create or end a Shopify discount." },
         { "type": "text", "id": "start_date", "label": "Start date (hide before this date)" },
         { "type": "text", "id": "end_date", "label": "End date (hide after this date)" },
         { "type": "text", "id": "expiry_prefix", "label": "Expiry prefix", "default": "Expires on" },

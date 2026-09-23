@@ -1,16 +1,24 @@
+{% if product != blank %}
 {%- liquid
   assign block_id = 'product-price-' | append: block.id
 
   assign product_context = product
   assign current_variant = product_context.selected_or_first_available_variant
+  assign selected_allocation = current_variant.selected_selling_plan_allocation
+  if selected_allocation == blank and product_context.requires_selling_plan
+    assign selected_allocation = current_variant.selling_plan_allocations.first
+  endif
 
   assign width = block.settings.width | default: 'auto'
   assign alignment = block.settings.alignment | default: 'left'
   assign price_style = block.settings.price_style | default: 'standard'
 
-  assign price = current_variant.price
+  assign price = selected_allocation.price | default: current_variant.price
   assign compare_at_price = current_variant.compare_at_price
-  assign unit_price = current_variant.unit_price
+  if selected_allocation != blank
+    assign compare_at_price = selected_allocation.compare_at_price | default: current_variant.price
+  endif
+  assign unit_price = selected_allocation.unit_price | default: current_variant.unit_price
   assign unit_price_measurement = current_variant.unit_price_measurement
 
   assign on_sale = false
@@ -41,10 +49,10 @@
     product-price--width-{{ width }}
     product-price--align-{{ alignment }}
     {% if on_sale %} product-price--on-sale{% endif %}
-    {% unless show_on_desktop %} product-price--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-price--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-price--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-price--animate product-price--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-price--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-price--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-price--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-price--animate product-price--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-price-margin-top: {{ block.settings.margin_top }}px;
@@ -64,13 +72,30 @@
     --product-price-border-width: {{ block.settings.border_width }}px;
     --product-price-border-radius: {{ block.settings.border_radius }}px;
   "
+  data-qtm-product-block-commerce="price"
+  data-product-url="{{ product_context.url | escape }}"
+  data-requires-plan="{{ product_context.requires_selling_plan }}"
+  data-initial-plan="{{ selected_allocation.selling_plan.id }}"
+  data-add-label="{{ 'Add to cart' | escape }}"
+  data-sold-label="{{ 'Sold out' | escape }}"
+  data-unavailable-label="{{ 'Unavailable' | escape }}"
+  data-available-label="{{ 'Available' | escape }}"
+  data-cart-adding-message="{{ 'Adding to cart...' | escape }}"
+  data-cart-added-message="{{ 'Added to cart.' | escape }}"
   data-product-id="{{ product_context.id }}"
   data-variant-id="{{ current_variant.id }}"
   data-product-price
-  {{ block.shopify_attributes }}
+  data-savings-display="{{ block.settings.savings_display }}"
+  data-sale-prefix="{{ block.settings.sale_badge_prefix | escape }}"
+  data-sale-label="{{ block.settings.sale_badge_text | escape }}"
+
 >
+  {% render 'qtm-product-block-data', product: product_context %}
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-price-margin-top);
       margin-bottom: var(--product-price-margin-bottom);
@@ -166,7 +191,7 @@
       font-size: var(--product-price-font-size);
       line-height: 1.1;
       font-weight: 700;
-      white-space: nowrap;
+      white-space: normal;
     }
 
     #{{ block_id }}.product-price--on-sale .product-price__current {
@@ -179,7 +204,7 @@
       line-height: 1.2;
       text-decoration: line-through;
       opacity: 0.8;
-      white-space: nowrap;
+      white-space: normal;
     }
 
     #{{ block_id }} .product-price__badge {
@@ -193,7 +218,7 @@
       border-radius: 999px;
       font-size: var(--product-price-badge-font-size);
       line-height: 1.2;
-      white-space: nowrap;
+      white-space: normal;
     }
 
     #{{ block_id }} .product-price__unit {
@@ -340,6 +365,16 @@
         transform: none;
       }
     }
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} :is(button, select, input, a):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    #{{ block_id }} :is(button, select, input) { max-width: 100%; }
+    #{{ block_id }}:focus-within { opacity: 1; transform: none; animation: none; }
+    #{{ block_id }} [data-b8-fallback] { display: grid; gap: 6px; min-width: 0; }
+    #{{ block_id }} [data-b8-fallback] select, #{{ block_id }} [name="selling_plan"] { width: 100%; min-width: 0; min-height: 44px; }
+  {% unless block.settings.show_on_desktop or request.design_mode %}@media screen and (min-width: 990px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+{% unless block.settings.show_on_tablet or request.design_mode %}@media screen and (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+{% unless block.settings.show_on_mobile or request.design_mode %}@media screen and (max-width: 749px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
   </style>
 
   <div class="product-price__inner">
@@ -398,121 +433,9 @@
       </div>
     {% endif %}
   </div>
-
-  <script type="application/json" data-product-price-variants>
-    {{ product_context.variants | json }}
-  </script>
-
-  <script>
-    (() => {
-      const root = document.getElementById({{ block_id | json }});
-
-      if (!root || root.dataset.productPriceReady === 'true') return;
-
-      root.dataset.productPriceReady = 'true';
-
-      const variantsJson = root.querySelector('[data-product-price-variants]');
-      const currentEl = root.querySelector('[data-product-price-current]');
-      const compareEl = root.querySelector('[data-product-price-compare]');
-      const badgeEl = root.querySelector('[data-product-price-badge]');
-      const unitEl = root.querySelector('[data-product-price-unit]');
-
-      const savingsDisplay = {{ block.settings.savings_display | json }};
-      const saleBadgePrefix = {{ block.settings.sale_badge_prefix | json }};
-      const saleBadgeText = {{ block.settings.sale_badge_text | json }};
-      const currency = {{ cart.currency.iso_code | default: shop.currency | json }};
-
-      if (!variantsJson || !currentEl) return;
-
-      let variants = [];
-
-      try {
-        variants = JSON.parse(variantsJson.textContent || '[]');
-      } catch (error) {
-        variants = [];
-      }
-
-      const formatMoney = (cents) => {
-        const amount = Number(cents || 0) / 100;
-
-        try {
-          return new Intl.NumberFormat(document.documentElement.lang || 'en-US', {
-            style: 'currency',
-            currency
-          }).format(amount);
-        } catch (error) {
-          return `$${amount.toFixed(2)}`;
-        }
-      };
-
-      const updatePrice = (variantId) => {
-        if (!variantId) return;
-
-        const variant = variants.find((item) => String(item.id) === String(variantId));
-
-        if (!variant) return;
-
-        const price = Number(variant.price || 0);
-        const compareAtPrice = Number(variant.compare_at_price || 0);
-        const onSale = compareAtPrice > price;
-        const savingsAmount = onSale ? compareAtPrice - price : 0;
-        const savingsPercent = onSale && compareAtPrice > 0 ? Math.round((savingsAmount / compareAtPrice) * 100) : 0;
-
-        currentEl.textContent = formatMoney(price);
-
-        if (compareEl) {
-          compareEl.textContent = onSale ? formatMoney(compareAtPrice) : '';
-          compareEl.hidden = !onSale;
-        }
-
-        if (badgeEl) {
-          if (onSale) {
-            if (savingsDisplay === 'percentage') {
-              badgeEl.textContent = `${saleBadgePrefix} ${savingsPercent}%`;
-            } else if (savingsDisplay === 'amount') {
-              badgeEl.textContent = `${saleBadgePrefix} ${formatMoney(savingsAmount)}`;
-            } else {
-              badgeEl.textContent = saleBadgeText;
-            }
-          }
-
-          badgeEl.hidden = !onSale;
-        }
-
-        if (unitEl) {
-          unitEl.hidden = true;
-          unitEl.textContent = '';
-        }
-
-        root.classList.toggle('product-price--on-sale', onSale);
-        root.dataset.variantId = String(variant.id);
-      };
-
-      document.addEventListener('variant:change', (event) => {
-        const detail = event.detail || {};
-        const variantId = detail.variantId || detail.variant_id || detail.id;
-
-        updatePrice(variantId);
-      });
-
-      document.addEventListener('product:variant-change', (event) => {
-        const detail = event.detail || {};
-        const variant = detail.variant || {};
-        const variantId = variant.id || detail.variantId || detail.variant_id;
-
-        updatePrice(variantId);
-      });
-
-      document.addEventListener('qtm:variant:change', (event) => {
-        const detail = event.detail || {};
-        const variant = detail.variant || {};
-        const variantId = variant.id || detail.variantId || detail.variant_id;
-
-        updatePrice(variantId);
-      });
-    })();
-  </script>
 </div>
+
+{% elsif request.design_mode %}<p>Select a product to configure this block.</p>{% endif %}
 
 {% schema %}
 {
@@ -576,7 +499,7 @@
       "type": "text",
       "id": "tax_text",
       "label": "Tax/shipping text",
-      "default": "Including Tax"
+      "info": "Only add tax or shipping statements that apply to your store."
     },
     {
       "type": "select",
@@ -632,7 +555,6 @@
       "unit": "px",
       "default": 12
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -679,7 +601,6 @@
       "label": "Card border",
       "default": "#e5e5e5"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -704,7 +625,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -767,7 +687,6 @@
       "unit": "px",
       "default": 8
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -802,7 +721,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -825,7 +743,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"

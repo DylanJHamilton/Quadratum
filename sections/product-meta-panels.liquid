@@ -121,6 +121,9 @@
   }
   .q-pmp__dl-term{margin:0;font-weight:600}
   .q-pmp__dl-def{margin:0}
+  .q-pmp { overflow-wrap:anywhere; }
+  .q-pmp__card, .q-pmp__panel { min-width:0; }
+  @media (prefers-reduced-motion:reduce) { .q-pmp__tabbtn { transition:none; } }
 {% endstylesheet %}
 
 {%- liquid
@@ -160,90 +163,9 @@
     assign b = block.settings
     assign resolved_html = ''
 
-    case b.source_type
-      when 'manual'
-        assign resolved_html = b.content
-      when 'metafield'
-        assign ns = b.namespace | strip
-        assign ky = b.key | strip
-        if product_obj != blank and ns != blank and ky != blank
-          assign mf = product_obj.metafields[ns][ky]
-          if mf != blank
-            capture resolved_html
-              if mf.type contains 'rich_text'
-                echo mf | metafield_tag
-              elsif mf.type contains 'json'
-                echo mf.value | json
-              else
-                if mf.value == blank
-                  echo mf | metafield_tag
-                else
-                  echo mf.value | escape | newline_to_br
-                endif
-              endif
-            endcapture
-          endif
-        endif
-      when 'metaobject'
-        assign mo = b.metaobject_reference
-        if mo != blank
-          capture resolved_html
-            assign any_field = false
-            for f in mo.fields
-              assign fv = f.value
-              if fv == blank
-                continue
-              endif
-              assign any_field = true
-              break
-            endfor
-
-            if any_field
-              echo '<dl class="q-pmp__dl">'
-              for f in mo.fields
-                assign fv = f.value
-                if fv == blank
-                  continue
-                endif
-
-                echo '<div class="q-pmp__dl-row">'
-                  echo '<dt class="q-pmp__dl-term">' | append: f.name | escape | append: '</dt>'
-                  echo '<dd class="q-pmp__dl-def">'
-
-                    capture fv_out
-                      if f.type contains 'rich_text'
-                        echo fv
-                      elsif f.type contains 'json'
-                        echo fv | json
-                      else
-                        echo fv | json
-                      endif
-                    endcapture
-
-                    assign fv_out_stripped = fv_out | strip
-                    assign fv_len = fv_out_stripped.size
-
-                    if fv_len > 1
-                      assign first_char = fv_out_stripped | slice: 0, 1
-                      assign last_idx = fv_len | minus: 1
-                      assign last_char = fv_out_stripped | slice: last_idx, 1
-                      if first_char == '"' and last_char == '"'
-                        echo fv_out_stripped | remove_first: '"' | remove_last: '"'
-                      else
-                        echo fv_out
-                      endif
-                    else
-                      echo fv_out
-                    endif
-
-                  echo '</dd>'
-                echo '</div>'
-              endfor
-              echo '</dl>'
-            endif
-          endcapture
-        endif
-    endcase
+capture resolved_html
+      render 'product-meta-panel-content', block: block, product: product_obj
+    endcapture
 
     assign resolved_text = resolved_html | strip_html | strip
     if resolved_html != blank and resolved_text != blank
@@ -281,9 +203,10 @@
   endcapture
 -%}
 
+<script src="{{ 'product-content.js' | asset_url }}" defer></script>
 {%- if has_any -%}
 <section
-  id="product-meta-panels"
+  id="product-meta-panels-{{ section.id }}"
   class="q-pmp"
   style="{{ css_vars | strip }}"
   aria-label="{{ section_label | escape }}"
@@ -302,7 +225,7 @@
 
     {%- case layout -%}
       {%- when 'tabs' -%}
-        <div class="q-pmp__tabs" aria-label="{{ section_label | escape }}" style="position:relative;">
+        <div class="q-pmp__tabs" role="group" aria-label="{{ section_label | escape }}" style="position:relative;">
           {%- comment -%}
             CRITICAL FIX:
             Radios MUST be direct children of .q-pmp__tabs (siblings of .q-pmp__panelwrap),
@@ -321,90 +244,9 @@
               assign b = block.settings
               assign resolved_html = ''
 
-              case b.source_type
-                when 'manual'
-                  assign resolved_html = b.content
-                when 'metafield'
-                  assign ns = b.namespace | strip
-                  assign ky = b.key | strip
-                  if product_obj != blank and ns != blank and ky != blank
-                    assign mf = product_obj.metafields[ns][ky]
-                    if mf != blank
-                      capture resolved_html
-                        if mf.type contains 'rich_text'
-                          echo mf | metafield_tag
-                        elsif mf.type contains 'json'
-                          echo mf.value | json
-                        else
-                          if mf.value == blank
-                            echo mf | metafield_tag
-                          else
-                            echo mf.value | escape | newline_to_br
-                          endif
-                        endif
-                      endcapture
-                    endif
-                  endif
-                when 'metaobject'
-                  assign mo = b.metaobject_reference
-                  if mo != blank
-                    capture resolved_html
-                      assign any_field = false
-                      for f in mo.fields
-                        assign fv = f.value
-                        if fv == blank
-                          continue
-                        endif
-                        assign any_field = true
-                        break
-                      endfor
-
-                      if any_field
-                        echo '<dl class="q-pmp__dl">'
-                        for f in mo.fields
-                          assign fv = f.value
-                          if fv == blank
-                            continue
-                          endif
-
-                          echo '<div class="q-pmp__dl-row">'
-                            echo '<dt class="q-pmp__dl-term">' | append: f.name | escape | append: '</dt>'
-                            echo '<dd class="q-pmp__dl-def">'
-
-                              capture fv_out
-                                if f.type contains 'rich_text'
-                                  echo fv
-                                elsif f.type contains 'json'
-                                  echo fv | json
-                                else
-                                  echo fv | json
-                                endif
-                              endcapture
-
-                              assign fv_out_stripped = fv_out | strip
-                              assign fv_len = fv_out_stripped.size
-
-                              if fv_len > 1
-                                assign first_char = fv_out_stripped | slice: 0, 1
-                                assign last_idx = fv_len | minus: 1
-                                assign last_char = fv_out_stripped | slice: last_idx, 1
-                                if first_char == '"' and last_char == '"'
-                                  echo fv_out_stripped | remove_first: '"' | remove_last: '"'
-                                else
-                                  echo fv_out
-                                endif
-                              else
-                                echo fv_out
-                              endif
-
-                            echo '</dd>'
-                          echo '</div>'
-                        endfor
-                        echo '</dl>'
-                      endif
-                    endcapture
-                  endif
-              endcase
+capture resolved_html
+      render 'product-meta-panel-content', block: block, product: product_obj
+    endcapture
 
               assign resolved_text = resolved_html | strip_html | strip
             -%}
@@ -428,7 +270,7 @@
             {%- endcapture -%}
 
             {%- capture tabs_panels -%}{{ tabs_panels }}
-              <div id="{{ pid }}" class="q-pmp__panel rte" aria-label="{{ tab_title | escape }}">
+              <div id="{{ pid }}" class="q-pmp__panel rte" data-panel-radio="{{ rid }}" {{ block.shopify_attributes }} aria-label="{{ tab_title | escape }}">
                 {{ resolved_html }}
               </div>
             {%- endcapture -%}
@@ -448,6 +290,7 @@
             {%- comment -%}Active tab colors + panel visibility mapping (scoped to this section instance){%- endcomment -%}
             {%- for i in (1..resolved_i) -%}
               {%- assign rid = 'q-pmp-' | append: section.id | append: '-' | append: i -%}
+              #{{ rid }}:focus-visible ~ .q-pmp__tablist label[for="{{ rid }}"]{outline:2px solid currentColor;outline-offset:2px;}
               #{{ rid }}:checked ~ .q-pmp__tablist label[for="{{ rid }}"]{
                 color:var(--q-pmp-tab-text-active);
                 background:var(--q-pmp-tab-bg-active);
@@ -467,90 +310,9 @@
               assign b = block.settings
               assign resolved_html = ''
 
-              case b.source_type
-                when 'manual'
-                  assign resolved_html = b.content
-                when 'metafield'
-                  assign ns = b.namespace | strip
-                  assign ky = b.key | strip
-                  if product_obj != blank and ns != blank and ky != blank
-                    assign mf = product_obj.metafields[ns][ky]
-                    if mf != blank
-                      capture resolved_html
-                        if mf.type contains 'rich_text'
-                          echo mf | metafield_tag
-                        elsif mf.type contains 'json'
-                          echo mf.value | json
-                        else
-                          if mf.value == blank
-                            echo mf | metafield_tag
-                          else
-                            echo mf.value | escape | newline_to_br
-                          endif
-                        endif
-                      endcapture
-                    endif
-                  endif
-                when 'metaobject'
-                  assign mo = b.metaobject_reference
-                  if mo != blank
-                    capture resolved_html
-                      assign any_field = false
-                      for f in mo.fields
-                        assign fv = f.value
-                        if fv == blank
-                          continue
-                        endif
-                        assign any_field = true
-                        break
-                      endfor
-
-                      if any_field
-                        echo '<dl class="q-pmp__dl">'
-                        for f in mo.fields
-                          assign fv = f.value
-                          if fv == blank
-                            continue
-                          endif
-
-                          echo '<div class="q-pmp__dl-row">'
-                            echo '<dt class="q-pmp__dl-term">' | append: f.name | escape | append: '</dt>'
-                            echo '<dd class="q-pmp__dl-def">'
-
-                              capture fv_out
-                                if f.type contains 'rich_text'
-                                  echo fv
-                                elsif f.type contains 'json'
-                                  echo fv | json
-                                else
-                                  echo fv | json
-                                endif
-                              endcapture
-
-                              assign fv_out_stripped = fv_out | strip
-                              assign fv_len = fv_out_stripped.size
-
-                              if fv_len > 1
-                                assign first_char = fv_out_stripped | slice: 0, 1
-                                assign last_idx = fv_len | minus: 1
-                                assign last_char = fv_out_stripped | slice: last_idx, 1
-                                if first_char == '"' and last_char == '"'
-                                  echo fv_out_stripped | remove_first: '"' | remove_last: '"'
-                                else
-                                  echo fv_out
-                                endif
-                              else
-                                echo fv_out
-                              endif
-
-                            echo '</dd>'
-                          echo '</div>'
-                        endfor
-                        echo '</dl>'
-                      endif
-                    endcapture
-                  endif
-              endcase
+capture resolved_html
+      render 'product-meta-panel-content', block: block, product: product_obj
+    endcapture
 
               assign resolved_text = resolved_html | strip_html | strip
             -%}
@@ -582,90 +344,9 @@
                   assign b = block.settings
                   assign resolved_html = ''
 
-                  case b.source_type
-                    when 'manual'
-                      assign resolved_html = b.content
-                    when 'metafield'
-                      assign ns = b.namespace | strip
-                      assign ky = b.key | strip
-                      if product_obj != blank and ns != blank and ky != blank
-                        assign mf = product_obj.metafields[ns][ky]
-                        if mf != blank
-                          capture resolved_html
-                            if mf.type contains 'rich_text'
-                              echo mf | metafield_tag
-                            elsif mf.type contains 'json'
-                              echo mf.value | json
-                            else
-                              if mf.value == blank
-                                echo mf | metafield_tag
-                              else
-                                echo mf.value | escape | newline_to_br
-                              endif
-                            endif
-                          endcapture
-                        endif
-                      endif
-                    when 'metaobject'
-                      assign mo = b.metaobject_reference
-                      if mo != blank
-                        capture resolved_html
-                          assign any_field = false
-                          for f in mo.fields
-                            assign fv = f.value
-                            if fv == blank
-                              continue
-                            endif
-                            assign any_field = true
-                            break
-                          endfor
-
-                          if any_field
-                            echo '<dl class="q-pmp__dl">'
-                            for f in mo.fields
-                              assign fv = f.value
-                              if fv == blank
-                                continue
-                              endif
-
-                              echo '<div class="q-pmp__dl-row">'
-                                echo '<dt class="q-pmp__dl-term">' | append: f.name | escape | append: '</dt>'
-                                echo '<dd class="q-pmp__dl-def">'
-
-                                  capture fv_out
-                                    if f.type contains 'rich_text'
-                                      echo fv
-                                    elsif f.type contains 'json'
-                                      echo fv | json
-                                    else
-                                      echo fv | json
-                                    endif
-                                  endcapture
-
-                                  assign fv_out_stripped = fv_out | strip
-                                  assign fv_len = fv_out_stripped.size
-
-                                  if fv_len > 1
-                                    assign first_char = fv_out_stripped | slice: 0, 1
-                                    assign last_idx = fv_len | minus: 1
-                                    assign last_char = fv_out_stripped | slice: last_idx, 1
-                                    if first_char == '"' and last_char == '"'
-                                      echo fv_out_stripped | remove_first: '"' | remove_last: '"'
-                                    else
-                                      echo fv_out
-                                    endif
-                                  else
-                                    echo fv_out
-                                  endif
-
-                                echo '</dd>'
-                              echo '</div>'
-                            endfor
-                            echo '</dl>'
-                          endif
-                        endcapture
-                      endif
-                  endcase
+capture resolved_html
+      render 'product-meta-panel-content', block: block, product: product_obj
+    endcapture
 
                   assign resolved_text = resolved_html | strip_html | strip
                 -%}
@@ -787,7 +468,7 @@
         },
         { "type": "richtext", "id": "content", "label": "Content (manual)" },
         { "type": "text", "id": "namespace", "label": "Metafield namespace" },
-        { "type": "text", "id": "key", "label": "Metafield key" },
+        { "type": "text", "id": "key", "label": "Field key", "info": "For metaobjects, enter one or more field keys separated by commas." },
         {
           "type": "metaobject",
           "id": "metaobject_reference",

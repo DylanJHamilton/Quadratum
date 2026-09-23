@@ -1,0 +1,1 @@
+Countdown / Progress engineering evidence. Source/settings/preset/calendar/DOM/clock regressions pass. Store timezone/DST, visual and assistive-technology acceptance remain live queued after Batch 9. Theme Check retains existing debt.

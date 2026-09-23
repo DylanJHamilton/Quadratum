@@ -12,10 +12,7 @@
   - No dependency on main product
 {% endcomment %}
 
-{% if template.name != 'product' %}
-  {% comment %} Do not render outside product templates {% endcomment %}
-  {% break %}
-{% endif %}
+{% if product != blank %}
 
 {{ 'section-product-reviews.css' | asset_url | stylesheet_tag }}
 
@@ -28,13 +25,13 @@
 
 <section
   class="product-reviews"
-  id="product-reviews"
-  aria-labelledby="ProductReviews-{{ section.id }}"
+  id="product-reviews-{{ section.id }}"
+  {% if section.settings.title != blank %}aria-labelledby="ProductReviews-{{ section.id }}"{% else %}aria-label="Product reviews"{% endif %}
 >
 
   {% if section.settings.title != blank %}
     <h2 id="ProductReviews-{{ section.id }}" class="product-reviews__title">
-      {{ section.settings.title }}
+      {{ section.settings.title | escape }}
     </h2>
   {% endif %}
 
@@ -72,21 +69,21 @@
           <article class="product-reviews__card" {{ block.shopify_attributes }}>
 
             <div
-              class="product-reviews__stars"
+              class="product-reviews__stars" role="img"
               aria-label="{{ block.settings.rating }} out of 5 stars"
             >
               {% for i in (1..5) %}
                 {% if i <= block.settings.rating %}
-                  <span class="star star--filled">★</span>
+                  <span aria-hidden="true" class="star star--filled">★</span>
                 {% else %}
-                  <span class="star">★</span>
+                  <span aria-hidden="true" class="star">★</span>
                 {% endif %}
               {% endfor %}
             </div>
 
             {% if block.settings.headline != blank %}
               <h3 class="product-reviews__headline">
-                {{ block.settings.headline }}
+                {{ block.settings.headline | escape }}
               </h3>
             {% endif %}
 
@@ -97,16 +94,16 @@
             {% endif %}
 
             <div class="product-reviews__meta">
-              <strong>{{ block.settings.name }}</strong>
+              <strong>{{ block.settings.name | escape }}</strong>
               {% if block.settings.location != blank %}
-                · {{ block.settings.location }}
+                · {{ block.settings.location | escape }}
               {% endif %}
               {% if block.settings.date != blank %}
-                · {{ block.settings.date }}
+                · {{ block.settings.date | escape }}
               {% endif %}
               {% if block.settings.source != blank %}
                 <div class="product-reviews__source">
-                  {{ block.settings.source }}
+                  {{ block.settings.source | escape }}
                 </div>
               {% endif %}
             </div>
@@ -117,7 +114,7 @@
     </div>
 
     {% if review_count > 0 %}
-      {% assign average_rating = total_rating | divided_by: review_count %}
+      {% assign average_rating = total_rating | times: 1.0 | divided_by: review_count | round: 1 %}
     {% endif %}
 
   {% elsif mode == 'metaobject' %}
@@ -127,43 +124,47 @@
     {% if meta_list != blank %}
       <div class="product-reviews__grid">
         {% for review in meta_list.value %}
+          {% assign raw_rating = review.rating.value.rating | default: review.rating.value | plus: 0 %}
+          {% assign scale = review.rating.value.scale_max | default: 5 | plus: 0 %}
+          {% unless raw_rating > 0 and scale > 0 and raw_rating <= scale %}{% continue %}{% endunless %}
+          {% assign rating = raw_rating | times: 5.0 | divided_by: scale | round: 1 %}
           {% assign review_count = review_count | plus: 1 %}
-          {% assign total_rating = total_rating | plus: review.rating.value %}
+          {% assign total_rating = total_rating | plus: rating %}
 
           <article class="product-reviews__card">
 
             <div
-              class="product-reviews__stars"
-              aria-label="{{ review.rating.value }} out of 5 stars"
+              class="product-reviews__stars" role="img"
+              aria-label="{{ rating }} out of 5 stars"
             >
               {% for i in (1..5) %}
-                {% if i <= review.rating.value %}
-                  <span class="star star--filled">★</span>
+                {% if i <= rating %}
+                  <span aria-hidden="true" class="star star--filled">★</span>
                 {% else %}
-                  <span class="star">★</span>
+                  <span aria-hidden="true" class="star">★</span>
                 {% endif %}
               {% endfor %}
             </div>
 
             {% if review.headline.value != blank %}
               <h3 class="product-reviews__headline">
-                {{ review.headline.value }}
+                {{ review.headline.value | escape }}
               </h3>
             {% endif %}
 
             {% if review.quote.value != blank %}
               <div class="product-reviews__quote">
-                {{ review.quote.value }}
+                {% if review.quote.type == 'rich_text_field' %}{{ review.quote | metafield_tag }}{% else %}{{ review.quote.value | escape | newline_to_br }}{% endif %}
               </div>
             {% endif %}
 
             <div class="product-reviews__meta">
-              <strong>{{ review.name.value }}</strong>
+              <strong>{{ review.name.value | escape }}</strong>
               {% if review.location.value != blank %}
-                · {{ review.location.value }}
+                · {{ review.location.value | escape }}
               {% endif %}
               {% if review.date.value != blank %}
-                · {{ review.date.value }}
+                · {{ review.date.value | escape }}
               {% endif %}
             </div>
 
@@ -172,21 +173,21 @@
       </div>
 
       {% if review_count > 0 %}
-        {% assign average_rating = total_rating | divided_by: review_count %}
+        {% assign average_rating = total_rating | times: 1.0 | divided_by: review_count | round: 1 %}
       {% endif %}
     {% endif %}
 
   {% endif %}
 
   {% if section.settings.show_average_rating and review_count > 0 and mode != 'app_block_area' %}
-    <div class="product-reviews__average" aria-label="Average rating {{ average_rating }} out of 5 stars">
-      <div class="product-reviews__stars">
+    <div class="product-reviews__average" role="img" aria-label="Average rating {{ average_rating }} out of 5 stars from {{ review_count }} reviews">
+      <div class="product-reviews__stars" aria-hidden="true">
         {% assign rounded_avg = average_rating | round %}
         {% for i in (1..5) %}
           {% if i <= rounded_avg %}
-            <span class="star star--filled">★</span>
+            <span aria-hidden="true" class="star star--filled">★</span>
           {% else %}
-            <span class="star">★</span>
+            <span aria-hidden="true" class="star">★</span>
           {% endif %}
         {% endfor %}
       </div>
@@ -196,19 +197,20 @@
     </div>
   {% endif %}
 
-  {% if section.settings.show_write_review_button and section.settings.write_review_url != blank %}
+  {% if section.settings.show_write_review_button and section.settings.write_review_url != blank and section.settings.write_review_label != blank %}
     <div class="product-reviews__cta">
       <a
-        href="{{ section.settings.write_review_url }}"
+        href="{{ section.settings.write_review_url | escape }}"
         class="button"
       >
-        {{ section.settings.write_review_label }}
+        {{ section.settings.write_review_label | escape }}
       </a>
     </div>
   {% endif %}
 
 </section>
 
+{% endif %}
 {% schema %}
 {
   "name": "Product Reviews",

@@ -11,7 +11,21 @@
 
 {%- liquid
   assign blocks_all = section.blocks | where: 'type', 'testimonial'
-  assign t_count = blocks_all.size
+  assign t_count = 0
+  for block in blocks_all
+    assign quote_text = block.settings.quote | strip
+    if quote_text != blank
+      assign t_count = t_count | plus: 1
+      case t_count
+        when 1
+          assign hero_block = block
+        when 2
+          assign secondary_1 = block
+        when 3
+          assign secondary_2 = block
+      endcase
+    endif
+  endfor
 
   assign display_mode = section.settings.display_mode | default: 'static'
   assign carousel_enabled = false
@@ -37,9 +51,6 @@
 
   assign featured_product = section.settings.featured_product
 
-  assign hero_block = blocks_all[0]
-  assign secondary_1 = blocks_all[1]
-  assign secondary_2 = blocks_all[2]
 
   assign has_header_content = false
   if section.settings.kicker != blank or section.settings.heading != blank or section.settings.subheading != blank
@@ -67,6 +78,10 @@
   endif
 -%}
 
+{%- if t_count == 0 -%}
+  {% render 'section-empty-state', section: section, message: 'Add an authentic testimonial quote to display this section.' %}
+{%- else -%}
+{%- if carousel_enabled -%}<script src="{{ 'interactive-content-carousel-media.js' | asset_url }}" defer></script>{%- endif -%}
 <section
   class="q-section q-testimonial-highlight q-align--{{ align }} q-layout--{{ layout }} q-mode--{{ display_mode }}"
   style="
@@ -125,6 +140,7 @@
     {%- endif -%}
     --q-th-bg-pos: {{ section.settings.bg_position }};
     --q-th-bg-size: {{ section.settings.bg_size }};
+    --q-th-overlay: {{ section.settings.bg_overlay_color }};
     --q-th-bg-overlay-opacity: {{ section.settings.bg_overlay_opacity | times: 0.01 }};
 
     /* Colors (scoped) */
@@ -135,7 +151,6 @@
       --q-th-muted: {{ section.settings.muted_color }};
       --q-th-accent: {{ section.settings.accent_color }};
       --q-th-border: {{ section.settings.border_color }};
-      --q-th-overlay: {{ section.settings.bg_overlay_color }};
 
       --q-th-cta-bg: {{ section.settings.cta_bg }};
       --q-th-cta-text: {{ section.settings.cta_text }};
@@ -149,13 +164,12 @@
       --q-th-star: {{ section.settings.star_color }};
       --q-th-star-muted: {{ section.settings.star_muted_color }};
     {%- else -%}
-      --q-th-bg: var(--q-color-bg, transparent);
-      --q-th-surface: var(--q-color-surface, rgba(0,0,0,.03));
-      --q-th-text: var(--q-color-text, currentColor);
-      --q-th-muted: var(--q-color-muted, rgba(0,0,0,.65));
-      --q-th-accent: var(--q-color-accent, currentColor);
-      --q-th-border: var(--q-color-border, rgba(0,0,0,.12));
-      --q-th-overlay: rgba(0,0,0,0);
+      --q-th-bg: var(--c-bg, transparent);
+      --q-th-surface: var(--c-surface, rgba(0,0,0,.03));
+      --q-th-text: var(--c-text, currentColor);
+      --q-th-muted: var(--c-muted, rgba(0,0,0,.65));
+      --q-th-accent: var(--c-accent, currentColor);
+      --q-th-border: color-mix(in srgb, var(--c-text, #111) 15%, transparent);
 
       --q-th-cta-bg: transparent;
       --q-th-cta-text: var(--q-th-text);
@@ -172,11 +186,7 @@
   "
   data-section-id="{{ section.id }}"
   data-section-type="featured-content-testimonial-highlight"
-  {%- if carousel_enabled -%}
-    data-carousel="true"
-    data-autoplay="{{ autoplay_enabled }}"
-    data-autoplay-ms="{{ section.settings.carousel_autoplay_ms }}"
-  {%- endif -%}
+
 >
   <div class="q-th__bg" aria-hidden="true"></div>
 
@@ -200,16 +210,21 @@
     {%- if t_count > 0 -%}
 
       {%- if carousel_enabled -%}
-        <div class="q-th__carousel" aria-roledescription="carousel">
+        <div class="q-th__carousel" role="region" aria-roledescription="carousel" aria-label="{{ section.settings.heading | default: 'Testimonials' | escape }}"
+          data-q-carousel-engine="shared" data-loop="true" data-autoplay="{{ autoplay_enabled }}"
+          data-autoplay-speed="{{ section.settings.carousel_autoplay_ms }}" data-show-arrows="{{ can_show_arrows }}"
+          data-show-dots="{{ can_show_dots }}" data-pause-hover="true" data-pause-focus="true">
           {%- if can_show_arrows -%}
-            <button class="q-th__nav q-th__nav--prev" type="button" aria-label="Previous testimonial">
+            <button class="q-th__nav q-th__nav--prev" type="button" aria-label="Previous testimonial" data-q-carousel-prev hidden>
               <span aria-hidden="true">‹</span>
             </button>
           {%- endif -%}
 
-          <div class="q-th__track" role="list" tabindex="0">
+          <div class="q-th__track q-carousel__viewport q-carousel__track" role="list" tabindex="0" aria-label="Testimonial quotes">
             {%- for b in blocks_all -%}
-              <div class="q-th__slide" role="listitem" data-index="{{ forloop.index0 }}">
+              {%- assign quote_text = b.settings.quote | strip -%}
+              {%- if quote_text == blank -%}{%- continue -%}{%- endif -%}
+              <div class="q-th__slide q-carousel__slide" role="listitem" {{ b.shopify_attributes }}>
                 {%- render 'testimonial-card',
                   variant: 'featured',
                   align: align,
@@ -239,31 +254,23 @@
           </div>
 
           {%- if can_show_arrows -%}
-            <button class="q-th__nav q-th__nav--next" type="button" aria-label="Next testimonial">
+            <button class="q-th__nav q-th__nav--next" type="button" aria-label="Next testimonial" data-q-carousel-next hidden>
               <span aria-hidden="true">›</span>
             </button>
           {%- endif -%}
 
           {%- if can_show_dots -%}
-            <div class="q-th__dots" role="tablist" aria-label="Testimonial slides">
-              {%- for b in blocks_all -%}
-                <button
-                  class="q-th__dot"
-                  type="button"
-                  role="tab"
-                  aria-label="Go to slide {{ forloop.index }}"
-                  aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
-                  data-goto="{{ forloop.index0 }}"
-                ></button>
-              {%- endfor -%}
-            </div>
+            <div class="q-th__dots" data-q-carousel-dots hidden></div>
+          {%- endif -%}
+          {%- if autoplay_enabled -%}
+            <button type="button" class="q-th__pause" data-q-carousel-pause hidden aria-pressed="false">Pause rotation</button>
           {%- endif -%}
         </div>
 
       {%- else -%}
         <div class="q-th__grid" role="list">
           {%- if hero_block != blank -%}
-            <div class="q-th__cell q-th__cell--hero" role="listitem">
+            <div class="q-th__cell q-th__cell--hero" role="listitem" {{ hero_block.shopify_attributes }}>
               {%- render 'testimonial-card',
                 variant: 'featured',
                 align: align,
@@ -293,7 +300,7 @@
 
           {%- if layout == 'split' -%}
             {%- if secondary_1 != blank -%}
-              <div class="q-th__cell q-th__cell--small" role="listitem">
+              <div class="q-th__cell q-th__cell--small" role="listitem" {{ secondary_1.shopify_attributes }}>
                 {%- render 'testimonial-card',
                   variant: 'compact',
                   align: align,
@@ -322,7 +329,7 @@
             {%- endif -%}
 
             {%- if secondary_2 != blank -%}
-              <div class="q-th__cell q-th__cell--small" role="listitem">
+              <div class="q-th__cell q-th__cell--small" role="listitem" {{ secondary_2.shopify_attributes }}>
                 {%- render 'testimonial-card',
                   variant: 'compact',
                   align: align,
@@ -361,7 +368,7 @@
 
     {%- if show_cta and section.settings.cta_label != blank and section.settings.cta_link != blank -%}
       <div class="q-th__cta">
-        <a class="q-th__cta-btn q-th__cta-btn--{{ section.settings.cta_style }}" href="{{ section.settings.cta_link }}">
+        <a class="q-th__cta-btn q-th__cta-btn--{{ section.settings.cta_style }}" href="{{ section.settings.cta_link | escape }}">
           {{ section.settings.cta_label | escape }}
         </a>
       </div>
@@ -372,7 +379,7 @@
     .q-testimonial-highlight{
       position: relative;
       color: var(--q-th-text);
-      padding: var(--q-th-pad-y) var(--q-th-pad-x);
+      padding: var(--q-th-pad-y) min(var(--q-th-pad-x), 6vw);
       background: var(--q-th-bg);
       overflow: hidden;
     }
@@ -437,7 +444,7 @@
     }
     .q-testimonial-highlight.q-layout--hero .q-th__grid{ grid-template-columns: 1fr; }
     .q-testimonial-highlight.q-layout--split .q-th__grid{
-      grid-template-columns: 1.2fr .8fr;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr);
       align-items: stretch;
     }
     .q-testimonial-highlight.q-layout--split .q-th__cell--hero{ grid-row: 1 / span 2; }
@@ -450,13 +457,12 @@
     .q-testimonial-highlight .q-th__track{
       display: grid;
       grid-auto-flow: column;
-      grid-auto-columns: minmax(var(--q-th-car-slide-min), 1fr);
+      grid-auto-columns: min(var(--q-th-car-slide-min), max(60%, calc(100% - var(--q-th-car-peek))));
       gap: var(--q-th-car-gap);
       overflow-x: auto;
       scroll-snap-type: x mandatory;
       scroll-behavior: smooth;
       padding: 2px 2px calc(var(--q-th-gap) * 0.4);
-      padding-right: calc(var(--q-th-car-peek) + 2px);
       -webkit-overflow-scrolling: touch;
       scrollbar-width: none;
     }
@@ -497,15 +503,15 @@
       margin-top: 10px;
     }
     .q-testimonial-highlight .q-th__dot{
-      width: 8px;
-      height: 8px;
+      width: 24px;
+      height: 24px;
       border-radius: 999px;
       border: 1px solid var(--q-th-border);
       background: transparent;
       cursor: pointer;
       padding: 0;
     }
-    .q-testimonial-highlight .q-th__dot[aria-selected="true"]{
+    .q-testimonial-highlight .q-th__dot[aria-current="true"]{
       background: var(--q-th-accent);
       border-color: var(--q-th-accent);
     }
@@ -595,100 +601,21 @@
     @media (prefers-reduced-motion: reduce){
       .q-testimonial-highlight .q-th__track{ scroll-behavior: auto; }
     }
+    .q-testimonial-highlight [hidden]{ display: none !important; }
+    .q-testimonial-highlight .q-th__cell, .q-testimonial-highlight .q-th__slide{ min-width: 0; }
+    .q-testimonial-highlight{ overflow-wrap: anywhere; }
+    .q-testimonial-highlight :is(button, .q-th__track, a):focus-visible{ outline: 2px solid var(--q-th-accent); outline-offset: 2px; }
+    .q-testimonial-highlight button:disabled{ opacity: .5; cursor: default; }
+    .q-testimonial-highlight .q-th__pause{ display: block; margin: 12px auto 0; padding: 8px 14px; color: inherit; background: var(--q-th-surface); border: 1px solid var(--q-th-border); border-radius: 8px; }
+    .q-testimonial-highlight .q-th__cta-btn--link{ border: 0; background: transparent; padding: 0; text-decoration: underline; text-underline-offset: .2em; }
+    .q-testimonial-highlight .q-th__cta-btn{ max-width: 100%; white-space: normal; }
+    .q-testimonial-highlight:dir(rtl) .q-th__nav span{ transform: scaleX(-1); }
+    @media (prefers-reduced-motion: reduce){ .q-testimonial-highlight .q-th__cta-btn{ transition: none; transform: none; } }
   </style>
 
-  {%- if carousel_enabled -%}
-    <script>
-      (() => {
-        const root = document.currentScript.closest('[data-section-id="{{ section.id }}"]');
-        if (!root) return;
 
-        const track = root.querySelector('.q-th__track');
-        if (!track) return;
-
-        const prev = root.querySelector('.q-th__nav--prev');
-        const next = root.querySelector('.q-th__nav--next');
-        const dots = Array.from(root.querySelectorAll('.q-th__dot'));
-        const slides = Array.from(root.querySelectorAll('.q-th__slide'));
-        const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-        const getSlideWidth = () => {
-          const first = slides[0];
-          if (!first) return track.clientWidth;
-          const rect = first.getBoundingClientRect();
-          const style = window.getComputedStyle(track);
-          const gap = parseFloat(style.columnGap || style.gap || '0') || 0;
-          return rect.width + gap;
-        };
-
-        const scrollToIndex = (i) => {
-          const idx = Math.max(0, Math.min(i, slides.length - 1));
-          track.scrollTo({ left: idx * getSlideWidth(), behavior: reduceMotion ? 'auto' : 'smooth' });
-        };
-
-        const activeIndexFromScroll = () => {
-          const w = getSlideWidth() || 1;
-          return Math.round(track.scrollLeft / w);
-        };
-
-        const setActiveDot = (idx) => {
-          if (!dots.length) return;
-          dots.forEach((d, i) => d.setAttribute('aria-selected', i === idx ? 'true' : 'false'));
-        };
-
-        if (prev) prev.addEventListener('click', () => scrollToIndex(activeIndexFromScroll() - 1));
-        if (next) next.addEventListener('click', () => scrollToIndex(activeIndexFromScroll() + 1));
-
-        if (dots.length) {
-          dots.forEach((d) => {
-            d.addEventListener('click', () => {
-              const i = parseInt(d.getAttribute('data-goto') || '0', 10);
-              scrollToIndex(i);
-            });
-          });
-        }
-
-        let ticking = false;
-        track.addEventListener('scroll', () => {
-          if (ticking) return;
-          ticking = true;
-          window.requestAnimationFrame(() => {
-            setActiveDot(activeIndexFromScroll());
-            ticking = false;
-          });
-        });
-
-        // Autoplay
-        const autoplay = root.getAttribute('data-autoplay') === 'true';
-        const autoplayMs = parseInt(root.getAttribute('data-autoplay-ms') || '4500', 10);
-        if (autoplay && !reduceMotion && slides.length > 1) {
-          let timer = null;
-
-          const start = () => {
-            stop();
-            timer = window.setInterval(() => {
-              const idx = activeIndexFromScroll();
-              const nextIdx = (idx + 1) % slides.length;
-              scrollToIndex(nextIdx);
-            }, Math.max(1200, autoplayMs));
-          };
-
-          const stop = () => {
-            if (timer) window.clearInterval(timer);
-            timer = null;
-          };
-
-          root.addEventListener('mouseenter', stop);
-          root.addEventListener('mouseleave', start);
-          root.addEventListener('focusin', stop);
-          root.addEventListener('focusout', start);
-
-          start();
-        }
-      })();
-    </script>
-  {%- endif -%}
 </section>
+{%- endif -%}
 
 {% schema %}
 {
@@ -749,8 +676,8 @@
     { "type": "checkbox", "id": "carousel_autoplay", "label": "Autoplay", "default": false },
     { "type": "range", "id": "carousel_autoplay_ms", "label": "Autoplay interval", "min": 2000, "max": 9000, "step": 250, "unit": "ms", "default": 4500 },
     { "type": "range", "id": "carousel_gap", "label": "Slide gap", "min": 8, "max": 40, "step": 2, "unit": "px", "default": 16 },
-    { "type": "range", "id": "carousel_slide_min", "label": "Slide min width", "min": 240, "max": 700, "step": 10, "unit": "px", "default": 520 },
-    { "type": "range", "id": "carousel_peek", "label": "Peek (right)", "min": 0, "max": 140, "step": 2, "unit": "px", "default": 60 },
+    { "type": "range", "id": "carousel_slide_min", "label": "Slide width", "info": "Capped to the available width on small screens.", "min": 240, "max": 700, "step": 10, "unit": "px", "default": 520 },
+    { "type": "range", "id": "carousel_peek", "label": "Next slide peek", "min": 0, "max": 140, "step": 2, "unit": "px", "default": 60 },
 
     { "type": "header", "content": "Badges & ratings" },
     { "type": "checkbox", "id": "show_badge", "label": "Enable platform badge", "default": true },
@@ -867,14 +794,13 @@
         {
           "type": "textarea",
           "id": "quote",
-          "label": "Quote",
-          "default": "We swapped themes and instantly felt more premium. The layout tools are fast, the styling is consistent, and customers trust the brand more at first glance."
+          "label": "Quote", "info": "Enter an authentic review. Empty quotes are not displayed."
         },
-        { "type": "text", "id": "name", "label": "Name", "default": "Jordan M." },
-        { "type": "text", "id": "role", "label": "Role / context", "default": "Verified customer" },
+        { "type": "text", "id": "name", "label": "Name" },
+        { "type": "text", "id": "role", "label": "Role / context" },
         { "type": "image_picker", "id": "avatar", "label": "Avatar" },
 
-        { "type": "range", "id": "rating", "label": "Rating", "min": 0, "max": 5, "step": 0.5, "default": 5 },
+        { "type": "range", "id": "rating", "label": "Rating", "min": 0, "max": 5, "step": 0.5, "default": 0 },
         {
           "type": "select",
           "id": "platform",
@@ -889,7 +815,7 @@
             { "value": "custom", "label": "Custom" }
           ]
         },
-        { "type": "text", "id": "custom_badge_label", "label": "Custom badge label", "default": "Verified" },
+        { "type": "text", "id": "custom_badge_label", "label": "Custom badge label", "default": "Source" },
         { "type": "image_picker", "id": "custom_badge_icon", "label": "Custom badge icon" },
 
         { "type": "header", "content": "Context association (optional)" },
@@ -901,12 +827,11 @@
   ],
   "presets": [
     {
-      "name": "Featured - ```liquidTestimonial Highlight",
+      "name": "Featured - Testimonial Highlight",
       "category": "Featured Content",
       "blocks": [{ "type": "testimonial" }]
     }
   ]
 }
 {% endschema %}
-```
 

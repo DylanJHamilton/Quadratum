@@ -1,14 +1,50 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 
   assign search_label = block.settings.search_label
   if search_label == blank
     assign search_label = 'Search'
   endif
 
+  assign allow_products = settings.search_src_products | default: true, allow_false: true
+  assign allow_articles = settings.search_src_articles | default: true, allow_false: true
+  assign allow_pages = settings.search_src_pages | default: true, allow_false: true
+  assign allow_collections = settings.search_src_collections | default: true, allow_false: true
+  if block.settings.search_type != 'all'
+    assign allow_collections = false
+    unless block.settings.search_type == 'product'
+      assign allow_products = false
+    endunless
+    unless block.settings.search_type == 'article'
+      assign allow_articles = false
+    endunless
+    unless block.settings.search_type == 'page'
+      assign allow_pages = false
+    endunless
+  endif
+  assign search_types = ''
+  if allow_products
+    assign search_types = search_types | append: ',product'
+  endif
+  if allow_articles
+    assign search_types = search_types | append: ',article'
+  endif
+  if allow_pages
+    assign search_types = search_types | append: ',page'
+  endif
+  assign search_types = search_types | remove_first: ','
+  assign predictive_enabled = false
+  if block.settings.enable_predictive_search and settings.enable_predictive_search != false
+    if search_types != blank or allow_collections
+      assign predictive_enabled = true
+    endif
+  endif
   assign search_action = routes.search_url
 %}
 
@@ -20,9 +56,9 @@
     qtm-search-form--align-{{ block_alignment }}
     qtm-search-form--layout-{{ block.settings.layout_style }}
     qtm-search-form--animation-{{ animation }}
-    {% unless block.settings.show_desktop %} qtm-search-form--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-search-form--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-search-form--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-search-form--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-search-form--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-search-form--hide-mobile{% endunless %}
   "
   style="
     --qtm-search-form-margin-top: {{ block.settings.margin_top }}px;
@@ -44,7 +80,6 @@
     --qtm-search-form-border-radius: {{ block.settings.border_radius }}px;
     --qtm-search-form-input-height: {{ block.settings.input_height }}px;
   "
-  {{ block.shopify_attributes }}
 >
   <div class="qtm-search-form__inner">
     {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank %}
@@ -70,14 +105,47 @@
     {% endif %}
 
     <div class="qtm-search-form__card">
+      <div
+  style="
+    --qtm-ps-panel-bg: {{ settings.predictive_search_panel_bg | default: settings.bg_base }};
+    --qtm-ps-panel-border: {{ settings.predictive_search_panel_border | default: settings.bg_contrast }};
+    --qtm-ps-item-bg: {{ settings.predictive_search_item_bg | default: settings.bg_contrast }};
+    --qtm-ps-item-hover-bg: {{ settings.predictive_search_item_hover_bg | default: settings.bg_contrast }};
+    --qtm-ps-heading-color: {{ settings.predictive_search_heading_color | default: settings.text_muted }};
+    --qtm-ps-title-color: {{ settings.predictive_search_title_color | default: settings.text_base }};
+    --qtm-ps-meta-color: {{ settings.predictive_search_meta_color | default: settings.text_muted }};
+    --qtm-ps-price-color: {{ settings.predictive_search_price_color | default: settings.color_primary }};
+    --qtm-ps-panel-radius: {{ settings.predictive_search_panel_radius | default: 18 }}px;
+    --qtm-ps-item-radius: {{ settings.predictive_search_item_radius | default: 14 }}px;
+    --qtm-ps-panel-padding: {{ settings.predictive_search_panel_padding | default: 14 }}px;
+    --qtm-ps-item-padding: {{ settings.predictive_search_item_padding | default: 10 }}px;
+    --qtm-ps-thumb-size: {{ settings.predictive_search_thumbnail_size | default: 56 }}px;
+  "
+        class="qtm-search-form__predictive qtm-search-form--predictive-{{ settings.predictive_search_panel_style | default: 'soft' | escape }}"
+        {% if predictive_enabled %}
+          data-qtm-predictive-search
+          data-currency="{{ cart.currency.iso_code | default: shop.currency | escape }}"
+          data-min-chars="{{ settings.predictive_search_min_chars | default: 2 }}"
+          data-debounce="{{ settings.predictive_search_debounce | default: 250 }}"
+          data-products-enabled="{{ allow_products }}" data-collections-enabled="{{ allow_collections }}"
+          data-articles-enabled="{{ allow_articles }}" data-pages-enabled="{{ allow_pages }}"
+          data-products-limit="{{ settings.predictive_search_products_limit | default: 4 }}"
+          data-collections-limit="{{ settings.predictive_search_collections_limit | default: 3 }}"
+          data-articles-limit="{{ settings.predictive_search_articles_limit | default: 3 }}"
+          data-pages-limit="{{ settings.predictive_search_pages_limit | default: 3 }}"
+          data-products-layout="{{ settings.predictive_search_products_layout | default: 'list' | escape }}"
+          data-show-group-headings="{{ settings.predictive_search_show_group_headings | default: true, allow_false: true }}"
+          data-show-thumbnails="{{ settings.predictive_search_show_thumbnails | default: true, allow_false: true }}"
+          data-show-view-all="{{ settings.predictive_search_show_view_all | default: true, allow_false: true }}"
+          data-view-all-label="{{ settings.search_view_all_label | default: 'View all results' | escape }}"
+        {% endif %}
+      >
       <form
         class="qtm-search-form__form"
-        action="{{ search_action }}"
+        action="{{ search_action | escape }}"
         method="get"
         role="search"
-        {% if block.settings.enable_predictive_search and settings.predictive_search_enabled %}
-          data-predictive-search-form
-        {% endif %}
+        aria-label="{{ search_label | escape }}"
       >
         <div class="qtm-search-form__field">
           <label
@@ -100,7 +168,8 @@
               id="qtm-search-form-input-{{ block_id }}"
               class="qtm-search-form__input"
               type="search"
-              name="q"
+              {% if search_types != blank %}name="q"{% endif %}
+              {% if search_types == blank and predictive_enabled == false %}disabled{% endif %}
               value="{{ search.terms | escape }}"
               placeholder="{{ block.settings.placeholder | escape }}"
               autocomplete="off"
@@ -108,19 +177,19 @@
               autocapitalize="off"
               spellcheck="false"
               aria-label="{{ search_label | escape }}"
-              {% if block.settings.enable_predictive_search and settings.predictive_search_enabled %}
+              {% if predictive_enabled %}
                 role="combobox"
                 aria-expanded="false"
-                aria-owns="predictive-search-results"
-                aria-controls="predictive-search-results"
+                aria-autocomplete="list"
+                aria-controls="qtm-search-panel-{{ block_id }}"
                 aria-haspopup="listbox"
-                data-predictive-search-input
+                data-qtm-predictive-input
               {% endif %}
               required
             >
 
-            {% if block.settings.search_type != 'all' %}
-              <input type="hidden" name="type" value="{{ block.settings.search_type | escape }}">
+            {% if search_types != blank %}
+              <input type="hidden" name="type" value="{{ search_types | escape }}">
             {% endif %}
 
             {% if block.settings.enable_unavailable_filter %}
@@ -133,7 +202,7 @@
           </div>
         </div>
 
-        <button class="qtm-search-form__button" type="submit">
+        <button class="qtm-search-form__button" type="submit"{% if search_types == blank %} disabled{% endif %}>
           {% if block.settings.button_style == 'icon' %}
             <span class="qtm-search-form__button-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" focusable="false" class="qtm-search-form__svg">
@@ -141,13 +210,22 @@
               </svg>
             </span>
             <span class="visually-hidden">
-              {{ block.settings.button_label | escape }}
+              {{ block.settings.button_label | default: 'Search' | escape }}
             </span>
           {% else %}
-            {{ block.settings.button_label | escape }}
+            {{ block.settings.button_label | default: 'Search' | escape }}
           {% endif %}
         </button>
       </form>
+      {% if predictive_enabled %}
+        <span class="visually-hidden" data-qtm-predictive-status role="status" aria-live="polite"></span>
+        <div id="qtm-search-panel-{{ block_id }}" class="qtm-search-predictive__panel" data-qtm-predictive-panel role="listbox" aria-label="Search suggestions" hidden></div>
+      {% endif %}
+      </div>
+      {% if search_types == blank %}
+        <p class="qtm-search-form__notice">{% if predictive_enabled %}Choose a collection from the search suggestions.{% else %}Search is currently unavailable.{% endif %}</p>
+        {% if predictive_enabled %}<noscript><p>Enable JavaScript to see collection suggestions.</p></noscript>{% endif %}
+      {% endif %}
 
       {% if block.settings.note != blank %}
         <div class="qtm-search-form__note">
@@ -155,15 +233,7 @@
         </div>
       {% endif %}
 
-      {% if block.settings.show_suggestions %}
-        <div class="qtm-search-form__suggestions" aria-label="{{ block.settings.suggestions_label | escape }}">
-          {% if block.settings.suggestions_label != blank %}
-            <span class="qtm-search-form__suggestions-title">
-              {{ block.settings.suggestions_label | escape }}
-            </span>
-          {% endif %}
-
-          <div class="qtm-search-form__suggestion-list">
+{% capture suggestions_markup %}
             {% for i in (1..5) %}
               {% liquid
                 assign label_key = 'suggestion_' | append: i | append: '_label'
@@ -177,20 +247,32 @@
                 {% if suggestion_query != blank %}
                   <a
                     class="qtm-search-form__suggestion"
-                    href="{{ routes.search_url }}?q={{ suggestion_query | url_encode }}{% if block.settings.search_type != 'all' %}&type={{ block.settings.search_type | url_encode }}{% endif %}"
+                    href="{{ routes.search_url | escape }}?q={{ suggestion_query | url_encode }}&amp;type={{ search_types | url_encode }}{% if block.settings.enable_unavailable_filter %}&amp;options[unavailable_products]={{ block.settings.unavailable_products_behavior | url_encode }}{% endif %}{% if block.settings.enable_prefix_filter %}&amp;options[prefix]={{ block.settings.prefix_behavior | url_encode }}{% endif %}"
                   >
                     {{ suggestion_label | escape }}
                   </a>
                 {% else %}
                   <a
                     class="qtm-search-form__suggestion"
-                    href="{{ routes.search_url }}?q={{ suggestion_label | url_encode }}{% if block.settings.search_type != 'all' %}&type={{ block.settings.search_type | url_encode }}{% endif %}"
+                    href="{{ routes.search_url | escape }}?q={{ suggestion_label | url_encode }}&amp;type={{ search_types | url_encode }}{% if block.settings.enable_unavailable_filter %}&amp;options[unavailable_products]={{ block.settings.unavailable_products_behavior | url_encode }}{% endif %}{% if block.settings.enable_prefix_filter %}&amp;options[prefix]={{ block.settings.prefix_behavior | url_encode }}{% endif %}"
                   >
                     {{ suggestion_label | escape }}
                   </a>
                 {% endif %}
               {% endif %}
             {% endfor %}
+{% endcapture %}
+{% assign suggestions_markup = suggestions_markup | strip %}
+      {% if block.settings.show_suggestions and search_types != blank and suggestions_markup != blank %}
+        <div class="qtm-search-form__suggestions" aria-label="{{ block.settings.suggestions_label | escape }}">
+          {% if block.settings.suggestions_label != blank %}
+            <span class="qtm-search-form__suggestions-title">
+              {{ block.settings.suggestions_label | escape }}
+            </span>
+          {% endif %}
+
+          <div class="qtm-search-form__suggestion-list">
+{{ suggestions_markup }}
           </div>
         </div>
       {% endif %}
@@ -200,9 +282,13 @@
 
 <style>
   .qtm-search-form-{{ block_id }} {
+    container-type: inline-size;
+    box-sizing: border-box;
+    min-width: 0;
+    overflow-wrap: anywhere;
     margin-top: var(--qtm-search-form-margin-top);
     margin-bottom: var(--qtm-search-form-margin-bottom);
-    padding: var(--qtm-search-form-padding);
+    padding: min(var(--qtm-search-form-padding), 12%);
     color: var(--qtm-search-form-text-color);
     background: var(--qtm-search-form-background-color);
     border: var(--qtm-search-form-border-width) solid var(--qtm-search-form-border-color);
@@ -408,7 +494,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: {{ block.settings.button_min_width }}px;
+    min-width: min(100%, {{ block.settings.button_min_width }}px);
     min-height: var(--qtm-search-form-input-height);
     padding: 0.85rem 1.25rem;
     color: var(--qtm-search-form-button-text);
@@ -604,9 +690,7 @@
   }
 
   @media screen and (max-width: 989px) {
-    .qtm-search-form-{{ block_id }}.qtm-search-form--hide-tablet {
-      display: none !important;
-    }
+
   }
 
   @media screen and (min-width: 990px) {
@@ -617,7 +701,7 @@
 
   @media screen and (max-width: 749px) {
     .qtm-search-form-{{ block_id }} {
-      padding: min(var(--qtm-search-form-padding), 24px);
+      padding: min(var(--qtm-search-form-padding), 24px, 12%);
     }
 
     .qtm-search-form-{{ block_id }}.qtm-search-form--hide-mobile {
@@ -648,6 +732,15 @@
       scroll-behavior: auto !important;
     }
   }
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-search-form-{{ block_id }}.qtm-search-form--hide-tablet {
+      display: none !important;
+    }
+  }
+  .qtm-search-form-{{ block_id }} :is(div,li,a,span,input,textarea,button) { min-width: 0; }
+  .qtm-search-form-{{ block_id }} :is(a,input,textarea,button) { max-width: 100%; }
+  .qtm-search-form-{{ block_id }}[hidden] { display: none !important; }
+  @container (max-width: 420px) { .qtm-search-form-{{ block_id }} .qtm-search-form__form { grid-template-columns: minmax(0, 1fr); } }
 </style>
 
 {% schema %}
@@ -674,7 +767,7 @@
       "type": "richtext",
       "id": "text",
       "label": "Text",
-      "default": "<p>Search products, collections, pages, articles, and helpful resources across the store.</p>"
+      "default": "<p>Search the store.</p>"
     },
     {
       "type": "richtext",
@@ -792,7 +885,8 @@
       "type": "checkbox",
       "id": "enable_prefix_filter",
       "label": "Set prefix behavior",
-      "default": false
+      "default": false,
+      "info": "Applies to the full results page. Predictive suggestions use Shopify’s native matching."
     },
     {
       "type": "select",
@@ -824,43 +918,37 @@
       "type": "text",
       "id": "suggestions_label",
       "label": "Suggestions label",
-      "default": "Popular searches"
+      "default": "Suggested searches"
     },
     {
       "type": "text",
       "id": "suggestion_1_label",
-      "label": "Suggestion 1 label",
-      "default": "New arrivals"
+      "label": "Suggestion 1 label"
     },
     {
       "type": "text",
       "id": "suggestion_1_query",
-      "label": "Suggestion 1 search query",
-      "default": "new arrivals"
+      "label": "Suggestion 1 search query"
     },
     {
       "type": "text",
       "id": "suggestion_2_label",
-      "label": "Suggestion 2 label",
-      "default": "Best sellers"
+      "label": "Suggestion 2 label"
     },
     {
       "type": "text",
       "id": "suggestion_2_query",
-      "label": "Suggestion 2 search query",
-      "default": "best sellers"
+      "label": "Suggestion 2 search query"
     },
     {
       "type": "text",
       "id": "suggestion_3_label",
-      "label": "Suggestion 3 label",
-      "default": "Sale"
+      "label": "Suggestion 3 label"
     },
     {
       "type": "text",
       "id": "suggestion_3_query",
-      "label": "Suggestion 3 search query",
-      "default": "sale"
+      "label": "Suggestion 3 search query"
     },
     {
       "type": "text",
@@ -1189,13 +1277,13 @@
       "settings": {
         "eyebrow": "Search",
         "heading": "Search the store",
-        "text": "<p>Find products, collections, pages, and helpful resources.</p>",
+        "text": "<p>Search the store.</p>",
         "placeholder": "Search products, pages, articles...",
         "button_label": "Search",
         "search_type": "all",
         "layout_style": "inline",
         "show_suggestions": true,
-        "suggestions_label": "Popular searches",
+        "suggestions_label": "Suggested searches",
         "input_height": 52,
         "button_min_width": 104,
         "padding": 20,
@@ -1207,7 +1295,7 @@
       "settings": {
         "eyebrow": "Find it fast",
         "heading": "What are you looking for?",
-        "text": "<p>Search by product name, collection, category, feature, or topic.</p>",
+        "text": "<p>Search the store.</p>",
         "placeholder": "Search the entire store...",
         "button_label": "Search",
         "layout_style": "large",
@@ -1226,7 +1314,7 @@
       "settings": {
         "eyebrow": "",
         "heading": "",
-        "text": "",
+        "text": "<p>Search the store.</p>",
         "note": "",
         "placeholder": "Search...",
         "button_label": "Search",

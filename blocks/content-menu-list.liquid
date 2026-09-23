@@ -1,12 +1,18 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
   assign selected_menu = block.settings.menu
 %}
 
+{% assign has_items = false %}{% if selected_menu != blank and selected_menu.links.size > 0 %}{% assign has_items = true %}{% endif %}
+
 <div
+  data-qtm-menu-list data-mobile-accordion="{{ block.settings.enable_mobile_accordion }}"
   class="
     qtm-menu-list
     qtm-menu-list-{{ block_id }}
@@ -15,9 +21,9 @@
     qtm-menu-list--layout-{{ block.settings.layout_style }}
     qtm-menu-list--animation-{{ animation }}
     {% if block.settings.enable_mobile_accordion %} qtm-menu-list--mobile-accordion{% endif %}
-    {% unless block.settings.show_desktop %} qtm-menu-list--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-menu-list--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-menu-list--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-menu-list--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-menu-list--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-menu-list--hide-mobile{% endunless %}
   "
   style="
     --qtm-menu-list-margin-top: {{ block.settings.margin_top }}px;
@@ -36,9 +42,9 @@
     --qtm-menu-list-border-radius: {{ block.settings.border_radius }}px;
     --qtm-menu-list-columns: {{ block.settings.columns }};
   "
-  {{ block.shopify_attributes }}
+  {% unless has_items or request.design_mode %}hidden{% endunless %}
 >
-  <nav class="qtm-menu-list__nav" aria-label="{{ block.settings.nav_label | escape }}">
+  <nav class="qtm-menu-list__nav" aria-label="{{ block.settings.nav_label | default: 'Menu navigation' | escape }}">
     {% if block.settings.heading != blank or block.settings.text != blank %}
       <div class="qtm-menu-list__header">
         {% if block.settings.heading != blank %}
@@ -63,7 +69,7 @@
               <details class="qtm-menu-list__details" {% if link.active or link.child_active or block.settings.expand_nested_by_default %}open{% endif %}>
                 <summary class="qtm-menu-list__summary">
                   <span class="qtm-menu-list__summary-text">
-                    {{ link.title | escape }}
+                    {{ link.title | escape }}{% if link.data_sharing_opt_out_icon %}{{ link.data_sharing_opt_out_icon }}{% endif %}
                   </span>
 
                   <span class="qtm-menu-list__summary-icon" aria-hidden="true">
@@ -72,14 +78,15 @@
                 </summary>
 
                 <ul class="qtm-menu-list__sublist" role="list">
+                  <li><a class="qtm-menu-list__link qtm-menu-list__link--parent" href="{{ link.url | escape }}" {% if link.current %}aria-current="page"{% endif %}>{{ link.title | escape }}{% if link.data_sharing_opt_out_icon %}{{ link.data_sharing_opt_out_icon }}{% endif %}</a></li>
                   {% for child_link in link.links %}
                     <li class="qtm-menu-list__subitem {% if child_link.active or child_link.child_active %}is-active{% endif %}">
                       <a
                         class="qtm-menu-list__link qtm-menu-list__link--child"
-                        href="{{ child_link.url }}"
-                        {% if child_link.active %}aria-current="page"{% endif %}
+                        href="{{ child_link.url | escape }}"
+                        {% if child_link.current %}aria-current="page"{% endif %}
                       >
-                        {{ child_link.title | escape }}
+                        {{ child_link.title | escape }}{% if child_link.data_sharing_opt_out_icon %}{{ child_link.data_sharing_opt_out_icon }}{% endif %}
                       </a>
 
                       {% if child_link.links.size > 0 and block.settings.show_grandchildren %}
@@ -88,10 +95,10 @@
                             <li class="qtm-menu-list__granditem {% if grandchild_link.active %}is-active{% endif %}">
                               <a
                                 class="qtm-menu-list__link qtm-menu-list__link--grandchild"
-                                href="{{ grandchild_link.url }}"
-                                {% if grandchild_link.active %}aria-current="page"{% endif %}
+                                href="{{ grandchild_link.url | escape }}"
+                                {% if grandchild_link.current %}aria-current="page"{% endif %}
                               >
-                                {{ grandchild_link.title | escape }}
+                                {{ grandchild_link.title | escape }}{% if grandchild_link.data_sharing_opt_out_icon %}{{ grandchild_link.data_sharing_opt_out_icon }}{% endif %}
                               </a>
                             </li>
                           {% endfor %}
@@ -104,16 +111,16 @@
             {% else %}
               <a
                 class="qtm-menu-list__link qtm-menu-list__link--parent"
-                href="{{ link.url }}"
-                {% if link.active %}aria-current="page"{% endif %}
+                href="{{ link.url | escape }}"
+                {% if link.current %}aria-current="page"{% endif %}
               >
-                {{ link.title | escape }}
+                {{ link.title | escape }}{% if link.data_sharing_opt_out_icon %}{{ link.data_sharing_opt_out_icon }}{% endif %}
               </a>
             {% endif %}
           </li>
         {% endfor %}
       </ul>
-    {% else %}
+    {% elsif request.design_mode %}
       <div class="qtm-menu-list__empty" role="note">
         {{ block.settings.empty_message | escape }}
       </div>
@@ -123,9 +130,13 @@
 
 <style>
   .qtm-menu-list-{{ block_id }} {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     margin-top: var(--qtm-menu-list-margin-top);
     margin-bottom: var(--qtm-menu-list-margin-bottom);
-    padding: var(--qtm-menu-list-padding);
+    padding: min(var(--qtm-menu-list-padding), 12%);
     color: var(--qtm-menu-list-text-color);
     background: var(--qtm-menu-list-background-color);
     border: var(--qtm-menu-list-border-width) solid var(--qtm-menu-list-border-color);
@@ -376,7 +387,8 @@
     left: 0;
     top: calc(100% + 0.45rem);
     z-index: 20;
-    min-width: 220px;
+    min-width: min(220px, 80vw);
+    max-width: min(360px, 80vw);
     padding: 0.6rem;
     background: var(--qtm-menu-list-background-color);
     border: 1px solid color-mix(in srgb, var(--qtm-menu-list-border-color), transparent 8%);
@@ -499,12 +511,10 @@
   }
 
   @media screen and (max-width: 989px) {
-    .qtm-menu-list-{{ block_id }}.qtm-menu-list--hide-tablet {
-      display: none !important;
-    }
+
 
     .qtm-menu-list-{{ block_id }}.qtm-menu-list--layout-columns .qtm-menu-list__list {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(min(2, var(--qtm-menu-list-columns)), minmax(0, 1fr));
     }
 
     .qtm-menu-list-{{ block_id }}.qtm-menu-list--layout-horizontal .qtm-menu-list__details[open] .qtm-menu-list__sublist {
@@ -551,6 +561,17 @@
       scroll-behavior: auto !important;
     }
   }
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-menu-list-{{ block_id }}.qtm-menu-list--hide-tablet {
+      display: none !important;
+    }
+  }
+  .qtm-menu-list-{{ block_id }}[hidden] { display: none !important; }
+  .qtm-menu-list-{{ block_id }} :is(div, ul, ol, li, a, span, table) { min-width: 0; }
+  .qtm-menu-list-{{ block_id }} :is(a, button, img) { max-width: 100%; }
+  @media screen and (max-width: 749px) {
+    .qtm-menu-list-{{ block_id }}[data-menu-ready][data-mobile-accordion="false"] summary { display: none; }
+  }
 </style>
 
 {% schema %}
@@ -594,7 +615,8 @@
       "type": "checkbox",
       "id": "enable_mobile_accordion",
       "label": "Enable mobile accordion behavior",
-      "default": true
+      "default": true,
+      "info": "When disabled, nested links stay expanded on mobile after enhancement. Without JavaScript, native disclosures remain usable."
     },
     {
       "type": "text",
@@ -615,8 +637,7 @@
     {
       "type": "richtext",
       "id": "text",
-      "label": "Text",
-      "default": "<p>Use this block to display a Shopify menu inside a flexible Quadratum layout.</p>"
+      "label": "Text"
     },
     {
       "type": "header",
@@ -925,7 +946,7 @@
       "name": "Menu List",
       "settings": {
         "heading": "Menu",
-        "text": "<p>Display a Shopify menu as a clean navigation list.</p>",
+        "text": "",
         "layout_style": "vertical",
         "show_grandchildren": true,
         "expand_nested_by_default": false,
@@ -942,7 +963,7 @@
       "name": "Sidebar Navigation",
       "settings": {
         "heading": "Browse",
-        "text": "<p>Use this preset for sidebars, collection navigation, help navigation, or account-style menus.</p>",
+        "text": "",
         "layout_style": "vertical",
         "width": "small",
         "show_grandchildren": true,

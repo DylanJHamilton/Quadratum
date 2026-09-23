@@ -48,6 +48,8 @@
   {%- elsif tmp contains 'youtu.be/' -%}
     {%- assign after_host = tmp | split: 'youtu.be/' | last -%}
     {%- assign yt_id = after_host | split: '?' | first -%}
+  {%- elsif tmp contains '/embed/' or tmp contains '/shorts/' -%}
+    {%- assign yt_id = tmp | split: '/' | last | split: '?' | first -%}
   {%- endif -%}
 {%- endif -%}
 
@@ -70,15 +72,16 @@
 
 {%- assign img_class = scope_id | append: '__img' -%}
 
-<section id="{{ scope_id }}"
+<section id="{{ scope_id }}" data-video-hero
   class="video-hero{% if hide_mobile %} hide-mobile{% endif %}{% if hide_desktop %} hide-desktop{% endif %}"
   aria-label="{{ h1 | default: 'Video hero banner' | escape }}">
   <div class="{{ scope_id }}__media">
+    {%- assign video_poster = poster | default: bg_image -%}
+    {% if has_video and video_poster != blank %}{{ video_poster | image_url: width: 1920 | image_tag: alt: '', loading: 'lazy', class: img_class }}{% endif %}
     {%- if has_video -%}
       {%- if src_type == 'mp4' and mp4_url != blank -%}
         <video
           class="{{ scope_id }}__video"
-          autoplay
           muted
           loop
           playsinline
@@ -87,16 +90,16 @@
         >
           <source src="{{ mp4_url | escape }}" type="video/mp4">
           {%- if poster != blank -%}
-            <img src="{{ poster | image_url: width: 1920 }}" alt="" loading="lazy">
+            <img src="{{ poster | image_url: width: 1920 }}" alt="" width="{{ poster.width }}" height="{{ poster.height }}" loading="lazy">
           {%- elsif bg_image != blank -%}
-            <img src="{{ bg_image | image_url: width: 1920 }}" alt="" loading="lazy">
+            <img src="{{ bg_image | image_url: width: 1920 }}" alt="" width="{{ bg_image.width }}" height="{{ bg_image.height }}" loading="lazy">
           {%- endif -%}
         </video>
       {%- elsif src_type == 'youtube' and yt_id != blank -%}
         <div class="{{ scope_id }}__iframe-wrap" data-aspect="16-9">
           <iframe
             class="{{ scope_id }}__iframe"
-            src="https://www.youtube.com/embed/{{ yt_id | escape }}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&enablejsapi=1&playlist={{ yt_id | escape }}"
+            hidden data-video-hero-src="https://www.youtube.com/embed/{{ yt_id | escape }}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&enablejsapi=1&playlist={{ yt_id | escape }}"
             title="YouTube video"
             allow="autoplay; fullscreen; accelerometer; encrypted-media; picture-in-picture"
             frameborder="0"
@@ -108,7 +111,7 @@
         <div class="{{ scope_id }}__iframe-wrap" data-aspect="16-9">
           <iframe
             class="{{ scope_id }}__iframe"
-            src="https://player.vimeo.com/video/{{ vimeo_id | escape }}?background=1&autoplay=1&muted=1&loop=1&title=0&byline=0&portrait=0"
+            hidden data-video-hero-src="https://player.vimeo.com/video/{{ vimeo_id | escape }}?background=1&autoplay=1&muted=1&loop=1&title=0&byline=0&portrait=0"
             title="Vimeo video"
             allow="autoplay; fullscreen; picture-in-picture"
             frameborder="0"
@@ -151,12 +154,12 @@
       {%- endif -%}
       {%- if cta1_text != blank or cta2_text != blank -%}
         <div class="{{ scope_id }}__buttons">
-          {%- if cta1_text != blank -%}
+          {%- if cta1_text != blank and cta1_link != blank -%}
             <a class="{{ scope_id }}__btn {{ scope_id }}__btn--primary" href="{{ cta1_link | default: '#' | escape }}">
               {{ cta1_text }}
             </a>
           {%- endif -%}
-          {%- if cta2_text != blank -%}
+          {%- if cta2_text != blank and cta2_link != blank -%}
             <a class="{{ scope_id }}__btn {{ scope_id }}__btn--secondary" href="{{ cta2_link | default: '#' | escape }}">
               {{ cta2_text }}
             </a>
@@ -165,7 +168,9 @@
       {%- endif -%}
     </div>
   </div>
+  {% if has_video %}<button type="button" class="video-hero__toggle" data-video-hero-toggle aria-pressed="false" hidden>Pause background video</button>{% endif %}
 </section>
+<script src="{{ 'video-hero-banner.js' | asset_url }}" defer></script>
 
 <style>
   #{{ scope_id }} {
@@ -294,6 +299,12 @@
     background: #111;
   }
 
+  #{{ scope_id }} [hidden]{display:none !important;}
+  #{{ scope_id }} .video-hero__toggle{position:absolute;bottom:1rem;right:1rem;z-index:3;min-height:44px;padding:.5rem 1rem;background:#111;color:#fff;border:1px solid currentColor;border-radius:4px;}
+  #{{ scope_id }} :focus-visible{outline:2px solid currentColor;outline-offset:3px;}
+  #{{ scope_id }} .{{ scope_id }}__content{min-width:0;overflow-wrap:anywhere;}
+  @media(prefers-reduced-motion:reduce){#{{ scope_id }} .{{ scope_id }}__btn{transition:none;transform:none;}}
+
   /* Visibility toggles */
   #{{ scope_id }}.hide-mobile { display: block; }
   #{{ scope_id }}.hide-desktop { display: block; }
@@ -325,20 +336,17 @@
     {
       "type": "text",
       "id": "mp4_url",
-      "label": "MP4 URL",
-      "default": "https://example.com/video.mp4"
+      "label": "MP4 URL"
     },
     {
       "type": "text",
       "id": "youtube_input",
-      "label": "YouTube ID or URL",
-      "default": "dQw4w9WgXcQ"
+      "label": "YouTube ID or URL"
     },
     {
       "type": "text",
       "id": "vimeo_input",
-      "label": "Vimeo ID or URL",
-      "default": "76979871"
+      "label": "Vimeo ID or URL"
     },
     {
       "type": "image_picker",
@@ -463,7 +471,7 @@
       "type": "text",
       "id": "cta1_link",
       "label": "Primary button link",
-      "default": "https://example.com/"
+      "default": "/collections/all"
     },
     {
       "type": "text",
@@ -474,8 +482,7 @@
     {
       "type": "text",
       "id": "cta2_link",
-      "label": "Secondary button link",
-      "default": "https://example.com/"
+      "label": "Secondary button link"
     },
     {
       "type": "checkbox",
@@ -498,5 +505,3 @@
   ]
 }
 {% endschema %}
-
-{% javascript %}{% endjavascript %}

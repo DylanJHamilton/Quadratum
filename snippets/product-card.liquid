@@ -10,16 +10,18 @@
 
 {%- liquid
   assign p = product
-  if p == blank
-    break
+  assign minimum_quantity = p.variants | map: 'quantity_rule' | map: 'min' | compact | sort | last | default: 1
+  assign purchase_details_required = p.requires_selling_plan
+  if minimum_quantity > 1
+    assign purchase_details_required = true
   endif
 
   assign card_preset = card_preset | default: 'catalog'
 
   assign media_mode = media_mode | default: 'single'
-  assign scroll_gallery_limit = scroll_gallery_limit | default: 6
+  assign scroll_gallery_limit = scroll_gallery_limit | default: 6 | at_least: 1 | at_most: 12
   assign media_fit = media_fit | default: 'cover'
-  assign media_ratio = media_ratio | default: 100
+  assign media_ratio = media_ratio | default: 100 | at_least: 25 | at_most: 200
   assign image_zoom = image_zoom
 
   assign hover_treatment = hover_treatment | default: 'overlay_actions'
@@ -29,6 +31,9 @@
 
   assign enable_quick_add = enable_quick_add
   assign enable_quick_view = enable_quick_view
+  if purchase_details_required
+    assign enable_quick_view = false
+  endif
   assign quick_add_mode = quick_add_mode | default: 'button'
   assign quick_view_mode = quick_view_mode | default: 'drawer'
 
@@ -114,6 +119,7 @@
     assign zoom_scale = 1.0
   endif
 
+  assign price_mode = price_mode | default: 'simple'
   assign money_price = ''
   assign money_compare = ''
   if v_first
@@ -140,17 +146,17 @@
   endif
 
   assign use_sizes_ui = false
-  if quick_add_mode == 'sizes' and has_real_variants and size_option_index != -1
+  if quick_add_mode == 'sizes' and has_real_variants and size_option_index != -1 and p.options.size == 1 and purchase_details_required != true
     assign use_sizes_ui = true
   endif
 
   assign use_dropdown_ui = false
-  if quick_add_mode == 'dropdown' and has_real_variants
+  if quick_add_mode == 'dropdown' and has_real_variants and purchase_details_required != true
     assign use_dropdown_ui = true
   endif
 
   assign can_direct_add = false
-  if has_real_variants == false and v_first
+  if has_real_variants == false and v_first and purchase_details_required != true
     assign can_direct_add = true
   endif
 
@@ -184,7 +190,7 @@
   assign card_style = card_style | append: '--q-card-title-weight:' | append: title_weight | append: ';'
   assign card_style = card_style | append: '--q-card-price-size:' | append: price_size | append: 'px;'
   assign card_style = card_style | append: '--q-card-price-weight:' | append: price_weight | append: ';'
-  assign card_style = card_style | append: '--q-card-btn-hover:' | append: button_hover_strength | append: '%;'
+  assign card_style = card_style | append: '--q-card-btn-hover:' | append: button_hover_strength | append: ';'
 
   assign overlay_allowed = false
   if hover_treatment == 'overlay_actions'
@@ -200,6 +206,10 @@
     endif
   endif
 
+  if enable_quick_add != true and quick_view_placement == 'none'
+    assign show_overlay = false
+  endif
+
   assign show_qv_below = false
   if enable_quick_view
     if quick_view_placement == 'below_content' or quick_view_placement == 'both'
@@ -208,6 +218,7 @@
   endif
 -%}
 
+{%- if p != blank and p.url != blank -%}
 <article
   class="{{ card_class }} {{ preset_class }} {{ mode_class }} {{ fit_class }} {{ align_class }} {{ hover_class }} {{ actions_vis_class }} {{ actions_layout_class }} {{ badge_pos_class }} {{ badge_style_class }} {{ badge_fill_class }} {{ btn_style_class }} {{ btn_size_class }} {{ btn_full_class }}"
   style="{{ card_style }}"
@@ -216,9 +227,10 @@
 >
   {%- comment -%} MEDIA (hover hit-area lives here) {%- endcomment -%}
   <div class="q-product-card__media-wrap" data-pc-mediawrap>
-    <a class="q-product-card__media-link" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
+    <a class="q-product-card__media-link" href="{{ p.url | escape }}" aria-label="{{ p.title | escape }}">
       <div class="q-product-card__media" data-pc-media>
-        {%- if show_sale_badge -%}
+        {%- if show_badges and p.available == false -%}<span class="q-product-card__badge q-product-card__badge--soldout">{{ label_sold_out | escape }}</span>
+        {%- elsif show_sale_badge -%}
           <span class="q-product-card__badge q-product-card__badge--sale">Sale</span>
         {%- endif -%}
 
@@ -294,7 +306,7 @@
                     {%- endfor -%}
 
                     {%- if target_variant -%}
-                      <form method="post" action="/cart/add" class="q-product-card__sizeform" {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}>
+                      <form method="post" action="{{ routes.cart_add_url }}" class="q-product-card__sizeform" {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}>
                         <input type="hidden" name="id" value="{{ target_variant.id }}">
                         <input type="hidden" name="quantity" value="1">
                         <button
@@ -302,28 +314,32 @@
                           class="q-product-card__sizebtn"
                           {% unless target_variant.available %}disabled aria-disabled="true"{% endunless %}
                         >
-                          {{ val }}
+                          {{ val | escape }}
                         </button>
                       </form>
                     {%- endif -%}
                   {%- endfor -%}
                 </div>
               {%- elsif use_dropdown_ui -%}
-                <form method="post" action="/cart/add" class="q-product-card__dropdownform" {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}>
+                <form method="post" action="{{ routes.cart_add_url }}" class="q-product-card__dropdownform" {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}>
+                  {%- assign dropdown_variant = v_first -%}
+                  {%- if dropdown_variant.available == false and p.available -%}
+                    {%- for candidate in p.variants -%}{%- if candidate.available -%}{%- assign dropdown_variant = candidate -%}{%- break -%}{%- endif -%}{%- endfor -%}
+                  {%- endif -%}
                   <select class="q-product-card__select" name="id" aria-label="Choose an option">
                     {%- for v in p.variants -%}
-                      <option value="{{ v.id }}" {% unless v.available %}disabled{% endunless %}>
-                        {{ v.title }}{% unless v.available %} — {{ label_sold_out }}{% endunless %}
+                      <option value="{{ v.id }}" {% if v.id == dropdown_variant.id %}selected{% endif %} {% unless v.available %}disabled{% endunless %}>
+                        {{ v.title | escape }}{% unless v.available %} — {{ label_sold_out | escape }}{% endunless %}
                       </option>
                     {%- endfor -%}
                   </select>
-                  <button type="submit" class="q-product-card__action q-product-card__action--qa">
-                    {{ primary_cta_label }}
+                  <button type="submit" class="q-product-card__action q-product-card__action--qa" {% unless p.available %}disabled{% endunless %}>
+                    {{ primary_cta_label | escape }}
                   </button>
                 </form>
               {%- else -%}
                 {%- if can_direct_add and v_first -%}
-                  <form method="post" action="/cart/add" class="q-product-card__addform" {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}>
+                  <form method="post" action="{{ routes.cart_add_url }}" class="q-product-card__addform" {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}>
                     <input type="hidden" name="id" value="{{ v_first.id }}">
                     <input type="hidden" name="quantity" value="1">
                     <button
@@ -331,12 +347,12 @@
                       class="q-product-card__action q-product-card__action--qa"
                       {% unless v_first.available %}disabled aria-disabled="true"{% endunless %}
                     >
-                      {%- if v_first.available -%}{{ primary_cta_label }}{%- else -%}{{ label_sold_out }}{%- endif -%}
+                      {%- if v_first.available -%}{{ primary_cta_label | escape }}{%- else -%}{{ label_sold_out | escape }}{%- endif -%}
                     </button>
                   </form>
                 {%- else -%}
-                  <a class="q-product-card__action q-product-card__action--qa" href="{{ p.url }}">
-                    {{ label_select_options }}
+                  <a class="q-product-card__action q-product-card__action--qa" href="{{ p.url | escape }}">
+                    {{ label_select_options | escape }}
                   </a>
                 {%- endif -%}
               {%- endif -%}
@@ -348,10 +364,10 @@
               type="button"
               class="q-product-card__action q-product-card__action--qv"
               data-quick-view
-              data-product-handle="{{ p.handle }}"
+              data-product-handle="{{ p.handle | escape }}"
               data-quick-view-mode="{{ quick_view_mode }}"
             >
-              {{ qv_label }}
+              {{ qv_label | escape }}
             </button>
           {%- endif -%}
         </div>
@@ -361,28 +377,34 @@
 
   {%- comment -%} CONTENT (title is link; no wrapping of overlay/buttons) {%- endcomment -%}
   <div class="q-product-card__content">
-    <a class="q-product-card__title-link" href="{{ p.url }}">
-      <h3 class="q-product-card__title">{{ p.title }}</h3>
+    <a class="q-product-card__title-link" href="{{ p.url | escape }}">
+      <h3 class="q-product-card__title">{{ p.title | escape }}</h3>
     </a>
 
+    {%- if show_vendor and p.vendor != blank -%}<div class="q-product-card__vendor">{{ p.vendor | escape }}</div>{%- endif -%}
+    {%- unless show_price == false -%}
     <div class="q-product-card__price">
+      {%- if price_mode == 'range' and p.price_varies -%}<span class="q-product-card__price-main">{{ p.price_min | money }} – {{ p.price_max | money }}</span>{%- else -%}
       {%- if money_price != blank -%}
         <span class="q-product-card__price-main">{{ money_price }}</span>
       {%- endif -%}
-      {%- if money_compare != blank -%}
+      {%- endif -%}
+      {%- if money_compare != blank and price_mode != 'range' -%}
         <span class="q-product-card__price-compare">{{ money_compare }}</span>
       {%- endif -%}
+      {%- if price_mode == 'detailed' and v_first.unit_price_measurement != blank -%}<span>{{ v_first.unit_price | money }} / {% if v_first.unit_price_measurement.reference_value != 1 %}{{ v_first.unit_price_measurement.reference_value }}{% endif %}{{ v_first.unit_price_measurement.reference_unit | escape }}</span>{%- endif -%}
     </div>
 
+    {%- endunless -%}
     {%- if show_qv_below -%}
       <button
         type="button"
         class="q-product-card__below-qv"
         data-quick-view
-        data-product-handle="{{ p.handle }}"
+        data-product-handle="{{ p.handle | escape }}"
         data-quick-view-mode="{{ quick_view_mode }}"
       >
-        {{ qv_label }}
+        {{ qv_label | escape }}
       </button>
     {%- endif -%}
   </div>
@@ -390,7 +412,7 @@
   {%- if show_action_row -%}
     <div class="q-product-card__actions-row" data-pc-actions-row>
       {%- if can_direct_add and v_first -%}
-        <form method="post" action="/cart/add" class="q-product-card__rowform" {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}>
+        <form method="post" action="{{ routes.cart_add_url }}" class="q-product-card__rowform" {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}>
           <input type="hidden" name="id" value="{{ v_first.id }}">
           <input type="hidden" name="quantity" value="1">
           <button
@@ -398,18 +420,18 @@
             class="q-product-card__rowbtn q-product-card__rowbtn--primary"
             {% unless v_first.available %}disabled aria-disabled="true"{% endunless %}
           >
-            {%- if v_first.available -%}{{ primary_cta_label }}{%- else -%}{{ label_sold_out }}{%- endif -%}
+            {%- if v_first.available -%}{{ primary_cta_label | escape }}{%- else -%}{{ label_sold_out | escape }}{%- endif -%}
           </button>
         </form>
       {%- else -%}
-        <a class="q-product-card__rowbtn q-product-card__rowbtn--primary" href="{{ p.url }}">
-          {{ label_select_options }}
+        <a class="q-product-card__rowbtn q-product-card__rowbtn--primary" href="{{ p.url | escape }}">
+          {{ label_select_options | escape }}
         </a>
       {%- endif -%}
 
       {%- if show_secondary_row_cta -%}
-        <a class="q-product-card__rowbtn q-product-card__rowbtn--secondary" href="{{ p.url }}">
-          {{ secondary_cta_label }}
+        <a class="q-product-card__rowbtn q-product-card__rowbtn--secondary" href="{{ p.url | escape }}">
+          {{ secondary_cta_label | escape }}
         </a>
       {%- endif -%}
 
@@ -418,10 +440,10 @@
           type="button"
           class="q-product-card__rowbtn q-product-card__rowbtn--tertiary"
           data-quick-view
-          data-product-handle="{{ p.handle }}"
+          data-product-handle="{{ p.handle | escape }}"
           data-quick-view-mode="{{ quick_view_mode }}"
         >
-          {{ qv_label }}
+          {{ qv_label | escape }}
         </button>
       {%- endif -%}
     </div>
@@ -460,8 +482,8 @@
     }
 
     @media (hover:hover) and (pointer:fine){
-      .q-product-card--hover-media_dim .q-product-card__media-wrap:hover .q-product-card__media::after{ opacity: calc(var(--q-card-hover-overlay, 15%) / 100); }
-      .q-product-card--hover-overlay_actions .q-product-card__media-wrap:hover .q-product-card__media::after{ opacity: calc(var(--q-card-hover-overlay, 15%) / 100); }
+      .q-product-card--hover-media_dim .q-product-card__media-wrap:hover .q-product-card__media::after{ opacity: var(--q-card-hover-overlay, 15%); }
+      .q-product-card--hover-overlay_actions .q-product-card__media-wrap:hover .q-product-card__media::after{ opacity: var(--q-card-hover-overlay, 15%); }
       .q-product-card--hover-media_zoom .q-product-card__media-wrap:hover .q-product-card__img--primary{ transform: scale(var(--q-card-image-zoom, 1.06)); }
       .q-product-card__img--primary{ transition: transform .25s ease, opacity .2s ease; transform: scale(1); }
     }
@@ -491,8 +513,8 @@
       border-radius: 12px;
       padding:.6rem;
       backdrop-filter: blur(6px);
-      pointer-events:auto;
-      background: rgba(0,0,0, calc(var(--q-card-hover-overlay, 15%) / 100));
+      pointer-events:inherit;
+      background: rgba(0,0,0, var(--q-card-hover-overlay, 15%));
     }
 
     /* KEY FIX: show overlay ONLY when hovering the image area */
@@ -535,7 +557,7 @@
         background: var(--q-btn-bg-hover, var(--q-btn-bg, rgba(255,255,255,.10)));
         color: var(--q-btn-text-hover, var(--q-btn-text, inherit));
         transform: translateY(-1px);
-        filter: brightness(calc(1 + (var(--q-card-btn-hover, 40%) / 250)));
+        filter: brightness(calc(1 + (var(--q-card-btn-hover, 40) / 250)));
       }
     }
 
@@ -612,5 +634,32 @@
       font: inherit;
     }
     .q-product-card__sizebtn[disabled]{ opacity:.45; cursor:not-allowed; }
+    .q-product-card{ min-width:0; overflow-wrap:anywhere; }
+    .q-product-card :where(button,a,select,form){ max-width:100%; min-width:0; white-space:normal; }
+    .q-product-card__price{ flex-wrap:wrap; }
+    .q-product-card :focus-visible{ outline:2px solid currentColor; outline-offset:2px; }
+    .q-product-card__media-wrap:focus-within .q-product-card__hover{ opacity:1; pointer-events:auto; }
+    @media (hover:none), (pointer:coarse){ .q-product-card--actions-desktop_only .q-product-card__hover{ display:none; } }
+    .q-product-card__media-placeholder{ padding-top:var(--q-card-media-ratio,100%); }
+    @media(prefers-reduced-motion:reduce){ .q-product-card *, .q-product-card *::after{ transition:none!important; transform:none!important; scroll-behavior:auto!important; } }
+    .q-product-card__scroll{ position:absolute; inset:0; display:flex; overflow-x:auto; scroll-snap-type:x mandatory; }
+    .q-product-card__scroll-img{ flex:0 0 100%; width:100%; height:100%; object-fit:cover; scroll-snap-align:start; }
+    .q-product-card--fit-contain .q-product-card__scroll-img{ object-fit:contain; }
+    .q-product-card--badge-top_right .q-product-card__badge{ left:auto; right:.6rem; }
+    .q-product-card--badge-bottom_left .q-product-card__badge{ top:auto; bottom:.6rem; }
+    .q-product-card--badge-bottom_right .q-product-card__badge{ top:auto; left:auto; right:.6rem; bottom:.6rem; }
+    .q-product-card--badge-style-rect .q-product-card__badge, .q-product-card--badge-style-square .q-product-card__badge{ border-radius:0; }
+    .q-product-card--badge-fill-outline .q-product-card__badge{ background:transparent; color:var(--q-badge-bg,#111); border-color:currentColor; }
+    .q-product-card--btn-outline :where(.q-product-card__action,.q-product-card__rowbtn,.q-product-card__below-qv){ background:transparent; }
+    .q-product-card--btn-ghost :where(.q-product-card__action,.q-product-card__rowbtn,.q-product-card__below-qv){ background:transparent; border-color:transparent; }
+    .q-product-card--btnsize-sm :where(.q-product-card__action,.q-product-card__rowbtn,.q-product-card__below-qv){ padding:.4rem .6rem; font-size:.875em; }
+    .q-product-card--btnsize-lg :where(.q-product-card__action,.q-product-card__rowbtn,.q-product-card__below-qv){ padding:.8rem 1rem; font-size:1.125em; }
+    .q-product-card--btnfull :where(.q-product-card__action,.q-product-card__rowbtn,.q-product-card__rowform){ width:100%; }
+    .q-product-card--minimal{ border:0; background:transparent; }
+    .q-product-card--pill{ border-radius:var(--q-radius,24px); }
+    .q-product-card--editorial .q-product-card__content{ padding:1.25rem; }
+    .q-product-card--tech .q-product-card__content, .q-product-card--compact .q-product-card__content{ padding:.5rem; }
   </style>
 </article>
+
+{%- endif -%}

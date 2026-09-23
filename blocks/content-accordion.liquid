@@ -10,20 +10,33 @@
   assign show_on_desktop = block.settings.show_on_desktop
   assign show_on_tablet = block.settings.show_on_tablet
   assign show_on_mobile = block.settings.show_on_mobile
+  assign has_panel_content = false
+  for panel_number in (1..8)
+    if panel_number <= item_count
+      assign panel_heading_key = 'item_' | append: panel_number | append: '_heading'
+      assign panel_content_key = 'item_' | append: panel_number | append: '_content'
+      if block.settings[panel_heading_key] != blank or block.settings[panel_content_key] != blank
+        assign has_panel_content = true
+      endif
+    endif
+  endfor
 -%}
 
+{% if has_panel_content or request.design_mode %}
 <div
   id="{{ block_id }}"
+  data-qtm-accordion
+  data-allow-multiple="{{ block.settings.allow_multiple_open }}"
   class="
     content-accordion
     content-accordion--{{ layout_style }}
     content-accordion--width-{{ block_width }}
     content-accordion--align-{{ text_alignment }}
     content-accordion--icon-{{ icon_style }}
-    {% unless show_on_desktop %} content-accordion--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} content-accordion--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} content-accordion--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} content-accordion--animate content-accordion--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} content-accordion--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} content-accordion--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} content-accordion--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} content-accordion--animate content-accordion--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --content-accordion-margin-top: {{ block.settings.margin_top }}px;
@@ -38,10 +51,12 @@
     --content-accordion-border-color: {{ block.settings.border_color }};
     --content-accordion-link-color: {{ block.settings.link_color }};
   "
-  {{ block.shopify_attributes }}
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--content-accordion-margin-top);
       margin-bottom: var(--content-accordion-margin-bottom);
@@ -401,8 +416,19 @@
         transition: none;
       }
     }
+
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} img, #{{ block_id }} video, #{{ block_id }} iframe { max-width: 100%; }
+{% unless show_on_desktop or request.design_mode %}@media (min-width: 990px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_tablet or request.design_mode %}@media (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_mobile or request.design_mode %}@media (max-width: 749px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+    #{{ block_id }} a { color: var(--content-accordion-link-color); text-underline-offset: .2em; }
+    #{{ block_id }} a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
   </style>
 
+  {% assign accordion_seen = false %}{% assign accordion_open_seen = false %}
+  {% if request.design_mode %}<p>Add questions and answers or other expandable content.</p>{% endif %}
   <div class="content-accordion__items" data-content-accordion-items>
     {%- for index in (1..8) -%}
       {%- if index <= item_count -%}
@@ -419,7 +445,7 @@
 
           assign item_is_open = false
 
-          if block.settings.first_item_open and index == 1
+          if block.settings.first_item_open and accordion_seen == false
             assign item_is_open = true
           endif
 
@@ -429,22 +455,26 @@
         -%}
 
         {% if item_heading != blank or item_content != blank %}
+          {% assign accordion_seen = true %}
+          {% if accordion_open_seen and block.settings.allow_multiple_open == false %}{% assign item_is_open = false %}{% endif %}
+          {% if item_is_open %}{% assign accordion_open_seen = true %}{% endif %}
           <details
             class="content-accordion__item"
             data-content-accordion-item
+            {% unless block.settings.allow_multiple_open %}name="{{ block_id }}"{% endunless %}
             {% if item_is_open %}open{% endif %}
           >
             <summary class="content-accordion__summary">
               {% if item_icon != blank %}
                 <span class="content-accordion__item-icon" aria-hidden="true">
-                  {{ item_icon }}
+                  {{ item_icon | escape }}
                 </span>
               {% else %}
                 <span class="content-accordion__item-icon" aria-hidden="true"></span>
               {% endif %}
 
               <span class="content-accordion__heading">
-                {{ item_heading | escape }}
+                {{ item_heading | default: 'Details' | escape }}
               </span>
 
               <span class="content-accordion__indicator" aria-hidden="true"></span>
@@ -461,33 +491,11 @@
     {%- endfor -%}
   </div>
 
-  {% unless block.settings.allow_multiple_open %}
-    <script>
-      (() => {
-        const root = document.getElementById({{ block_id | json }});
 
-        if (!root || root.dataset.contentAccordionReady === 'true') return;
-
-        root.dataset.contentAccordionReady = 'true';
-
-        const items = root.querySelectorAll('[data-content-accordion-item]');
-
-        items.forEach((item) => {
-          item.addEventListener('toggle', () => {
-            if (!item.open) return;
-
-            items.forEach((otherItem) => {
-              if (otherItem !== item) {
-                otherItem.removeAttribute('open');
-              }
-            });
-          });
-        });
-      })();
-    </script>
-  {% endunless %}
 </div>
 
+
+{% endif %}
 {% schema %}
 {
   "name": "Content accordion",
@@ -630,20 +638,17 @@
     {
       "type": "text",
       "id": "item_1_icon",
-      "label": "Icon",
-      "default": "?"
+      "label": "Icon"
     },
     {
       "type": "text",
       "id": "item_1_heading",
-      "label": "Heading",
-      "default": "What makes this section useful?"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "item_1_content",
-      "label": "Content",
-      "default": "<p>This accordion lets merchants organize FAQs, policies, product details, support information, and other expandable content in a clean layout.</p>"
+      "label": "Content"
     },
     {
       "type": "checkbox",
@@ -658,20 +663,17 @@
     {
       "type": "text",
       "id": "item_2_icon",
-      "label": "Icon",
-      "default": "↗"
+      "label": "Icon"
     },
     {
       "type": "text",
       "id": "item_2_heading",
-      "label": "Heading",
-      "default": "Can I use this for FAQs?"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "item_2_content",
-      "label": "Content",
-      "default": "<p>Yes. FAQ content is handled as a preset of this block, so there is no need for a separate FAQ accordion block.</p>"
+      "label": "Content"
     },
     {
       "type": "checkbox",
@@ -686,20 +688,17 @@
     {
       "type": "text",
       "id": "item_3_icon",
-      "label": "Icon",
-      "default": "✓"
+      "label": "Icon"
     },
     {
       "type": "text",
       "id": "item_3_heading",
-      "label": "Heading",
-      "default": "Does it work on mobile?"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "item_3_content",
-      "label": "Content",
-      "default": "<p>The accordion is responsive, keyboard friendly, and uses native details and summary elements for reliable accessibility.</p>"
+      "label": "Content"
     },
     {
       "type": "checkbox",
@@ -714,20 +713,17 @@
     {
       "type": "text",
       "id": "item_4_icon",
-      "label": "Icon",
-      "default": "★"
+      "label": "Icon"
     },
     {
       "type": "text",
       "id": "item_4_heading",
-      "label": "Heading",
-      "default": "Can multiple items stay open?"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "item_4_content",
-      "label": "Content",
-      "default": "<p>Merchants can decide whether shoppers can open multiple accordion items at once or keep only one item open at a time.</p>"
+      "label": "Content"
     },
     {
       "type": "checkbox",
@@ -742,20 +738,17 @@
     {
       "type": "text",
       "id": "item_5_icon",
-      "label": "Icon",
-      "default": "i"
+      "label": "Icon"
     },
     {
       "type": "text",
       "id": "item_5_heading",
-      "label": "Heading",
-      "default": "Where should this block be used?"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "item_5_content",
-      "label": "Content",
-      "default": "<p>Use it on landing pages, product education pages, support sections, about pages, policy sections, and trust-building content areas.</p>"
+      "label": "Content"
     },
     {
       "type": "checkbox",
@@ -1002,21 +995,6 @@
         "first_item_open": true,
         "icon_style": "plus_minus",
         "item_count": 5,
-        "item_1_icon": "?",
-        "item_1_heading": "What makes this section useful?",
-        "item_1_content": "<p>This accordion lets merchants organize FAQs, policies, product details, support information, and other expandable content in a clean layout.</p>",
-        "item_2_icon": "↗",
-        "item_2_heading": "Can I use this for FAQs?",
-        "item_2_content": "<p>Yes. FAQ content is handled as a preset of this block, so there is no need for a separate FAQ accordion block.</p>",
-        "item_3_icon": "✓",
-        "item_3_heading": "Does it work on mobile?",
-        "item_3_content": "<p>The accordion is responsive, keyboard friendly, and uses native details and summary elements for reliable accessibility.</p>",
-        "item_4_icon": "★",
-        "item_4_heading": "Can multiple items stay open?",
-        "item_4_content": "<p>Merchants can decide whether shoppers can open multiple accordion items at once or keep only one item open at a time.</p>",
-        "item_5_icon": "i",
-        "item_5_heading": "Where should this block be used?",
-        "item_5_content": "<p>Use it on landing pages, product education pages, support sections, about pages, policy sections, and trust-building content areas.</p>",
         "block_width": "auto",
         "text_alignment": "left",
         "gap": 12,
@@ -1044,18 +1022,6 @@
         "first_item_open": true,
         "icon_style": "chevron",
         "item_count": 4,
-        "item_1_icon": "i",
-        "item_1_heading": "Product details",
-        "item_1_content": "<p>Use this area to explain key details, materials, sizing, compatibility, or what is included.</p>",
-        "item_2_icon": "✓",
-        "item_2_heading": "Why customers choose it",
-        "item_2_content": "<p>Highlight the main benefits, use cases, and reasons this product stands out.</p>",
-        "item_3_icon": "↗",
-        "item_3_heading": "Shipping information",
-        "item_3_content": "<p>Summarize shipping timelines, delivery expectations, and important fulfillment details.</p>",
-        "item_4_icon": "★",
-        "item_4_heading": "Care instructions",
-        "item_4_content": "<p>Add care, setup, maintenance, or usage instructions to reduce support questions.</p>",
         "block_width": "auto",
         "text_alignment": "left",
         "gap": 16,
@@ -1083,18 +1049,6 @@
         "first_item_open": false,
         "icon_style": "plus_minus",
         "item_count": 4,
-        "item_1_icon": "↗",
-        "item_1_heading": "Shipping policy",
-        "item_1_content": "<p>Explain shipping methods, processing times, delivery estimates, and any regional restrictions.</p>",
-        "item_2_icon": "✓",
-        "item_2_heading": "Returns and exchanges",
-        "item_2_content": "<p>Clarify your return window, exchange process, eligibility rules, and how customers can start a request.</p>",
-        "item_3_icon": "i",
-        "item_3_heading": "Warranty or guarantee",
-        "item_3_content": "<p>Use this section to build trust by explaining warranties, guarantees, or satisfaction policies.</p>",
-        "item_4_icon": "?",
-        "item_4_heading": "Need help?",
-        "item_4_content": "<p>Point customers toward support channels, response times, or helpful next steps.</p>",
         "block_width": "auto",
         "text_alignment": "left",
         "gap": 0,

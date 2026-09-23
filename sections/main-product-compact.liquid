@@ -1,8 +1,5 @@
 {%- liquid
   assign p = product
-  if p == blank
-    break
-  endif
 
   assign s = section.settings
   assign v = p.selected_or_first_available_variant
@@ -10,12 +7,24 @@
     assign v = p.variants.first
   endif
 
+  assign featured_image = v.featured_image | default: p.featured_image
+  assign image_widths = '400,800,1200,1600' | split: ','
+  assign image_max_width = featured_image.width | default: 2000 | at_most: 2000
+  assign allocation = v.selected_selling_plan_allocation
+  if allocation == blank and p.requires_selling_plan
+    assign allocation = v.selling_plan_allocations.first
+  endif
+  assign purchase_price = allocation.price | default: v.price
+  assign purchase_compare = allocation.compare_at_price | default: v.compare_at_price
+  assign quantity_blocks = section.blocks | where: 'type', 'quantity'
+  assign rendered_singletons = '|'
   assign on_sale = false
-  if v.compare_at_price and v.compare_at_price > v.price
+  if purchase_compare and purchase_compare > purchase_price
     assign on_sale = true
   endif
 -%}
 
+{% if p != blank %}
 <script type="application/ld+json">
   {{ p | structured_data }}
 </script>
@@ -24,10 +33,11 @@
   id="MainProductCompact-{{ section.id }}"
   class="qtm-compact"
   data-product-purchase-sync
+  data-product-url="{{ p.url | escape }}"
   style="
-    padding-top: {{ s.padding_top }}px;
-    padding-bottom: {{ s.padding_bottom }}px;
-    --qtm-gap: {{ s.gap }}px;
+    padding-top: {{ s.padding_top | default: 24 }}px;
+    padding-bottom: {{ s.padding_bottom | default: 24 }}px;
+    --qtm-gap: {{ s.gap | default: 16 }}px;
   "
 >
 
@@ -35,18 +45,17 @@
 
     <!-- MEDIA -->
     <div class="qtm-compact__media">
-      {% if p.featured_image %}
-        {%- liquid
-          assign qtm_image_alt = p.featured_image.alt | default: p.title
-        -%}
-        {{ p.featured_image
-          | image_url: width: 2000
-          | image_tag:
-          loading: 'eager',
-          class: 'qtm-compact__img', alt: qtm_image_alt }}
-      {% else %}
-        <div class="qtm-compact__placeholder"></div>
-      {% endif %}
+      <img data-purchase-image class="qtm-compact__img"
+        {% if featured_image != blank %}
+          src="{{ featured_image | image_url: width: 2000 }}"
+          srcset="{%- for width in image_widths -%}{%- assign image_width = width | plus: 0 -%}{%- if image_width < image_max_width -%}{{ featured_image | image_url: width: image_width }} {{ image_width }}w, {% endif %}{%- endfor -%}{{ featured_image | image_url: width: image_max_width }} {{ image_max_width }}w"
+        {% else %}hidden{% endif %}
+        sizes="(min-width: 750px) 55vw, 100vw"
+        width="{{ featured_image.width | default: 2000 }}"
+        height="{{ featured_image.height | default: 2000 }}"
+        alt="{{ featured_image.alt | default: p.title | escape }}"
+        loading="eager" fetchpriority="high">
+      <div data-purchase-image-placeholder class="qtm-compact__placeholder" {% if featured_image != blank %}hidden{% endif %}></div>
     </div>
 
     <!-- DETAILS -->
@@ -54,10 +63,11 @@
 
       <form
         method="post"
-        action="{{ routes.cart_add_url }}"
+        action="{{ routes.cart_add_url | escape }}"
         enctype="multipart/form-data"
         id="ProductForm-{{ section.id }}"
         class="qtm-compact__form"
+        data-cart-drawer-add
       >
 
         <div data-purchase-fallback {% if p.has_only_default_variant %}hidden{% endif %}>
@@ -67,21 +77,35 @@
               <option value="{{ variant.id }}" {% if variant.id == v.id %}selected{% endif %}>{{ variant.title | escape }} — {{ variant.price | money }}{% unless variant.available %} — Sold out{% endunless %}</option>
             {% endfor %}
           </select>
+          {% unless p.has_only_default_variant %}
+            <noscript>
+              <style>#MainProductCompact-{{ section.id }} [data-purchase-fallback] > :is(label, select) { display: none; }</style>
+              <p>Choose a variant to refresh its price and purchase options:</p>
+              <ul>{% for variant in p.variants %}<li><a href="{{ variant.url | escape }}" {% if variant.id == v.id %}aria-current="true"{% endif %}>{{ variant.title | escape }}{% unless variant.available %} — Sold out{% endunless %}</a></li>{% endfor %}</ul>
+            </noscript>
+          {% endunless %}
         </div>
         {% render 'product-selling-plans', product: p, id: section.id %}
 
+        {% if quantity_blocks.size == 0 %}<input type="hidden" name="quantity" value="{{ v.quantity_rule.min | default: 1 }}">{% endif %}
+        <p data-purchase-status role="status" aria-live="polite"></p>
         {% for block in section.blocks %}
+          {% if block.type == 'title' or block.type == 'variant_picker' or block.type == 'quantity' or block.type == 'buy_buttons' %}
+            {% assign singleton_key = block.type | append: '|' | prepend: '|' %}
+            {% if rendered_singletons contains singleton_key %}{% continue %}{% endif %}
+            {% assign rendered_singletons = rendered_singletons | append: block.type | append: '|' %}
+          {% endif %}
           {% case block.type %}
 
             {% when 'title' %}
               <h1 class="qtm-compact__title" {{ block.shopify_attributes }}>
-                {{ p.title }}
+                {{ p.title | escape }}
               </h1>
 
             {% when 'price' %}
               <div class="qtm-compact__price" {{ block.shopify_attributes }}>
-                <span data-purchase-current>{{ v.price | money }}</span>
-                <s class="compare" data-purchase-compare {% unless on_sale %}hidden{% endunless %}>{{ v.compare_at_price | money }}</s>
+                <span data-purchase-current>{{ purchase_price | money }}</span>
+                <s class="compare" data-purchase-compare {% unless on_sale %}hidden{% endunless %}>{{ purchase_compare | money }}</s>
               </div>
 
             {% when 'variant_picker' %}
@@ -94,7 +118,7 @@
                         {% for value in option.values %}
                           <option value="{{ value | escape }}"
                             {% if option.selected_value == value %}selected{% endif %}>
-                            {{ value }}
+                            {{ value | escape }}
                           </option>
                         {% endfor %}
                       </select>
@@ -105,12 +129,16 @@
 
             {% when 'quantity' %}
               <div class="qtm-compact__qty" {{ block.shopify_attributes }}>
-                <label>Quantity</label>
+                <label for="CompactQuantity-{{ section.id }}">Quantity</label>
                 <input
+                  id="CompactQuantity-{{ section.id }}"
                   type="number"
                   name="quantity"
-                  value="1"
-                  min="1"
+                  value="{{ v.quantity_rule.min | default: 1 }}"
+                  min="{{ v.quantity_rule.min | default: 1 }}"
+                  step="{{ v.quantity_rule.increment | default: 1 }}"
+                  {% if v.quantity_rule.max != blank %}max="{{ v.quantity_rule.max }}"{% endif %}
+                  inputmode="numeric" required
                 >
               </div>
 
@@ -120,7 +148,7 @@
                   type="submit"
                   name="add"
                   class="qtm-compact__atc"
-                  {% unless v.available %}disabled{% endunless %}
+                  {% if v.available == false %}disabled{% elsif p.requires_selling_plan and allocation == blank %}disabled{% endif %}
                 >
                   {% if v.available %}
                     Add to cart
@@ -139,7 +167,7 @@
 
             {% when 'accordion' %}
               <details class="qtm-compact__accordion" {{ block.shopify_attributes }}>
-                <summary>{{ block.settings.heading }}</summary>
+                <summary>{{ block.settings.heading | escape }}</summary>
                 <div class="rte">
                   {{ block.settings.content }}
                 </div>
@@ -155,11 +183,22 @@
     </div>
 
   </div>
+  {% render 'product-purchase-data', product: p, include_image: true %}
 </section>
-{% render 'product-purchase-data', product: p %}
 <script src="{{ 'product-purchase-sync.js' | asset_url }}" defer></script>
 
 <style>
+#MainProductCompact-{{ section.id }} { min-width: 0; overflow-wrap: anywhere; }
+#MainProductCompact-{{ section.id }} [hidden] { display: none !important; }
+#MainProductCompact-{{ section.id }} .qtm-compact__media { min-width: 0; }
+#MainProductCompact-{{ section.id }} .qtm-compact__form { display: grid; gap: 16px; min-width: 0; }
+#MainProductCompact-{{ section.id }} :is(select, input, button) { max-width: 100%; min-width: 0; }
+#MainProductCompact-{{ section.id }} :is(button, select, input, summary):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+#MainProductCompact-{{ section.id }} .qtm-compact__atc:disabled { cursor: not-allowed; opacity: .6; }
+#MainProductCompact-{{ section.id }} .rte :is(img, video, iframe) { max-width: 100%; }
+#MainProductCompact-{{ section.id }} .rte img { height: auto; }
+#MainProductCompact-{{ section.id }} .rte { overflow-x: auto; }
+#MainProductCompact-{{ section.id }} [data-purchase-status]:empty { display: none; }
 .qtm-compact__grid {
   display: grid;
   gap: var(--qtm-gap);
@@ -167,10 +206,10 @@
 
 @media (min-width: 750px) {
   .qtm-compact__grid {
-    grid-template-columns: 1.1fr 0.9fr;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
   }
   .qtm-compact__grid.media-right {
-    grid-template-columns: 0.9fr 1.1fr;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   }
   .qtm-compact__grid.media-right .qtm-compact__media { order: 2; }
   .qtm-compact__grid.media-right .qtm-compact__details { order: 1; }
@@ -178,6 +217,8 @@
 
 .qtm-compact__img {
   width: 100%;
+  height: auto;
+  display: block;
   border-radius: 12px;
 }
 
@@ -191,6 +232,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
 }
 
 .qtm-compact__title {
@@ -209,7 +251,8 @@
 }
 
 .qtm-compact__atc {
-  height: 48px;
+  min-height: 48px;
+  padding: 0.65rem 1rem;
   border-radius: 12px;
   width: 100%;
 }
@@ -220,6 +263,10 @@
   padding: 12px;
 }
 </style>
+
+{% elsif request.design_mode %}
+  <p>Select a product template to preview Main Product Compact.</p>
+{% endif %}
 
 {% schema %}
 {
@@ -264,11 +311,11 @@
     }
   ],
   "blocks": [
-    { "type": "title", "name": "Title" },
+    { "type": "title", "limit": 1, "name": "Title" },
     { "type": "price", "name": "Price" },
-    { "type": "variant_picker", "name": "Variant picker" },
-    { "type": "quantity", "name": "Quantity" },
-    { "type": "buy_buttons", "name": "Buy buttons" },
+    { "type": "variant_picker", "limit": 1, "name": "Variant picker" },
+    { "type": "quantity", "limit": 1, "name": "Quantity" },
+    { "type": "buy_buttons", "limit": 1, "name": "Buy buttons" },
     { "type": "description", "name": "Description" },
     {
       "type": "accordion",

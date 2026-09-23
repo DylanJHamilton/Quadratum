@@ -53,10 +53,10 @@
     product-size-chart--{{ layout_style }}
     product-size-chart--width-{{ width }}
     product-size-chart--align-{{ alignment }}
-    {% unless show_on_desktop %} product-size-chart--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-size-chart--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-size-chart--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-size-chart--animate product-size-chart--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-size-chart--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-size-chart--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-size-chart--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-size-chart--animate product-size-chart--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-size-chart-margin-top: {{ block.settings.margin_top }}px;
@@ -84,11 +84,14 @@
     data-product-id="{{ product_context.id }}"
     data-variant-id="{{ current_variant.id }}"
   {% endif %}
+  data-qtm-size-chart
   data-product-size-chart
-  {{ block.shopify_attributes }}
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-size-chart-margin-top);
       margin-bottom: var(--product-size-chart-margin-bottom);
@@ -379,7 +382,7 @@
       padding: 20px;
     }
 
-    #{{ block_id }} .product-size-chart__modal[aria-hidden="false"] {
+    #{{ block_id }} .product-size-chart__modal[open] {
       display: flex;
     }
 
@@ -546,6 +549,22 @@
         transform: none;
       }
     }
+
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} img, #{{ block_id }} video, #{{ block_id }} iframe { max-width: 100%; }
+{% unless show_on_desktop or request.design_mode %}@media (min-width: 990px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_tablet or request.design_mode %}@media (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_mobile or request.design_mode %}@media (max-width: 749px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+    #{{ block_id }} a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    #{{ block_id }} .product-size-chart__modal { width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border: 0; background: transparent; }
+    #{{ block_id }} .product-size-chart__modal::backdrop { background: transparent; }
+    #{{ block_id }} .product-size-chart__accordion-toggle { list-style: none; }
+    #{{ block_id }} .product-size-chart__accordion-toggle::-webkit-details-marker { display: none; }
+    #{{ block_id }} .product-size-chart__accordion-panel { display: block; }
+    #{{ block_id }} .product-size-chart__accordion-panel-inner { overflow: visible; }
+    #{{ block_id }} details[open] .product-size-chart__accordion-icon::after { opacity: 0; }
+    #{{ block_id }} .product-size-chart__table-wrap:focus-visible { outline: 2px solid var(--product-size-chart-focus-color); outline-offset: 3px; }
   </style>
 
   {%- capture chart_content -%}
@@ -559,8 +578,9 @@
 
       {% when 'table' %}
         {% if block.settings.table_rows != blank %}
-          <div class="product-size-chart__table-wrap">
+          <div class="product-size-chart__table-wrap" role="region" tabindex="0" aria-label="{{ block.settings.heading | default: 'Size chart' | escape }}">
             <table class="product-size-chart__table">
+              <caption class="visually-hidden">{{ block.settings.heading | default: 'Size chart' | escape }}</caption>
               {% if block.settings.table_heading_1 != blank or block.settings.table_heading_2 != blank or block.settings.table_heading_3 != blank or block.settings.table_heading_4 != blank %}
                 <thead>
                   <tr>
@@ -580,15 +600,14 @@
                 </thead>
               {% endif %}
 
+              {% assign all_headers_blank = false %}{% if block.settings.table_heading_1 == blank and block.settings.table_heading_2 == blank and block.settings.table_heading_3 == blank and block.settings.table_heading_4 == blank %}{% assign all_headers_blank = true %}<thead><tr>{% for column in (1..4) %}<th scope="col"><span class="visually-hidden">Column {{ column }}</span></th>{% endfor %}</tr></thead>{% endif %}
               <tbody>
                 {% assign rows = block.settings.table_rows | newline_to_br | split: '<br />' %}
                 {% for row in rows %}
-                  {% assign cells = row | split: '|' %}
+                  {% assign row = row | strip %}{% assign cells = row | split: '|' %}
                   {% if row != blank %}
                     <tr>
-                      {% for cell in cells limit: 4 %}
-                        <td>{{ cell | strip | escape }}</td>
-                      {% endfor %}
+                      {% for column in (1..4) %}{% assign heading_key = 'table_heading_' | append: column %}{% assign cell_index = column | minus: 1 %}{% if block.settings[heading_key] != blank or all_headers_blank %}<td>{{ cells[cell_index] | strip | escape }}</td>{% endif %}{% endfor %}
                     </tr>
                   {% endif %}
                 {% endfor %}
@@ -599,7 +618,7 @@
 
       {% when 'metafield' %}
         {% if metafield_chart != blank %}
-          {{ metafield_chart | metafield_tag }}
+          {% render 'qtm-block-metafield', field: metafield_chart %}
         {% endif %}
 
       {% else %}
@@ -635,20 +654,18 @@
         <button
           type="button"
           class="product-size-chart__trigger"
-          data-product-size-chart-open
+          data-product-size-chart-open hidden
           aria-haspopup="dialog"
           aria-controls="{{ block_id }}-modal"
         >
-          {{ block.settings.button_label | escape }}
+          {{ block.settings.button_label | default: 'View size chart' | escape }}
         </button>
       </div>
 
-      <div
+      <div data-qtm-chart-fallback><div class="product-size-chart__content" data-qtm-chart-content>{{ chart_content }}</div></div>
+      <dialog
         id="{{ block_id }}-modal"
         class="product-size-chart__modal"
-        role="dialog"
-        aria-modal="true"
-        aria-hidden="true"
         aria-labelledby="{{ block_id }}-modal-title"
         data-product-size-chart-modal
       >
@@ -657,125 +674,32 @@
         <div class="product-size-chart__modal-dialog" data-product-size-chart-dialog>
           <div class="product-size-chart__modal-header">
             <h2 id="{{ block_id }}-modal-title" class="product-size-chart__modal-title">
-              {{ block.settings.modal_heading | escape }}
+              {{ block.settings.modal_heading | default: 'Size chart' | escape }}
             </h2>
 
             <button
               type="button"
               class="product-size-chart__modal-close"
               data-product-size-chart-close
-              aria-label="{{ block.settings.close_label | escape }}"
+              aria-label="{{ block.settings.close_label | default: 'Close size chart' | escape }}"
             >
               ×
             </button>
           </div>
 
-          <div class="product-size-chart__content">
-            {{ chart_content }}
-          </div>
+          <div data-qtm-chart-destination></div>
         </div>
-      </div>
-
-      <script>
-        (() => {
-          const root = document.getElementById({{ block_id | json }});
-
-          if (!root || root.dataset.productSizeChartReady === 'true') return;
-
-          root.dataset.productSizeChartReady = 'true';
-
-          const openButton = root.querySelector('[data-product-size-chart-open]');
-          const modal = root.querySelector('[data-product-size-chart-modal]');
-          const dialog = root.querySelector('[data-product-size-chart-dialog]');
-          const closeButtons = Array.from(root.querySelectorAll('[data-product-size-chart-close]'));
-          let lastFocusedElement = null;
-
-          if (!openButton || !modal || !dialog) return;
-
-          const focusableSelectors = [
-            'a[href]',
-            'button:not([disabled])',
-            'textarea:not([disabled])',
-            'input:not([disabled])',
-            'select:not([disabled])',
-            '[tabindex]:not([tabindex="-1"])'
-          ].join(',');
-
-          const getFocusableElements = () => Array.from(dialog.querySelectorAll(focusableSelectors));
-
-          const openModal = () => {
-            lastFocusedElement = document.activeElement;
-            modal.setAttribute('aria-hidden', 'false');
-            document.documentElement.style.overflow = 'hidden';
-
-            const focusable = getFocusableElements();
-            const firstFocusable = focusable[0];
-
-            if (firstFocusable) {
-              firstFocusable.focus();
-            } else {
-              dialog.setAttribute('tabindex', '-1');
-              dialog.focus();
-            }
-          };
-
-          const closeModal = () => {
-            modal.setAttribute('aria-hidden', 'true');
-            document.documentElement.style.overflow = '';
-
-            if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-              lastFocusedElement.focus();
-            }
-          };
-
-          openButton.addEventListener('click', openModal);
-
-          closeButtons.forEach((button) => {
-            button.addEventListener('click', closeModal);
-          });
-
-          modal.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              closeModal();
-            }
-
-            if (event.key === 'Tab') {
-              const focusable = getFocusableElements();
-
-              if (!focusable.length) {
-                event.preventDefault();
-                return;
-              }
-
-              const first = focusable[0];
-              const last = focusable[focusable.length - 1];
-
-              if (event.shiftKey && document.activeElement === first) {
-                event.preventDefault();
-                last.focus();
-              }
-
-              if (!event.shiftKey && document.activeElement === last) {
-                event.preventDefault();
-                first.focus();
-              }
-            }
-          });
-        })();
-      </script>
+      </dialog>
     {% elsif layout_style == 'accordion' %}
-      <div class="product-size-chart__inner">
-        <button
-          type="button"
+      <details class="product-size-chart__inner"{% if block.settings.accordion_open_default %} open{% endif %}>
+        <summary
           class="product-size-chart__accordion-toggle"
-          aria-expanded="{% if block.settings.accordion_open_default %}true{% else %}false{% endif %}"
           aria-controls="{{ block_id }}-accordion-panel"
           data-product-size-chart-accordion-toggle
         >
-          <span>{{ block.settings.heading | escape }}</span>
+          <span>{{ block.settings.heading | default: 'Size chart' | escape }}</span>
           <span class="product-size-chart__accordion-icon" aria-hidden="true"></span>
-        </button>
+        </summary>
 
         <div
           id="{{ block_id }}-accordion-panel"
@@ -797,29 +721,7 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <script>
-        (() => {
-          const root = document.getElementById({{ block_id | json }});
-
-          if (!root || root.dataset.productSizeChartAccordionReady === 'true') return;
-
-          root.dataset.productSizeChartAccordionReady = 'true';
-
-          const toggle = root.querySelector('[data-product-size-chart-accordion-toggle]');
-          const panel = root.querySelector('[data-product-size-chart-accordion-panel]');
-
-          if (!toggle || !panel) return;
-
-          toggle.addEventListener('click', () => {
-            const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
-
-            toggle.setAttribute('aria-expanded', isExpanded ? 'false' : 'true');
-            panel.dataset.open = isExpanded ? 'false' : 'true';
-          });
-        })();
-      </script>
+      </details>
     {% else %}
       <div class="product-size-chart__inner">
         {% if block.settings.show_header %}
@@ -849,7 +751,7 @@
         </div>
       </div>
     {% endif %}
-  {% elsif block.settings.show_empty_state %}
+  {% elsif block.settings.show_empty_state or request.design_mode %}
     <div class="product-size-chart__empty">
       {{ block.settings.empty_text | escape }}
     </div>
@@ -896,8 +798,7 @@
     {
       "type": "richtext",
       "id": "chart_rich_text",
-      "label": "Rich text chart",
-      "default": "<p>Add size, fit, or dimension guidance here.</p>"
+      "label": "Rich text chart"
     },
     {
       "type": "text",
@@ -911,7 +812,6 @@
       "label": "Metafield key",
       "default": "size_chart"
     },
-
     {
       "type": "header",
       "content": "Table chart"
@@ -944,10 +844,8 @@
       "type": "textarea",
       "id": "table_rows",
       "label": "Table rows",
-      "info": "Use one row per line. Separate columns with | characters.",
-      "default": "S | 34-36 in | 28-30 in | 27 in\nM | 38-40 in | 32-34 in | 28 in\nL | 42-44 in | 36-38 in | 29 in"
+      "info": "Use one row per line. Separate columns with | characters."
     },
-
     {
       "type": "header",
       "content": "Header content"
@@ -976,7 +874,6 @@
       "label": "Description",
       "default": "Use this guide to choose the best size or compare product dimensions."
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -1007,7 +904,6 @@
       "label": "Accordion open by default",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Modal"
@@ -1050,7 +946,6 @@
       "unit": "%",
       "default": 60
     },
-
     {
       "type": "header",
       "content": "Typography"
@@ -1115,7 +1010,6 @@
       "unit": "px",
       "default": 15
     },
-
     {
       "type": "header",
       "content": "Sizing"
@@ -1170,7 +1064,6 @@
       "unit": "px",
       "default": 58
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1247,7 +1140,6 @@
       "label": "Focus color",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1272,7 +1164,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Container"
@@ -1325,7 +1216,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1380,7 +1270,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Empty state"
@@ -1389,7 +1278,7 @@
       "type": "checkbox",
       "id": "show_empty_state",
       "label": "Show empty state",
-      "default": true
+      "default": false
     },
     {
       "type": "text",
@@ -1397,7 +1286,6 @@
       "label": "Empty state text",
       "default": "Add a size chart, fit guide, dimension table, image, or metafield to display this block."
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1420,7 +1308,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1455,14 +1342,12 @@
       "name": "Size Chart",
       "settings": {
         "chart_source": "table",
-        "chart_rich_text": "<p>Add size, fit, or dimension guidance here.</p>",
         "metafield_namespace": "custom",
         "metafield_key": "size_chart",
         "table_heading_1": "Size",
         "table_heading_2": "Chest",
         "table_heading_3": "Waist",
         "table_heading_4": "Length",
-        "table_rows": "S | 34-36 in | 28-30 in | 27 in\nM | 38-40 in | 32-34 in | 28 in\nL | 42-44 in | 36-38 in | 29 in",
         "show_header": true,
         "eyebrow": "Fit guide",
         "heading": "Size chart",
@@ -1506,7 +1391,7 @@
         "margin_top": 0,
         "margin_bottom": 28,
         "padding": 0,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Add a size chart, fit guide, dimension table, image, or metafield to display this block.",
         "show_on_desktop": true,
         "show_on_tablet": true,
@@ -1518,14 +1403,12 @@
       "name": "Fit Guide",
       "settings": {
         "chart_source": "rich_text",
-        "chart_rich_text": "<p>Add fit notes, measurement guidance, and product-specific sizing recommendations.</p>",
         "metafield_namespace": "custom",
         "metafield_key": "fit_guide",
         "table_heading_1": "Size",
         "table_heading_2": "Chest",
         "table_heading_3": "Waist",
         "table_heading_4": "Length",
-        "table_rows": "S | 34-36 in | 28-30 in | 27 in\nM | 38-40 in | 32-34 in | 28 in\nL | 42-44 in | 36-38 in | 29 in",
         "show_header": false,
         "eyebrow": "Fit guide",
         "heading": "Fit guide",
@@ -1569,7 +1452,7 @@
         "margin_top": 0,
         "margin_bottom": 24,
         "padding": 0,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Add a size chart, fit guide, dimension table, image, or metafield to display this block.",
         "show_on_desktop": true,
         "show_on_tablet": true,
@@ -1581,14 +1464,12 @@
       "name": "Dimension Guide",
       "settings": {
         "chart_source": "table",
-        "chart_rich_text": "<p>Add product dimensions, fit notes, or measuring instructions.</p>",
         "metafield_namespace": "custom",
         "metafield_key": "dimensions",
         "table_heading_1": "Measurement",
         "table_heading_2": "Small",
         "table_heading_3": "Medium",
         "table_heading_4": "Large",
-        "table_rows": "Width | 12 in | 14 in | 16 in\nHeight | 20 in | 22 in | 24 in\nDepth | 8 in | 10 in | 12 in",
         "show_header": false,
         "eyebrow": "Dimensions",
         "heading": "Dimension guide",
@@ -1632,7 +1513,7 @@
         "margin_top": 0,
         "margin_bottom": 28,
         "padding": 0,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Add a size chart, fit guide, dimension table, image, or metafield to display this block.",
         "show_on_desktop": true,
         "show_on_tablet": true,

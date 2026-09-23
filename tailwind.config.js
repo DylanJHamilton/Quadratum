@@ -9,7 +9,9 @@ export default {
     "./snippets/**/*.liquid",
     "./blocks/**/*.liquid",
     "./templates/**/*.json",
-    "./assets/**/*.js"
+    "./assets/**/*.js",
+    // Vendor runtime uses its own shadow styles, not theme utilities.
+    "!./assets/q-model-viewer.min.js"
   ],
   theme: {
     extend: {
@@ -31,6 +33,16 @@ export default {
   },
   plugins: [typography],
   safelist: [
+    // Retain the existing utility after removing an unrelated captcha string.
+    'invisible','text-input',
+    // Preserve existing free-text spacing choices when hosts resolve their tokens natively.
+    'md:px-0','md:px-12','md:px-16','md:px-2','md:px-20','md:px-24',
+    'md:px-3','md:px-32','md:px-4','md:px-5','md:py-0','md:py-10',
+    'md:py-2','md:py-20','md:py-3','md:py-32','md:py-4','md:py-5',
+    'md:py-6','md:py-8','px-0','px-10','px-12','px-16',
+    'px-2','px-20','px-24','px-3','px-32','px-8',
+    'py-0','py-2','py-24','py-3','py-32','py-4',
+    'py-5','py-6',
     // alignment we toggle from schema
     'text-left','text-center','text-right',
     'items-start','items-center','items-end',
@@ -45,4 +57,3 @@ export default {
     'min-h-[60vh]','min-h-[75vh]','min-h-screen'
   ]
 }
-

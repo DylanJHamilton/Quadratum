@@ -1,3 +1,4 @@
+{%- capture search_types -%}{%- render 'search-source-types' -%}{%- endcapture -%}
 {%- liquid
   assign form_context = form_context | default: 'site'
   assign input_id = input_id | default: 'QtmPredictiveSearchInput'
@@ -12,31 +13,35 @@
     assign show_button = true
   endif
 
-  assign show_group_headings = settings.predictive_search_show_group_headings
-  assign show_thumbnails = settings.predictive_search_show_thumbnails
-  assign show_view_all = settings.predictive_search_show_view_all
+  assign show_group_headings = settings.predictive_search_show_group_headings | default: true, allow_false: true
+  assign show_thumbnails = settings.predictive_search_show_thumbnails | default: true, allow_false: true
+  assign show_view_all = settings.predictive_search_show_view_all | default: true, allow_false: true
 
-  assign allow_products = settings.search_src_products
-  assign allow_collections = settings.search_src_collections
-  assign allow_articles = settings.search_src_articles
-  assign allow_pages = settings.search_src_pages
+  assign allow_products = settings.search_src_products | default: true, allow_false: true
+  assign allow_collections = settings.search_src_collections | default: true, allow_false: true
+  assign allow_articles = settings.search_src_articles | default: true, allow_false: true
+  assign allow_pages = settings.search_src_pages | default: true, allow_false: true
 
-  assign limit_products = settings.predictive_search_products_limit | default: 4
-  assign limit_collections = settings.predictive_search_collections_limit | default: 3
-  assign limit_articles = settings.predictive_search_articles_limit | default: 3
-  assign limit_pages = settings.predictive_search_pages_limit | default: 3
+  assign limit_products = settings.predictive_search_products_limit | default: 4 | at_least: 1 | at_most: 10
+  assign limit_collections = settings.predictive_search_collections_limit | default: 3 | at_least: 1 | at_most: 10
+  assign limit_articles = settings.predictive_search_articles_limit | default: 3 | at_least: 1 | at_most: 10
+  assign limit_pages = settings.predictive_search_pages_limit | default: 3 | at_least: 1 | at_most: 10
 
-  assign min_chars = settings.predictive_search_min_chars | default: 2
-  assign debounce = settings.predictive_search_debounce | default: 250
+  assign min_chars = settings.predictive_search_min_chars | default: 2 | at_least: 1 | at_most: 5
+  assign debounce = settings.predictive_search_debounce | default: 250 | at_least: 100 | at_most: 500
 
   assign panel_style = settings.predictive_search_panel_style | default: 'soft'
   assign products_layout = settings.predictive_search_products_layout | default: 'list'
 -%}
 
+{%- if settings.enable_predictive_search == false -%}
+  {% render 'search-form-static', form_context: form_context, input_id: input_id, placeholder: placeholder, submit_label: submit_label, form_action: form_action, query_value: query_value, extra_class: extra_class, show_button: show_button %}
+{%- else -%}
 <div
-  class="qtm-search-form qtm-search-form--predictive qtm-search-form--predictive-{{ panel_style }} {{ extra_class }}"
+  class="qtm-search-form qtm-search-form--predictive qtm-search-form--predictive-{{ panel_style | escape }} {{ extra_class | escape }}"
   data-qtm-predictive-search
-  data-search-context="{{ form_context }}"
+  data-search-context="{{ form_context | escape }}"
+  data-currency="{{ cart.currency.iso_code | default: shop.currency | escape }}"
   data-min-chars="{{ min_chars }}"
   data-debounce="{{ debounce }}"
   data-products-enabled="{{ allow_products }}"
@@ -47,7 +52,7 @@
   data-collections-limit="{{ limit_collections }}"
   data-articles-limit="{{ limit_articles }}"
   data-pages-limit="{{ limit_pages }}"
-  data-products-layout="{{ products_layout }}"
+  data-products-layout="{{ products_layout | escape }}"
   data-show-group-headings="{{ show_group_headings }}"
   data-show-thumbnails="{{ show_thumbnails }}"
   data-show-view-all="{{ show_view_all }}"
@@ -69,19 +74,20 @@
   "
 >
   <form
-    class="qtm-search-form__form"
-    action="{{ form_action }}"
+    class="qtm-search-form__form qtm-search-predictive__form"
+    action="{{ form_action | escape }}"
     method="get"
     role="search"
   >
-    <label class="visually-hidden" for="{{ input_id }}">Search store</label>
+    {% if search_types != blank %}<input type="hidden" name="type" value="{{ search_types | escape }}">{% endif %}
+    <label class="visually-hidden" for="{{ input_id | escape }}">Search store</label>
 
     <div class="qtm-search-form__field">
       <input
-        id="{{ input_id }}"
-        class="qtm-search-form__input qtm-search-form__input--predictive"
+        id="{{ input_id | escape }}"
+        class="qtm-search-form__input qtm-search-form__input--predictive qtm-search-predictive__input"
         type="search"
-        name="q"
+        {% if search_types != blank %}name="q"{% endif %}
         value="{{ query_value | escape }}"
         placeholder="{{ placeholder | escape }}"
         autocomplete="off"
@@ -89,24 +95,34 @@
         spellcheck="false"
         aria-label="Search store"
         aria-expanded="false"
-        aria-controls="{{ panel_id }}"
+        aria-controls="{{ panel_id | escape }}"
         aria-autocomplete="list"
         role="combobox"
+        {% if search_types == blank and allow_collections == false %}disabled{% endif %}
         data-qtm-predictive-input
       >
     </div>
 
     {%- if show_button -%}
       <div class="qtm-search-form__actions">
-        <button class="qtm-search-form__submit button" type="submit">
-          {{ submit_label }}
+        <button class="qtm-search-form__submit qtm-search-predictive__submit button" type="submit"{% if search_types == blank %} disabled{% endif %}>
+          {{ submit_label | escape }}
         </button>
       </div>
+    {%- elsif search_types == blank -%}
+      <button type="submit" hidden disabled></button>
     {%- endif -%}
   </form>
+  {% if search_types == blank %}
+    <p class="qtm-search-form__notice">{% if allow_collections %}Choose a collection from the search suggestions.{% else %}Search is currently unavailable.{% endif %}</p>
+    {% if allow_collections %}
+      <noscript><p>Enable JavaScript for collection suggestions.{% if routes.collections_url != blank %} <a href="{{ routes.collections_url | escape }}">Browse collections</a>{% endif %}</p></noscript>
+    {% endif %}
+  {% endif %}
+  <p class="visually-hidden" role="status" aria-live="polite" data-qtm-predictive-status></p>
 
   <div
-    id="{{ panel_id }}"
+    id="{{ panel_id | escape }}"
     class="qtm-search-predictive__panel"
     role="listbox"
     aria-label="Search suggestions"
@@ -114,3 +130,4 @@
     data-qtm-predictive-panel
   ></div>
 </div>
+{%- endif -%}

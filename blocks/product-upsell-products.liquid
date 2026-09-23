@@ -37,7 +37,7 @@
     assign upsell_price = upsell_variant.price
   endif
 
-  if upsell_price > current_price
+  if current_variant != blank and upsell_variant != blank and upsell_price > current_price
     assign price_difference = upsell_price | minus: current_price
   endif
 
@@ -52,6 +52,17 @@
   endif
 -%}
 
+{% capture upsell_variants %}[
+  {% assign upsell_separator = '' %}{% assign upsell_variant_count = product_context.variants.size | default: 0 %}
+  {% for upsell_index in (0..upsell_variant_count) %}
+    {% if upsell_index == 0 %}{% assign base_variant = current_variant %}{% else %}{% assign base_offset = upsell_index | minus: 1 %}{% assign base_variant = product_context.variants[base_offset] %}{% endif %}
+    {% if base_variant != blank %}{% if upsell_index == 0 or base_variant.id != current_variant.id %}
+      {% capture upsell_difference %}{% if upsell_variant != blank and upsell_price > base_variant.price %}{{ block.settings.price_difference_prefix }} {{ upsell_price | minus: base_variant.price | money | strip_html }}{% endif %}{% endcapture %}
+      {{ upsell_separator }}{"id":{{ base_variant.id | json }},"values":{"upsell_difference":{{ upsell_difference | strip | json }}}}{% assign upsell_separator = ',' %}
+    {% endif %}{% endif %}
+  {% endfor %}
+]{% endcapture %}
+
 <div
   id="{{ block_id }}"
   class="
@@ -59,10 +70,10 @@
     product-upsell-products--{{ layout_style }}
     product-upsell-products--width-{{ width }}
     product-upsell-products--align-{{ alignment }}
-    {% unless show_on_desktop %} product-upsell-products--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-upsell-products--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-upsell-products--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-upsell-products--animate product-upsell-products--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-upsell-products--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-upsell-products--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-upsell-products--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-upsell-products--animate product-upsell-products--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-upsell-margin-top: {{ block.settings.margin_top }}px;
@@ -98,10 +109,15 @@
     data-variant-id="{{ current_variant.id }}"
   {% endif %}
   data-product-upsell-products
-  {{ block.shopify_attributes }}
+  data-product-info
+  data-variants="{{ upsell_variants | escape }}"
+  {% if has_upsell == false and block.settings.show_empty_state == false and request.design_mode == false %}hidden{% endif %}
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-upsell-margin-top);
       margin-bottom: var(--product-upsell-margin-bottom);
@@ -404,7 +420,7 @@
     }
 
     #{{ block_id }}.product-upsell-products--animate {
-      opacity: 0;
+      opacity: 1;
       animation-duration: 700ms;
       animation-fill-mode: forwards;
       animation-timing-function: ease;
@@ -524,13 +540,17 @@
         transform: none;
       }
     }
+    #{{ block_id }}[hidden], #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} a:focus-visible { outline-offset: -3px; }
+    #{{ block_id }} .product-upsell-products__button { max-width: 100%; }
   </style>
 
   {% if has_upsell %}
     <article class="product-upsell-products__card">
-      <a class="product-upsell-products__media" href="{{ upsell_product.url }}" aria-label="{{ upsell_product.title | escape }}">
+      <a class="product-upsell-products__media" href="{{ upsell_product.url | escape }}" aria-label="{{ upsell_product.title | escape }}">
         {% if upsell_product.featured_image %}
-          {{ upsell_product.featured_image | image_url: width: 1400 | image_tag: loading: 'eager', widths: '280, 420, 560, 720, 900, 1200, 1400', alt: image_alt }}
+          {{ upsell_product.featured_image | image_url: width: 1400 | image_tag: loading: 'lazy', widths: '280, 420, 560, 720, 900, 1200, 1400', alt: image_alt }}
         {% else %}
           <span class="product-upsell-products__placeholder" aria-hidden="true"></span>
         {% endif %}
@@ -550,7 +570,7 @@
         {% endif %}
 
         <h2 class="product-upsell-products__heading">
-          <a href="{{ upsell_product.url }}">
+          <a href="{{ upsell_product.url | escape }}">
             {% if block.settings.heading != blank %}
               {{ block.settings.heading | escape }}
             {% else %}
@@ -565,7 +585,7 @@
           </p>
         {% endif %}
 
-        {% if block.settings.show_price %}
+        {% if block.settings.show_price and upsell_variant != blank %}
           <div class="product-upsell-products__meta">
             <span class="product-upsell-products__price">
               {{ upsell_variant.price | money }}
@@ -577,30 +597,30 @@
               </span>
             {% endif %}
 
-            {% if block.settings.show_price_difference and price_difference > 0 %}
-              <span class="product-upsell-products__difference">
-                {{ block.settings.price_difference_prefix | escape }} {{ price_difference | money }}
+            {% if block.settings.show_price_difference %}
+              <span class="product-upsell-products__difference" data-product-info-value data-info-key="upsell_difference" data-hide-empty {% if price_difference <= 0 %}hidden{% endif %}>
+                {% if price_difference > 0 %}{{ block.settings.price_difference_prefix | escape }} {{ price_difference | money }}{% endif %}
               </span>
             {% endif %}
           </div>
         {% endif %}
 
         <div class="product-upsell-products__buttons">
-          {% if block.settings.show_primary_button %}
-            <a class="product-upsell-products__button" href="{{ upsell_product.url }}">
+          {% if block.settings.show_primary_button and block.settings.primary_button_label != blank %}
+            <a class="product-upsell-products__button" href="{{ upsell_product.url | escape }}">
               {{ block.settings.primary_button_label | escape }}
             </a>
           {% endif %}
 
-          {% if block.settings.show_secondary_button %}
-            <a class="product-upsell-products__button product-upsell-products__button--secondary" href="{{ upsell_product.url }}">
+          {% if block.settings.show_secondary_button and block.settings.secondary_button_label != blank %}
+            <a class="product-upsell-products__button product-upsell-products__button--secondary" href="{{ upsell_product.url | escape }}">
               {{ block.settings.secondary_button_label | escape }}
             </a>
           {% endif %}
         </div>
       </div>
     </article>
-  {% elsif block.settings.show_empty_state %}
+  {% elsif block.settings.show_empty_state or request.design_mode %}
     <div class="product-upsell-products__empty">
       {{ block.settings.empty_text | escape }}
     </div>
@@ -620,7 +640,6 @@
       "id": "upsell_product",
       "label": "Featured upsell product"
     },
-
     {
       "type": "header",
       "content": "Content"
@@ -628,26 +647,23 @@
     {
       "type": "text",
       "id": "highlight_badge",
-      "label": "Highlight badge",
-      "default": "Upgrade"
+      "label": "Highlight badge"
     },
     {
       "type": "text",
       "id": "eyebrow",
-      "label": "Eyebrow",
-      "default": "Premium option"
+      "label": "Eyebrow"
     },
     {
       "type": "text",
       "id": "heading",
-      "label": "Custom heading",
-      "default": "Upgrade your pick"
+      "label": "Custom heading"
     },
     {
       "type": "text",
       "id": "comparison_text",
       "label": "Comparison text",
-      "default": "Get more features, better performance, or a higher-value option with this recommended upgrade."
+      "info": "Optional merchant-written comparison. Add only claims that apply to the selected products."
     },
     {
       "type": "checkbox",
@@ -659,15 +675,15 @@
       "type": "checkbox",
       "id": "show_price_difference",
       "label": "Show price difference",
-      "default": true
+      "default": true,
+      "info": "Compares base unit variant prices before selling plans, quantities and cart discounts."
     },
     {
       "type": "text",
       "id": "price_difference_prefix",
       "label": "Price difference prefix",
-      "default": "Only"
+      "default": "Base price difference:"
     },
-
     {
       "type": "header",
       "content": "Buttons"
@@ -682,7 +698,7 @@
       "type": "text",
       "id": "primary_button_label",
       "label": "Primary button label",
-      "default": "View upgrade"
+      "default": "View product"
     },
     {
       "type": "checkbox",
@@ -694,9 +710,8 @@
       "type": "text",
       "id": "secondary_button_label",
       "label": "Secondary button label",
-      "default": "Compare option"
+      "default": "View details"
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -721,7 +736,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Images"
@@ -802,7 +816,6 @@
       "unit": "px",
       "default": 300
     },
-
     {
       "type": "header",
       "content": "Typography"
@@ -857,7 +870,6 @@
       "unit": "px",
       "default": 12
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -952,7 +964,6 @@
       "label": "Focus color",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1007,7 +1018,6 @@
       "unit": "px",
       "default": 12
     },
-
     {
       "type": "header",
       "content": "Container"
@@ -1060,7 +1070,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1125,7 +1134,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Empty state"
@@ -1134,7 +1142,7 @@
       "type": "checkbox",
       "id": "show_empty_state",
       "label": "Show empty state",
-      "default": true
+      "default": false
     },
     {
       "type": "text",
@@ -1142,7 +1150,6 @@
       "label": "Empty state text",
       "default": "Select an upsell product to display this block."
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1165,7 +1172,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1197,19 +1203,19 @@
   ],
   "presets": [
     {
-      "name": "Upgrade Your Pick",
+      "name": "Featured Alternative",
       "settings": {
-        "highlight_badge": "Upgrade",
-        "eyebrow": "Premium option",
-        "heading": "Upgrade your pick",
-        "comparison_text": "Get more features, better performance, or a higher-value option with this recommended upgrade.",
+        "highlight_badge": "",
+        "eyebrow": "",
+        "heading": "",
+        "comparison_text": "",
         "show_price": true,
         "show_price_difference": true,
-        "price_difference_prefix": "Only",
+        "price_difference_prefix": "Base price difference:",
         "show_primary_button": true,
-        "primary_button_label": "View upgrade",
+        "primary_button_label": "View product",
         "show_secondary_button": false,
-        "secondary_button_label": "Compare option",
+        "secondary_button_label": "View details",
         "layout_style": "feature_card",
         "image_fit": "cover",
         "image_ratio": 115,
@@ -1251,7 +1257,7 @@
         "margin_top": 0,
         "margin_bottom": 32,
         "padding": 0,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Select an upsell product to display this block.",
         "show_on_desktop": true,
         "show_on_tablet": true,
@@ -1260,17 +1266,17 @@
       }
     },
     {
-      "name": "Premium Option",
+      "name": "Split Alternative",
       "settings": {
-        "highlight_badge": "Premium",
-        "eyebrow": "Better option",
-        "heading": "Consider the premium option",
-        "comparison_text": "Highlight a premium product with stronger features, better materials, or a higher-value experience.",
+        "highlight_badge": "",
+        "eyebrow": "",
+        "heading": "",
+        "comparison_text": "",
         "show_price": true,
         "show_price_difference": true,
-        "price_difference_prefix": "Upgrade for",
+        "price_difference_prefix": "Base price difference:",
         "show_primary_button": true,
-        "primary_button_label": "Shop premium",
+        "primary_button_label": "View product",
         "show_secondary_button": true,
         "secondary_button_label": "View details",
         "layout_style": "split",
@@ -1314,7 +1320,7 @@
         "margin_top": 0,
         "margin_bottom": 36,
         "padding": 0,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Select an upsell product to display this block.",
         "show_on_desktop": true,
         "show_on_tablet": true,
@@ -1323,19 +1329,19 @@
       }
     },
     {
-      "name": "Best Value Upsell",
+      "name": "Compact Alternative",
       "settings": {
-        "highlight_badge": "Best value",
-        "eyebrow": "Recommended upgrade",
-        "heading": "Best value upgrade",
-        "comparison_text": "Use a compact upsell placement to recommend a stronger option without interrupting the PDP flow.",
+        "highlight_badge": "",
+        "eyebrow": "",
+        "heading": "",
+        "comparison_text": "",
         "show_price": true,
         "show_price_difference": true,
-        "price_difference_prefix": "Only",
+        "price_difference_prefix": "Base price difference:",
         "show_primary_button": true,
-        "primary_button_label": "View option",
+        "primary_button_label": "View product",
         "show_secondary_button": false,
-        "secondary_button_label": "Compare option",
+        "secondary_button_label": "View details",
         "layout_style": "compact",
         "image_fit": "cover",
         "image_ratio": 100,
@@ -1377,7 +1383,7 @@
         "margin_top": 0,
         "margin_bottom": 28,
         "padding": 0,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Select an upsell product to display this block.",
         "show_on_desktop": true,
         "show_on_tablet": true,

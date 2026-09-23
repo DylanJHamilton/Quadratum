@@ -39,8 +39,8 @@
       </div>
 
       <style>
-        .product-story{padding:24px 0}
-        .product-story__inner{
+        .product-story--placeholder{padding:24px 0}
+        .product-story--placeholder .product-story__inner{
           max-width:var(--q-content-max,1100px);
           margin-inline:auto;
           padding-inline:var(--q-gutter,16px);
@@ -48,7 +48,7 @@
           border-radius:var(--q-radius-2xl,16px);
           padding:20px;
         }
-        .product-story__title{margin:0 0 12px;font:inherit;font-weight:700}
+        .product-story--placeholder .product-story__title{margin:0 0 12px;font:inherit;font-weight:700}
       </style>
     </section>
   {%- endif -%}
@@ -76,35 +76,35 @@
     endcomment
     if s.source == 'metaobject' and meta_story
       if meta_story.heading != blank
-        assign story_heading = meta_story.heading
+        assign story_heading = meta_story.heading.value
       endif
 
       if meta_story.media_caption != blank
-        assign resolved_caption = meta_story.media_caption
+        assign resolved_caption = meta_story.media_caption.value
       endif
 
       if s.show_media
         if s.media_type == 'video'
           if meta_story.media_video != blank
             assign resolved_media_kind = 'video'
-            assign resolved_video = meta_story.media_video
+            assign resolved_video = meta_story.media_video.value
           elsif meta_story.media_image != blank
             assign resolved_media_kind = 'image'
-            assign resolved_image = meta_story.media_image
+            assign resolved_image = meta_story.media_image.value
           endif
         else
           if meta_story.media_image != blank
             assign resolved_media_kind = 'image'
-            assign resolved_image = meta_story.media_image
+            assign resolved_image = meta_story.media_image.value
           elsif meta_story.media_video != blank
             assign resolved_media_kind = 'video'
-            assign resolved_video = meta_story.media_video
+            assign resolved_video = meta_story.media_video.value
           endif
         endif
       endif
 
       if s.show_timeline and meta_story.timeline_items != blank
-        assign timeline_items = meta_story.timeline_items
+        assign timeline_items = meta_story.timeline_items.value
       endif
     endif
 
@@ -118,13 +118,18 @@
           if featured_media_block_id == blank
             if block.type == 'story_image' and block.settings.image != blank
               assign featured_media_block_id = block.id
+              assign featured_media_attributes = block.shopify_attributes
               assign resolved_media_kind = 'image'
               assign resolved_image = block.settings.image
+              if block.settings.ratio != 'inherit' and block.settings.ratio != blank
+                assign featured_ratio = block.settings.ratio
+              endif
               if block.settings.caption != blank
                 assign resolved_caption = block.settings.caption
               endif
             elsif block.type == 'story_video' and block.settings.video != blank
               assign featured_media_block_id = block.id
+              assign featured_media_attributes = block.shopify_attributes
               assign resolved_media_kind = 'video'
               assign resolved_video = block.settings.video
               if block.settings.caption != blank
@@ -139,7 +144,17 @@
     comment
       FALLBACK: section media
     endcomment
-    if s.show_media and resolved_media_kind == blank
+    assign has_inline_media = false
+    if s.source == 'manual' and s.layout != 'split'
+      for block in section.blocks
+        if block.type == 'story_image' and block.settings.image != blank
+          assign has_inline_media = true
+        elsif block.type == 'story_video' and block.settings.video != blank
+          assign has_inline_media = true
+        endif
+      endfor
+    endif
+    if s.show_media and resolved_media_kind == blank and has_inline_media == false
       if s.media_type == 'video' and s.video != blank
         assign resolved_media_kind = 'video'
         assign resolved_video = s.video
@@ -186,7 +201,8 @@
       assign media_pos_class = ' product-story--media-left'
     endif
 
-    assign ratio_class = ' product-story__media--' | append: s.media_ratio
+    assign active_ratio = featured_ratio | default: s.media_ratio
+    assign ratio_class = ' product-story__media--' | append: active_ratio
     assign fit_class = ' product-story__media--fit-' | append: s.media_fit
 
     assign pad_top = s.padding_top | default: 40
@@ -213,6 +229,7 @@
   -%}
 
   <section
+    id="ProductStory-{{ section.id }}" data-product-story data-autoplay="{{ s.video_autoplay }}"
     class="q-section product-story product-story--{{ effective_layout }}{{ media_pos_class }}{{ width_class }}{{ align_class }}"
     style="
       --ps-pad-top: {{ pad_top }}px;
@@ -234,7 +251,7 @@
 
         <div class="product-story__header">
           {%- if story_heading != blank -%}
-            <h2 class="product-story__title">{{ story_heading }}</h2>
+            <h2 class="product-story__title">{{ story_heading | escape }}</h2>
           {%- endif -%}
 
           {%- if story_intro != blank -%}
@@ -257,19 +274,19 @@
                       {%- endif -%}
 
                     {%- when 'story_image' -%}
-                      {%- if block.settings.image != blank -%}
+                      {%- if s.show_media and block.settings.image != blank -%}
                         {%- if effective_layout == 'split' and s.show_media and block.id == featured_media_block_id -%}
                           {%- comment -%}This one is already used as split media{%- endcomment -%}
                         {%- else -%}
                           {%- liquid
                             assign b_ratio = block.settings.ratio | default: 'inherit'
-                            assign ratio_override_class = ''
+                            assign ratio_override_class = ' product-story__media--' | append: s.media_ratio
                             if b_ratio != 'inherit'
                               assign ratio_override_class = ' product-story__media--' | append: b_ratio
                             endif
                           -%}
                           <figure class="product-story__block product-story__block--image" {{ block.shopify_attributes }}>
-                            <div class="product-story__media product-story__media--image{{ ratio_override_class }} product-story__media--{{ s.media_ratio }} {{ fit_class }}">
+                            <div class="product-story__media product-story__media--image{{ ratio_override_class }} {{ fit_class }}">
                               {%- liquid
                                 assign qtm_image_alt = block.settings.image.alt | default: q_product.title
                               -%}
@@ -277,21 +294,21 @@
                                 loading: 'lazy', alt: qtm_image_alt }}
                             </div>
                             {%- if block.settings.caption != blank -%}
-                              <figcaption class="product-story__caption">{{ block.settings.caption }}</figcaption>
+                              <figcaption class="product-story__caption">{{ block.settings.caption | escape }}</figcaption>
                             {%- endif -%}
                           </figure>
                         {%- endif -%}
                       {%- endif -%}
 
                     {%- when 'story_video' -%}
-                      {%- if block.settings.video != blank -%}
+                      {%- if s.show_media and block.settings.video != blank -%}
                         {%- if effective_layout == 'split' and s.show_media and block.id == featured_media_block_id -%}
                           {%- comment -%}This one is already used as split media{%- endcomment -%}
                         {%- else -%}
                           <figure class="product-story__block product-story__block--video" {{ block.shopify_attributes }}>
-                            <div class="product-story__media product-story__media--video product-story__media--{{ s.media_ratio }}">
+                            <div class="product-story__media product-story__media--video product-story__media--{{ s.media_ratio }}{{ fit_class }}">
                               {{ block.settings.video | video_tag:
-                                autoplay: s.video_autoplay,
+                                autoplay: false,
                                 loop: s.video_loop,
                                 muted: true,
                                 controls: true,
@@ -299,7 +316,7 @@
                               }}
                             </div>
                             {%- if block.settings.caption != blank -%}
-                              <figcaption class="product-story__caption">{{ block.settings.caption }}</figcaption>
+                              <figcaption class="product-story__caption">{{ block.settings.caption | escape }}</figcaption>
                             {%- endif -%}
                           </figure>
                         {%- endif -%}
@@ -310,7 +327,7 @@
 
             {%- elsif s.source == 'metaobject' -%}
               {%- if meta_story and meta_story.content != blank -%}
-                <div class="product-story__body rte">{{ meta_story.content }}</div>
+                <div class="product-story__body rte">{% if meta_story.content.type == 'rich_text_field' %}{{ meta_story.content | metafield_tag }}{% else %}{{ meta_story.content.value | escape | newline_to_br }}{% endif %}</div>
               {%- elsif request.design_mode -%}
                 <div class="product-story__body rte"><p><em>No metaobject content found.</em></p></div>
               {%- endif -%}
@@ -318,7 +335,7 @@
             {%- else -%}
               {%- if mf != blank -%}
                 <div class="product-story__body rte">
-                  {%- if mf.type == 'rich_text' -%}
+                  {%- if mf.type == 'rich_text_field' -%}
                     {{ mf | metafield_tag }}
                   {%- else -%}
                     <p>{{ mf.value | default: mf | escape }}</p>
@@ -331,8 +348,8 @@
 
           </div>
 
-          {%- if effective_layout == 'split' and s.show_media and resolved_media_kind != blank -%}
-            <div class="product-story__media-col">
+          {%- if s.show_media and resolved_media_kind != blank -%}
+            <div class="product-story__media-col" {{ featured_media_attributes }}>
               {%- if resolved_media_kind == 'image' and resolved_image != blank -%}
                 <figure class="product-story__figure">
                   <div class="product-story__media product-story__media--image{{ ratio_class }}{{ fit_class }}">
@@ -343,14 +360,14 @@
                       loading: 'lazy', alt: qtm_image_alt }}
                   </div>
                   {%- if resolved_caption != blank -%}
-                    <figcaption class="product-story__caption">{{ resolved_caption }}</figcaption>
+                    <figcaption class="product-story__caption">{{ resolved_caption | escape }}</figcaption>
                   {%- endif -%}
                 </figure>
               {%- elsif resolved_media_kind == 'video' and resolved_video != blank -%}
                 <figure class="product-story__figure">
-                  <div class="product-story__media product-story__media--video{{ ratio_class }}">
+                  <div class="product-story__media product-story__media--video{{ ratio_class }}{{ fit_class }}">
                     {{ resolved_video | video_tag:
-                      autoplay: s.video_autoplay,
+                      autoplay: false,
                       loop: s.video_loop,
                       muted: true,
                       controls: true,
@@ -358,7 +375,7 @@
                     }}
                   </div>
                   {%- if resolved_caption != blank -%}
-                    <figcaption class="product-story__caption">{{ resolved_caption }}</figcaption>
+                    <figcaption class="product-story__caption">{{ resolved_caption | escape }}</figcaption>
                   {%- endif -%}
                 </figure>
               {%- endif -%}
@@ -369,7 +386,7 @@
         {%- if should_render_timeline -%}
           <div class="product-story__timeline" role="region" aria-label="{{ timeline_heading | strip_html | escape }}">
             {%- if timeline_heading != blank -%}
-              <h3 class="product-story__timeline-title">{{ timeline_heading }}</h3>
+              <h3 class="product-story__timeline-title">{{ timeline_heading | escape }}</h3>
             {%- endif -%}
 
             <ol class="product-story__timeline-list">
@@ -381,10 +398,10 @@
 
                       <div class="product-story__timeline-card">
                         {%- if block.settings.date != blank -%}
-                          <div class="product-story__timeline-date">{{ block.settings.date }}</div>
+                          <div class="product-story__timeline-date">{{ block.settings.date | escape }}</div>
                         {%- endif -%}
                         {%- if block.settings.title != blank -%}
-                          <div class="product-story__timeline-heading">{{ block.settings.title }}</div>
+                          <div class="product-story__timeline-heading">{{ block.settings.title | escape }}</div>
                         {%- endif -%}
                         {%- if block.settings.text != blank -%}
                           <div class="product-story__timeline-text rte">{{ block.settings.text }}</div>
@@ -409,20 +426,20 @@
 
                     <div class="product-story__timeline-card">
                       {%- if item.date != blank -%}
-                        <div class="product-story__timeline-date">{{ item.date }}</div>
+                        <div class="product-story__timeline-date">{{ item.date.value | escape }}</div>
                       {%- endif -%}
                       {%- if item.title != blank -%}
-                        <div class="product-story__timeline-heading">{{ item.title }}</div>
+                        <div class="product-story__timeline-heading">{{ item.title.value | escape }}</div>
                       {%- endif -%}
                       {%- if item.text != blank -%}
-                        <div class="product-story__timeline-text rte">{{ item.text }}</div>
+                        <div class="product-story__timeline-text rte">{% if item.text.type == 'rich_text_field' %}{{ item.text | metafield_tag }}{% else %}{{ item.text.value | escape | newline_to_br }}{% endif %}</div>
                       {%- endif -%}
                       {%- if item.image != blank -%}
                         <div class="product-story__timeline-media">
                           {%- liquid
-                            assign qtm_image_alt = item.image.alt | default: item.title | default: q_product.title
+                            assign qtm_image_alt = item.image.value.alt | default: item.title | default: q_product.title
                           -%}
-                          {{ item.image | image_url: width: 1400 | image_tag:
+                          {{ item.image.value | image_url: width: 1400 | image_tag:
                             loading: 'lazy', alt: qtm_image_alt }}
                         </div>
                       {%- endif -%}
@@ -441,6 +458,7 @@
       </div>
     </div>
 
+    <script src="{{ 'product-content.js' | asset_url }}" defer></script>
     <style>
       .product-story{
         padding-top:var(--ps-pad-top,40px);
@@ -449,6 +467,8 @@
         color:var(--ps-text);
       }
 
+      .product-story { overflow-wrap:anywhere; }
+      .product-story__grid > * { min-width:0; }
       .product-story__outer{width:100%}
       .product-story--center .product-story__inner{max-width:var(--q-content-max,1100px);margin-inline:auto;padding-inline:var(--q-gutter,16px)}
       .product-story--full .product-story__inner{width:100%;padding-inline:var(--q-gutter,16px)}
@@ -500,7 +520,7 @@
       .product-story__media--square{aspect-ratio:1/1}
       .product-story__media--landscape{aspect-ratio:16/9}
       .product-story__media--portrait{aspect-ratio:4/5}
-      .product-story__media--video video{width:100%;height:100%;display:block}
+      .product-story__media--video video{width:100%;height:100%;display:block;object-fit:var(--ps-fit,cover)}
 
       /* Timeline */
       .product-story__timeline{margin-top:var(--q-space-8,32px)}
@@ -619,7 +639,7 @@
       "label": "Story metaobject (when source = metaobject)",
       "metaobject_type": "product_story"
     },
-    { "type": "text", "id": "metaobject_expected_type", "label": "Expected metaobject type (hint)", "default": "product_story" },
+    { "type": "paragraph", "content": "Story entries use the product_story metaobject definition." },
 
     { "type": "header", "content": "Layout" },
     {

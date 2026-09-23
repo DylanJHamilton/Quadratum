@@ -8,15 +8,13 @@
     assign featured_product = product_context
   elsif selected_product != blank
     assign featured_product = selected_product
-  elsif product_context != blank
-    assign featured_product = product_context
   else
-    assign featured_product = blank
+    assign featured_product = product_context
   endif
 
   if featured_product != blank
     assign current_variant = featured_product.selected_or_first_available_variant
-    assign featured_media = current_variant.featured_media | default: featured_product.featured_media
+    assign featured_media = current_variant.featured_media | default: featured_product.featured_media | default: featured_product.media.first | default: featured_product.featured_image
     assign is_on_sale = false
 
     if current_variant.compare_at_price > current_variant.price
@@ -32,20 +30,52 @@
   assign show_on_desktop = block.settings.show_on_desktop
   assign show_on_tablet = block.settings.show_on_tablet
   assign show_on_mobile = block.settings.show_on_mobile
+
+  assign form_id = block_id | append: '-form'
+  assign quantity_min = current_variant.quantity_rule.min | default: 1
+  assign quantity_step = current_variant.quantity_rule.increment | default: 1
+  assign quantity_max = current_variant.quantity_rule.max
+  assign selected_allocation = current_variant.selected_selling_plan_allocation
+  if selected_allocation == blank and featured_product.requires_selling_plan
+    assign selected_allocation = current_variant.selling_plan_allocations.first
+  endif
+  assign purchase_available = current_variant.available
+  if featured_product.requires_selling_plan and selected_allocation == blank
+    assign purchase_available = false
+  endif
+  assign purchase_price = current_variant.price
+  assign purchase_compare = current_variant.compare_at_price
+  if selected_allocation != blank
+    assign purchase_price = selected_allocation.price
+    assign purchase_compare = selected_allocation.compare_at_price | default: current_variant.price
+  endif
+  assign is_on_sale = false
+  if current_variant != blank and purchase_compare > purchase_price
+    assign is_on_sale = true
+  endif
+  assign featured_description = ''
+  if block.settings.show_description
+    if block.settings.description_source == 'custom'
+      assign featured_description = block.settings.custom_description
+    else
+      assign featured_description = featured_product.description | strip_html | truncatewords: block.settings.description_words
+    endif
+  endif
 -%}
 
 <div
   id="{{ block_id }}"
   class="
     content-featured-product
+    {% if featured_media == blank %}content-featured-product--no-media{% endif %}
     content-featured-product--{{ featured_layout }}
     content-featured-product--media-{{ media_position }}
     content-featured-product--width-{{ width }}
     content-featured-product--align-{{ alignment }}
-    {% unless show_on_desktop %} content-featured-product--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} content-featured-product--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} content-featured-product--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} content-featured-product--animate content-featured-product--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} content-featured-product--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} content-featured-product--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} content-featured-product--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} content-featured-product--animate content-featured-product--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --content-featured-product-margin-top: {{ block.settings.margin_top }}px;
@@ -75,37 +105,46 @@
     data-product-id="{{ featured_product.id }}"
     data-variant-id="{{ current_variant.id }}"
   {% endif %}
+  {% if featured_product == blank and request.design_mode == false %}hidden{% endif %}
+  {% unless block.settings.product_source == 'current' and product_context != blank %}data-qtm-commerce-scope{% endunless %}
+  data-qtm-product-block-commerce="form"
+  data-product-url="{{ featured_product.url | escape }}"
+  data-requires-plan="{{ featured_product.requires_selling_plan }}" data-initial-plan="{{ selected_allocation.selling_plan.id }}"
+  data-add-label="{{ block.settings.atc_label | default: 'Add to cart' | escape }}"
+  data-sold-label="{{ block.settings.sold_out_label | default: 'Sold out' | escape }}"
+  data-unavailable-label="{{ block.settings.unavailable_label | default: 'Unavailable' | escape }}"
+  data-sale-label="{{ block.settings.sale_badge_text | escape }}"
+  data-cart-adding-message="{{ 'Adding to cart...' | escape }}" data-cart-added-message="{{ 'Added to cart.' | escape }}"
   data-content-featured-product
-  {{ block.shopify_attributes }}
 >
   <style>
     #{{ block_id }} {
       width: 100%;
       margin-top: var(--content-featured-product-margin-top);
       margin-bottom: var(--content-featured-product-margin-bottom);
-      padding: var(--content-featured-product-padding);
+      padding: min(var(--content-featured-product-padding), 8%);
       color: var(--content-featured-product-text-color);
       background: var(--content-featured-product-background);
     }
 
     #{{ block_id }}.content-featured-product--width-auto {
-      max-width: none;
+      max-width: 100%;
     }
 
     #{{ block_id }}.content-featured-product--width-small {
-      max-width: 920px;
+      max-width: min(100%, 920px);
     }
 
     #{{ block_id }}.content-featured-product--width-medium {
-      max-width: 1120px;
+      max-width: min(100%, 1120px);
     }
 
     #{{ block_id }}.content-featured-product--width-large {
-      max-width: 1360px;
+      max-width: min(100%, 1360px);
     }
 
     #{{ block_id }}.content-featured-product--width-full {
-      max-width: none;
+      max-width: 100%;
     }
 
     #{{ block_id }}.content-featured-product--align-left {
@@ -137,7 +176,7 @@
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: var(--content-featured-product-gap);
       align-items: center;
-      padding: var(--content-featured-product-card-padding);
+      padding: min(var(--content-featured-product-card-padding), 8%);
       background: var(--content-featured-product-card-background);
       border: var(--content-featured-product-border-width) solid var(--content-featured-product-border-color);
       border-radius: var(--content-featured-product-radius);
@@ -148,7 +187,7 @@
       grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
       gap: var(--content-featured-product-gap);
       align-items: center;
-      padding: var(--content-featured-product-card-padding);
+      padding: min(var(--content-featured-product-card-padding), 8%);
       background: var(--content-featured-product-card-background);
       border: var(--content-featured-product-border-width) solid var(--content-featured-product-border-color);
       border-radius: var(--content-featured-product-radius);
@@ -176,7 +215,7 @@
       overflow: hidden;
       background: #f6f6f6;
       border-radius: var(--content-featured-product-media-radius);
-      aspect-ratio: var(--content-featured-product-media-ratio);
+      aspect-ratio: auto;
     }
 
     #{{ block_id }} .content-featured-product__media-frame img,
@@ -200,9 +239,10 @@
     }
 
     #{{ block_id }} .content-featured-product__media {
-      display: none;
+      display: block;
+      position: relative;
       width: 100%;
-      height: 100%;
+      aspect-ratio: var(--content-featured-product-media-ratio);
     }
 
     #{{ block_id }} .content-featured-product__media.is-active {
@@ -465,7 +505,7 @@
     }
 
     #{{ block_id }}.content-featured-product--animate {
-      opacity: 0;
+      opacity: 1;
       animation-duration: 700ms;
       animation-fill-mode: forwards;
       animation-timing-function: ease;
@@ -542,7 +582,7 @@
       #{{ block_id }}.content-featured-product--hero .content-featured-product__shell,
       #{{ block_id }}.content-featured-product--promotion .content-featured-product__shell {
         grid-template-columns: minmax(0, 1fr);
-        padding: max(calc(var(--content-featured-product-card-padding) - 8px), 0px);
+        padding: min(max(calc(var(--content-featured-product-card-padding) - 8px), 0px), 8%);
       }
 
       #{{ block_id }}.content-featured-product--media-right .content-featured-product__media-column,
@@ -578,272 +618,74 @@
         transform: none;
       }
     }
+
+    #{{ block_id }} { min-width: 0; max-width: 100%; overflow-wrap: anywhere; container-type: inline-size; }
+    #{{ block_id }}, #{{ block_id }} * { box-sizing: border-box; }
+    #{{ block_id }}[hidden], #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} a, #{{ block_id }} button, #{{ block_id }} input, #{{ block_id }} select, #{{ block_id }} img { max-width: 100%; }
+    #{{ block_id }} :focus-visible { outline: 2px solid var(--content-featured-product-focus-color); outline-offset: -3px; }
+    #{{ block_id }} .content-featured-product__badge { position: static; width: fit-content; max-width: 100%; }
+    #{{ block_id }} .content-featured-product__button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+    #{{ block_id }} .content-featured-product__form { min-width: 0; }
+    #{{ block_id }} .content-featured-product__form select, #{{ block_id }} .content-featured-product__quantity-input { width: 100%; min-width: 0; min-height: 44px; color: var(--content-featured-product-heading-color); background: var(--content-featured-product-card-background); border: 1px solid var(--content-featured-product-border-color); border-radius: 4px; }
+    #{{ block_id }} [data-b8-fallback] { display: grid; gap: 6px; min-width: 0; }
+    #{{ block_id }} [data-gallery-embed-link], #{{ block_id }} [data-gallery-embed-player] { display: block; width: 100%; height: 100%; }
+    #{{ block_id }} [data-gallery-embed-link] span { position: absolute; inset-inline: 8px; bottom: 8px; color: var(--content-featured-product-button-text); background: var(--content-featured-product-button-background); padding: 8px; }
+    #{{ block_id }} model-viewer:not(:defined) { display: none; }
+    #{{ block_id }} model-viewer:defined + [data-gallery-model-fallback] { display: none; }
+    #{{ block_id }} [data-gallery-model-fallback] { display: grid; }
+    #{{ block_id }} [data-gallery-model-fallback] a { color: var(--content-featured-product-heading-color); }
+    #{{ block_id }} .content-featured-product__media:has([data-gallery-model-fallback]) { aspect-ratio: auto; }
+    #{{ block_id }} model-viewer { min-height: 300px; }
+    #{{ block_id }}.content-featured-product--no-media .content-featured-product__shell { grid-template-columns: minmax(0, 1fr); }
+    @container (max-width: 600px) {
+      #{{ block_id }}.content-featured-product .content-featured-product__shell { grid-template-columns: minmax(0, 1fr); }
+      #{{ block_id }}.content-featured-product .content-featured-product__media-column,
+      #{{ block_id }}.content-featured-product .content-featured-product__content { order: initial; }
+      #{{ block_id }} .content-featured-product__title { font-size: {{ block.settings.heading_size_mobile }}px; }
+    }
   </style>
 
   {% if featured_product != blank %}
+    {% render 'qtm-product-block-data', product: featured_product %}
     <div class="content-featured-product__shell">
-      <div class="content-featured-product__media-column">
-        <div class="content-featured-product__media-frame" data-content-featured-product-media-frame>
-          {% if featured_product.media.size > 0 %}
-            {% for media in featured_product.media limit: block.settings.gallery_limit %}
-              <div
-                class="content-featured-product__media {% if media.id == featured_media.id or forloop.first and featured_media == blank %}is-active{% endif %}"
-                data-content-featured-product-media
-                data-media-id="{{ media.id }}"
-              >
-                {% case media.media_type %}
-                  {% when 'image' %}
-                    {% if forloop.first %}
-                      {%- liquid
-                        assign qtm_image_alt = media.alt | default: featured_product.title
-                      -%}
-                      {{ media | image_url: width: 1600 | image_tag: loading: 'eager', widths: '400, 600, 800, 1000, 1200, 1600', alt: qtm_image_alt }}
-                    {% else %}
-                      {%- liquid
-                        assign qtm_image_alt = media.alt | default: featured_product.title
-                      -%}
-                      {{ media | image_url: width: 1600 | image_tag: loading: 'lazy', widths: '400, 600, 800, 1000, 1200, 1600', alt: qtm_image_alt }}
-                    {% endif %}
-                  {% when 'video' %}
-                    {{ media | video_tag: image_size: '1200x', controls: true, muted: true, playsinline: true }}
-                  {% when 'external_video' %}
-                    {{ media | external_video_tag }}
-                  {% when 'model' %}
-                    {{ media | model_viewer_tag }}
-                {% endcase %}
-              </div>
-            {% endfor %}
-          {% elsif featured_product.featured_image %}
-            {%- liquid
-              assign qtm_image_alt = featured_product.featured_image.alt | default: featured_product.title
-            -%}
-            {{ featured_product.featured_image | image_url: width: 1600 | image_tag: loading: 'eager', widths: '400, 600, 800, 1000, 1200, 1600', alt: qtm_image_alt }}
-          {% else %}
-            <span class="content-featured-product__placeholder" aria-hidden="true"></span>
-          {% endif %}
-
-          {% if block.settings.show_sale_badge and is_on_sale %}
-            <span class="content-featured-product__badge">
-              {{ block.settings.sale_badge_text | escape }}
-            </span>
-          {% endif %}
-        </div>
-
-        {% if block.settings.show_gallery and featured_product.media.size > 1 %}
-          <div class="content-featured-product__thumbnails" aria-label="{{ block.settings.gallery_label | escape }}">
-            {% for media in featured_product.media limit: block.settings.gallery_limit %}
-              <button
-                type="button"
-                class="content-featured-product__thumbnail {% if media.id == featured_media.id or forloop.first and featured_media == blank %}is-active{% endif %}"
-                data-content-featured-product-thumbnail
-                data-media-id="{{ media.id }}"
-                aria-label="{{ block.settings.view_media_label | escape }} {{ forloop.index }}"
-              >
-                {% if media.preview_image %}
-                  {%- liquid
-                    assign qtm_image_alt = media.alt | default: featured_product.title
-                  -%}
-                  {{ media.preview_image | image_url: width: 240 | image_tag: loading: 'lazy', widths: '120, 180, 240', alt: qtm_image_alt }}
-                {% endif %}
-              </button>
-            {% endfor %}
-          </div>
-        {% endif %}
-      </div>
-
+      {% render 'qtm-block-featured-product-gallery', product: featured_product, current_variant: current_variant, block: block, block_id: block_id %}
       <div class="content-featured-product__content">
-        {% if block.settings.eyebrow != blank %}
-          <p class="content-featured-product__eyebrow">
-            {{ block.settings.eyebrow | escape }}
-          </p>
-        {% endif %}
-
-        {% if block.settings.show_vendor and featured_product.vendor != blank %}
-          <div class="content-featured-product__vendor">
-            {{ featured_product.vendor | escape }}
-          </div>
-        {% endif %}
-
-        <h2 class="content-featured-product__title">
-          <a href="{{ featured_product.url }}">
-            {{ featured_product.title | escape }}
-          </a>
-        </h2>
-
-        {% if block.settings.show_price %}
-          <div class="content-featured-product__price-row">
-            <span class="content-featured-product__price">
-              {{ current_variant.price | money }}
-            </span>
-
-            {% if is_on_sale %}
-              <span class="content-featured-product__compare">
-                {{ current_variant.compare_at_price | money }}
-              </span>
-            {% endif %}
-          </div>
-        {% endif %}
-
-        {% if block.settings.show_description %}
-          <div class="content-featured-product__description">
-            {% if block.settings.description_source == 'custom' %}
-              {{ block.settings.custom_description | escape }}
-            {% else %}
-              {{ featured_product.description | strip_html | truncatewords: block.settings.description_words }}
-            {% endif %}
-          </div>
-        {% endif %}
-
-        {% if block.settings.show_atc %}
-          {% form 'product', featured_product, class: 'content-featured-product__form', data-product-form: '', data-ajax-cart-form: '', data-cart-add-form: '' %}
-            <input
-              type="hidden"
-              name="id"
-              value="{{ current_variant.id }}"
-              data-content-featured-product-variant-input
-            >
-
+        {% if block.settings.eyebrow != blank %}<p class="content-featured-product__eyebrow">{{ block.settings.eyebrow | escape }}</p>{% endif %}
+        {% if block.settings.show_vendor and featured_product.vendor != blank %}<div class="content-featured-product__vendor">{{ featured_product.vendor | escape }}</div>{% endif %}
+        <h2 class="content-featured-product__title"><a href="{{ featured_product.url | escape }}">{{ featured_product.title | escape }}</a></h2>
+        {% if block.settings.show_sale_badge and block.settings.sale_badge_text != blank %}<span class="content-featured-product__badge" data-product-price-badge {% unless is_on_sale %}hidden{% endunless %}>{{ block.settings.sale_badge_text | escape }}</span>{% endif %}
+        {% if block.settings.show_price and current_variant != blank %}<div class="content-featured-product__price-row">
+          <span class="content-featured-product__price" data-product-price-current>{{ purchase_price | money }}</span>
+          <s class="content-featured-product__compare" data-product-price-compare {% unless is_on_sale %}hidden{% endunless %}>{% if is_on_sale %}{{ purchase_compare | money }}{% endif %}</s>
+        </div>{% endif %}
+        {% if featured_description != blank %}<div class="content-featured-product__description">{{ featured_description | escape }}</div>{% endif %}
+        {% if block.settings.show_atc and current_variant != blank %}
+          {% form 'product', featured_product, id: form_id, class: 'content-featured-product__form', data-product-form: '', data-cart-drawer-add: '' %}
+            {% if form.errors %}<div role="alert">{{ form.errors | default_errors }}</div>{% endif %}
+            <div data-b8-fallback>
+              <label for="{{ block_id }}-variant">{{ block.settings.variant_label | default: 'Variant' | escape }}</label>
+              <select id="{{ block_id }}-variant" name="id" data-b8-variant-id>
+                <option value="{{ current_variant.id }}" selected>{{ current_variant.title | escape }}{% unless current_variant.available %} — {{ block.settings.sold_out_label | default: 'Sold out' | escape }}{% endunless %}</option>
+                {% for variant in featured_product.variants %}{% unless variant.id == current_variant.id %}<option value="{{ variant.id }}">{{ variant.title | escape }}{% unless variant.available %} — {{ block.settings.sold_out_label | default: 'Sold out' | escape }}{% endunless %}</option>{% endunless %}{% endfor %}
+              </select>
+            </div>
+            {% if featured_product.selling_plan_groups.size > 0 %}{% render 'product-selling-plans', product: featured_product, id: block_id, label: block.settings.selling_plan_label, one_time_label: block.settings.one_time_purchase_label %}{% else %}<input type="hidden" name="selling_plan" value="">{% endif %}
             {% if block.settings.show_quantity %}
-              <label class="content-featured-product__quantity">
-                <span class="content-featured-product__quantity-label">
-                  {{ block.settings.quantity_label | escape }}
-                </span>
-                <input
-                  class="content-featured-product__quantity-input"
-                  type="number"
-                  name="quantity"
-                  min="1"
-                  value="1"
-                  inputmode="numeric"
-                >
+              <label class="content-featured-product__quantity" for="{{ block_id }}-quantity"><span class="content-featured-product__quantity-label">{{ block.settings.quantity_label | default: 'Quantity' | escape }}</span>
+                <input id="{{ block_id }}-quantity" class="content-featured-product__quantity-input" type="number" name="quantity" min="{{ quantity_min }}" step="{{ quantity_step }}" {% if quantity_max != blank %}max="{{ quantity_max }}"{% endif %} value="{{ quantity_min }}" inputmode="numeric">
               </label>
-            {% else %}
-              <input type="hidden" name="quantity" value="1">
-            {% endif %}
-
+            {% else %}<input type="hidden" name="quantity" value="{{ quantity_min }}">{% endif %}
             <div class="content-featured-product__buttons">
-              <button
-                type="submit"
-                class="content-featured-product__button"
-                data-add-to-cart
-                data-ajax-cart-submit
-                {% unless current_variant.available %}disabled{% endunless %}
-              >
-                {% if current_variant.available %}
-                  {{ block.settings.atc_label | escape }}
-                {% else %}
-                  {{ block.settings.sold_out_label | escape }}
-                {% endif %}
-              </button>
-
-              {% if block.settings.show_secondary_button %}
-                <a class="content-featured-product__button content-featured-product__button--secondary" href="{{ featured_product.url }}">
-                  {{ block.settings.secondary_button_label | escape }}
-                </a>
-              {% endif %}
+              <button type="submit" name="add" class="content-featured-product__button" data-add-to-cart data-b8-submit {% unless purchase_available %}disabled{% endunless %}>{% if purchase_available %}{{ block.settings.atc_label | default: 'Add to cart' | escape }}{% elsif current_variant.available == false %}{{ block.settings.sold_out_label | default: 'Sold out' | escape }}{% else %}{{ block.settings.unavailable_label | default: 'Unavailable' | escape }}{% endif %}</button>
+              {% if block.settings.show_secondary_button and block.settings.secondary_button_label != blank %}<a class="content-featured-product__button content-featured-product__button--secondary" href="{{ featured_product.url | escape }}">{{ block.settings.secondary_button_label | escape }}</a>{% endif %}
             </div>
+            <div data-cart-add-status role="status" aria-live="polite"></div>
           {% endform %}
-        {% else %}
-          {% if block.settings.show_secondary_button %}
-            <div class="content-featured-product__buttons">
-              <a class="content-featured-product__button content-featured-product__button--secondary" href="{{ featured_product.url }}">
-                {{ block.settings.secondary_button_label | escape }}
-              </a>
-            </div>
-          {% endif %}
-        {% endif %}
+        {% elsif block.settings.show_secondary_button and block.settings.secondary_button_label != blank %}<div class="content-featured-product__buttons"><a class="content-featured-product__button content-featured-product__button--secondary" href="{{ featured_product.url | escape }}">{{ block.settings.secondary_button_label | escape }}</a></div>{% endif %}
       </div>
     </div>
-
-    <script type="application/json" data-content-featured-product-variants>
-      {{ featured_product.variants | json }}
-    </script>
-
-    <script>
-      (() => {
-        const root = document.getElementById({{ block_id | json }});
-
-        if (!root || root.dataset.contentFeaturedProductReady === 'true') return;
-
-        root.dataset.contentFeaturedProductReady = 'true';
-
-        const mediaItems = Array.from(root.querySelectorAll('[data-content-featured-product-media]'));
-        const thumbnails = Array.from(root.querySelectorAll('[data-content-featured-product-thumbnail]'));
-        const variantInput = root.querySelector('[data-content-featured-product-variant-input]');
-        const variantsJson = root.querySelector('[data-content-featured-product-variants]');
-
-        let variants = [];
-
-        try {
-          variants = JSON.parse(variantsJson ? variantsJson.textContent || '[]' : '[]');
-        } catch (error) {
-          variants = [];
-        }
-
-        const setActiveMedia = (mediaId) => {
-          if (!mediaId) return;
-
-          mediaItems.forEach((item) => {
-            item.classList.toggle('is-active', String(item.dataset.mediaId) === String(mediaId));
-          });
-
-          thumbnails.forEach((thumbnail) => {
-            const active = String(thumbnail.dataset.mediaId) === String(mediaId);
-            thumbnail.classList.toggle('is-active', active);
-            thumbnail.setAttribute('aria-current', active ? 'true' : 'false');
-          });
-
-          root.querySelectorAll('video').forEach((video) => {
-            if (!video.paused) video.pause();
-          });
-        };
-
-        thumbnails.forEach((thumbnail) => {
-          thumbnail.addEventListener('click', () => {
-            setActiveMedia(thumbnail.dataset.mediaId);
-          });
-        });
-
-        document.addEventListener('variant:change', (event) => {
-          const detail = event.detail || {};
-          const variant = detail.variant || variants.find((item) => String(item.id) === String(detail.variantId || detail.variant_id || detail.id));
-
-          if (!variant) return;
-
-          if (variantInput) {
-            variantInput.value = variant.id;
-          }
-
-          root.dataset.variantId = String(variant.id);
-
-          if (variant.featured_media && variant.featured_media.id) {
-            setActiveMedia(variant.featured_media.id);
-          }
-        });
-
-        document.addEventListener('qtm:variant:change', (event) => {
-          const detail = event.detail || {};
-          const variant = detail.variant || variants.find((item) => String(item.id) === String(detail.variantId || detail.variant_id || detail.id));
-
-          if (!variant) return;
-
-          if (variantInput) {
-            variantInput.value = variant.id;
-          }
-
-          root.dataset.variantId = String(variant.id);
-
-          if (variant.featured_media && variant.featured_media.id) {
-            setActiveMedia(variant.featured_media.id);
-          }
-        });
-      })();
-    </script>
-  {% elsif block.settings.show_empty_state %}
-    <div class="content-featured-product__empty">
-      {{ block.settings.empty_text | escape }}
-    </div>
-  {% endif %}
+  {% elsif request.design_mode and block.settings.show_empty_state %}<div class="content-featured-product__empty" role="note">{{ block.settings.empty_text | default: 'Select a product for this block.' | escape }}</div>{% endif %}
 </div>
 
 {% schema %}
@@ -875,7 +717,6 @@
       "id": "product",
       "label": "Featured product"
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -916,7 +757,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Content"
@@ -924,8 +764,7 @@
     {
       "type": "text",
       "id": "eyebrow",
-      "label": "Eyebrow",
-      "default": "Featured product"
+      "label": "Eyebrow"
     },
     {
       "type": "checkbox",
@@ -964,8 +803,7 @@
     {
       "type": "text",
       "id": "custom_description",
-      "label": "Custom description",
-      "default": "Feature a product with supporting copy, price, media, and a direct call to action."
+      "label": "Custom description"
     },
     {
       "type": "range",
@@ -988,7 +826,6 @@
       "label": "Sale badge text",
       "default": "Sale"
     },
-
     {
       "type": "header",
       "content": "Media"
@@ -1054,7 +891,6 @@
       "unit": "px",
       "default": 10
     },
-
     {
       "type": "header",
       "content": "Purchase"
@@ -1131,7 +967,6 @@
       "unit": "px",
       "default": 12
     },
-
     {
       "type": "header",
       "content": "Typography"
@@ -1176,7 +1011,6 @@
       "unit": "px",
       "default": 24
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1253,7 +1087,6 @@
       "label": "Focus color",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1288,7 +1121,6 @@
       "unit": "px",
       "default": 18
     },
-
     {
       "type": "header",
       "content": "Container"
@@ -1341,7 +1173,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1406,7 +1237,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Empty state"
@@ -1423,7 +1253,6 @@
       "label": "Empty state text",
       "default": "Select a product to display this featured product block."
     },
-
     {
       "type": "header",
       "content": "Accessibility labels"
@@ -1440,7 +1269,6 @@
       "label": "View media label",
       "default": "View product media"
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1463,7 +1291,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1491,6 +1318,30 @@
           "label": "Zoom"
         }
       ]
+    },
+    {
+      "type": "text",
+      "id": "variant_label",
+      "label": "Variant label",
+      "default": "Variant"
+    },
+    {
+      "type": "text",
+      "id": "selling_plan_label",
+      "label": "Purchase options label",
+      "default": "Purchase options"
+    },
+    {
+      "type": "text",
+      "id": "one_time_purchase_label",
+      "label": "One-time purchase label",
+      "default": "One-time purchase"
+    },
+    {
+      "type": "text",
+      "id": "unavailable_label",
+      "label": "Unavailable label",
+      "default": "Unavailable"
     }
   ],
   "presets": [
@@ -1500,12 +1351,12 @@
         "product_source": "manual",
         "featured_layout": "standard",
         "media_position": "left",
-        "eyebrow": "Featured product",
+        "eyebrow": "",
         "show_vendor": false,
         "show_price": true,
         "show_description": true,
         "description_source": "product",
-        "custom_description": "Feature a product with supporting copy, price, media, and a direct call to action.",
+        "custom_description": "",
         "description_words": 28,
         "show_sale_badge": true,
         "sale_badge_text": "Sale",
@@ -1568,15 +1419,15 @@
         "product_source": "manual",
         "featured_layout": "hero",
         "media_position": "right",
-        "eyebrow": "Hero product",
+        "eyebrow": "",
         "show_vendor": false,
         "show_price": true,
         "show_description": true,
         "description_source": "custom",
-        "custom_description": "Promote a flagship product with a larger editorial layout designed to drive attention and conversion.",
+        "custom_description": "",
         "description_words": 32,
         "show_sale_badge": true,
-        "sale_badge_text": "Featured",
+        "sale_badge_text": "Sale",
         "image_fit": "cover",
         "media_ratio": 115,
         "show_gallery": true,
@@ -1636,15 +1487,15 @@
         "product_source": "manual",
         "featured_layout": "promotion",
         "media_position": "left",
-        "eyebrow": "Limited offer",
+        "eyebrow": "",
         "show_vendor": false,
         "show_price": true,
         "show_description": true,
         "description_source": "custom",
-        "custom_description": "Use this promotional product layout for campaigns, offers, launches, and seasonal merchandising moments.",
+        "custom_description": "",
         "description_words": 24,
         "show_sale_badge": true,
-        "sale_badge_text": "Offer",
+        "sale_badge_text": "Sale",
         "image_fit": "cover",
         "media_ratio": 125,
         "show_gallery": false,

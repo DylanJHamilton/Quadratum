@@ -1,9 +1,15 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 %}
+
+{% assign has_items = false %}{% for i in (1..7) %}{% assign day_key = 'day_' | append: i | append: '_label' %}{% assign hours_key = 'day_' | append: i | append: '_hours' %}{% assign closed_key = 'day_' | append: i | append: '_closed' %}{% if block.settings[day_key] != blank %}{% if block.settings[hours_key] != blank or block.settings[closed_key] %}{% assign has_items = true %}{% endif %}{% endif %}{% endfor %}
+{% if block.settings.text != blank or block.settings.note != blank or block.settings.status_badge != blank %}{% assign has_items = true %}{% endif %}
 
 <div
   class="
@@ -13,9 +19,9 @@
     qtm-store-hours--align-{{ block_alignment }}
     qtm-store-hours--layout-{{ block.settings.layout_style }}
     qtm-store-hours--animation-{{ animation }}
-    {% unless block.settings.show_desktop %} qtm-store-hours--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-store-hours--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-store-hours--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-store-hours--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-store-hours--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-store-hours--hide-mobile{% endunless %}
   "
   style="
     --qtm-store-hours-margin-top: {{ block.settings.margin_top }}px;
@@ -38,8 +44,9 @@
     --qtm-store-hours-border-width: {{ block.settings.border_width }}px;
     --qtm-store-hours-border-radius: {{ block.settings.border_radius }}px;
   "
-  {{ block.shopify_attributes }}
+  {% unless has_items or request.design_mode %}hidden{% endunless %}
 >
+  {% if has_items == false and request.design_mode %}<p role="note">Add your actual opening hours. Closed days must be explicitly selected.</p>{% endif %}
   <div class="qtm-store-hours__inner">
     {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank %}
       <div class="qtm-store-hours__header">
@@ -73,7 +80,7 @@
       {% if block.settings.layout_style == 'table' %}
         <table class="qtm-store-hours__table">
           <caption class="visually-hidden">
-            {{ block.settings.table_caption | escape }}
+            {{ block.settings.table_caption | default: 'Weekly store hours' | escape }}
           </caption>
           <tbody>
             {% for i in (1..7) %}
@@ -89,14 +96,15 @@
                 assign day_highlight = block.settings[highlight_key]
               %}
 
-              {% if day_label != blank %}
+              {% assign show_day = false %}{% if day_label != blank %}{% if day_hours != blank or day_closed %}{% assign show_day = true %}{% endif %}{% endif %}
+              {% if show_day %}
                 <tr class="qtm-store-hours__table-row {% if day_closed %}is-closed{% endif %} {% if day_highlight %}is-highlighted{% endif %}">
                   <th class="qtm-store-hours__table-day" scope="row">
                     {{ day_label | escape }}
                   </th>
                   <td class="qtm-store-hours__table-hours">
                     {% if day_closed %}
-                      {{ block.settings.closed_label | escape }}
+                      {{ block.settings.closed_label | default: 'Closed' | escape }}
                     {% else %}
                       {{ day_hours | escape }}
                     {% endif %}
@@ -107,7 +115,7 @@
           </tbody>
         </table>
       {% else %}
-        <ul class="qtm-store-hours__list" role="list" aria-label="{{ block.settings.table_caption | escape }}">
+        <ul class="qtm-store-hours__list" role="list" aria-label="{{ block.settings.table_caption | default: 'Weekly store hours' | escape }}">
           {% for i in (1..7) %}
             {% liquid
               assign day_key = 'day_' | append: i | append: '_label'
@@ -121,7 +129,8 @@
               assign day_highlight = block.settings[highlight_key]
             %}
 
-            {% if day_label != blank %}
+            {% assign show_day = false %}{% if day_label != blank %}{% if day_hours != blank or day_closed %}{% assign show_day = true %}{% endif %}{% endif %}
+              {% if show_day %}
               <li class="qtm-store-hours__item {% if day_closed %}is-closed{% endif %} {% if day_highlight %}is-highlighted{% endif %}">
                 <span class="qtm-store-hours__day">
                   {{ day_label | escape }}
@@ -129,7 +138,7 @@
 
                 <span class="qtm-store-hours__hours">
                   {% if day_closed %}
-                    {{ block.settings.closed_label | escape }}
+                    {{ block.settings.closed_label | default: 'Closed' | escape }}
                   {% else %}
                     {{ day_hours | escape }}
                   {% endif %}
@@ -153,7 +162,7 @@
       {% endif %}
 
       {% if block.settings.button_label != blank and block.settings.button_url != blank %}
-        <a class="qtm-store-hours__button" href="{{ block.settings.button_url }}">
+        <a class="qtm-store-hours__button" href="{{ block.settings.button_url | escape }}">
           {{ block.settings.button_label | escape }}
         </a>
       {% endif %}
@@ -163,9 +172,13 @@
 
 <style>
   .qtm-store-hours-{{ block_id }} {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     margin-top: var(--qtm-store-hours-margin-top);
     margin-bottom: var(--qtm-store-hours-margin-bottom);
-    padding: var(--qtm-store-hours-padding);
+    padding: min(var(--qtm-store-hours-padding), 12%);
     color: var(--qtm-store-hours-text-color);
     background: var(--qtm-store-hours-background-color);
     border: var(--qtm-store-hours-border-width) solid var(--qtm-store-hours-border-color);
@@ -327,6 +340,7 @@
 
   .qtm-store-hours-{{ block_id }} .qtm-store-hours__item {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 1rem;
     align-items: center;
@@ -379,6 +393,7 @@
 
   .qtm-store-hours-{{ block_id }} .qtm-store-hours__table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0 0.55rem;
   }
@@ -433,7 +448,7 @@
     width: fit-content;
     min-height: 2.8rem;
     padding: 0.82rem 1.15rem;
-    color: #ffffff;
+    color: var(--qtm-store-hours-badge-color);
     background: var(--qtm-store-hours-link-color);
     border: 1px solid var(--qtm-store-hours-link-color);
     border-radius: calc(var(--qtm-store-hours-border-radius) * 0.45);
@@ -551,12 +566,10 @@
   }
 
   @media screen and (max-width: 989px) {
-    .qtm-store-hours-{{ block_id }}.qtm-store-hours--hide-tablet {
-      display: none !important;
-    }
+
 
     .qtm-store-hours-{{ block_id }}.qtm-store-hours--layout-cards .qtm-store-hours__list {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat({{ block.settings.card_columns | at_most: 2 }}, minmax(0, 1fr));
     }
   }
 
@@ -625,6 +638,14 @@
       scroll-behavior: auto !important;
     }
   }
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-store-hours-{{ block_id }}.qtm-store-hours--hide-tablet {
+      display: none !important;
+    }
+  }
+  .qtm-store-hours-{{ block_id }}[hidden] { display: none !important; }
+  .qtm-store-hours-{{ block_id }} :is(div, ul, ol, li, a, span, table) { min-width: 0; }
+  .qtm-store-hours-{{ block_id }} :is(a, button, img) { max-width: 100%; }
 </style>
 
 {% schema %}
@@ -650,14 +671,13 @@
     {
       "type": "richtext",
       "id": "text",
-      "label": "Text",
-      "default": "<p>Visit us during regular business hours or contact our team for support.</p>"
+      "label": "Text"
     },
     {
       "type": "text",
       "id": "status_badge",
       "label": "Status badge",
-      "default": "Open weekly"
+      "info": "Manual text only. This block does not calculate whether the store is open."
     },
     {
       "type": "text",
@@ -674,14 +694,12 @@
     {
       "type": "richtext",
       "id": "note",
-      "label": "Note",
-      "default": "<p>Hours may vary during holidays, special events, or severe weather.</p>"
+      "label": "Note"
     },
     {
       "type": "text",
       "id": "timezone_label",
-      "label": "Timezone label",
-      "default": "All times shown in local store time."
+      "label": "Timezone label"
     },
     {
       "type": "text",
@@ -693,7 +711,6 @@
       "id": "button_url",
       "label": "Button URL"
     },
-
     {
       "type": "header",
       "content": "Day 1"
@@ -707,8 +724,7 @@
     {
       "type": "text",
       "id": "day_1_hours",
-      "label": "Day 1 hours",
-      "default": "9:00 AM - 5:00 PM"
+      "label": "Day 1 hours"
     },
     {
       "type": "checkbox",
@@ -722,7 +738,6 @@
       "label": "Highlight day 1",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Day 2"
@@ -736,8 +751,7 @@
     {
       "type": "text",
       "id": "day_2_hours",
-      "label": "Day 2 hours",
-      "default": "9:00 AM - 5:00 PM"
+      "label": "Day 2 hours"
     },
     {
       "type": "checkbox",
@@ -751,7 +765,6 @@
       "label": "Highlight day 2",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Day 3"
@@ -765,8 +778,7 @@
     {
       "type": "text",
       "id": "day_3_hours",
-      "label": "Day 3 hours",
-      "default": "9:00 AM - 5:00 PM"
+      "label": "Day 3 hours"
     },
     {
       "type": "checkbox",
@@ -780,7 +792,6 @@
       "label": "Highlight day 3",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Day 4"
@@ -794,8 +805,7 @@
     {
       "type": "text",
       "id": "day_4_hours",
-      "label": "Day 4 hours",
-      "default": "9:00 AM - 5:00 PM"
+      "label": "Day 4 hours"
     },
     {
       "type": "checkbox",
@@ -809,7 +819,6 @@
       "label": "Highlight day 4",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Day 5"
@@ -823,8 +832,7 @@
     {
       "type": "text",
       "id": "day_5_hours",
-      "label": "Day 5 hours",
-      "default": "9:00 AM - 5:00 PM"
+      "label": "Day 5 hours"
     },
     {
       "type": "checkbox",
@@ -836,9 +844,8 @@
       "type": "checkbox",
       "id": "day_5_highlight",
       "label": "Highlight day 5",
-      "default": true
+      "default": false
     },
-
     {
       "type": "header",
       "content": "Day 6"
@@ -852,8 +859,7 @@
     {
       "type": "text",
       "id": "day_6_hours",
-      "label": "Day 6 hours",
-      "default": "10:00 AM - 2:00 PM"
+      "label": "Day 6 hours"
     },
     {
       "type": "checkbox",
@@ -867,7 +873,6 @@
       "label": "Highlight day 6",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Day 7"
@@ -881,14 +886,13 @@
     {
       "type": "text",
       "id": "day_7_hours",
-      "label": "Day 7 hours",
-      "default": "Sunday"
+      "label": "Day 7 hours"
     },
     {
       "type": "checkbox",
       "id": "day_7_closed",
       "label": "Day 7 closed",
-      "default": true
+      "default": false
     },
     {
       "type": "checkbox",
@@ -896,7 +900,6 @@
       "label": "Highlight day 7",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Sizing"
@@ -930,7 +933,6 @@
       "step": 1,
       "default": 2
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -1021,7 +1023,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1056,7 +1057,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1136,10 +1136,9 @@
     {
       "type": "color",
       "id": "badge_color",
-      "label": "Badge text",
+      "label": "Badge and button text color",
       "default": "#FFFFFF"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1164,7 +1163,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1187,7 +1185,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1235,8 +1232,8 @@
       "settings": {
         "eyebrow": "Hours",
         "heading": "Store hours",
-        "text": "<p>Visit us during regular business hours or contact our team for support.</p>",
-        "status_badge": "Open weekly",
+        "text": "",
+        "status_badge": "",
         "layout_style": "list",
         "width": "medium",
         "item_height": 52,
@@ -1251,15 +1248,15 @@
       "settings": {
         "eyebrow": "Support",
         "heading": "Support hours",
-        "text": "<p>Our team is available during the hours below to help with orders, questions, and customer service.</p>",
-        "status_badge": "Support available",
-        "day_1_hours": "9:00 AM - 6:00 PM",
-        "day_2_hours": "9:00 AM - 6:00 PM",
-        "day_3_hours": "9:00 AM - 6:00 PM",
-        "day_4_hours": "9:00 AM - 6:00 PM",
-        "day_5_hours": "9:00 AM - 6:00 PM",
-        "day_6_closed": true,
-        "day_7_closed": true,
+        "text": "",
+        "status_badge": "",
+        "day_1_hours": "",
+        "day_2_hours": "",
+        "day_3_hours": "",
+        "day_4_hours": "",
+        "day_5_hours": "",
+        "day_6_closed": false,
+        "day_7_closed": false,
         "layout_style": "table",
         "width": "medium",
         "padding": 24,
@@ -1274,9 +1271,9 @@
       "settings": {
         "eyebrow": "Holiday notice",
         "heading": "Special hours",
-        "text": "<p>Hours may change around holidays, events, inventory counts, or severe weather.</p>",
-        "status_badge": "Special hours",
-        "note": "<p>Please contact us before visiting if you are planning around a holiday or special event.</p>",
+        "text": "",
+        "status_badge": "",
+        "note": "",
         "timezone_label": "",
         "button_label": "Contact us",
         "layout_style": "cards",

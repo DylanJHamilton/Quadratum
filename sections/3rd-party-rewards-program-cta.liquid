@@ -1,6 +1,6 @@
 {% comment %}
   Quadratum — 3rd Party: Referral / Rewards Program CTA
-  File: sections/3p-referral-rewards-cta.liquid
+  File: sections/3rd-party-rewards-program-cta.liquid
 
   - Frontend CTA only (no app logic)
   - Fully styleable via section settings + theme token fallbacks
@@ -33,17 +33,13 @@
     {%- else -%}{%- assign shadow_css = '0 10px 30px rgba(0,0,0,.08)' -%}
   {%- endcase -%}
 
-  {%- comment -%}
-    Theme-token fallbacks:
-    - If your Quadratum global vars differ, you can adjust these once centrally later.
-  {%- endcomment -%}
-  {%- assign v_bg        = 'var(--q-surface, #ffffff)' -%}
-  {%- assign v_card_bg   = 'var(--q-surface, #ffffff)' -%}
-  {%- assign v_text      = 'var(--q-text, #111111)' -%}
-  {%- assign v_muted     = 'var(--q-muted, #6b7280)' -%}
-  {%- assign v_accent    = 'var(--q-primary, #111111)' -%}
-  {%- assign v_border    = 'var(--q-border, #e5e7eb)' -%}
-  {%- assign v_highlight = 'var(--q-soft, #f3f4f6)' -%}
+  {%- assign v_bg        = 'var(--q-section-bg, var(--c-bg, #ffffff))' -%}
+  {%- assign v_card_bg   = 'var(--q-section-card-bg, var(--c-bg, #ffffff))' -%}
+  {%- assign v_text      = 'var(--q-section-fg, var(--c-text, #111111))' -%}
+  {%- assign v_muted     = 'var(--q-section-muted, var(--c-muted, #6b7280))' -%}
+  {%- assign v_accent    = 'var(--c-primary, #2563eb)' -%}
+  {%- assign v_border    = 'color-mix(in srgb, var(--q-ref-text) 20%, transparent)' -%}
+  {%- assign v_highlight = 'color-mix(in srgb, var(--q-ref-accent) 8%, var(--q-ref-bg))' -%}
 
   {%- if s.use_custom_colors -%}
     {%- assign v_bg        = s.custom_bg_color -%}
@@ -53,6 +49,11 @@
     {%- assign v_accent    = s.custom_accent_color -%}
     {%- assign v_border    = s.custom_border_color -%}
     {%- assign v_highlight = s.custom_highlight_bg_color -%}
+  {%- endif -%}
+
+  {%- assign accent_text = 'var(--c-oncolor, #ffffff)' -%}
+  {%- if s.use_custom_colors -%}
+    {%- capture accent_text -%}{%- render 'contrast-text', background: s.custom_accent_color, preferred: settings.text_on_color -%}{%- endcapture -%}
   {%- endif -%}
 
   {%- assign has_primary = false -%}
@@ -70,9 +71,27 @@
     {%- assign has_actions = true -%}
   {%- endif -%}
 
+  {%- liquid
+    assign benefit_blocks = section.blocks | where: 'type', 'benefit'
+    assign has_benefits = false
+    for block in benefit_blocks
+      if block.settings.title != blank or block.settings.body != blank
+        assign has_benefits = true
+      endif
+    endfor
+    assign has_content = false
+    if s.kicker != blank or s.heading != blank or s.body != blank or s.reward_highlight != blank or has_actions or has_benefits
+      assign has_content = true
+    endif
+    if s.show_badge and s.badge_text != blank
+      assign has_content = true
+    endif
+  -%}
+  {%- if has_content -%}
 <section
-  class="q-section q-section--referral-cta q-section--bg-{{ s.background_style }} q-referral-cta q-referral-cta--{{ s.layout_style }} q-referral-cta--program-{{ s.program_type }}"
-  aria-label="{{ s.aria_label | escape }}"
+  id="rewards-cta-{{ section.id }}"
+  class="q-section q-section--referral-cta q-section--bg-{{ s.background_style }} q-referral-cta q-referral-cta--{{ s.layout_style }} q-referral-cta--program-{{ s.program_type }}{% if has_actions %} has-actions{% endif %}"
+  aria-label="{{ s.aria_label | default: s.heading | default: 'Rewards program' | escape }}"
   style="
     --q-ref-pad-y: {{ pad_y }}rem;
     --q-ref-pad-x: {{ pad_x }}rem;
@@ -85,6 +104,7 @@
     --q-ref-text: {{ v_text }};
     --q-ref-muted: {{ v_muted }};
     --q-ref-accent: {{ v_accent }};
+    --q-ref-accent-text: {{ accent_text | strip }};
     --q-ref-border: {{ v_border }};
     --q-ref-highlight: {{ v_highlight }};
   "
@@ -125,14 +145,20 @@
             <p class="q-referral-cta__highlight">{{ s.reward_highlight | escape }}</p>
           {%- endif -%}
 
-          {%- assign benefit_blocks = section.blocks | where: 'type', 'benefit' -%}
-          {%- if benefit_blocks.size > 0 -%}
+          {%- if has_benefits -%}
             <div class="q-referral-cta__benefits" role="list">
               {%- for block in benefit_blocks -%}
                 {%- assign b = block.settings -%}
+                {%- if b.title != blank or b.body != blank -%}
                 <div class="q-referral-cta__benefit" role="listitem" {{ block.shopify_attributes }}>
                   <div class="q-referral-cta__benefit-icon" aria-hidden="true">
-                    <span data-icon="{{ b.icon_hint | escape }}"></span>
+                    {%- liquid
+                      assign benefit_icon = b.icon_hint | downcase | strip
+                      unless benefit_icon == 'gift' or benefit_icon == 'sparkles' or benefit_icon == 'heart' or benefit_icon == 'check'
+                        assign benefit_icon = 'star'
+                      endunless
+                    -%}
+                    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="{{ 'icons.svg' | asset_url }}#lucide-{{ benefit_icon }}"></use></svg>
                   </div>
                   <div class="q-referral-cta__benefit-copy">
                     {%- if b.title != blank -%}
@@ -143,6 +169,7 @@
                     {%- endif -%}
                   </div>
                 </div>
+                {%- endif -%}
               {%- endfor -%}
             </div>
           {%- endif -%}
@@ -153,7 +180,7 @@
           <div class="q-referral-cta__actions">
             {%- if has_primary -%}
               <a
-                href="{{ s.primary_button_url }}"
+                href="{{ s.primary_button_url | escape }}"
                 class="q-btn q-btn--primary q-referral-cta__btn q-referral-cta__btn--primary"
                 {% if s.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}
               >
@@ -163,7 +190,7 @@
 
             {%- if has_secondary -%}
               <a
-                href="{{ s.secondary_button_url }}"
+                href="{{ s.secondary_button_url | escape }}"
                 class="q-btn q-btn--secondary q-btn--ghost q-referral-cta__btn q-referral-cta__btn--secondary"
                 {% if s.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}
               >
@@ -183,17 +210,19 @@
 
   <style>
     /* ===== Scoped styles (Quadratum-grade defaults) ===== */
-    .q-section--referral-cta{
-      padding: var(--q-ref-pad-y) var(--q-ref-pad-x);
+    #rewards-cta-{{ section.id }}{
+      padding: var(--q-ref-pad-y) min(var(--q-ref-pad-x), 8vw);
+      background: var(--q-ref-bg);
+      box-sizing: border-box;
       color: var(--q-ref-text);
     }
 
     /* Alignment helpers */
-    .q-section--referral-cta .q-align-left{ text-align:left; }
-    .q-section--referral-cta .q-align-center{ text-align:center; }
+    #rewards-cta-{{ section.id }} .q-align-left{ text-align:start; }
+    #rewards-cta-{{ section.id }} .q-align-center{ text-align:center; }
 
     /* Card wrapper (only in card layout) */
-    .q-section--referral-cta .q-referral-cta__card{
+    #rewards-cta-{{ section.id }} .q-referral-cta__card{
       background: var(--q-ref-card-bg);
       border-radius: var(--q-ref-radius);
       box-shadow: var(--q-ref-shadow);
@@ -202,39 +231,38 @@
       overflow: hidden;
       border: 1px solid transparent;
     }
-    .q-section--referral-cta .q-referral-cta__card.is-bordered{
+    #rewards-cta-{{ section.id }} .q-referral-cta__card.is-bordered{
       border-color: var(--q-ref-border);
-      box-shadow: none;
     }
 
     /* Layout grid */
-    .q-section--referral-cta .q-referral-cta__grid{
+    #rewards-cta-{{ section.id }} .q-referral-cta__grid{
       display: grid;
       gap: clamp(1rem, 2.5vw, 1.75rem);
       align-items: start;
     }
     @media (min-width: 900px){
-      .q-section--referral-cta .q-referral-cta__grid{
-        grid-template-columns: 1.3fr .7fr;
+      #rewards-cta-{{ section.id }} .q-referral-cta__grid{
+        grid-template-columns: minmax(0,1.3fr) minmax(0,.7fr);
         gap: clamp(1.25rem, 3vw, 2.25rem);
       }
-      .q-section--referral-cta.q-referral-cta--strip .q-referral-cta__grid{
-        grid-template-columns: 1.4fr .6fr;
+      #rewards-cta-{{ section.id }}.q-referral-cta--strip .q-referral-cta__grid{
+        grid-template-columns: minmax(0,1.4fr) minmax(0,.6fr);
       }
-      .q-section--referral-cta.q-referral-cta--hero .q-referral-cta__grid.is-hero{
-        grid-template-columns: 1.35fr .65fr;
+      #rewards-cta-{{ section.id }}.q-referral-cta--hero .q-referral-cta__grid.is-hero{
+        grid-template-columns: minmax(0,1.35fr) minmax(0,.65fr);
       }
     }
 
     /* Hero spacing bump */
-    .q-section--referral-cta.q-referral-cta--hero{
+    #rewards-cta-{{ section.id }}.q-referral-cta--hero{
       padding-top: calc(var(--q-ref-pad-y) * 1.15);
       padding-bottom: calc(var(--q-ref-pad-y) * 1.15);
     }
 
     /* Badge / kicker / headings */
-    .q-section--referral-cta .q-referral-cta__badge{ margin-bottom: .35rem; }
-    .q-section--referral-cta .q-referral-cta__badge-pill{
+    #rewards-cta-{{ section.id }} .q-referral-cta__badge{ margin-bottom: .35rem; }
+    #rewards-cta-{{ section.id }} .q-referral-cta__badge-pill{
       display: inline-flex;
       align-items: center;
       gap: .4rem;
@@ -248,7 +276,7 @@
       font-weight: 600;
     }
 
-    .q-section--referral-cta .q-referral-cta__kicker{
+    #rewards-cta-{{ section.id }} .q-referral-cta__kicker{
       margin: 0 0 .35rem 0;
       color: var(--q-ref-muted);
       font-weight: 700;
@@ -257,21 +285,21 @@
       font-size: .78rem;
     }
 
-    .q-section--referral-cta .q-referral-cta__heading{
+    #rewards-cta-{{ section.id }} .q-referral-cta__heading{
       margin: 0 0 .6rem 0;
       font-size: var(--q-ref-heading-fs);
       line-height: 1.1;
       letter-spacing: -0.02em;
     }
 
-    .q-section--referral-cta .q-referral-cta__body{
+    #rewards-cta-{{ section.id }} .q-referral-cta__body{
       color: var(--q-ref-muted);
       margin: 0;
     }
-    .q-section--referral-cta .q-referral-cta__body p{ margin: 0 0 .75rem 0; }
-    .q-section--referral-cta .q-referral-cta__body p:last-child{ margin-bottom: 0; }
+    #rewards-cta-{{ section.id }} .q-referral-cta__body p{ margin: 0 0 .75rem 0; }
+    #rewards-cta-{{ section.id }} .q-referral-cta__body p:last-child{ margin-bottom: 0; }
 
-    .q-section--referral-cta .q-referral-cta__highlight{
+    #rewards-cta-{{ section.id }} .q-referral-cta__highlight{
       margin: .85rem 0 0 0;
       display: inline-flex;
       align-items: center;
@@ -286,26 +314,26 @@
     }
 
     /* Benefits grid */
-    .q-section--referral-cta .q-referral-cta__benefits{
+    #rewards-cta-{{ section.id }} .q-referral-cta__benefits{
       margin-top: 1rem;
       display: grid;
       gap: .75rem;
       grid-template-columns: 1fr;
     }
     @media (min-width: 700px){
-      .q-section--referral-cta .q-referral-cta__benefits{
+      #rewards-cta-{{ section.id }} .q-referral-cta__benefits{
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
     @media (min-width: 1050px){
-      .q-section--referral-cta .q-referral-cta__benefits{
+      #rewards-cta-{{ section.id }} .q-referral-cta__benefits{
         grid-template-columns: repeat(var(--q-ref-cols), minmax(0, 1fr));
       }
     }
 
-    .q-section--referral-cta .q-referral-cta__benefit{
+    #rewards-cta-{{ section.id }} .q-referral-cta__benefit{
       display: grid;
-      grid-template-columns: 36px 1fr;
+      grid-template-columns: 36px minmax(0,1fr);
       gap: .75rem;
       align-items: start;
       padding: .9rem .95rem;
@@ -314,7 +342,7 @@
       border: 1px solid var(--q-ref-border);
     }
 
-    .q-section--referral-cta .q-referral-cta__benefit-icon{
+    #rewards-cta-{{ section.id }} .q-referral-cta__benefit-icon{
       width: 36px;
       height: 36px;
       border-radius: 999px;
@@ -326,23 +354,16 @@
       position: relative;
       overflow: hidden;
     }
-    .q-section--referral-cta .q-referral-cta__benefit-icon span{
-      display:block;
-      width: 10px;
-      height: 10px;
-      border-radius: 999px;
-      background: var(--q-ref-accent);
-      opacity: .9;
-    }
+    #rewards-cta-{{ section.id }} .q-referral-cta__benefit-icon svg{display:block;width:20px;height:20px;color:var(--q-ref-accent);}
 
-    .q-section--referral-cta .q-referral-cta__benefit-title{
+    #rewards-cta-{{ section.id }} .q-referral-cta__benefit-title{
       margin: 0 0 .2rem 0;
       font-size: 1rem;
       line-height: 1.2;
       font-weight: 750;
       letter-spacing: -0.01em;
     }
-    .q-section--referral-cta .q-referral-cta__benefit-body{
+    #rewards-cta-{{ section.id }} .q-referral-cta__benefit-body{
       margin: 0;
       color: var(--q-ref-muted);
       font-size: .92rem;
@@ -350,7 +371,7 @@
     }
 
     /* Actions */
-    .q-section--referral-cta .q-referral-cta__actions{
+    #rewards-cta-{{ section.id }} .q-referral-cta__actions{
       display: flex;
       flex-direction: column;
       gap: .6rem;
@@ -358,61 +379,83 @@
       justify-content: flex-start;
     }
     @media (min-width: 900px){
-      .q-section--referral-cta .q-referral-cta__actions{
+      #rewards-cta-{{ section.id }} .q-referral-cta__actions{
         align-items: {% if s.align == 'center' %}center{% else %}flex-start{% endif %};
       }
     }
 
     /* Button sizing + optional full-width mobile */
-    .q-section--referral-cta .q-referral-cta__btn{
+    #rewards-cta-{{ section.id }} .q-referral-cta__btn{
       width: 100%;
       justify-content: center;
       text-align: center;
       white-space: normal;
     }
     @media (min-width: 700px){
-      .q-section--referral-cta .q-referral-cta__btn{
+      #rewards-cta-{{ section.id }} .q-referral-cta__btn{
         width: auto;
-        min-width: 14rem;
+        min-width: min(14rem,100%);
       }
     }
     {% if s.buttons_full_width_mobile == false %}
-      .q-section--referral-cta .q-referral-cta__btn{ width: auto; }
+      #rewards-cta-{{ section.id }} .q-referral-cta__btn{ width: auto; align-self:{% if s.align == 'center' %}center{% else %}flex-start{% endif %}; }
     {% endif %}
 
     /* Strip layout: feels “intentional” */
-    .q-section--referral-cta.q-referral-cta--strip{
+    #rewards-cta-{{ section.id }}.q-referral-cta--strip{
       background: var(--q-ref-bg);
     }
 
     /* Program type nuance (subtle accent) */
-    .q-section--referral-cta.q-referral-cta--program-referral .q-referral-cta__highlight{
+    #rewards-cta-{{ section.id }}.q-referral-cta--program-referral .q-referral-cta__highlight{
       border-color: color-mix(in srgb, var(--q-ref-accent) 30%, var(--q-ref-border));
     }
-    .q-section--referral-cta.q-referral-cta--program-loyalty .q-referral-cta__badge-pill{
+    #rewards-cta-{{ section.id }}.q-referral-cta--program-loyalty .q-referral-cta__badge-pill{
       border-color: color-mix(in srgb, var(--q-ref-accent) 30%, var(--q-ref-border));
     }
-    .q-section--referral-cta.q-referral-cta--program-hybrid .q-referral-cta__benefit-icon{
+    #rewards-cta-{{ section.id }}.q-referral-cta--program-hybrid .q-referral-cta__benefit-icon{
       background: color-mix(in srgb, var(--q-ref-accent) 18%, transparent);
     }
+
+    #rewards-cta-{{ section.id }}{min-width:0;overflow-wrap:anywhere;font-family:var(--font-body,inherit);}
+    #rewards-cta-{{ section.id }} .q-referral-cta__inner{max-width:var(--container-{{ s.max_width }},960px);margin-inline:auto;width:100%;min-width:0;box-sizing:border-box;}
+    #rewards-cta-{{ section.id }} .q-referral-cta__grid>*{min-width:0;max-width:100%;}
+    #rewards-cta-{{ section.id }}:not(.has-actions) .q-referral-cta__grid{grid-template-columns:minmax(0,1fr);}
+    #rewards-cta-{{ section.id }} .q-referral-cta__card{--q-ref-bg:{{ v_card_bg }};}
+    #rewards-cta-{{ section.id }} .q-referral-cta__heading,#rewards-cta-{{ section.id }} .q-referral-cta__benefit-title{font-family:var(--font-head,inherit);text-transform:var(--tt-head,none);}
+    #rewards-cta-{{ section.id }} .q-referral-cta__btn{display:inline-flex;align-items:center;gap:.5rem;padding:.8rem 1.2rem;max-width:100%;box-sizing:border-box;border:var(--btn-border-w,1px) solid var(--q-ref-accent);border-radius:var(--btn-radius,12px);text-decoration:none;text-transform:var(--tt-btn,none);transition:opacity .12s ease,transform .12s ease;}
+    #rewards-cta-{{ section.id }} .q-referral-cta__btn--primary{background:var(--q-ref-accent);color:var(--q-ref-accent-text);}
+    #rewards-cta-{{ section.id }} .q-referral-cta__btn--secondary{background:transparent;color:var(--q-ref-text);border-color:currentColor;}
+    #rewards-cta-{{ section.id }} .q-referral-cta__btn:hover{opacity:var(--btn-hover,.92);}
+    #rewards-cta-{{ section.id }} .q-referral-cta__btn:active{transform:scale(var(--btn-active,.98));}
+    #rewards-cta-{{ section.id }} .q-referral-cta__btn span{min-width:0;}
+    #rewards-cta-{{ section.id }} a:focus-visible{outline:2px solid currentColor;outline-offset:3px;}
+    #rewards-cta-{{ section.id }} .q-referral-cta__badge-pill,#rewards-cta-{{ section.id }} .q-referral-cta__highlight{max-width:100%;box-sizing:border-box;}
+    @media(prefers-reduced-motion:reduce){#rewards-cta-{{ section.id }} .q-referral-cta__btn{transition:none;}#rewards-cta-{{ section.id }} .q-referral-cta__btn:active{transform:none;}}
+    @media(forced-colors:active){#rewards-cta-{{ section.id }} .q-referral-cta__btn{border-color:ButtonText;}}
   </style>
 </section>
-
-{% endif %}
+  {%- elsif request.design_mode -%}
+    <p role="status">Rewards program: add visible content or a labelled program link.</p>
+  {%- endif -%}
+{%- elsif request.design_mode -%}
+  <p role="status">Rewards program: enable the section to show its content.</p>
+{%- endif -%}
 
 {% schema %}
 {
   "name": "3rd Party - Referral CTA",
   "class": "q-section q-section--referral-cta",
   "settings": [
+    {"type": "paragraph", "content": "Content and links only. Configure a rewards service separately, add your program links, and use your actual program terms. This section does not issue points, credit or referral rewards."},
     { "type": "checkbox", "id": "enable_section", "label": "Enable section", "default": true },
     { "type": "text", "id": "aria_label", "label": "Section aria-label", "default": "Referral and rewards program" },
 
     { "type": "header", "content": "Content" },
-    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Refer friends. Earn rewards." },
-    { "type": "text", "id": "heading", "label": "Heading", "default": "Share the love, get rewarded" },
-    { "type": "richtext", "id": "body", "label": "Body text", "default": "<p>Invite your friends and earn exclusive rewards, discounts, or store credit every time they make a purchase.</p>" },
-    { "type": "text", "id": "reward_highlight", "label": "Reward highlight", "default": "Get $10 for every successful referral." },
+    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Discover the program" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Explore our rewards program" },
+    { "type": "richtext", "id": "body", "label": "Body text", "default": "<p>Read the current rewards program details, eligibility requirements and terms.</p>" },
+    { "type": "text", "id": "reward_highlight", "label": "Reward highlight", "default": "See current program terms" },
 
     { "type": "header", "content": "Buttons" },
     { "type": "text", "id": "primary_button_label", "label": "Primary button label", "default": "Join rewards program" },
@@ -480,7 +523,7 @@
     { "type": "checkbox", "id": "show_border", "label": "Show subtle border", "default": false },
 
     { "type": "checkbox", "id": "show_badge", "label": "Show program badge pill", "default": true },
-    { "type": "text", "id": "badge_text", "label": "Program badge text", "default": "Members get more" },
+    { "type": "text", "id": "badge_text", "label": "Program badge text", "default": "Program information" },
 
     { "type": "header", "content": "Design controls" },
     { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors (overrides theme)", "default": false },
@@ -539,9 +582,9 @@
       "name": "Benefit bullet",
       "limit": 4,
       "settings": [
-        { "type": "text", "id": "title", "label": "Benefit title", "default": "Earn rewards on every referral" },
-        { "type": "text", "id": "body", "label": "Short description", "default": "Share your unique link and earn rewards when friends complete their first purchase." },
-        { "type": "text", "id": "icon_hint", "label": "Icon hint (optional)", "default": "star" }
+        { "type": "text", "id": "title", "label": "Benefit title", "default": "Program details" },
+        { "type": "text", "id": "body", "label": "Short description", "default": "Review the current program terms and eligibility." },
+        { "type": "text", "id": "icon_hint", "info": "Supported icons: star, gift, sparkles, heart and check. Other or blank values use star.", "label": "Icon hint (optional)", "default": "star" }
       ]
     }
   ],
@@ -553,16 +596,16 @@
         {
           "type": "benefit",
           "settings": {
-            "title": "Give $10, get $10",
-            "body": "Your friend gets a reward on their first order and you earn store credit.",
+            "title": "Program details",
+            "body": "Learn how the program works and read the current terms.",
             "icon_hint": "gift"
           }
         },
         {
           "type": "benefit",
           "settings": {
-            "title": "Members-only perks",
-            "body": "Unlock exclusive discounts, early access, and special offers as you refer.",
+            "title": "Member information",
+            "body": "Visit the program website for eligibility and account details.",
             "icon_hint": "sparkles"
           }
         }

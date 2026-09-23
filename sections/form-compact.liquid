@@ -1,26 +1,17 @@
-{% comment %}
-  Quadratum — Forms: Quote (Full) (integrations-enabled)
-  • Layouts: Card / Split / Steps
-  • Routing: Shopify Contact / Shopify Customer / Custom Endpoint
-  • Engines: snippets/form-core.liquid + snippets/form-dispatch.liquid
-  • Validation/steps/captcha: assets/frontend-form-logic-form-sections.js
-  • Auto-inherits global Integrations: captcha, default endpoint, tags, marketing meta
-
-  Minimal refactor (per our checkbox/radio + validator talk):
-  - Fix padding scale (schema ranges imply rem ×10, not ×100)
-  - Ensure checkbox/radio never inherit full-width text input styling
-  - Ensure invalid outline styles don’t “box” the entire row for checkbox/radio
-  - Hide steps UI unless template is steps (still present for JS)
-{% endcomment %}
+{% comment %}Configurable native/custom form; shared fields, scoped controller and independent host settings.{% endcomment %}
 
 {{ 'forms-sections.css' | asset_url | stylesheet_tag }}
 
 {%- assign s = section.settings -%}
 {%- assign g = settings -%}
+{%- assign form_surface_color = s.form_bg | default: g.bg_base | default: '#ffffff' -%}
+{%- capture form_surface_text -%}{% render 'contrast-text', background: form_surface_color, preferred: g.text_base %}{%- endcapture -%}
+{%- capture form_input_text -%}{% render 'contrast-text', background: '#ffffff', preferred: g.text_base %}{%- endcapture -%}
+
 
 {%- comment -%} Captcha: inherit-aware + provider-aware key selection {%- endcomment -%}
-{%- assign _captcha_choice = s.captcha_mode | default: 'inherit' -%}
-{%- assign eff_captcha_mode = _captcha_choice -%}
+{%- assign captcha_choice = s.captcha_mode | default: 'inherit' -%}
+{%- assign eff_captcha_mode = captcha_choice -%}
 {%- if eff_captcha_mode == blank or eff_captcha_mode == 'inherit' -%}
   {%- assign eff_captcha_mode = g.forms_captcha_provider | default: 'none' -%}
 {%- endif -%}
@@ -46,66 +37,53 @@
 {%- endif -%}
 
 {%- comment -%} Button: inherit-aware, maps to q-btn class {%- endcomment -%}
-{%- assign _btn_choice = s.button_variant | default: 'inherit' -%}
-{%- assign _btn_variant = g.button_variant_default | default: 'solid' -%}
-{%- if _btn_choice != blank and _btn_choice != 'inherit' -%}{%- assign _btn_variant = _btn_choice -%}{%- endif -%}
+{%- assign btn_choice = s.button_variant | default: 'inherit' -%}
+{%- assign btn_variant = g.button_variant_default | default: 'solid' -%}
+{%- if btn_choice != blank and btn_choice != 'inherit' -%}{%- assign btn_variant = btn_choice -%}{%- endif -%}
 {%- assign btn_mode_class = 'q-btn--solid' -%}
-{%- if _btn_variant == 'outline' -%}{%- assign btn_mode_class = 'q-btn--outline' -%}{%- endif -%}
-{%- if _btn_variant == 'ghost' -%}{%- assign btn_mode_class = 'q-btn--ghost' -%}{%- endif -%}
+{%- if btn_variant == 'outline' -%}{%- assign btn_mode_class = 'q-btn--outline' -%}{%- endif -%}
+{%- if btn_variant == 'ghost' -%}{%- assign btn_mode_class = 'q-btn--ghost' -%}{%- endif -%}
 
 {%- assign hide_m = s.hide_on_mobile -%}
 {%- assign hide_d = s.hide_on_desktop -%}
 
 {%- assign anchor_id = s.anchor_id | strip -%}
 
-{%- comment -%} Overlay CSS (Shopify-safe; NO parentheses) {%- endcomment -%}
-{%- assign overlay_alpha = s.overlay_opacity | default: 24 | divided_by: 100.0 -%}
-{%- assign overlay_css = 'transparent' -%}
-{%- if s.overlay_type == 'solid' -%}
-  {%- assign _overlay_color = s.overlay_color | default: '#000000' -%}
-  {%- assign overlay_css = _overlay_color | color_modify: 'alpha', overlay_alpha -%}
-{%- elsif s.overlay_type == 'gradient' -%}
-  {%- assign a = s.gradient_angle | default: 0 -%}
-  {%- assign _gfrom = s.gradient_from | default: '#000000' -%}
-  {%- assign _gto   = s.gradient_to   | default: '#000000' -%}
-  {%- assign c1 = _gfrom | color_modify: 'alpha', overlay_alpha -%}
-  {%- assign c2 = _gto   | color_modify: 'alpha', overlay_alpha -%}
-  {%- assign overlay_css = 'linear-gradient(' | append: a | append: 'deg, ' | append: c1 | append: ', ' | append: c2 | append: ')' -%}
-{%- endif -%}
-
-{%- comment -%} Background image CSS (Shopify-safe) {%- endcomment -%}
-{%- assign bg_image_css = '' -%}
-{%- if s.bg_image != blank -%}
-  {%- assign bg_url = s.bg_image | image_url: width: 1920 -%}
-  {%- assign bg_image_css = 'background-image:url(' | append: bg_url | append: '); background-size:cover; background-position:center;' -%}
-{%- endif -%}
-
-{{ 'frontend-form-logic-form-sections.js' | asset_url | script_tag }}
+<script src="{{ 'frontend-form-logic-form-sections.js' | asset_url }}" defer></script>
 
 <section
+  data-q-form-host data-video-hero data-video-hero-mobile-query="(max-width: 767.98px)"
   id="{{ section.id }}"
-  class="q-form q-form--quote-full{% if hide_m %} is-hidden-m{% endif %}{% if hide_d %} is-hidden-d{% endif %} q-cta-quote-form"
+  class="q-form-scope-{{ section.id }} q-form q-form--compact{% if hide_m and request.design_mode == false %} is-hidden-m hide-mobile{% endif %}{% if hide_d and request.design_mode == false %} is-hidden-d hide-desktop{% endif %} q-cta-quote-form"
   role="region"
-  aria-label="{{ s.aria_label | default: 'Quote request form' }}"
-  data-template="{{ s.template_style }}"
-  data-surface="{{ s.surface_style | default: 'card' }}"
-  data-captcha="{{ eff_captcha_mode }}"
+  aria-label="{{ s.aria_label | default: 'Quote request form' | escape }}"
+  data-template="{{ s.template_style | escape }}"
+  data-surface="{{ s.surface_style | default: 'card' | escape }}"
+  data-captcha="{{ eff_captcha_mode | escape }}"
   data-captcha-key="{{ eff_captcha_key | escape }}"
-  data-btn-variant="{{ btn_mode_class }}"
+  data-btn-variant="{{ btn_mode_class | escape }}"
   data-msg-error="{{ s.error_text | escape }}"
   data-msg-success="{{ s.success_text | escape }}"
-  data-marketing-app="{{ g.email_marketing_app | default: 'none' }}"
-  data-marketing-consent="{{ g.marketing_consent_mode | default: 'optional' }}"
-  data-marketing-double-opt-in="{{ g.marketing_double_opt_in | default: true }}"
-  data-marketing-map-name="{{ g.marketing_map_name | default: true }}"
-  data-marketing-map-phone="{{ g.marketing_map_phone | default: true }}"
-  data-marketing-map-company="{{ g.marketing_map_company | default: true }}"
-  data-utm-source="{{ g.marketing_utm_source | default: 'quote_form' }}"
-  data-utm-medium="{{ g.marketing_utm_medium | default: 'web' }}"
-  data-utm-campaign="{{ g.marketing_utm_campaign | default: 'lead_gen' }}"
-  data-proxy-forms="{{ g.proxy_forms_endpoint | default: g.forms_global_endpoint | default: '' }}"
-  data-proxy-marketing="{{ g.marketing_proxy_endpoint | default: '' }}"
+  data-marketing-app="{{ g.email_marketing_app | default: 'none' | escape }}"
+  data-marketing-consent="{{ g.marketing_consent_mode | default: 'optional' | escape }}"
+  data-marketing-double-opt-in="{{ g.marketing_double_opt_in | default: true, allow_false: true | escape }}"
+  data-marketing-map-name="{{ g.marketing_map_name | default: true, allow_false: true | escape }}"
+  data-marketing-map-phone="{{ g.marketing_map_phone | default: true, allow_false: true | escape }}"
+  data-marketing-map-company="{{ g.marketing_map_company | default: true, allow_false: true | escape }}"
+  data-utm-source="{{ g.marketing_utm_source | default: 'quote_form' | escape }}"
+  data-utm-medium="{{ g.marketing_utm_medium | default: 'web' | escape }}"
+  data-utm-campaign="{{ g.marketing_utm_campaign | default: 'lead_gen' | escape }}"
+  data-proxy-forms="{{ g.proxy_forms_endpoint | default: g.forms_global_endpoint | default: '' | escape }}"
+  data-proxy-marketing="{{ g.marketing_proxy_endpoint | default: '' | escape }}"
   style="
+    --q-text: {{ g.text_base | default: '#111111' }};
+    --q-muted: {{ g.text_muted | default: '#6b7280' }};
+    --q-btn-bg: {{ g.color_primary | default: '#2563eb' }};
+    --q-btn-fg: {{ g.text_on_color | default: '#ffffff' }};
+    --q-btn-br: {{ g.button_radius | default: 12 }}px;
+    --q-btn-bw: {{ g.button_border_width | default: 1 }}px;
+    --q-error: {{ g.color_error | default: '#dc2626' }};
+    --q-bg: {{ s.bg_color | default: '#ffffff' }};
     --q-pad-y: {{ s.padding_y | default: 48 | divided_by: 10.0 }}rem;
     --q-pad-x: {{ s.padding_x | default: 24 | divided_by: 10.0 }}rem;
     --q-card-radius: {{ s.card_radius | default: 16 }}px;
@@ -113,44 +91,26 @@
     --q-input-border-w: {{ s.input_border | default: 1 }}px;
     --q-form-bg: {{ s.form_bg | default: '#ffffff' }};
     --q-bg-color: {{ s.bg_color | default: '#ffffff' }};
-    --q-overlay: {{ overlay_css }};
     background-color: var(--q-bg-color);
-    {{ bg_image_css }}
   "
 >
   {%- if anchor_id != blank and anchor_id != section.id -%}
     <span id="{{ anchor_id | escape }}" class="q-anchor" aria-hidden="true"></span>
   {%- endif -%}
 
-  {% if s.bg_video != blank %}
-    <video class="q-bg-video" autoplay muted loop playsinline aria-hidden="true">
-      <source src="{{ s.bg_video | escape }}">
-    </video>
-  {% endif %}
-
-  {% if s.overlay_type != 'none' %}
-    <div class="q-overlay" aria-hidden="true"></div>
-  {% endif %}
+  {% render 'form-background', settings: s, providers: false %}
 
   <div class="{% if s.container_mode == 'full' %}q-wrap-full{% else %}q-wrap{% endif %}">
-    {%- assign H = s.heading_level | default: 'h2' -%}
+    {%- assign heading_tag = 'h2' -%}{%- if s.heading_level == 'h3' -%}{%- assign heading_tag = 'h3' -%}{%- endif -%}
     <div class="q-head">
-      {% if s.kicker != blank %}<p class="q-kicker">{{ s.kicker }}</p>{% endif %}
-      <{{ H }} class="q-title">{{ s.heading | default: 'Get a Fast, Accurate Quote' }}</{{ H }}>
-      {% if s.subheading != blank %}<p class="q-sub">{{ s.subheading }}</p>{% endif %}
+      {% if s.kicker != blank %}<p class="q-kicker">{{ s.kicker | escape }}</p>{% endif %}
+      {% if s.heading != blank %}<{{ heading_tag }} class="q-title">{{ s.heading | escape }}</{{ heading_tag }}>{% endif %}
+      {% if s.subheading != blank %}<p class="q-sub">{{ s.subheading | escape }}</p>{% endif %}
     </div>
 
-    {%- capture form_surface_start -%}
-      <div class="q-surface{% if s.surface_style != 'frameless' %} q-shadow-{{ s.card_shadow | default: 'md' }}{% else %} is-frameless{% endif %}" style="background: var(--q-form-bg); border-radius: var(--q-card-radius);">
-        <div class="q-live" aria-live="polite" role="status"></div>
-    {%- endcapture -%}
-    {%- capture form_surface_end -%}
-      </div>
-    {%- endcapture -%}
-
-    {%- if s.template_style == 'split' -%}
+    {%- if s.template_style == 'split' and s.split_image != blank -%}
       <div class="q-split q-split--{{ s.split_media_side | default: 'right' }}">
-        {{ form_surface_start }}
+        <div class="q-surface{% if s.surface_style != 'frameless' %} q-shadow-{{ s.card_shadow | default: 'md' }}{% else %} is-frameless{% endif %}" style="background: var(--q-form-bg); border-radius: var(--q-card-radius);">
           {%- render 'form-dispatch',
             id: section.id,
             settings: s,
@@ -175,19 +135,19 @@
             <div class="q-steps-bar"><span class="q-steps-fill"></span></div>
             <div class="q-steps-count"></div>
           </div>
-        {{ form_surface_end }}
+        </div>
 
         <aside class="q-media">
           {% if s.split_image != blank %}
             {%- liquid
-              assign qtm_image_alt = s.heading | default: 'Quote form media'
+              assign qtm_image_alt = s.split_image.alt | default: s.heading
             -%}
             {{ s.split_image | image_url: width: 1200 | image_tag: loading: 'lazy', alt: qtm_image_alt }}
           {% endif %}
         </aside>
       </div>
     {%- else -%}
-      {{ form_surface_start }}
+      <div class="q-surface{% if s.surface_style != 'frameless' %} q-shadow-{{ s.card_shadow | default: 'md' }}{% else %} is-frameless{% endif %}" style="background: var(--q-form-bg); border-radius: var(--q-card-radius);">
         {%- render 'form-dispatch',
           id: section.id,
           settings: s,
@@ -212,69 +172,61 @@
           <div class="q-steps-bar"><span class="q-steps-fill"></span></div>
           <div class="q-steps-count"></div>
         </div>
-      {{ form_surface_end }}
+      </div>
     {%- endif -%}
   </div>
 
-  {%- if eff_captcha_mode == 'turnstile' and eff_captcha_key != blank -%}
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
-  {%- endif -%}
-  {%- if eff_captcha_mode == 'recaptcha_v3' and eff_captcha_key != blank -%}
-    <script src="https://www.google.com/recaptcha/api.js?render={{ eff_captcha_key | escape }}" defer></script>
-  {%- endif -%}
-
   <style>
-    #{{ section.id }} { position: relative; padding: var(--q-pad-y) var(--q-pad-x); overflow: hidden; }
-    #{{ section.id }} .q-anchor{ position: relative; top: -80px; height: 0; width: 0; display:block; visibility:hidden; }
-    #{{ section.id }} .q-overlay { position:absolute; inset:0; background: var(--q-overlay); pointer-events:none; }
-    #{{ section.id }} .q-bg-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
-    #{{ section.id }} .q-wrap { max-width: var(--container-lg, 72rem); margin: 0 auto; position: relative; z-index: 1; }
-    #{{ section.id }} .q-wrap-full { width: 100%; margin: 0; position: relative; z-index: 1; }
-    #{{ section.id }} .q-head { margin-bottom: var(--space-md, 1rem); }
-    #{{ section.id }} .q-kicker { color: var(--text-muted, #6b7280); font-weight: 600; margin: 0 0 .25rem 0; }
-    #{{ section.id }} .q-title { margin: 0 0 .5rem 0; line-height: 1.1; }
-    #{{ section.id }} .q-sub { color: var(--text-muted, #6b7280); margin: 0 0 1rem 0; }
+    .q-form-scope-{{ section.id }} { position: relative; padding: var(--q-pad-y) min(var(--q-pad-x), 8vw); overflow: hidden; }
+    .q-form-scope-{{ section.id }} .q-anchor{ position: relative; top: -80px; height: 0; width: 0; display:block; visibility:hidden; }
+    .q-form-scope-{{ section.id }} .q-overlay { position:absolute; inset:0; pointer-events:none; }
+    .q-form-scope-{{ section.id }} .q-bg-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
+    .q-form-scope-{{ section.id }} .q-wrap { max-width: var(--q-cont-lg, 72rem); margin: 0 auto; position: relative; z-index: 1; }
+    .q-form-scope-{{ section.id }} .q-wrap-full { width: 100%; margin: 0; position: relative; z-index: 1; }
+    .q-form-scope-{{ section.id }} .q-head { margin-bottom: var(--space-md, 1rem); }
+    .q-form-scope-{{ section.id }} .q-kicker { color: var(--q-muted); font-weight: 600; margin: 0 0 .25rem 0; }
+    .q-form-scope-{{ section.id }} .q-title { margin: 0 0 .5rem 0; line-height: 1.1; }
+    .q-form-scope-{{ section.id }} .q-sub { color: var(--q-muted); margin: 0 0 1rem 0; }
 
-    #{{ section.id }} .q-surface { padding: var(--space-lg, 1.5rem); }
-    #{{ section.id }} .q-shadow-none { box-shadow: none; }
-    #{{ section.id }} .q-shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,.06); }
-    #{{ section.id }} .q-shadow-md { box-shadow: 0 6px 18px rgba(0,0,0,.08); }
-    #{{ section.id }} .q-shadow-lg { box-shadow: 0 12px 32px rgba(0,0,0,.12); }
+    .q-form-scope-{{ section.id }} .q-surface { padding: var(--space-lg, 1.5rem); }
+    .q-form-scope-{{ section.id }} .q-shadow-none { box-shadow: none; }
+    .q-form-scope-{{ section.id }} .q-shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+    .q-form-scope-{{ section.id }} .q-shadow-md { box-shadow: 0 6px 18px rgba(0,0,0,.08); }
+    .q-form-scope-{{ section.id }} .q-shadow-lg { box-shadow: 0 12px 32px rgba(0,0,0,.12); }
 
-    #{{ section.id }}[data-surface="frameless"] .q-surface.is-frameless {
+    .q-form-scope-{{ section.id }}[data-surface="frameless"] .q-surface.is-frameless {
       background: transparent !important;
       box-shadow: none !important;
       border-radius: 0 !important;
       padding: 0 !important;
     }
 
-    #{{ section.id }} .q-split { display: grid; gap: var(--space-md, 1rem); align-items: stretch; }
+    .q-form-scope-{{ section.id }} .q-split { display: grid; gap: var(--space-md, 1rem); align-items: stretch; }
     @media (min-width: 768px){
-      #{{ section.id }} .q-split { grid-template-columns: 1fr 1fr; }
-      #{{ section.id }} .q-split--left { direction: rtl; }
-      #{{ section.id }} .q-split--left > * { direction: ltr; }
-    }
-    #{{ section.id }} .q-media img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--q-card-radius); }
+      .q-form-scope-{{ section.id }} .q-split { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+      .q-form-scope-{{ section.id }} .q-split--left > .q-media { order:-1; }
+      }
+    .q-form-scope-{{ section.id }} .q-media img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--q-card-radius); }
 
     /* Steps UI: present for JS, hidden unless Steps layout */
-    #{{ section.id }} .q-steps-ui{ display:none; margin-top: var(--space-md, 1rem); }
-    #{{ section.id }}[data-template="steps"] .q-steps-ui{ display:block; }
+    .q-form-scope-{{ section.id }} .q-steps-ui{ display:none; margin-top: var(--space-md, 1rem); }
+    .q-form-scope-{{ section.id }}[data-template="steps"] .q-steps-ui{ display:block; }
 
     /* Text-like controls only (prevents checkbox/radio from becoming full width) */
-    #{{ section.id }} input.q-input:not([type="checkbox"]):not([type="radio"]),
-    #{{ section.id }} select.q-select,
-    #{{ section.id }} textarea.q-textarea {
+    .q-form-scope-{{ section.id }} input.q-input:not([type="checkbox"]):not([type="radio"]),
+    .q-form-scope-{{ section.id }} select.q-select,
+    .q-form-scope-{{ section.id }} textarea.q-textarea {
       width: 100%;
       border-radius: var(--q-input-radius);
       border: var(--q-input-border-w) solid var(--border-color, #e5e7eb);
       padding: .65rem .8rem;
       background: #fff;
-      color: var(--text-base, #111111);
+      color: var(--q-text);
     }
 
     /* Checkbox/radio: inline-size and aligned next to label text */
-    #{{ section.id }} input.q-input[type="checkbox"],
-    #{{ section.id }} input.q-input[type="radio"]{
+    .q-form-scope-{{ section.id }} input.q-input[type="checkbox"],
+    .q-form-scope-{{ section.id }} input.q-input[type="radio"]{
       width: auto !important;
       min-width: 1rem;
       max-width: 1rem;
@@ -287,27 +239,54 @@
     }
 
     /* Invalid state: only outline text inputs/select/textarea */
-    #{{ section.id }} input.q-input:not([type="checkbox"]):not([type="radio"])[aria-invalid="true"],
-    #{{ section.id }} select.q-select[aria-invalid="true"],
-    #{{ section.id }} textarea.q-textarea[aria-invalid="true"]{
+    .q-form-scope-{{ section.id }} input.q-input:not([type="checkbox"]):not([type="radio"])[aria-invalid="true"],
+    .q-form-scope-{{ section.id }} select.q-select[aria-invalid="true"],
+    .q-form-scope-{{ section.id }} textarea.q-textarea[aria-invalid="true"]{
       outline: 1px solid var(--q-error, #dc2626);
       border-color: var(--q-error, #dc2626);
     }
 
     /* Invalid state for checkbox/radio: outline only the control */
-    #{{ section.id }} input.q-input[type="checkbox"][aria-invalid="true"],
-    #{{ section.id }} input.q-input[type="radio"][aria-invalid="true"]{
+    .q-form-scope-{{ section.id }} input.q-input[type="checkbox"][aria-invalid="true"],
+    .q-form-scope-{{ section.id }} input.q-input[type="radio"][aria-invalid="true"]{
       outline: 2px solid var(--q-error, #dc2626);
       outline-offset: 2px;
     }
 
-    @media (max-width: 767.98px){ #{{ section.id }}.is-hidden-m { display:none !important; } }
-    @media (min-width: 768px){ #{{ section.id }}.is-hidden-d { display:none !important; } }
-  </style>
+    @media (max-width: 767.98px){ .q-form-scope-{{ section.id }}.is-hidden-m { display:none !important; } }
+    @media (min-width: 768px){ .q-form-scope-{{ section.id }}.is-hidden-d { display:none !important; } }
+
+  .q-form-scope-{{ section.id }}{min-width:0;overflow-wrap:anywhere;}
+  .q-form-scope-{{ section.id }} .q-wrap,.q-form-scope-{{ section.id }} .q-wrap-full{box-sizing:border-box;}
+  .q-form-scope-{{ section.id }} .q-card,.q-form-scope-{{ section.id }} .q-surface,.q-form-scope-{{ section.id }} .q-grid>*{min-width:0;max-width:100%;}
+  .q-form-scope-{{ section.id }} .q-field{min-width:0;max-width:100%;text-align:start;}
+  .q-form-scope-{{ section.id }} .q-radio{width:auto;max-width:100%;text-align:start;overflow-wrap:anywhere;}
+  .q-form-scope-{{ section.id }} .q-radio span{min-width:0;}
+  .q-form-scope-{{ section.id }} .q-bg{background:var(--q-bg);}
+  .q-form-scope-{{ section.id }} .q-bg .q-form-background-video{position:absolute;inset:0;width:100%;height:100%;border:0;}
+  .q-form-scope-{{ section.id }} .q-bg .q-form-poster{width:100%;height:100%;object-fit:cover;}
+  .q-form-scope-{{ section.id }} .q-bg [hidden]{display:none !important;}
+  .q-form-scope-{{ section.id }} .q-form-video-toggle{position:absolute;z-index:2;inset-inline-end:12px;bottom:12px;padding:8px 12px;border:1px solid currentColor;border-radius:4px;background:#fff;color:#111;max-width:calc(100% - 24px);}
+  .q-form-scope-{{ section.id }} :is(button,a,input,select,textarea):focus-visible{outline:2px solid currentColor;outline-offset:3px;}
+  .q-form-scope-{{ section.id }} .q-step{grid-column:1 / -1;min-width:0;}
+  .q-form-scope-{{ section.id }} .q-step-heading{width:100%;}
+  .q-form-scope-{{ section.id }} [data-q-submit]{grid-column:1 / -1;max-width:100%;}
+  @media(max-width:767.98px){.q-form-scope-{{ section.id }}.hide-mobile{display:none;}}
+  @media(min-width:768px){.q-form-scope-{{ section.id }}.hide-desktop{display:none;}}
+  @media(prefers-reduced-motion:reduce){.q-form-scope-{{ section.id }} .q-btn{transition:none;}}
+  .q-form-scope-{{ section.id }} .q-wrap,.q-form-scope-{{ section.id }} .q-wrap-full{padding:0;}
+  .q-form-scope-{{ section.id }} .q-fields > .q-field{width:100%;}
+
+  .q-form-scope-{{ section.id }} .q-card,.q-form-scope-{{ section.id }} .q-surface{--q-text:{{ form_surface_text | strip }};--q-muted:{{ form_surface_text | strip }};}
+  .q-form-scope-{{ section.id }}[data-surface="frameless"] .q-card,.q-form-scope-{{ section.id }}[data-surface="frameless"] .q-surface{--q-text:{{ g.text_base | default: '#111111' }};--q-muted:{{ g.text_muted | default: '#6b7280' }};}
+  .q-form-scope-{{ section.id }} input.q-input,.q-form-scope-{{ section.id }} select.q-select,.q-form-scope-{{ section.id }} textarea.q-textarea{color:{{ form_input_text | strip }};box-sizing:border-box;max-width:100%;}
+  .q-form-scope-{{ section.id }}{--q-btn-hover-op:{{ g.button_hover_opacity | default: 92 }};--q-btn-active-scale:{{ g.button_active_scale | default: 98 | divided_by: 100.0 }};}
+  {% if g.font_heading %}.q-form-scope-{{ section.id }} .q-head :is(h2,h3){font-family:{{ g.font_heading.family }},{{ g.font_heading.fallback_families }};}{% endif %}
+</style>
 </section>
 
 {% schema %}
-{  "name": "Forms – Quote (Full)", "tag": "section", "class": "q-form q-form--quote-full",
+{  "name": "Forms – Compact", "tag": "section", "class": "q-form q-form--compact",
   "settings": [
     { "type": "text", "id": "aria_label", "label": "ARIA label", "default": "Quote request form" },
     { "type": "header", "content": "Layout" },
@@ -324,7 +303,7 @@
 
     { "type": "header", "content": "Background & Overlay (root only)" },
     { "type": "image_picker", "id": "bg_image", "label": "Background image" },
-    { "type": "url", "id": "bg_video", "label": "Background video URL" },
+    { "type": "url", "id": "bg_video", "label": "Background video URL" , "info": "Decorative background; image/color remains without playback. Provide an HTTPS URL. Videos must allow embedding."},
     { "type": "color", "id": "bg_color", "label": "Background color", "default": "#ffffff" },
     { "type": "select", "id": "overlay_type", "label": "Overlay type", "default": "none", "options": [
       { "value": "none", "label": "None" }, { "value": "solid", "label": "Solid" }, { "value": "gradient", "label": "Gradient" }
@@ -348,9 +327,9 @@
     { "type": "header", "content": "Destination" },
     { "type": "select", "id": "destination", "label": "Submission destination", "default": "shopify_contact", "options": [
       { "value": "shopify_contact", "label": "Shopify Contact" },
-      { "value": "shopify_customer", "label": "Shopify Customer" },
+      { "value": "shopify_customer", "label": "Shopify marketing signup" },
       { "value": "custom_endpoint", "label": "Custom endpoint" }
-    ]},
+    ], "info": "Contact sends inquiries. Customer mode subscribes email to marketing and does not deliver all quote fields. Custom endpoints must process their own submissions."},
     { "type": "text", "id": "endpoint_url", "label": "Custom endpoint URL (overrides global)" },
     { "type": "text", "id": "hidden_tags", "label": "Hidden tags (comma-separated)", "default": "form, web, quote-full" },
 
@@ -360,7 +339,7 @@
       { "value": "none", "label": "None" },
       { "value": "turnstile", "label": "Cloudflare Turnstile" },
       { "value": "recaptcha_v3", "label": "reCAPTCHA v3" }
-    ]},
+    ], "info": "Custom endpoints only. Native Shopify forms use Shopify captcha. Your endpoint must verify provider tokens on the server."},
     { "type": "text", "id": "captcha_site_key", "label": "Captcha site key (override)" },
 
     { "type": "header", "content": "Button & Inputs" },
@@ -401,8 +380,8 @@
           { "value": "number", "label": "Number" }, { "value": "url", "label": "URL" }, { "value": "date", "label": "Date" },
           { "value": "time", "label": "Time" }, { "value": "password", "label": "Password" }, { "value": "file", "label": "File" },
           { "value": "html", "label": "HTML" }
-        ]},
-        { "type": "text", "id": "name_attr", "label": "Input name", "default": "contact[field]" },
+        ], "info": "File uploads and passwords use custom endpoints. Shopify forms use a file link and omit passwords."},
+        { "type": "text", "id": "name_attr", "label": "Input name", "default": "contact[field]" , "info": "Use a unique field name. Blank/default names receive a stable block suffix. The first native email field is contact[email]."},
         { "type": "text", "id": "label", "label": "Label", "default": "Field" },
         { "type": "text", "id": "placeholder", "label": "Placeholder" },
         { "type": "checkbox", "id": "required", "label": "Required", "default": false },
@@ -414,7 +393,7 @@
           { "value": "full", "label": "Full" }, { "value": "half", "label": "Half" }
         ]},
         { "type": "header", "content": "Conditional display" },
-        { "type": "checkbox", "id": "condition_enable", "label": "Enable condition", "default": false },
+        { "type": "checkbox", "id": "condition_enable", "label": "Enable condition", "default": false , "info": "Requires JavaScript. Hidden fields are omitted from submission. The native email field always stays available."},
         { "type": "text", "id": "condition_field", "label": "When field name is" },
         { "type": "select", "id": "condition_operator", "label": "Operator", "default": "equals", "options": [
           { "value": "equals", "label": "Equals" }, { "value": "contains", "label": "Contains" }, { "value": "checked", "label": "Checked" }
@@ -435,7 +414,7 @@
   ],
   "presets": [
     {
-      "name": "Forms - Quote (Full)",
+      "name": "Forms – Compact",
       "category": "Forms",
       "settings": {
         "template_style": "card",

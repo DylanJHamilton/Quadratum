@@ -22,11 +22,9 @@
 {{ 'account-main-account-addresses.css' | asset_url | stylesheet_tag }}
 <script src="{{ 'account-main-account-addresses.js' | asset_url }}" defer="defer"></script>
 
+{%- capture account_card_fg -%}{%- render 'contrast-text', bg: section.settings.card_background, preferred: settings.text_base -%}{%- endcapture -%}
 {%- liquid
   assign tracking_url = section.settings.tracking_url
-  if tracking_url == blank
-    assign tracking_url = '/pages/order-tracking'
-  endif
 
   assign account_nav_layout = 'horizontal'
   if section.settings.layout_style == 'sidebar'
@@ -46,6 +44,7 @@
     --qtm-account-meta-size: {{ section.settings.meta_font_size }}px;
     --qtm-account-radius: {{ section.settings.card_radius }}px;
     --qtm-account-gap: {{ section.settings.card_gap }}px;
+    --qtm-account-card-fg: {{ account_card_fg | strip }};
     --qtm-account-card-bg: {{ section.settings.card_background }};
     --qtm-account-card-border: {{ section.settings.card_border }};
     --qtm-account-card-padding: {{ section.settings.card_padding }}px;
@@ -62,12 +61,12 @@
       <header class="qtmAccountAddresses__header">
         <div>
           <h1 class="qtmAccountAddresses__heading">
-            {{ section.settings.heading | default: 'Addresses' }}
+            {{ section.settings.heading | default: 'Addresses' | escape }}
           </h1>
 
           {% if section.settings.subheading != blank %}
             <p class="qtmAccountAddresses__subheading">
-              {{ section.settings.subheading }}
+              {{ section.settings.subheading | escape }}
             </p>
           {% endif %}
         </div>
@@ -77,16 +76,16 @@
           class="qtmAccountAddresses__button qtmAccountAddresses__button--{{ section.settings.button_style }}"
           aria-expanded="false"
           aria-controls="QtmAccountAddressesNewForm-{{ section.id }}"
-          data-qtm-addresses-add-toggle
+          hidden data-qtm-addresses-add-toggle
         >
           Add new address
         </button>
       </header>
 
-      <div class="qtmAccountAddresses__layout">
+      <div class="qtmAccountAddresses__layout" {% unless section.settings.show_account_nav %}style="grid-template-columns:minmax(0,1fr)"{% endunless %}>
         {% if section.settings.show_account_nav %}
           <aside class="qtmAccountAddresses__sidebar">
-            {% render 'account-main-account-nav',
+            {% render 'account-main-account-nav', section: section,
               active: 'addresses',
               show_tracking: true,
               tracking_url: tracking_url,
@@ -96,13 +95,13 @@
           </aside>
         {% endif %}
 
-        <main class="qtmAccountAddresses__main" aria-label="Saved addresses">
+        <div class="qtmAccountAddresses__main" aria-label="Saved addresses">
+        {% paginate customer.addresses by 20 %}
           <section
             id="QtmAccountAddressesNewForm-{{ section.id }}"
             class="qtmAccountAddresses__formPanel"
             aria-labelledby="QtmAccountAddressesNewHeading-{{ section.id }}"
             data-qtm-addresses-add-panel
-            hidden
           >
             <div class="qtmAccountAddresses__formHeader">
               <h2 id="QtmAccountAddressesNewHeading-{{ section.id }}" class="qtmAccountAddresses__panelTitle">
@@ -112,79 +111,76 @@
               <button
                 type="button"
                 class="qtmAccountAddresses__textButton"
-                data-qtm-addresses-add-close
+                hidden data-qtm-addresses-add-close
               >
                 Close
               </button>
             </div>
 
-            {% form 'customer_address', customer.new_address, class: 'qtmAccountAddresses__form' %}
+            {% assign new_form_id = 'AddressNew-' | append: section.id %}
+            {% assign address_error_id = new_form_id | append: '-Errors' %}
+            {% form 'customer_address', customer.new_address, id: new_form_id, class: 'qtmAccountAddresses__form' %}
+              {% if form.errors %}<div id="{{ address_error_id }}" class="qtmAccountAddresses__errors" role="alert" tabindex="-1">{{ form.errors | default_errors }}</div>{% endif %}
               <div class="qtmAccountAddresses__formGrid">
                 <div class="qtmAccountAddresses__field">
                   <label for="AddressFirstNameNew-{{ section.id }}">First name</label>
-                  <input id="AddressFirstNameNew-{{ section.id }}" type="text" name="address[first_name]" autocomplete="given-name" value="{{ form.first_name }}">
+                  <input id="AddressFirstNameNew-{{ section.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[first_name]" autocomplete="given-name" value="{{ form.first_name | escape }}">
                 </div>
 
                 <div class="qtmAccountAddresses__field">
                   <label for="AddressLastNameNew-{{ section.id }}">Last name</label>
-                  <input id="AddressLastNameNew-{{ section.id }}" type="text" name="address[last_name]" autocomplete="family-name" value="{{ form.last_name }}">
+                  <input id="AddressLastNameNew-{{ section.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[last_name]" autocomplete="family-name" value="{{ form.last_name | escape }}">
                 </div>
 
                 <div class="qtmAccountAddresses__field qtmAccountAddresses__field--wide">
                   <label for="AddressCompanyNew-{{ section.id }}">Company</label>
-                  <input id="AddressCompanyNew-{{ section.id }}" type="text" name="address[company]" autocomplete="organization" value="{{ form.company }}">
+                  <input id="AddressCompanyNew-{{ section.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[company]" autocomplete="organization" value="{{ form.company | escape }}">
                 </div>
 
                 <div class="qtmAccountAddresses__field qtmAccountAddresses__field--wide">
                   <label for="AddressAddress1New-{{ section.id }}">Address 1</label>
-                  <input id="AddressAddress1New-{{ section.id }}" type="text" name="address[address1]" autocomplete="address-line1" value="{{ form.address1 }}">
+                  <input id="AddressAddress1New-{{ section.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[address1]" autocomplete="address-line1" value="{{ form.address1 | escape }}">
                 </div>
 
                 <div class="qtmAccountAddresses__field qtmAccountAddresses__field--wide">
                   <label for="AddressAddress2New-{{ section.id }}">Address 2</label>
-                  <input id="AddressAddress2New-{{ section.id }}" type="text" name="address[address2]" autocomplete="address-line2" value="{{ form.address2 }}">
+                  <input id="AddressAddress2New-{{ section.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[address2]" autocomplete="address-line2" value="{{ form.address2 | escape }}">
                 </div>
 
                 <div class="qtmAccountAddresses__field">
                   <label for="AddressCityNew-{{ section.id }}">City</label>
-                  <input id="AddressCityNew-{{ section.id }}" type="text" name="address[city]" autocomplete="address-level2" value="{{ form.city }}">
+                  <input id="AddressCityNew-{{ section.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[city]" autocomplete="address-level2" value="{{ form.city | escape }}">
                 </div>
 
                 <div class="qtmAccountAddresses__field">
                   <label for="AddressCountryNew-{{ section.id }}">Country/region</label>
                   <select
-                    id="AddressCountryNew-{{ section.id }}"
+                    id="AddressCountryNew-{{ section.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %}
                     name="address[country]"
-                    data-default="{{ form.country }}"
+                    data-default="{{ form.country | escape }}"
                     data-qtm-address-country
                   >
-                    {{ all_country_option_tags }}
+                    {% if form.country != blank %}<option value="{{ form.country | escape }}" selected>{{ form.country | escape }}</option>{% endif %}{{ all_country_option_tags }}
                   </select>
                 </div>
 
                 <div class="qtmAccountAddresses__field" id="AddressProvinceContainerNew-{{ section.id }}" data-qtm-address-province-container>
                   <label for="AddressProvinceNew-{{ section.id }}">Province/state</label>
-                  <select
-                    id="AddressProvinceNew-{{ section.id }}"
-                    name="address[province]"
-                    data-default="{{ form.province }}"
-                    data-qtm-address-province
-                  ></select>
+                  <input id="AddressProvinceNew-{{ section.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[province]" autocomplete="address-level1" value="{{ form.province | escape }}" data-qtm-address-province>
                 </div>
 
                 <div class="qtmAccountAddresses__field">
                   <label for="AddressZipNew-{{ section.id }}">Postal/ZIP code</label>
-                  <input id="AddressZipNew-{{ section.id }}" type="text" name="address[zip]" autocomplete="postal-code" value="{{ form.zip }}">
+                  <input id="AddressZipNew-{{ section.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[zip]" autocomplete="postal-code" value="{{ form.zip | escape }}">
                 </div>
 
                 <div class="qtmAccountAddresses__field qtmAccountAddresses__field--wide">
                   <label for="AddressPhoneNew-{{ section.id }}">Phone</label>
-                  <input id="AddressPhoneNew-{{ section.id }}" type="tel" name="address[phone]" autocomplete="tel" value="{{ form.phone }}">
+                  <input id="AddressPhoneNew-{{ section.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="tel" name="address[phone]" autocomplete="tel" value="{{ form.phone | escape }}">
                 </div>
 
                 <div class="qtmAccountAddresses__checkbox qtmAccountAddresses__field--wide">
-                  {{ form.set_as_default_checkbox }}
-                  <label for="address_default_address_new">Set as default address</label>
+                  <input id="AddressDefaultNew-{{ section.id }}" type="checkbox" name="address[default]" value="1"><label for="AddressDefaultNew-{{ section.id }}">Set as default address</label>
                 </div>
               </div>
 
@@ -210,12 +206,12 @@
                   endif
                 -%}
 
-                <article class="qtmAccountAddresses__card" aria-labelledby="QtmAddressTitle-{{ address.id }}">
+                <article class="qtmAccountAddresses__card" aria-labelledby="QtmAddressTitle-{{ section.id }}-{{ address.id }}">
                   <div class="qtmAccountAddresses__cardHeader">
                     <div>
-                      <h2 id="QtmAddressTitle-{{ address.id }}" class="qtmAccountAddresses__cardTitle">
+                      <h2 id="QtmAddressTitle-{{ section.id }}-{{ address.id }}" class="qtmAccountAddresses__cardTitle">
                         {% if address.first_name != blank or address.last_name != blank %}
-                          {{ address.first_name }} {{ address.last_name }}
+                          {{ address.first_name | escape }} {{ address.last_name | escape }}
                         {% else %}
                           Address {{ forloop.index }}
                         {% endif %}
@@ -223,7 +219,7 @@
 
                       {% if address.company != blank %}
                         <p class="qtmAccountAddresses__company">
-                          {{ address.company }}
+                          {{ address.company | escape }}
                         </p>
                       {% endif %}
                     </div>
@@ -239,7 +235,7 @@
                     {{ address | format_address }}
 
                     {% if address.phone != blank %}
-                      <p>{{ address.phone }}</p>
+                      <p>{{ address.phone | escape }}</p>
                     {% endif %}
                   </div>
 
@@ -248,23 +244,20 @@
                       type="button"
                       class="qtmAccountAddresses__secondaryButton"
                       aria-expanded="false"
-                      aria-controls="QtmAddressEditForm-{{ address.id }}"
-                      data-qtm-addresses-edit-toggle
+                      aria-controls="QtmAddressEditForm-{{ section.id }}-{{ address.id }}"
+                      hidden data-qtm-addresses-edit-toggle
                     >
                       Edit
                     </button>
 
-                    <button
-                      type="button"
-                      class="qtmAccountAddresses__dangerButton"
-                      data-qtm-address-delete-button
-                      data-delete-url="{{ address.url }}"
-                    >
-                      Delete
-                    </button>
+                    <form method="post" action="{{ routes.account_addresses_url | escape }}/{{ address.id }}" data-qtm-address-delete-form>
+                      <input type="hidden" name="_method" value="delete">
+                      <button type="submit" class="qtmAccountAddresses__dangerButton">Delete</button>
+                    </form>
 
                     {% unless address_is_default %}
-                      {% form 'customer_address', address, class: 'qtmAccountAddresses__setDefaultForm' %}
+                      {% assign default_form_id = 'AddressDefault-' | append: section.id | append: '-' | append: address.id %}
+                      {% form 'customer_address', address, id: default_form_id, class: 'qtmAccountAddresses__setDefaultForm' %}
                         <input type="hidden" name="address[first_name]" value="{{ address.first_name | escape }}">
                         <input type="hidden" name="address[last_name]" value="{{ address.last_name | escape }}">
                         <input type="hidden" name="address[company]" value="{{ address.company | escape }}">
@@ -285,10 +278,9 @@
                   </div>
 
                   <div
-                    id="QtmAddressEditForm-{{ address.id }}"
+                    id="QtmAddressEditForm-{{ section.id }}-{{ address.id }}"
                     class="qtmAccountAddresses__editPanel"
                     data-qtm-addresses-edit-panel
-                    hidden
                   >
                     <div class="qtmAccountAddresses__formHeader">
                       <h3 class="qtmAccountAddresses__editTitle">
@@ -298,79 +290,76 @@
                       <button
                         type="button"
                         class="qtmAccountAddresses__textButton"
-                        data-qtm-addresses-edit-close
+                        hidden data-qtm-addresses-edit-close
                       >
                         Close
                       </button>
                     </div>
 
-                    {% form 'customer_address', address, class: 'qtmAccountAddresses__form' %}
+                    {% assign edit_form_id = 'AddressEdit-' | append: section.id | append: '-' | append: address.id %}
+                    {% assign address_error_id = edit_form_id | append: '-Errors' %}
+                    {% form 'customer_address', address, id: edit_form_id, class: 'qtmAccountAddresses__form' %}
+              {% if form.errors %}<div id="{{ address_error_id }}" class="qtmAccountAddresses__errors" role="alert" tabindex="-1">{{ form.errors | default_errors }}</div>{% endif %}
                       <div class="qtmAccountAddresses__formGrid">
                         <div class="qtmAccountAddresses__field">
-                          <label for="AddressFirstName_{{ address.id }}">First name</label>
-                          <input id="AddressFirstName_{{ address.id }}" type="text" name="address[first_name]" autocomplete="given-name" value="{{ form.first_name }}">
+                          <label for="AddressFirstName_{{ section.id }}-{{ address.id }}">First name</label>
+                          <input id="AddressFirstName_{{ section.id }}-{{ address.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[first_name]" autocomplete="given-name" value="{{ form.first_name | escape }}">
                         </div>
 
                         <div class="qtmAccountAddresses__field">
-                          <label for="AddressLastName_{{ address.id }}">Last name</label>
-                          <input id="AddressLastName_{{ address.id }}" type="text" name="address[last_name]" autocomplete="family-name" value="{{ form.last_name }}">
+                          <label for="AddressLastName_{{ section.id }}-{{ address.id }}">Last name</label>
+                          <input id="AddressLastName_{{ section.id }}-{{ address.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[last_name]" autocomplete="family-name" value="{{ form.last_name | escape }}">
                         </div>
 
                         <div class="qtmAccountAddresses__field qtmAccountAddresses__field--wide">
-                          <label for="AddressCompany_{{ address.id }}">Company</label>
-                          <input id="AddressCompany_{{ address.id }}" type="text" name="address[company]" autocomplete="organization" value="{{ form.company }}">
+                          <label for="AddressCompany_{{ section.id }}-{{ address.id }}">Company</label>
+                          <input id="AddressCompany_{{ section.id }}-{{ address.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[company]" autocomplete="organization" value="{{ form.company | escape }}">
                         </div>
 
                         <div class="qtmAccountAddresses__field qtmAccountAddresses__field--wide">
-                          <label for="AddressAddress1_{{ address.id }}">Address 1</label>
-                          <input id="AddressAddress1_{{ address.id }}" type="text" name="address[address1]" autocomplete="address-line1" value="{{ form.address1 }}">
+                          <label for="AddressAddress1_{{ section.id }}-{{ address.id }}">Address 1</label>
+                          <input id="AddressAddress1_{{ section.id }}-{{ address.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[address1]" autocomplete="address-line1" value="{{ form.address1 | escape }}">
                         </div>
 
                         <div class="qtmAccountAddresses__field qtmAccountAddresses__field--wide">
-                          <label for="AddressAddress2_{{ address.id }}">Address 2</label>
-                          <input id="AddressAddress2_{{ address.id }}" type="text" name="address[address2]" autocomplete="address-line2" value="{{ form.address2 }}">
+                          <label for="AddressAddress2_{{ section.id }}-{{ address.id }}">Address 2</label>
+                          <input id="AddressAddress2_{{ section.id }}-{{ address.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[address2]" autocomplete="address-line2" value="{{ form.address2 | escape }}">
                         </div>
 
                         <div class="qtmAccountAddresses__field">
-                          <label for="AddressCity_{{ address.id }}">City</label>
-                          <input id="AddressCity_{{ address.id }}" type="text" name="address[city]" autocomplete="address-level2" value="{{ form.city }}">
+                          <label for="AddressCity_{{ section.id }}-{{ address.id }}">City</label>
+                          <input id="AddressCity_{{ section.id }}-{{ address.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[city]" autocomplete="address-level2" value="{{ form.city | escape }}">
                         </div>
 
                         <div class="qtmAccountAddresses__field">
-                          <label for="AddressCountry_{{ address.id }}">Country/region</label>
+                          <label for="AddressCountry_{{ section.id }}-{{ address.id }}">Country/region</label>
                           <select
-                            id="AddressCountry_{{ address.id }}"
+                            id="AddressCountry_{{ section.id }}-{{ address.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %}
                             name="address[country]"
-                            data-default="{{ form.country }}"
+                            data-default="{{ form.country | escape }}"
                             data-qtm-address-country
                           >
-                            {{ all_country_option_tags }}
+                            {% if form.country != blank %}<option value="{{ form.country | escape }}" selected>{{ form.country | escape }}</option>{% endif %}{{ all_country_option_tags }}
                           </select>
                         </div>
 
-                        <div class="qtmAccountAddresses__field" id="AddressProvinceContainer_{{ address.id }}" data-qtm-address-province-container>
-                          <label for="AddressProvince_{{ address.id }}">Province/state</label>
-                          <select
-                            id="AddressProvince_{{ address.id }}"
-                            name="address[province]"
-                            data-default="{{ form.province }}"
-                            data-qtm-address-province
-                          ></select>
+                        <div class="qtmAccountAddresses__field" id="AddressProvinceContainer_{{ section.id }}-{{ address.id }}" data-qtm-address-province-container>
+                          <label for="AddressProvince_{{ section.id }}-{{ address.id }}">Province/state</label>
+                          <input id="AddressProvince_{{ section.id }}-{{ address.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[province]" autocomplete="address-level1" value="{{ form.province | escape }}" data-qtm-address-province>
                         </div>
 
                         <div class="qtmAccountAddresses__field">
-                          <label for="AddressZip_{{ address.id }}">Postal/ZIP code</label>
-                          <input id="AddressZip_{{ address.id }}" type="text" name="address[zip]" autocomplete="postal-code" value="{{ form.zip }}">
+                          <label for="AddressZip_{{ section.id }}-{{ address.id }}">Postal/ZIP code</label>
+                          <input id="AddressZip_{{ section.id }}-{{ address.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="text" name="address[zip]" autocomplete="postal-code" value="{{ form.zip | escape }}">
                         </div>
 
                         <div class="qtmAccountAddresses__field qtmAccountAddresses__field--wide">
-                          <label for="AddressPhone_{{ address.id }}">Phone</label>
-                          <input id="AddressPhone_{{ address.id }}" type="tel" name="address[phone]" autocomplete="tel" value="{{ form.phone }}">
+                          <label for="AddressPhone_{{ section.id }}-{{ address.id }}">Phone</label>
+                          <input id="AddressPhone_{{ section.id }}-{{ address.id }}" {% if form.errors %}aria-describedby="{{ address_error_id }}"{% endif %} type="tel" name="address[phone]" autocomplete="tel" value="{{ form.phone | escape }}">
                         </div>
 
                         <div class="qtmAccountAddresses__checkbox qtmAccountAddresses__field--wide">
-                          {{ form.set_as_default_checkbox }}
-                          <label for="address_default_address_{{ form.id }}">Set as default address</label>
+                          <input id="AddressDefault-{{ section.id }}-{{ address.id }}" type="checkbox" name="address[default]" value="1" {% if address_is_default %}checked{% endif %}><label for="AddressDefault-{{ section.id }}-{{ address.id }}">Set as default address</label>
                         </div>
                       </div>
 
@@ -390,10 +379,10 @@
             </div>
           {% else %}
             <div class="qtmAccountAddresses__empty">
-              <h2>{{ section.settings.empty_heading }}</h2>
+              <h2>{{ section.settings.empty_heading | escape }}</h2>
 
               {% if section.settings.empty_text != blank %}
-                <p>{{ section.settings.empty_text }}</p>
+                <p>{{ section.settings.empty_text | escape }}</p>
               {% endif %}
 
               <button
@@ -401,24 +390,26 @@
                 class="qtmAccountAddresses__button qtmAccountAddresses__button--{{ section.settings.button_style }}"
                 aria-expanded="false"
                 aria-controls="QtmAccountAddressesNewForm-{{ section.id }}"
-                data-qtm-addresses-add-toggle
+                hidden data-qtm-addresses-add-toggle
               >
-                {{ section.settings.empty_button_label }}
+                {{ section.settings.empty_button_label | escape }}
               </button>
             </div>
           {% endif %}
-        </main>
+          {% if paginate.pages > 1 %}<nav aria-label="Address pagination">{{ paginate | default_pagination }}</nav>{% endif %}
+          {% endpaginate %}
+        </div>
       </div>
     {% else %}
       <div class="qtmAccountAddresses__empty">
         <h1 class="qtmAccountAddresses__heading">
-          {{ section.settings.heading | default: 'Addresses' }}
+          {{ section.settings.heading | default: 'Addresses' | escape }}
         </h1>
 
         <p>Please sign in to manage your saved addresses.</p>
 
         <a
-          href="{{ routes.account_login_url }}"
+          href="{{ routes.account_login_url | escape }}"
           class="qtmAccountAddresses__button qtmAccountAddresses__button--{{ section.settings.button_style }}"
         >
           Sign in
@@ -434,6 +425,10 @@
   "tag": "section",
   "class": "qtm-account-main-addresses",
   "settings": [
+    {
+      "type": "paragraph",
+      "content": "Legacy customer-account theme surface. Shopify owns authentication, account data and native form processing; current customer accounts are managed outside the theme. Tracking links require merchant configuration or native fulfillment data."
+    },
     {
       "type": "select",
       "id": "layout_style",

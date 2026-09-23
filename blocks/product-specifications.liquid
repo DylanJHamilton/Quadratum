@@ -14,6 +14,21 @@
   assign show_on_mobile = block.settings.show_on_mobile
 -%}
 
+{% capture information_variants %}[
+  {% assign information_separator = '' %}
+  {% assign information_size = product_context.variants.size | default: 0 %}
+  {% for information_index in (0..information_size) %}
+    {% if information_index == 0 %}{% assign information_variant = current_variant %}{% else %}{% assign information_offset = information_index | minus: 1 %}{% assign information_variant = product_context.variants[information_offset] %}{% endif %}
+    {% if information_variant != blank %}
+      {% if information_index == 0 or information_variant.id != current_variant.id %}
+        {{ information_separator }}{"id":{{ information_variant.id | json }},"values":{
+          {% assign information_keys = 'sku,availability,weight,option_1,option_2,option_3,inventory' | split: ',' %}
+          {% for information_key in information_keys %}{% capture information_value %}{% render 'qtm-product-information-value', source: information_key, variant: information_variant, block: block %}{% endcapture %}{{ information_key | json }}:{{ information_value | strip | json }}{% unless forloop.last %},{% endunless %}{% endfor %}
+        }}{% assign information_separator = ',' %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+]{% endcapture %}
 <div
   id="{{ block_id }}"
   class="
@@ -21,10 +36,10 @@
     product-specifications--{{ layout_style }}
     product-specifications--width-{{ block_width }}
     product-specifications--align-{{ alignment }}
-    {% unless show_on_desktop %} product-specifications--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-specifications--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-specifications--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-specifications--animate product-specifications--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-specifications--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-specifications--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-specifications--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-specifications--animate product-specifications--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-specifications-margin-top: {{ block.settings.margin_top }}px;
@@ -42,10 +57,16 @@
     --product-specifications-link-color: {{ block.settings.link_color }};
     --product-specifications-icon-color: {{ block.settings.icon_color }};
   "
-  {{ block.shopify_attributes }}
+  data-product-info
+  data-product-id="{{ product_context.id }}"
+  data-variant-id="{{ current_variant.id }}"
+  data-variants="{{ information_variants | escape }}"
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-specifications-margin-top);
       margin-bottom: var(--product-specifications-margin-bottom);
@@ -362,6 +383,15 @@
         transform: none;
       }
     }
+
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} img { max-width: 100%; }
+    #{{ block_id }} a { color: var(--product-specifications-link-color); text-underline-offset: .2em; }
+    #{{ block_id }} a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+{% unless show_on_desktop or request.design_mode %}@media (min-width: 990px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_tablet or request.design_mode %}@media (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+{% unless show_on_mobile or request.design_mode %}@media (max-width: 749px) { #shopify-block-{{ block.id }} { display: none !important; } }{% endunless %}
+    #{{ block_id }} dl, #{{ block_id }} dt, #{{ block_id }} dd { margin: 0; }
   </style>
 
   <div class="product-specifications__inner">
@@ -381,7 +411,7 @@
       </div>
     {% endif %}
 
-    <div class="product-specifications__items">
+    <dl class="product-specifications__items">
       {%- for index in (1..10) -%}
         {%- if index <= spec_count -%}
           {%- liquid
@@ -397,57 +427,24 @@
 
             assign resolved_value = spec_value
 
-            if spec_source == 'sku'
-              if current_variant.sku != blank
-                assign resolved_value = current_variant.sku
-              else
-                assign resolved_value = ''
-              endif
-            endif
-
             if spec_source == 'vendor'
               assign resolved_value = product_context.vendor
-            endif
-
-            if spec_source == 'product_type'
+            elsif spec_source == 'product_type'
               assign resolved_value = product_context.type
-            endif
-
-            if spec_source == 'availability'
-              if current_variant.available
-                assign resolved_value = 'In stock'
-              else
-                assign resolved_value = 'Out of stock'
-              endif
-            endif
-
-            if spec_source == 'weight'
-              if current_variant.weight > 0
-                assign resolved_value = current_variant.weight | weight_with_unit
-              else
-                assign resolved_value = ''
-              endif
-            endif
-
-            if spec_source == 'option_1'
-              assign resolved_value = current_variant.option1
-            endif
-
-            if spec_source == 'option_2'
-              assign resolved_value = current_variant.option2
-            endif
-
-            if spec_source == 'option_3'
-              assign resolved_value = current_variant.option3
+            elsif spec_source != 'custom'
+              capture resolved_value
+                render 'qtm-product-information-value', source: spec_source, variant: current_variant, block: block
+              endcapture
+              assign resolved_value = resolved_value | strip
             endif
           -%}
 
-          {% if spec_label != blank or resolved_value != blank %}
+          {% if resolved_value != blank or request.design_mode or spec_source != 'custom' %}
             <div class="product-specifications__item">
-              <div class="product-specifications__label-wrap">
+              <dt class="product-specifications__label-wrap">
                 {% if spec_icon != blank %}
                   <span class="product-specifications__icon" aria-hidden="true">
-                    {{ spec_icon }}
+                    {{ spec_icon | escape }}
                   </span>
                 {% endif %}
 
@@ -456,18 +453,16 @@
                     {{ spec_label | escape }}
                   </span>
                 {% endif %}
-              </div>
+              </dt>
 
-              {% if resolved_value != blank %}
-                <div class="product-specifications__value">
-                  {{ resolved_value }}
-                </div>
-              {% endif %}
+                <dd class="product-specifications__value"{% unless spec_source == 'custom' or spec_source == 'vendor' or spec_source == 'product_type' %} data-product-info-value data-info-key="{{ spec_source | escape }}"{% endunless %}>
+                  {{ resolved_value | escape }}
+                </dd>
             </div>
           {% endif %}
         {%- endif -%}
       {%- endfor -%}
-    </div>
+    </dl>
   </div>
 </div>
 
@@ -488,8 +483,7 @@
     {
       "type": "richtext",
       "id": "text",
-      "label": "Text",
-      "default": "<p>Give shoppers the important details they need to compare, confirm fit, and buy with confidence.</p>"
+      "label": "Text"
     },
     {
       "type": "range",
@@ -500,7 +494,6 @@
       "step": 1,
       "default": 6
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -617,7 +610,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Specification 1"
@@ -683,7 +675,6 @@
       "id": "spec_1_value",
       "label": "Custom value"
     },
-
     {
       "type": "header",
       "content": "Specification 2"
@@ -749,7 +740,6 @@
       "id": "spec_2_value",
       "label": "Custom value"
     },
-
     {
       "type": "header",
       "content": "Specification 3"
@@ -815,7 +805,6 @@
       "id": "spec_3_value",
       "label": "Custom value"
     },
-
     {
       "type": "header",
       "content": "Specification 4"
@@ -881,7 +870,6 @@
       "id": "spec_4_value",
       "label": "Custom value"
     },
-
     {
       "type": "header",
       "content": "Specification 5"
@@ -947,7 +935,6 @@
       "id": "spec_5_value",
       "label": "Custom value"
     },
-
     {
       "type": "header",
       "content": "Specification 6"
@@ -1013,7 +1000,6 @@
       "id": "spec_6_value",
       "label": "Custom value"
     },
-
     {
       "type": "header",
       "content": "Specification 7"
@@ -1077,7 +1063,6 @@
       "id": "spec_7_value",
       "label": "Custom value"
     },
-
     {
       "type": "header",
       "content": "Specification 8"
@@ -1141,7 +1126,6 @@
       "id": "spec_8_value",
       "label": "Custom value"
     },
-
     {
       "type": "header",
       "content": "Specification 9"
@@ -1205,7 +1189,6 @@
       "id": "spec_9_value",
       "label": "Custom value"
     },
-
     {
       "type": "header",
       "content": "Specification 10"
@@ -1269,7 +1252,6 @@
       "id": "spec_10_value",
       "label": "Custom value"
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1316,7 +1298,6 @@
       "label": "Icon color",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1341,7 +1322,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1376,7 +1356,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1399,7 +1378,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1446,7 +1424,6 @@
       "name": "Technical Specifications",
       "settings": {
         "heading": "Technical specifications",
-        "text": "<p>Review key product details, variant information, and compatibility notes before purchasing.</p>",
         "spec_count": 6,
         "layout_style": "table",
         "desktop_columns": "3",
@@ -1494,7 +1471,6 @@
       "name": "Ingredients / Nutrition Facts",
       "settings": {
         "heading": "Ingredients and nutrition facts",
-        "text": "<p>Use this layout for supplements, food, wellness, beauty, or any product where ingredients and facts matter.</p>",
         "spec_count": 6,
         "layout_style": "grid",
         "desktop_columns": "3",
@@ -1505,11 +1481,9 @@
         "spec_1_icon": "✓",
         "spec_1_label": "Serving size",
         "spec_1_value_source": "custom",
-        "spec_1_value": "Add serving size",
         "spec_2_icon": "★",
         "spec_2_label": "Main ingredient",
         "spec_2_value_source": "custom",
-        "spec_2_value": "Add ingredient",
         "spec_3_icon": "i",
         "spec_3_label": "Flavor",
         "spec_3_value_source": "option_1",
@@ -1544,7 +1518,6 @@
       "name": "Product Dimensions",
       "settings": {
         "heading": "Product dimensions",
-        "text": "<p>Help shoppers confirm size, fit, weight, and compatibility before adding to cart.</p>",
         "spec_count": 5,
         "layout_style": "cards",
         "desktop_columns": "3",
@@ -1555,22 +1528,18 @@
         "spec_1_icon": "↔",
         "spec_1_label": "Length",
         "spec_1_value_source": "custom",
-        "spec_1_value": "Add length",
         "spec_2_icon": "↕",
         "spec_2_label": "Height",
         "spec_2_value_source": "custom",
-        "spec_2_value": "Add height",
         "spec_3_icon": "↔",
         "spec_3_label": "Width",
         "spec_3_value_source": "custom",
-        "spec_3_value": "Add width",
         "spec_4_icon": "★",
         "spec_4_label": "Weight",
         "spec_4_value_source": "weight",
         "spec_5_icon": "✓",
         "spec_5_label": "Compatibility",
         "spec_5_value_source": "custom",
-        "spec_5_value": "Add compatibility",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",

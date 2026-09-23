@@ -1,4 +1,5 @@
-{% if section.blocks.size == 0 %}
+{%- assign items = section.blocks | where: 'type', 'milestone' -%}
+{% if items.size == 0 %}
   {% render 'section-empty-state', section: section %}
 {% else %}
 {%- comment -%}
@@ -17,11 +18,7 @@
   assign sid = section.id
   assign root_id = 'q-timeline-' | append: sid
 
-  assign items = section.blocks | where: 'type', 'milestone'
   assign count = items.size
-  if count == 0
-    break
-  endif
 
   assign orientation = section.settings.orientation | default: 'vertical'
   assign v_align = section.settings.vertical_alignment | default: 'left'
@@ -57,6 +54,8 @@
 
 <section
   id="{{ root_id }}"
+  data-q-timeline
+  aria-label="{{ section.settings.title | default: 'Story timeline' | escape }}"
   class="q-tl
     {% if is_horizontal %} q-tl--horizontal{% else %} q-tl--vertical{% endif %}
     {% if v_align == 'centered' %} q-tl--v-centered{% elsif v_align == 'alternating' %} q-tl--v-alt{% else %} q-tl--v-left{% endif %}
@@ -111,10 +110,10 @@
   "
 >
   <div class="q-tl__wrap">
-    {%- if section.settings.show_heading -%}
+    {%- if section.settings.show_heading and section.settings.title != blank or section.settings.show_heading and section.settings.subtitle != blank -%}
       <header class="q-tl__head">
         {%- if section.settings.title != blank -%}
-          <h2 class="q-tl__title">{{ section.settings.title }}</h2>
+          <h2 class="q-tl__title">{{ section.settings.title | escape }}</h2>
         {%- endif -%}
         {%- if section.settings.subtitle != blank -%}
           <div class="q-tl__subtitle rte">{{ section.settings.subtitle }}</div>
@@ -123,12 +122,12 @@
     {%- endif -%}
 
     {%- if show_labels and start_label != blank and is_single == false -%}
-      <div class="q-tl__cap q-tl__cap--start">{{ start_label }}</div>
+      <div class="q-tl__cap q-tl__cap--start">{{ start_label | escape }}</div>
     {%- endif -%}
 
     {%- if is_horizontal -%}
       <div class="q-tl__rail" data-q-tl-rail>
-        <div class="q-tl__railTrack" data-q-tl-track role="list">
+        <div id="{{ root_id }}-track" class="q-tl__railTrack" data-q-tl-track role="list" tabindex="0" aria-label="Milestones">
           {%- for block in items -%}
             {%- liquid
               assign date = block.settings.year_or_date
@@ -162,40 +161,40 @@
                       >
                     </span>
                   {%- elsif marker_style == 'icon' and icon_txt != blank -%}
-                    <span class="q-tl__markerIcon">{{ icon_txt }}</span>
+                    <span class="q-tl__markerIcon">{{ icon_txt | escape }}</span>
                   {%- else -%}
                     <span class="q-tl__markerDot"></span>
                   {%- endif -%}
                 </span>
               </div>
 
-              <div class="q-tl__card{% if has_media %} has-media{% endif %}">
+              <div class="q-tl__card{% if has_media and show_card_media %} has-media{% endif %}">
                 {%- if show_card_media and has_media -%}
-                  <div class="q-tl__cardMedia" aria-hidden="true">
+                  <div class="q-tl__cardMedia">
                     {%- if marker_style == 'image' and img != blank -%}
                       <img
                         src="{{ img | image_url: width: 1200 }}"
-                        alt=""
+                        alt="{{ img.alt | escape }}"
                         loading="lazy"
-                        width="1200"
-                        height="800"
+                        width="{{ img.width }}"
+                        height="{{ img.height }}"
                       >
                     {%- elsif marker_style == 'icon' and icon_txt != blank -%}
-                      <span class="q-tl__cardIcon">{{ icon_txt }}</span>
+                      <span class="q-tl__cardIcon" aria-hidden="true">{{ icon_txt | escape }}</span>
                     {%- endif -%}
                   </div>
                 {%- endif -%}
 
                 <div class="q-tl__cardBody">
-                  {%- if date != blank -%}<div class="q-tl__date">{{ date }}</div>{%- endif -%}
-                  {%- if ttl != blank -%}<h3 class="q-tl__itemTitle">{{ ttl }}</h3>{%- endif -%}
-                  {%- if show_badges and badge != blank -%}<div class="q-tl__badge">{{ badge }}</div>{%- endif -%}
+                  {%- if date != blank -%}<div class="q-tl__date">{{ date | escape }}</div>{%- endif -%}
+                  {%- if ttl != blank -%}<h3 class="q-tl__itemTitle">{{ ttl | escape }}</h3>{%- endif -%}
+                  {%- if show_badges and badge != blank -%}<div class="q-tl__badge">{{ badge | escape }}</div>{%- endif -%}
                   {%- if desc != blank -%}<div class="q-tl__body rte">{{ desc }}</div>{%- endif -%}
 
                   {%- if link_url != blank -%}
                     <div class="q-tl__cta">
-                      <a class="q-tl__link" href="{{ link_url }}">
-                        {%- if link_label != blank -%}{{ link_label }}{%- else -%}Learn more{%- endif -%}
+                      <a class="q-tl__link" href="{{ link_url | escape }}">
+                        {%- if link_label != blank -%}{{ link_label | escape }}{%- else -%}Learn more{%- endif -%}
                       </a>
                     </div>
                   {%- endif -%}
@@ -206,9 +205,9 @@
         </div>
 
         {%- if section.settings.show_horizontal_arrows -%}
-          <div class="q-tl__railNav no-js-hidden">
-            <button class="q-tl__navBtn" type="button" data-q-tl-prev aria-label="Previous milestones">‹</button>
-            <button class="q-tl__navBtn" type="button" data-q-tl-next aria-label="Next milestones">›</button>
+          <div class="q-tl__railNav" hidden>
+            <button class="q-tl__navBtn" type="button" data-q-tl-prev aria-controls="{{ root_id }}-track" aria-label="Previous milestones"><span aria-hidden="true">‹</span></button>
+            <button class="q-tl__navBtn" type="button" data-q-tl-next aria-controls="{{ root_id }}-track" aria-label="Next milestones"><span aria-hidden="true">›</span></button>
           </div>
         {%- endif -%}
       </div>
@@ -256,7 +255,7 @@
                     >
                   </span>
                 {%- elsif marker_style == 'icon' and icon_txt != blank -%}
-                  <span class="q-tl__markerIcon">{{ icon_txt }}</span>
+                  <span class="q-tl__markerIcon">{{ icon_txt | escape }}</span>
                 {%- else -%}
                   <span class="q-tl__markerDot"></span>
                 {%- endif -%}
@@ -264,33 +263,33 @@
             </div>
 
             <div class="q-tl__cardCol">
-              <div class="q-tl__card{% if has_media %} has-media{% endif %}">
+              <div class="q-tl__card{% if has_media and show_card_media %} has-media{% endif %}">
                 {%- if show_card_media and has_media -%}
-                  <div class="q-tl__cardMedia" aria-hidden="true">
+                  <div class="q-tl__cardMedia">
                     {%- if marker_style == 'image' and img != blank -%}
                       <img
                         src="{{ img | image_url: width: 1200 }}"
-                        alt=""
+                        alt="{{ img.alt | escape }}"
                         loading="lazy"
-                        width="1200"
-                        height="800"
+                        width="{{ img.width }}"
+                        height="{{ img.height }}"
                       >
                     {%- elsif marker_style == 'icon' and icon_txt != blank -%}
-                      <span class="q-tl__cardIcon">{{ icon_txt }}</span>
+                      <span class="q-tl__cardIcon" aria-hidden="true">{{ icon_txt | escape }}</span>
                     {%- endif -%}
                   </div>
                 {%- endif -%}
 
                 <div class="q-tl__cardBody">
-                  {%- if date != blank -%}<div class="q-tl__date">{{ date }}</div>{%- endif -%}
-                  {%- if ttl != blank -%}<h3 class="q-tl__itemTitle">{{ ttl }}</h3>{%- endif -%}
-                  {%- if show_badges and badge != blank -%}<div class="q-tl__badge">{{ badge }}</div>{%- endif -%}
+                  {%- if date != blank -%}<div class="q-tl__date">{{ date | escape }}</div>{%- endif -%}
+                  {%- if ttl != blank -%}<h3 class="q-tl__itemTitle">{{ ttl | escape }}</h3>{%- endif -%}
+                  {%- if show_badges and badge != blank -%}<div class="q-tl__badge">{{ badge | escape }}</div>{%- endif -%}
                   {%- if desc != blank -%}<div class="q-tl__body rte">{{ desc }}</div>{%- endif -%}
 
                   {%- if link_url != blank -%}
                     <div class="q-tl__cta">
-                      <a class="q-tl__link" href="{{ link_url }}">
-                        {%- if link_label != blank -%}{{ link_label }}{%- else -%}Learn more{%- endif -%}
+                      <a class="q-tl__link" href="{{ link_url | escape }}">
+                        {%- if link_label != blank -%}{{ link_label | escape }}{%- else -%}Learn more{%- endif -%}
                       </a>
                     </div>
                   {%- endif -%}
@@ -303,19 +302,19 @@
     {%- endif -%}
 
     {%- if show_labels and end_label != blank and is_single == false -%}
-      <div class="q-tl__cap q-tl__cap--end">{{ end_label }}</div>
+      <div class="q-tl__cap q-tl__cap--end">{{ end_label | escape }}</div>
     {%- endif -%}
   </div>
 
   <style>
     /* ===== Root + safety containment ===== */
     #{{ root_id }}{
-      --q-tl-bg: var(--q-color-bg, transparent);
-      --q-tl-text: var(--q-color-text, currentColor);
-      --q-tl-muted: var(--q-color-muted, rgba(0,0,0,.65));
-      --q-tl-accent: var(--q-color-accent, currentColor);
-      --q-tl-surface: var(--q-color-surface, rgba(0,0,0,.04));
-      --q-tl-border: var(--q-color-border, rgba(0,0,0,.14));
+      --q-tl-bg: var(--q-color-bg, var(--c-bg, #fff));
+      --q-tl-text: var(--q-color-text, var(--c-text, #111));
+      --q-tl-muted: var(--q-color-muted, var(--c-muted, #6b7280));
+      --q-tl-accent: var(--q-color-accent, var(--c-primary, #2563eb));
+      --q-tl-surface: var(--q-color-surface, var(--c-surface, #f6f7f8));
+      --q-tl-border: var(--q-color-border, color-mix(in srgb, var(--q-tl-text) 16%, transparent));
 
       --q-tl-line: var(--q-tl-border);
       --q-tl-marker-border: var(--q-tl-accent);
@@ -326,13 +325,17 @@
 
       /* critical: prevent child blowout from causing page overflow */
       max-width: 100%;
-      overflow: clip;
+      overflow-wrap: anywhere;
     }
 
+    #{{ root_id }}, #{{ root_id }} *{ box-sizing: border-box; }
+    #{{ root_id }} [hidden]{ display: none !important; }
+    #{{ root_id }} :focus-visible{ outline: 2px solid var(--q-tl-accent); outline-offset: 3px; }
+
     #{{ root_id }} .q-tl__wrap{
-      max-width: var(--q-tl-maxw);
+      max-width: min(100%, var(--q-tl-maxw));
       margin: 0 auto;
-      padding: var(--q-tl-pad-y) var(--q-tl-pad-x);
+      padding: var(--q-tl-pad-y) min(10%, var(--q-tl-pad-x));
       display: grid;
       gap: var(--q-tl-gap);
       min-width: 0;
@@ -357,7 +360,7 @@
       display: grid;
       min-width: 0;
       transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
-      will-change: transform;
+      position: relative;
     }
 
     #{{ root_id }}.q-tl--card-minimal .q-tl__card{ background: transparent; box-shadow: none; }
@@ -370,7 +373,9 @@
 
     #{{ root_id }}.q-tl--accent-bar-on .q-tl__card::before{
       content: "";
-      display: block;
+      position: absolute;
+      inset: 0 0 auto;
+      z-index: 1;
       height: var(--q-tl-accent-bar-h);
       background: color-mix(in srgb, var(--q-tl-accent) 22%, transparent);
     }
@@ -388,7 +393,7 @@
       max-height: var(--q-tl-media-max-h);
     }
 
-    #{{ root_id }}.q-tl--media-left .q-tl__card{ grid-template-columns: 140px 1fr; }
+    #{{ root_id }}.q-tl--media-left .q-tl__card.has-media{ grid-template-columns: minmax(0, 140px) minmax(0, 1fr); }
     #{{ root_id }}.q-tl--media-left .q-tl__cardMedia{ min-height: 100%; }
 
     #{{ root_id }}.q-tl--card-media-off .q-tl__cardMedia{ display: none; }
@@ -401,7 +406,7 @@
     }
 
     #{{ root_id }} .q-tl__cardBody{
-      padding: var(--q-tl-card-pad);
+      padding: var(--q-tl-card-pad) min(10%, var(--q-tl-card-pad));
       display: grid;
       gap: 10px;
       min-width: 0;
@@ -488,7 +493,7 @@
 
     #{{ root_id }} .q-tl__row{
       display: grid;
-      grid-template-columns: 54px 1fr;
+      grid-template-columns: 54px minmax(0, 1fr);
       gap: 16px;
       align-items: start;
       position: relative;
@@ -505,7 +510,7 @@
     #{{ root_id }}.q-tl--vertical.q-tl--line-on .q-tl__stack::before{
       content: "";
       position: absolute;
-      left: 27px;
+      inset-inline-start: 27px;
       top: calc(var(--q-tl-marker) * 0.5);
       bottom: calc(var(--q-tl-marker) * 0.5);
       width: var(--q-tl-line-w);
@@ -521,21 +526,21 @@
       text-align: center;
     }
     #{{ root_id }}.q-tl--vertical.q-tl--v-centered.q-tl--line-on .q-tl__stack::before{
-      left: 50%;
-      transform: translateX(-50%);
+      inset-inline-start: 50%;
+      margin-inline-start: calc(var(--q-tl-line-w) / -2);
     }
 
     #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__row{
-      grid-template-columns: 1fr 54px 1fr;
+      grid-template-columns: minmax(0, 1fr) 54px minmax(0, 1fr);
       gap: 16px;
       align-items: start;
     }
-    #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__markerCol{ grid-column: 2; }
-    #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__cardCol{ grid-column: 1; justify-self: end; }
+    #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__markerCol{ grid-column: 2; grid-row: 1; }
+    #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__cardCol{ grid-column: 1; grid-row: 1; justify-self: end; }
     #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__row.is-right .q-tl__cardCol{ grid-column: 3; justify-self: start; }
     #{{ root_id }}.q-tl--vertical.q-tl--v-alt.q-tl--line-on .q-tl__stack::before{
-      left: 50%;
-      transform: translateX(-50%);
+      inset-inline-start: 50%;
+      margin-inline-start: calc(var(--q-tl-line-w) / -2);
     }
 
     #{{ root_id }}.q-tl--single.q-tl--vertical .q-tl__stack::before{ display: none; content: none; }
@@ -558,12 +563,11 @@
       align-items: flex-start;
       max-width: 100%;
 
-      -webkit-mask-image: linear-gradient(to right, transparent 0, #000 36px, #000 calc(100% - 36px), transparent 100%);
-      mask-image: linear-gradient(to right, transparent 0, #000 36px, #000 calc(100% - 36px), transparent 100%);
+
     }
 
     #{{ root_id }} .q-tl__item{
-      flex: 0 0 var(--q-tl-rail-card);
+      flex: 0 0 min(var(--q-tl-rail-card), 100%);
       min-width: 0;
       display: grid;
       gap: 12px;
@@ -575,9 +579,8 @@
     #{{ root_id }} .q-tl__railNav{
       display: flex;
       gap: 10px;
-      position: absolute;
-      right: 0;
-      top: -2px;
+      justify-content: flex-end;
+      margin-top: 10px;
     }
 
     #{{ root_id }} .q-tl__navBtn{
@@ -598,6 +601,7 @@
       border-color: color-mix(in srgb, var(--q-tl-border) 65%, var(--q-tl-accent));
     }
     #{{ root_id }} .q-tl__navBtn[disabled]{ opacity: 0.45; cursor: default; transform: none; }
+    #{{ root_id }}:dir(rtl) .q-tl__navBtn span{ transform: scaleX(-1); }
 
     /* ===== Mobile: horizontal becomes vertical stack ===== */
     @media (max-width: 749px){
@@ -621,7 +625,7 @@
 
       #{{ root_id }}.q-tl--vertical.q-tl--v-alt .q-tl__row,
       #{{ root_id }}.q-tl--vertical.q-tl--v-centered .q-tl__row{
-        grid-template-columns: 54px 1fr;
+        grid-template-columns: 54px minmax(0, 1fr);
         text-align: left;
         justify-items: stretch;
       }
@@ -635,11 +639,11 @@
 
       #{{ root_id }}.q-tl--vertical.q-tl--v-alt.q-tl--line-on .q-tl__stack::before,
       #{{ root_id }}.q-tl--vertical.q-tl--v-centered.q-tl--line-on .q-tl__stack::before{
-        left: 27px;
-        transform: none;
+        inset-inline-start: 27px;
+        margin-inline-start: 0;
       }
 
-      #{{ root_id }}.q-tl--media-left .q-tl__card{ grid-template-columns: 1fr; }
+      #{{ root_id }}.q-tl--media-left .q-tl__card.has-media{ grid-template-columns: minmax(0, 1fr); }
       #{{ root_id }}.q-tl--media-left .q-tl__cardMedia{
         aspect-ratio: 16 / 9;
         min-height: 0;
@@ -648,83 +652,33 @@
       }
     }
 
-    /* Progressive enhancement */
-    #{{ root_id }} .no-js-hidden{ display: none; }
-    html.js #{{ root_id }} .no-js-hidden{ display: flex; }
+    #{{ root_id }} .q-tl__cardIcon{ font-size: clamp(24px, 5vw, 64px); line-height: 1.2; padding: 12px; }
+    #{{ root_id }} .q-tl__markerMedia{ width: 100%; height: 100%; }
+    #{{ root_id }}.q-tl--card-minimal .q-tl__card:hover{ box-shadow: none; }
+    #{{ root_id }}.q-tl--single.q-tl--vertical .q-tl__row{ grid-template-columns: minmax(0, 1fr); }
+    #{{ root_id }}.q-tl--single.q-tl--vertical .q-tl__cardCol{ grid-column: 1; justify-self: center; width: 100%; }
+    #{{ root_id }} .q-tl__markerWrap{ position: relative; }
+    #{{ root_id }} .q-tl__markerWrap .q-tl__marker{ position: relative; z-index: 1; }
+    @media (min-width: 750px){
+      #{{ root_id }}.q-tl--horizontal.q-tl--line-on .q-tl__item:not(:last-child) .q-tl__markerWrap::before{
+        content: ''; position: absolute; inset-inline-start: calc(var(--q-tl-marker) / 2); top: calc(var(--q-tl-marker) / 2);
+        width: calc(100% + var(--q-tl-gap)); height: var(--q-tl-line-w); background: var(--q-tl-line);
+      }
+    }
+    @media (prefers-reduced-motion: reduce){
+      #{{ root_id }} .q-tl__card, #{{ root_id }} .q-tl__navBtn{ transition: none; }
+      #{{ root_id }} .q-tl__card:hover, #{{ root_id }} .q-tl__navBtn:hover{ transform: none; }
+      #{{ root_id }} .q-tl__railTrack{ scroll-behavior: auto; }
+    }
 
     /* RTE safety */
     #{{ root_id }} .rte > *:first-child{ margin-top: 0; }
     #{{ root_id }} .rte > *:last-child{ margin-bottom: 0; }
   </style>
 
-  <script>
-    (function(){
-      document.documentElement.classList.add('js');
-
-      var root = document.getElementById({{ root_id | json }});
-      if (!root) return;
-
-      var track = root.querySelector('[data-q-tl-track]');
-      if (!track) return;
-
-      var prev = root.querySelector('[data-q-tl-prev]');
-      var next = root.querySelector('[data-q-tl-next]');
-      if (!prev || !next) return;
-
-      function items(){
-        return Array.prototype.slice.call(track.querySelectorAll('.q-tl__item'));
-      }
-
-      function nearestIndex(){
-        var list = items();
-        if (!list.length) return 0;
-        var x = track.scrollLeft;
-        var best = 0;
-        var bestDist = Infinity;
-        for (var i=0;i<list.length;i++){
-          var d = Math.abs(list[i].offsetLeft - x);
-          if (d < bestDist){ bestDist = d; best = i; }
-        }
-        return best;
-      }
-
-      function scrollToIndex(idx){
-        var list = items();
-        if (!list.length) return;
-
-        idx = Math.max(0, Math.min(idx, list.length - 1));
-        track.scrollTo({ left: list[idx].offsetLeft, behavior: 'smooth' });
-
-        // update disabled states shortly after scroll begins
-        window.setTimeout(updateButtons, 220);
-      }
-
-      function updateButtons(){
-        var list = items();
-        if (!list.length) return;
-
-        var i = nearestIndex();
-        prev.disabled = (i <= 0);
-        next.disabled = (i >= list.length - 1);
-      }
-
-      prev.addEventListener('click', function(){
-        scrollToIndex(nearestIndex() - 1);
-      });
-
-      next.addEventListener('click', function(){
-        scrollToIndex(nearestIndex() + 1);
-      });
-
-      track.addEventListener('scroll', function(){
-        // cheap throttle
-        window.clearTimeout(track.__qTlT);
-        track.__qTlT = window.setTimeout(updateButtons, 80);
-      }, { passive: true });
-
-      updateButtons();
-    })();
-  </script>
+  {%- if is_horizontal -%}
+    <script src="{{ 'interactive-content-timeline.js' | asset_url }}" defer></script>
+  {%- endif -%}
 </section>
 
 
@@ -762,7 +716,7 @@
         { "value": "alternating", "label": "Alternating (zig-zag)" }
       ]
     },
-    { "type": "checkbox", "id": "show_line_connector", "label": "Show connector line", "default": true },
+    { "type": "checkbox", "id": "show_line_connector", "label": "Show connector line", "info": "Shown between vertical milestones and along the desktop horizontal rail.", "default": true },
     {
       "type": "select",
       "id": "marker_style",
@@ -791,7 +745,7 @@
         { "value": "minimal", "label": "Minimal (text-forward)" }
       ]
     },
-    { "type": "checkbox", "id": "show_card_media", "label": "Show media inside card (when available)", "default": true },
+    { "type": "checkbox", "id": "show_card_media", "label": "Show media inside card (when available)", "info": "Uses the image or icon selected by Marker style.", "default": true },
     {
       "type": "select",
       "id": "card_media_position",
@@ -858,9 +812,9 @@
       "type": "milestone",
       "name": "Milestone",
       "settings": [
-        { "type": "text", "id": "year_or_date", "label": "Year or date", "default": "2016" },
-        { "type": "text", "id": "title", "label": "Title", "default": "Founded the company" },
-        { "type": "richtext", "id": "description", "label": "Description", "default": "<p>We started with a small team and a big obsession: making great products that last.</p>" },
+        { "type": "text", "id": "year_or_date", "label": "Year or date", "default": "Year" },
+        { "type": "text", "id": "title", "label": "Title", "default": "Milestone title" },
+        { "type": "richtext", "id": "description", "label": "Description", "default": "<p>Describe this milestone in your story.</p>" },
         { "type": "text", "id": "badge", "label": "Badge" },
         { "type": "text", "id": "icon", "label": "Icon (emoji or short text)" },
         { "type": "image_picker", "id": "image", "label": "Image" },

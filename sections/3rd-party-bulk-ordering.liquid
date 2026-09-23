@@ -3,7 +3,7 @@
   File: sections/form-bulk-order-request.liquid
 
   - Uses Quadratum frontend-form-logic.js contract:
-      .q-form, [data-q-field], .q-error, .q-live, wrapper [data-q-form-wrap="1"]
+      .q-form, [data-q-field], .q-error, .q-live, wrapper [data-q-form-wrap="1" data-q-form-host]
   - Submission modes:
       shopify_contact  (Shopify built-in contact form)
       external_post    (POST to external endpoint)
@@ -14,6 +14,7 @@
 {% endcomment %}
 
 {{ 'forms-sections.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'frontend-form-logic.js' | asset_url }}" defer></script>
 
 {%- assign s = section.settings -%}
 {%- assign g = settings -%}
@@ -69,14 +70,31 @@
       {%- endif -%}
     {%- endif -%}
 
-    {%- if external_action == blank or external_action == 'none' -%}
-      {%- assign external_action = routes.root_url | append: 'contact' -%}
-    {%- endif -%}
+
   {%- endif -%}
 
+  {%- assign external_action = external_action | strip -%}
   {%- assign form_id = 'BulkOrderForm-' | append: section.id -%}
+{%- liquid
+  assign endpoint_valid = false
+  assign endpoint_start = external_action | slice: 0, 8 | downcase
+  assign endpoint_first = external_action | slice: 0, 1
+  assign endpoint_pair = external_action | slice: 0, 2
+  assign endpoint_host = external_action | slice: 8, 2048 | split: '/' | first | split: '?' | first | split: '#' | first
+  assign endpoint_encoded = external_action | url_encode
+  if endpoint_start == 'https://' and endpoint_host != blank
+    assign endpoint_valid = true
+  elsif endpoint_first == '/' and endpoint_pair != '//'
+    assign endpoint_valid = true
+  endif
+  if external_action contains ' ' or endpoint_encoded contains '%5C' or endpoint_encoded contains '%0A' or endpoint_encoded contains '%0D' or endpoint_encoded contains '%09'
+    assign endpoint_valid = false
+  endif
+-%}
 
-<section
+{%- if external_action contains '://example.com' -%}{%- assign endpoint_valid = false -%}{%- endif -%}
+
+<section id="q-bulk-{{ section.id }}"
   class="q-section q-section--bg-{{ s.background_style }} q-form-section q-form-section--bulk-order"
   aria-label="{{ s.aria_label | escape }}"
 >
@@ -98,7 +116,7 @@
 
     <div
       class="q-form-section__form"
-      data-q-form-wrap="1"
+      data-q-form-wrap="1" data-q-form-host
       data-q-attrib-create="1"
       data-captcha="{{ eff_captcha_mode | escape }}"
       data-captcha-key="{{ eff_captcha_key | escape }}"
@@ -114,7 +132,11 @@
             Never pass section.id as the first arg.
           {%- endcomment -%}
 
-          {% form 'contact', id: form_id, class: 'q-form q-form--bulk-order', novalidate: 'novalidate' %}
+          {% assign return_path = 'back' %}
+          {% assign return_first = s.success_redirect_url | slice: 0, 1 %}
+          {% assign return_pair = s.success_redirect_url | slice: 0, 2 %}
+          {% if s.success_mode == 'redirect' and return_first == '/' and return_pair != '//' %}{% assign return_path = s.success_redirect_url %}{% endif %}
+          {% form 'contact', id: form_id, class: 'q-form q-form--bulk-order', data-shopify-captcha: 'true', return_to: return_path %}
 
             <input type="hidden" name="contact[tags]" value="{{ tags_value | escape }}">
             <input type="hidden" name="contact[source]" value="{{ s.hidden_source | escape }}">
@@ -124,65 +146,61 @@
             {%- endif -%}
 
             {%- if form.posted_successfully? -%}
-              {%- if s.success_mode == 'inline_message' -%}
-                <div class="q-card q-card--success" data-q-success="1">
+                <div class="q-card q-card--success" data-q-success="1" role="status" tabindex="-1">
                   <h3 class="q-heading q-heading--sm">{{ s.success_heading | escape }}</h3>
                   <div class="q-text q-text--muted">{{ s.success_body }}</div>
+                  {% if s.success_mode == 'redirect' and s.success_redirect_url != blank %}<a href="{{ s.success_redirect_url | escape }}">Continue</a>{% endif %}
                 </div>
-              {%- endif -%}
-              {%- if s.success_mode == 'redirect' and s.success_redirect_url != blank -%}
-                <script>window.location.href = {{ s.success_redirect_url | json }};</script>
-              {%- endif -%}
             {%- endif -%}
 
             {%- if form.errors -%}
-              <div class="q-card q-card--error">
+              <div class="q-card q-card--error" role="alert" tabindex="-1">
                 <div class="q-text">{{ form.errors | default_errors }}</div>
               </div>
             {%- endif -%}
 
             <div class="q-bulk-order__grid" data-q-grid="1">
               <div class="q-input" data-q-field data-required="true">
-                <label class="q-input__label" for="bo-{{ section.id }}-company">{{ s.company_label | escape }}</label>
-                <input id="bo-{{ section.id }}-company" class="q-input__control" type="text" name="contact[company]" autocomplete="organization" placeholder="{{ s.company_placeholder | escape }}" required>
+                <label class="q-input__label" for="bo-{{ section.id }}-company">{{ s.company_label | default: 'Company name' | escape }}</label>
+                <input id="bo-{{ section.id }}-company" class="q-input__control" aria-describedby="bo-{{ section.id }}-company-err" type="text" name="contact[company]" value="{{ form.company | escape }}" autocomplete="organization" placeholder="{{ s.company_placeholder | escape }}" required>
                 <div id="bo-{{ section.id }}-company-err" class="q-error" aria-live="polite"></div>
               </div>
 
               <div class="q-input" data-q-field data-required="true">
-                <label class="q-input__label" for="bo-{{ section.id }}-name">{{ s.contact_name_label | escape }}</label>
-                <input id="bo-{{ section.id }}-name" class="q-input__control" type="text" name="contact[name]" autocomplete="name" placeholder="{{ s.contact_name_placeholder | escape }}" required>
+                <label class="q-input__label" for="bo-{{ section.id }}-name">{{ s.contact_name_label | default: 'Contact name' | escape }}</label>
+                <input id="bo-{{ section.id }}-name" class="q-input__control" aria-describedby="bo-{{ section.id }}-name-err" type="text" name="contact[name]" value="{{ form.name | escape }}" autocomplete="name" placeholder="{{ s.contact_name_placeholder | escape }}" required>
                 <div id="bo-{{ section.id }}-name-err" class="q-error" aria-live="polite"></div>
               </div>
 
               <div class="q-input" data-q-field data-required="true">
-                <label class="q-input__label" for="bo-{{ section.id }}-email">{{ s.email_label | escape }}</label>
-                <input id="bo-{{ section.id }}-email" class="q-input__control" type="email" name="contact[email]" autocomplete="email" placeholder="{{ s.email_placeholder | escape }}" required>
+                <label class="q-input__label" for="bo-{{ section.id }}-email">{{ s.email_label | default: 'Email' | escape }}</label>
+                <input id="bo-{{ section.id }}-email" class="q-input__control" aria-describedby="bo-{{ section.id }}-email-err" type="email" name="contact[email]" value="{{ form.email | escape }}" autocomplete="email" placeholder="{{ s.email_placeholder | escape }}" required>
                 <div id="bo-{{ section.id }}-email-err" class="q-error" aria-live="polite"></div>
               </div>
 
               <div class="q-input" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-phone">{{ s.phone_label | escape }}</label>
-                <input id="bo-{{ section.id }}-phone" class="q-input__control" type="tel" name="contact[phone]" autocomplete="tel" placeholder="{{ s.phone_placeholder | escape }}">
+                <label class="q-input__label" for="bo-{{ section.id }}-phone">{{ s.phone_label | default: 'Phone (optional)' | escape }}</label>
+                <input id="bo-{{ section.id }}-phone" class="q-input__control" aria-describedby="bo-{{ section.id }}-phone-err" type="tel" name="contact[phone]" value="{{ form.phone | escape }}" autocomplete="tel" placeholder="{{ s.phone_placeholder | escape }}">
                 <div id="bo-{{ section.id }}-phone-err" class="q-error" aria-live="polite"></div>
               </div>
 
               <div class="q-input q-bulk-order__span2" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-products">{{ s.products_label | escape }}</label>
-                <textarea id="bo-{{ section.id }}-products" class="q-input__control" name="contact[products]" rows="4" placeholder="{{ s.products_placeholder | escape }}"></textarea>
+                <label class="q-input__label" for="bo-{{ section.id }}-products">{{ s.products_label | default: 'Products of interest' | escape }}</label>
+                <textarea id="bo-{{ section.id }}-products" class="q-input__control" aria-describedby="bo-{{ section.id }}-products-err" name="contact[products]" rows="4" placeholder="{{ s.products_placeholder | escape }}"></textarea>
                 <div class="q-input__hint">{{ s.products_hint | escape }}</div>
                 <div id="bo-{{ section.id }}-products-err" class="q-error" aria-live="polite"></div>
               </div>
 
               <div class="q-input" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-qty">{{ s.quantity_label | escape }}</label>
-                <input id="bo-{{ section.id }}-qty" class="q-input__control" type="text" name="contact[quantity]" inputmode="numeric" placeholder="{{ s.quantity_placeholder | escape }}">
+                <label class="q-input__label" for="bo-{{ section.id }}-qty">{{ s.quantity_label | default: 'Estimated quantity' | escape }}</label>
+                <input id="bo-{{ section.id }}-qty" class="q-input__control" aria-describedby="bo-{{ section.id }}-qty-err" type="text" name="contact[quantity]" inputmode="numeric" placeholder="{{ s.quantity_placeholder | escape }}">
                 <div class="q-input__hint">{{ s.quantity_hint | escape }} {{ s.min_quantity_hint | escape }}</div>
                 <div id="bo-{{ section.id }}-qty-err" class="q-error" aria-live="polite"></div>
               </div>
 
               <div class="q-input" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-date">{{ s.delivery_date_label | escape }}</label>
-                <input id="bo-{{ section.id }}-date" class="q-input__control" type="date" name="contact[delivery_date]">
+                <label class="q-input__label" for="bo-{{ section.id }}-date">{{ s.delivery_date_label | default: 'Desired delivery date' | escape }}</label>
+                <input id="bo-{{ section.id }}-date" class="q-input__control" aria-describedby="bo-{{ section.id }}-date-err" type="date" name="contact[delivery_date]">
                 <div class="q-input__hint">{{ s.delivery_date_hint | escape }}</div>
                 <div id="bo-{{ section.id }}-date-err" class="q-error" aria-live="polite"></div>
               </div>
@@ -191,37 +209,41 @@
                 <div class="q-input q-bulk-order__span2" data-q-field>
                   <label class="q-check">
                     <input id="bo-{{ section.id }}-haspo" type="checkbox" name="contact[has_po]">
-                    <span class="q-check__label">{{ s.po_toggle_label | escape }}</span>
+                    <span class="q-check__label">{{ s.po_toggle_label | default: 'I have a purchase order number' | escape }}</span>
                   </label>
                 </div>
 
-                <div class="q-input q-bulk-order__span2 is-hidden" data-q-field data-cond="1" data-cond-field="contact[has_po]" data-cond-operator="checked" data-cond-value="on">
-                  <label class="q-input__label" for="bo-{{ section.id }}-ponum">{{ s.po_number_label | escape }}</label>
-                  <input id="bo-{{ section.id }}-ponum" class="q-input__control" type="text" name="contact[po_number]" placeholder="{{ s.po_number_placeholder | escape }}">
+                <div class="q-input q-bulk-order__span2" data-q-field data-cond="1" data-cond-field="contact[has_po]" data-cond-operator="checked" data-cond-value="on">
+                  <label class="q-input__label" for="bo-{{ section.id }}-ponum">{{ s.po_number_label | default: 'Purchase order number' | escape }}</label>
+                  <input id="bo-{{ section.id }}-ponum" class="q-input__control" aria-describedby="bo-{{ section.id }}-ponum-err" type="text" name="contact[po_number]" placeholder="{{ s.po_number_placeholder | escape }}">
                   <div id="bo-{{ section.id }}-ponum-err" class="q-error" aria-live="polite"></div>
                 </div>
               {%- endif -%}
 
               <div class="q-input q-bulk-order__span2" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-body">{{ s.notes_label | escape }}</label>
-                <textarea id="bo-{{ section.id }}-body" class="q-input__control" name="contact[body]" rows="4" placeholder="{{ s.notes_placeholder | escape }}"></textarea>
+                <label class="q-input__label" for="bo-{{ section.id }}-body">{{ s.notes_label | default: 'Additional notes' | escape }}</label>
+                <textarea id="bo-{{ section.id }}-body" class="q-input__control" aria-describedby="bo-{{ section.id }}-body-err" name="contact[body]" rows="4" placeholder="{{ s.notes_placeholder | escape }}"></textarea>
                 <div id="bo-{{ section.id }}-body-err" class="q-error" aria-live="polite"></div>
               </div>
 
+              {%- assign field_keys = '|company|name|email|phone|products|quantity|delivery-date|body|po-number|has-po|tags|source|form-kind|target-email|' -%}
               {%- for block in section.blocks -%}
                 {%- if block.type == 'custom_field' -%}
                   {%- assign b = block.settings -%}
                   {%- assign col_class = 'q-bulk-order__span2' -%}
                   {%- if b.width == 'half' -%}{%- assign col_class = '' -%}{%- endif -%}
                   {%- assign field_key = b.name | default: 'custom_field' | strip | handleize -%}
+                  {%- assign key_token = field_key | prepend: '|' | append: '|' -%}
+                  {%- if field_key == blank or field_keys contains key_token -%}{%- assign field_key = 'custom-' | append: block.id -%}{%- endif -%}
+                  {%- assign field_keys = field_keys | append: field_key | append: '|' -%}
 
                   <div class="q-input {{ col_class }}" data-q-field {% if b.required %}data-required="true"{% endif %} {{ block.shopify_attributes }}>
-                    <label class="q-input__label" for="bo-{{ section.id }}-cf-{{ block.id }}">{{ b.label | escape }}</label>
+                    <label class="q-input__label" for="bo-{{ section.id }}-cf-{{ block.id }}">{{ b.label | default: 'Additional field' | escape }}</label>
 
                     {%- if b.field_type == 'textarea' -%}
-                      <textarea id="bo-{{ section.id }}-cf-{{ block.id }}" class="q-input__control" name="contact[{{ field_key }}]" rows="3" placeholder="{{ b.placeholder | escape }}" {% if b.required %}required{% endif %}></textarea>
+                      <textarea id="bo-{{ section.id }}-cf-{{ block.id }}" class="q-input__control" aria-describedby="bo-{{ section.id }}-cf-{{ block.id }}-err" name="contact[{{ field_key }}]" rows="3" placeholder="{{ b.placeholder | escape }}" {% if b.required %}required{% endif %}></textarea>
                     {%- else -%}
-                      <input id="bo-{{ section.id }}-cf-{{ block.id }}" class="q-input__control" type="text" name="contact[{{ field_key }}]" placeholder="{{ b.placeholder | escape }}" {% if b.required %}required{% endif %}>
+                      <input id="bo-{{ section.id }}-cf-{{ block.id }}" class="q-input__control" aria-describedby="bo-{{ section.id }}-cf-{{ block.id }}-err" type="text" name="contact[{{ field_key }}]" placeholder="{{ b.placeholder | escape }}" {% if b.required %}required{% endif %}>
                     {%- endif -%}
 
                     <div id="bo-{{ section.id }}-cf-{{ block.id }}-err" class="q-error" aria-live="polite"></div>
@@ -232,14 +254,14 @@
 
             <div class="q-form__actions">
               <button type="submit" class="q-btn {{ btn_class }}">
-                {{ s.submit_label | escape }}
+                {{ s.submit_label | default: 'Submit request' | escape }}
               </button>
             </div>
 
           {% endform %}
 
-        {%- else -%}
-          <form id="{{ form_id }}" class="q-form q-form--bulk-order" method="post" action="{{ external_action }}" novalidate>
+        {%- elsif endpoint_valid -%}
+          <form id="{{ form_id }}" class="q-form q-form--bulk-order" method="post" data-q-destination="custom_endpoint" action="{{ external_action | escape }}">
             <input type="hidden" name="tags" value="{{ tags_value | escape }}">
             <input type="hidden" name="source" value="{{ s.hidden_source | escape }}">
             <input type="hidden" name="form_kind" value="bulk_order_request">
@@ -255,46 +277,46 @@
 
             <div class="q-bulk-order__grid" data-q-grid="1">
               <div class="q-input" data-q-field data-required="true">
-                <label class="q-input__label" for="bo-{{ section.id }}-company">{{ s.company_label | escape }}</label>
-                <input id="bo-{{ section.id }}-company" class="q-input__control" type="text" name="contact[company]" placeholder="{{ s.company_placeholder | escape }}" required>
+                <label class="q-input__label" for="bo-{{ section.id }}-company">{{ s.company_label | default: 'Company name' | escape }}</label>
+                <input id="bo-{{ section.id }}-company" class="q-input__control" aria-describedby="bo-{{ section.id }}-company-err" type="text" name="contact[company]" placeholder="{{ s.company_placeholder | escape }}" required>
                 <div id="bo-{{ section.id }}-company-err" class="q-error" aria-live="polite"></div>
               </div>
 
               <div class="q-input" data-q-field data-required="true">
-                <label class="q-input__label" for="bo-{{ section.id }}-name">{{ s.contact_name_label | escape }}</label>
-                <input id="bo-{{ section.id }}-name" class="q-input__control" type="text" name="contact[name]" placeholder="{{ s.contact_name_placeholder | escape }}" required>
+                <label class="q-input__label" for="bo-{{ section.id }}-name">{{ s.contact_name_label | default: 'Contact name' | escape }}</label>
+                <input id="bo-{{ section.id }}-name" class="q-input__control" aria-describedby="bo-{{ section.id }}-name-err" type="text" name="contact[name]" placeholder="{{ s.contact_name_placeholder | escape }}" required>
                 <div id="bo-{{ section.id }}-name-err" class="q-error" aria-live="polite"></div>
               </div>
 
               <div class="q-input" data-q-field data-required="true">
-                <label class="q-input__label" for="bo-{{ section.id }}-email">{{ s.email_label | escape }}</label>
-                <input id="bo-{{ section.id }}-email" class="q-input__control" type="email" name="contact[email]" placeholder="{{ s.email_placeholder | escape }}" required>
+                <label class="q-input__label" for="bo-{{ section.id }}-email">{{ s.email_label | default: 'Email' | escape }}</label>
+                <input id="bo-{{ section.id }}-email" class="q-input__control" aria-describedby="bo-{{ section.id }}-email-err" type="email" name="contact[email]" placeholder="{{ s.email_placeholder | escape }}" required>
                 <div id="bo-{{ section.id }}-email-err" class="q-error" aria-live="polite"></div>
               </div>
 
               <div class="q-input" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-phone">{{ s.phone_label | escape }}</label>
-                <input id="bo-{{ section.id }}-phone" class="q-input__control" type="tel" name="contact[phone]" placeholder="{{ s.phone_placeholder | escape }}">
+                <label class="q-input__label" for="bo-{{ section.id }}-phone">{{ s.phone_label | default: 'Phone (optional)' | escape }}</label>
+                <input id="bo-{{ section.id }}-phone" class="q-input__control" aria-describedby="bo-{{ section.id }}-phone-err" type="tel" name="contact[phone]" placeholder="{{ s.phone_placeholder | escape }}">
                 <div id="bo-{{ section.id }}-phone-err" class="q-error" aria-live="polite"></div>
               </div>
 
               <div class="q-input q-bulk-order__span2" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-products">{{ s.products_label | escape }}</label>
-                <textarea id="bo-{{ section.id }}-products" class="q-input__control" name="contact[products]" rows="4" placeholder="{{ s.products_placeholder | escape }}"></textarea>
+                <label class="q-input__label" for="bo-{{ section.id }}-products">{{ s.products_label | default: 'Products of interest' | escape }}</label>
+                <textarea id="bo-{{ section.id }}-products" class="q-input__control" aria-describedby="bo-{{ section.id }}-products-err" name="contact[products]" rows="4" placeholder="{{ s.products_placeholder | escape }}"></textarea>
                 <div class="q-input__hint">{{ s.products_hint | escape }}</div>
                 <div id="bo-{{ section.id }}-products-err" class="q-error" aria-live="polite"></div>
               </div>
 
               <div class="q-input" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-qty">{{ s.quantity_label | escape }}</label>
-                <input id="bo-{{ section.id }}-qty" class="q-input__control" type="text" name="contact[quantity]" inputmode="numeric" placeholder="{{ s.quantity_placeholder | escape }}">
+                <label class="q-input__label" for="bo-{{ section.id }}-qty">{{ s.quantity_label | default: 'Estimated quantity' | escape }}</label>
+                <input id="bo-{{ section.id }}-qty" class="q-input__control" aria-describedby="bo-{{ section.id }}-qty-err" type="text" name="contact[quantity]" inputmode="numeric" placeholder="{{ s.quantity_placeholder | escape }}">
                 <div class="q-input__hint">{{ s.quantity_hint | escape }} {{ s.min_quantity_hint | escape }}</div>
                 <div id="bo-{{ section.id }}-qty-err" class="q-error" aria-live="polite"></div>
               </div>
 
               <div class="q-input" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-date">{{ s.delivery_date_label | escape }}</label>
-                <input id="bo-{{ section.id }}-date" class="q-input__control" type="date" name="contact[delivery_date]">
+                <label class="q-input__label" for="bo-{{ section.id }}-date">{{ s.delivery_date_label | default: 'Desired delivery date' | escape }}</label>
+                <input id="bo-{{ section.id }}-date" class="q-input__control" aria-describedby="bo-{{ section.id }}-date-err" type="date" name="contact[delivery_date]">
                 <div class="q-input__hint">{{ s.delivery_date_hint | escape }}</div>
                 <div id="bo-{{ section.id }}-date-err" class="q-error" aria-live="polite"></div>
               </div>
@@ -303,37 +325,41 @@
                 <div class="q-input q-bulk-order__span2" data-q-field>
                   <label class="q-check">
                     <input id="bo-{{ section.id }}-haspo" type="checkbox" name="contact[has_po]">
-                    <span class="q-check__label">{{ s.po_toggle_label | escape }}</span>
+                    <span class="q-check__label">{{ s.po_toggle_label | default: 'I have a purchase order number' | escape }}</span>
                   </label>
                 </div>
 
-                <div class="q-input q-bulk-order__span2 is-hidden" data-q-field data-cond="1" data-cond-field="contact[has_po]" data-cond-operator="checked" data-cond-value="on">
-                  <label class="q-input__label" for="bo-{{ section.id }}-ponum">{{ s.po_number_label | escape }}</label>
-                  <input id="bo-{{ section.id }}-ponum" class="q-input__control" type="text" name="contact[po_number]" placeholder="{{ s.po_number_placeholder | escape }}">
+                <div class="q-input q-bulk-order__span2" data-q-field data-cond="1" data-cond-field="contact[has_po]" data-cond-operator="checked" data-cond-value="on">
+                  <label class="q-input__label" for="bo-{{ section.id }}-ponum">{{ s.po_number_label | default: 'Purchase order number' | escape }}</label>
+                  <input id="bo-{{ section.id }}-ponum" class="q-input__control" aria-describedby="bo-{{ section.id }}-ponum-err" type="text" name="contact[po_number]" placeholder="{{ s.po_number_placeholder | escape }}">
                   <div id="bo-{{ section.id }}-ponum-err" class="q-error" aria-live="polite"></div>
                 </div>
               {%- endif -%}
 
               <div class="q-input q-bulk-order__span2" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-body">{{ s.notes_label | escape }}</label>
-                <textarea id="bo-{{ section.id }}-body" class="q-input__control" name="contact[body]" rows="4" placeholder="{{ s.notes_placeholder | escape }}"></textarea>
+                <label class="q-input__label" for="bo-{{ section.id }}-body">{{ s.notes_label | default: 'Additional notes' | escape }}</label>
+                <textarea id="bo-{{ section.id }}-body" class="q-input__control" aria-describedby="bo-{{ section.id }}-body-err" name="contact[body]" rows="4" placeholder="{{ s.notes_placeholder | escape }}"></textarea>
                 <div id="bo-{{ section.id }}-body-err" class="q-error" aria-live="polite"></div>
               </div>
 
+              {%- assign field_keys = '|company|name|email|phone|products|quantity|delivery-date|body|po-number|has-po|tags|source|form-kind|target-email|' -%}
               {%- for block in section.blocks -%}
                 {%- if block.type == 'custom_field' -%}
                   {%- assign b = block.settings -%}
                   {%- assign col_class = 'q-bulk-order__span2' -%}
                   {%- if b.width == 'half' -%}{%- assign col_class = '' -%}{%- endif -%}
                   {%- assign field_key = b.name | default: 'custom_field' | strip | handleize -%}
+                  {%- assign key_token = field_key | prepend: '|' | append: '|' -%}
+                  {%- if field_key == blank or field_keys contains key_token -%}{%- assign field_key = 'custom-' | append: block.id -%}{%- endif -%}
+                  {%- assign field_keys = field_keys | append: field_key | append: '|' -%}
 
                   <div class="q-input {{ col_class }}" data-q-field {% if b.required %}data-required="true"{% endif %} {{ block.shopify_attributes }}>
-                    <label class="q-input__label" for="bo-{{ section.id }}-cf-{{ block.id }}">{{ b.label | escape }}</label>
+                    <label class="q-input__label" for="bo-{{ section.id }}-cf-{{ block.id }}">{{ b.label | default: 'Additional field' | escape }}</label>
 
                     {%- if b.field_type == 'textarea' -%}
-                      <textarea id="bo-{{ section.id }}-cf-{{ block.id }}" class="q-input__control" name="contact[{{ field_key }}]" rows="3" placeholder="{{ b.placeholder | escape }}" {% if b.required %}required{% endif %}></textarea>
+                      <textarea id="bo-{{ section.id }}-cf-{{ block.id }}" class="q-input__control" aria-describedby="bo-{{ section.id }}-cf-{{ block.id }}-err" name="contact[{{ field_key }}]" rows="3" placeholder="{{ b.placeholder | escape }}" {% if b.required %}required{% endif %}></textarea>
                     {%- else -%}
-                      <input id="bo-{{ section.id }}-cf-{{ block.id }}" class="q-input__control" type="text" name="contact[{{ field_key }}]" placeholder="{{ b.placeholder | escape }}" {% if b.required %}required{% endif %}>
+                      <input id="bo-{{ section.id }}-cf-{{ block.id }}" class="q-input__control" aria-describedby="bo-{{ section.id }}-cf-{{ block.id }}-err" type="text" name="contact[{{ field_key }}]" placeholder="{{ b.placeholder | escape }}" {% if b.required %}required{% endif %}>
                     {%- endif -%}
 
                     <div id="bo-{{ section.id }}-cf-{{ block.id }}-err" class="q-error" aria-live="polite"></div>
@@ -344,10 +370,12 @@
 
             <div class="q-form__actions">
               <button type="submit" class="q-btn {{ btn_class }}">
-                {{ s.submit_label | escape }}
+                {{ s.submit_label | default: 'Submit request' | escape }}
               </button>
             </div>
           </form>
+        {%- else -%}
+          <p role="status">{% if request.design_mode %}Configure an HTTPS or store-relative form endpoint, or select Shopify contact mode.{% else %}This form is currently unavailable.{% endif %}</p>
         {%- endif -%}
 
       </div>
@@ -364,14 +392,14 @@
       - Invalid outline only on control, not row wrapper
     ---------------------------------------------- */
 
-    .q-form-section--bulk-order .q-form-section__inner {
+    #q-bulk-{{ section.id }} .q-form-section__inner {
       display: grid;
       gap: var(--q-space-xl, 28px);
       align-items: start;
     }
 
     /* Card surface */
-    .q-form-section--bulk-order .q-bulk-order-card {
+    #q-bulk-{{ section.id }} .q-bulk-order-card {
       padding: var(--q-space-xl, 28px);
       border-radius: var(--q-radius-lg, 16px);
       border: 1px solid rgba(0,0,0,.08);
@@ -379,17 +407,17 @@
       background: var(--q-surface, #fff);
     }
 
-    .q-form-section--bulk-order .q-bulk-order__grid {
+    #q-bulk-{{ section.id }} .q-bulk-order__grid {
       display: grid;
       gap: var(--q-space-md, 16px);
     }
-    .q-form-section--bulk-order .q-bulk-order__span2 { grid-column: 1 / -1; }
+    #q-bulk-{{ section.id }} .q-bulk-order__span2 { grid-column: 1 / -1; }
 
     /* Hide conditional block default */
-    .q-form-section--bulk-order .is-hidden { display: none !important; }
+    #q-bulk-{{ section.id }} .is-hidden { display: none !important; }
 
     /* Actions spacing */
-    .q-form-section--bulk-order .q-form__actions {
+    #q-bulk-{{ section.id }} .q-form__actions {
       margin-top: var(--q-space-lg, 18px);
       display: flex;
       gap: var(--q-space-sm, 12px);
@@ -397,9 +425,9 @@
     }
 
     /* ---- Text-like controls ONLY ---- */
-    .q-form-section--bulk-order input.q-input__control:not([type="checkbox"]):not([type="radio"]),
-    .q-form-section--bulk-order textarea.q-input__control,
-    .q-form-section--bulk-order select.q-input__control {
+    #q-bulk-{{ section.id }} input.q-input__control:not([type="checkbox"]):not([type="radio"]),
+    #q-bulk-{{ section.id }} textarea.q-input__control,
+    #q-bulk-{{ section.id }} select.q-input__control {
       width: 100%;
       border-radius: var(--q-input-radius, 10px);
       border: 1px solid rgba(0,0,0,.14);
@@ -410,24 +438,24 @@
       transition: border-color .15s ease, box-shadow .15s ease;
     }
 
-    .q-form-section--bulk-order input.q-input__control:not([type="checkbox"]):not([type="radio"]):focus,
-    .q-form-section--bulk-order textarea.q-input__control:focus,
-    .q-form-section--bulk-order select.q-input__control:focus {
+    #q-bulk-{{ section.id }} input.q-input__control:not([type="checkbox"]):not([type="radio"]):focus,
+    #q-bulk-{{ section.id }} textarea.q-input__control:focus,
+    #q-bulk-{{ section.id }} select.q-input__control:focus {
       outline: none;
       border-color: rgba(0,0,0,.32);
       box-shadow: 0 0 0 3px rgba(0,0,0,.08);
     }
 
     /* ---- Checkbox polish (prevents "full-width checkbox" syndrome) ---- */
-    .q-form-section--bulk-order .q-check {
+    #q-bulk-{{ section.id }} .q-check {
       display: inline-flex;
       gap: .55rem;
       align-items: center;
       line-height: 1.2;
       user-select: none;
     }
-    .q-form-section--bulk-order .q-check input[type="checkbox"],
-    .q-form-section--bulk-order .q-check input[type="radio"] {
+    #q-bulk-{{ section.id }} .q-check input[type="checkbox"],
+    #q-bulk-{{ section.id }} .q-check input[type="radio"] {
       width: auto !important;
       min-width: 1.05rem;
       max-width: 1.05rem;
@@ -441,44 +469,57 @@
 
     /* ---- Invalid state: only outline the CONTROL (not the whole row) ---- */
     /* Defensive: if wrapper gets a class/attr, kill outlines there */
-    .q-form-section--bulk-order .q-input.is-invalid,
-    .q-form-section--bulk-order .q-input[aria-invalid="true"],
-    .q-form-section--bulk-order [data-q-field].is-invalid {
+    #q-bulk-{{ section.id }} .q-input.is-invalid,
+    #q-bulk-{{ section.id }} .q-input[aria-invalid="true"],
+    #q-bulk-{{ section.id }} [data-q-field].is-invalid {
       outline: none !important;
       box-shadow: none !important;
     }
 
-    .q-form-section--bulk-order input.q-input__control[aria-invalid="true"]:not([type="checkbox"]):not([type="radio"]),
-    .q-form-section--bulk-order textarea.q-input__control[aria-invalid="true"],
-    .q-form-section--bulk-order select.q-input__control[aria-invalid="true"] {
+    #q-bulk-{{ section.id }} input.q-input__control[aria-invalid="true"]:not([type="checkbox"]):not([type="radio"]),
+    #q-bulk-{{ section.id }} textarea.q-input__control[aria-invalid="true"],
+    #q-bulk-{{ section.id }} select.q-input__control[aria-invalid="true"] {
       border-color: var(--q-error, #dc2626);
       box-shadow: 0 0 0 3px rgba(220,38,38,.15);
     }
 
-    .q-form-section--bulk-order .q-check input[type="checkbox"][aria-invalid="true"],
-    .q-form-section--bulk-order .q-check input[type="radio"][aria-invalid="true"] {
+    #q-bulk-{{ section.id }} .q-check input[type="checkbox"][aria-invalid="true"],
+    #q-bulk-{{ section.id }} .q-check input[type="radio"][aria-invalid="true"] {
       outline: 2px solid var(--q-error, #dc2626);
       outline-offset: 2px;
     }
 
-    .q-form-section--bulk-order .q-error { margin-top: .35rem; }
+    #q-bulk-{{ section.id }} .q-error { margin-top: .35rem; }
 
     @media (min-width: {{ g.bp_md | default: 768 }}px) {
-      .q-form-section--bulk-order .q-bulk-order__grid { grid-template-columns: 1fr 1fr; }
-      .q-form-section--bulk-order .q-form-section__inner--split { grid-template-columns: 1fr 1.2fr; }
-      .q-form-section--bulk-order .q-form-section__inner--stack,
-      .q-form-section--bulk-order .q-form-section__inner--wide  { grid-template-columns: 1fr; }
+      #q-bulk-{{ section.id }} .q-bulk-order__grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+      #q-bulk-{{ section.id }} .q-form-section__inner--split { grid-template-columns: minmax(0,1fr) minmax(0,1.2fr); }
+      #q-bulk-{{ section.id }} .q-form-section__inner--stack,
+      #q-bulk-{{ section.id }} .q-form-section__inner--wide  { grid-template-columns: 1fr; }
     }
+
+    #q-bulk-{{ section.id }}{font-family:var(--font-body,inherit);overflow-wrap:anywhere;padding-block:48px}
+    #q-bulk-{{ section.id }} .q-section__inner{box-sizing:border-box;max-width:var(--container-{{ s.max_width }},{% case s.max_width %}{% when 'sm' %}720px{% when 'md' %}960px{% else %}1152px{% endcase %});margin-inline:auto;padding-inline:clamp(16px,3vw,32px)}
+    #q-bulk-{{ section.id }} .q-section__divider{grid-column:1/-1;border-top:1px solid currentColor;opacity:.25}
+    #q-bulk-{{ section.id }} .q-heading{font-family:var(--font-head,inherit)}
+    #q-bulk-{{ section.id }} .q-bulk-order-card{color:#111;background:#fff;--q-text:#111}
+    #q-bulk-{{ section.id }} :is(.q-input,.q-form-section__form,.q-form-section__content){min-width:0}
+    #q-bulk-{{ section.id }} .q-input__label{display:block;margin-bottom:.4rem}
+    #q-bulk-{{ section.id }} :is(input,textarea){box-sizing:border-box;max-width:100%;min-width:0}
+    #q-bulk-{{ section.id }} :focus-visible{outline:2px solid currentColor;outline-offset:3px}
+    #q-bulk-{{ section.id }} .q-form__actions{flex-wrap:wrap}
+    @media(prefers-reduced-motion:reduce){#q-bulk-{{ section.id }} *{transition:none!important}}
   </style>
 </section>
 
-{%- endif -%}
+{%- elsif request.design_mode -%}<p role="status">Enable Bulk Ordering to display this section.</p>{%- endif -%}
 
 {% schema %}
 {
   "name": "3P - Bulk Order",
   "class": "q-section-wrap q-section-wrap--bulk-order",
   "settings": [
+    {"type": "paragraph", "content": "Sends a quote request, not a purchase order or checkout. External endpoints must accept the documented fields and validate captcha tokens server-side. No CRM or fulfillment connection is installed."},
     { "type": "checkbox", "id": "enable_section", "label": "Enable section", "default": true },
     { "type": "text", "id": "aria_label", "label": "Section aria-label", "default": "Bulk order and purchase order request form" },
 
@@ -521,24 +562,14 @@
         { "value": "global_default", "label": "Use global forms endpoint from Theme Settings" }
       ]
     },
-    { "type": "text", "id": "external_action_url", "label": "External form action URL", "default": "https://example.com/api/forms/bulk-order" },
-    { "type": "text", "id": "target_email", "label": "Notification email (optional)", "default": "sales@example.com" },
+    {"type": "text", "id": "external_action_url", "label": "External form action URL"},
+    {"type": "text", "id": "target_email", "label": "Recipient metadata (custom endpoint only)", "info": "Does not route Shopify contact notifications. Configure the Shopify recipient in store settings; custom servers must implement their own routing."},
     { "type": "text", "id": "hidden_source", "label": "Hidden source tag", "default": "bulk_order_request" },
     { "type": "text", "id": "hidden_tags", "label": "Additional tags (comma-separated)", "default": "b2b,bulk,quote" },
 
-    { "type": "select", "id": "success_mode", "label": "On successful submission", "default": "inline_message",
-      "options": [
-        { "value": "inline_message", "label": "Inline message" },
-        { "value": "redirect", "label": "Redirect" }
-      ]
-    },
+    {"type": "select", "id": "success_mode", "label": "On successful submission", "default": "inline_message", "options": [{"value": "inline_message", "label": "Inline message"}, {"value": "redirect", "label": "Redirect"}], "info": "Shopify mode: store-relative redirects use the native return path; external URLs appear as a success link. External endpoint responses and redirects are owned by that provider."},
     { "type": "text", "id": "success_heading", "label": "Success heading", "default": "Request received" },
-    {
-      "type": "richtext",
-      "id": "success_body",
-      "label": "Success message",
-      "default": "<p>Thank you for your request. A member of our sales team will contact you within one business day with next steps.</p>"
-    },
+    {"type": "richtext", "id": "success_body", "label": "Success message", "default": "<p>Thank you. Your request has been received.</p>"},
     { "type": "url", "id": "success_redirect_url", "label": "Redirect URL (if chosen above)" },
 
     { "type": "text", "id": "submit_label", "label": "Submit button label", "default": "Submit bulk order request" },
@@ -560,21 +591,21 @@
     { "type": "text", "id": "email_label", "label": "Email label", "default": "Email" },
     { "type": "text", "id": "email_placeholder", "label": "Email placeholder", "default": "you@company.com" },
 
-    { "type": "text", "id": "phone_label", "label": "Phone (optional)" },
+    {"type": "text", "id": "phone_label", "label": "Phone (optional)", "default": "Phone (optional)"},
     { "type": "text", "id": "phone_placeholder", "label": "(555) 555-5555" },
 
-    { "type": "text", "id": "products_label", "label": "Products of interest" },
+    {"type": "text", "id": "products_label", "label": "Products of interest", "default": "Products of interest"},
     { "type": "text", "id": "products_placeholder", "label": "Paste links, SKUs, or describe what you need…" },
     { "type": "text", "id": "products_hint", "label": "Link to product pages, collections, or describe SKUs here." },
 
-    { "type": "text", "id": "quantity_label", "label": "Estimated quantity" },
+    {"type": "text", "id": "quantity_label", "label": "Estimated quantity", "default": "Estimated quantity"},
     { "type": "text", "id": "quantity_placeholder", "label": "e.g., 50–100 units" },
     { "type": "text", "id": "quantity_hint", "label": "Approximate units or ranges are fine." },
 
-    { "type": "text", "id": "delivery_date_label", "label": "Desired delivery date / deadline" },
+    {"type": "text", "id": "delivery_date_label", "label": "Desired delivery date / deadline", "default": "Desired delivery date"},
     { "type": "text", "id": "delivery_date_hint", "label": "If you don’t have a firm date, give your best estimate." },
 
-    { "type": "text", "id": "notes_label", "label": "Additional notes" },
+    {"type": "text", "id": "notes_label", "label": "Additional notes", "default": "Additional notes"},
     { "type": "text", "id": "notes_placeholder", "label": "Delivery instructions, special requirements, questions…" }
   ],
   "blocks": [

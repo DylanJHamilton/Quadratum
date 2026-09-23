@@ -1,21 +1,30 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
+  assign form_id = 'qtm-newsletter-' | append: block_id
+  assign has_intro = false
+  if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank
+    assign has_intro = true
+  endif
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 %}
 
 <div
   class="
     qtm-newsletter
     qtm-newsletter-{{ block_id }}
+    {% unless has_intro %} qtm-newsletter--no-intro{% endunless %}
     qtm-newsletter--width-{{ block_width }}
     qtm-newsletter--align-{{ block_alignment }}
     qtm-newsletter--layout-{{ block.settings.layout_style }}
     qtm-newsletter--animation-{{ animation }}
-    {% unless block.settings.show_desktop %} qtm-newsletter--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-newsletter--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-newsletter--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-newsletter--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-newsletter--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-newsletter--hide-mobile{% endunless %}
   "
   style="
     --qtm-newsletter-margin-top: {{ block.settings.margin_top }}px;
@@ -37,7 +46,6 @@
     --qtm-newsletter-border-width: {{ block.settings.border_width }}px;
     --qtm-newsletter-border-radius: {{ block.settings.border_radius }}px;
   "
-  {{ block.shopify_attributes }}
 >
   <div class="qtm-newsletter__inner">
     {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank %}
@@ -63,7 +71,7 @@
     {% endif %}
 
     <div class="qtm-newsletter__form-card">
-      {% form 'customer', class: 'qtm-newsletter__form' %}
+      {% form 'customer', id: form_id, class: 'qtm-newsletter__form' %}
         <input type="hidden" name="contact[tags]" value="{{ block.settings.customer_tags | default: 'newsletter' | escape }}">
 
         {% if form.posted_successfully? %}
@@ -72,23 +80,25 @@
             role="status"
             tabindex="-1"
           >
-            {{ block.settings.success_message | escape }}
+            {{ block.settings.success_message | default: 'Thanks for signing up.' | escape }}
           </div>
         {% endif %}
 
         {% if form.errors %}
           <div
+            id="qtm-newsletter-error-{{ block_id }}"
             class="qtm-newsletter__message qtm-newsletter__message--error"
             role="alert"
           >
-            {{ block.settings.error_message | escape }}
+            {{ block.settings.error_message | default: 'Please check the form and try again.' | escape }}
+            {{ form.errors | default_errors }}
           </div>
         {% endif %}
 
         <div class="qtm-newsletter__fields">
           <div class="qtm-newsletter__field">
             <label class="qtm-newsletter__label {% unless block.settings.show_email_label %}visually-hidden{% endunless %}" for="qtm-newsletter-email-{{ block_id }}">
-              {{ block.settings.email_label | escape }}
+              {{ block.settings.email_label | default: 'Email address' | escape }}
             </label>
 
             <input
@@ -96,13 +106,13 @@
               class="qtm-newsletter__input"
               type="email"
               name="contact[email]"
-              value="{% if customer %}{{ customer.email }}{% endif %}"
+              value="{% if form.email %}{{ form.email | escape }}{% elsif customer %}{{ customer.email | escape }}{% endif %}"
               autocorrect="off"
               autocapitalize="off"
               autocomplete="email"
               placeholder="{{ block.settings.email_placeholder | escape }}"
               required
-              {% if form.errors %}
+              {% if form.errors contains 'email' %}
                 aria-invalid="true"
                 aria-describedby="qtm-newsletter-error-{{ block_id }}"
               {% endif %}
@@ -110,7 +120,7 @@
           </div>
 
           <button class="qtm-newsletter__button" type="submit">
-            {{ block.settings.button_label | escape }}
+            {{ block.settings.button_label | default: 'Sign up' | escape }}
           </button>
         </div>
 
@@ -126,18 +136,13 @@
             >
 
             <label class="qtm-newsletter__consent-label" for="qtm-newsletter-consent-{{ block_id }}">
-              {{ block.settings.consent_text | escape }}
+              {{ block.settings.consent_text | default: 'I agree to receive marketing emails.' | escape }}
             </label>
           </div>
         {% else %}
           <input type="hidden" name="contact[accepts_marketing]" value="true">
         {% endif %}
 
-        {% if form.errors %}
-          <span id="qtm-newsletter-error-{{ block_id }}" class="visually-hidden">
-            {{ block.settings.error_message | escape }}
-          </span>
-        {% endif %}
 
         {% if block.settings.disclaimer != blank %}
           <div class="qtm-newsletter__disclaimer">
@@ -151,9 +156,13 @@
 
 <style>
   .qtm-newsletter-{{ block_id }} {
+    container-type: inline-size;
+    box-sizing: border-box;
+    min-width: 0;
+    overflow-wrap: anywhere;
     margin-top: var(--qtm-newsletter-margin-top);
     margin-bottom: var(--qtm-newsletter-margin-bottom);
-    padding: var(--qtm-newsletter-padding);
+    padding: min(var(--qtm-newsletter-padding), 12%);
     color: var(--qtm-newsletter-text-color);
     background: var(--qtm-newsletter-background-color);
     border: var(--qtm-newsletter-border-width) solid var(--qtm-newsletter-border-color);
@@ -211,7 +220,7 @@
 
   .qtm-newsletter-{{ block_id }}.qtm-newsletter--layout-inline .qtm-newsletter__inner,
   .qtm-newsletter-{{ block_id }}.qtm-newsletter--layout-card .qtm-newsletter__inner {
-    grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1.05fr);
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
   }
 
   .qtm-newsletter-{{ block_id }}.qtm-newsletter--layout-stacked .qtm-newsletter__inner,
@@ -352,7 +361,7 @@
     font-weight: 800;
     line-height: 1.1;
     text-decoration: none;
-    white-space: nowrap;
+    white-space: normal;
     cursor: pointer;
     transition: transform 180ms ease, opacity 180ms ease;
   }
@@ -503,9 +512,7 @@
   }
 
   @media screen and (max-width: 989px) {
-    .qtm-newsletter-{{ block_id }}.qtm-newsletter--hide-tablet {
-      display: none !important;
-    }
+
 
     .qtm-newsletter-{{ block_id }}.qtm-newsletter--layout-inline .qtm-newsletter__inner,
     .qtm-newsletter-{{ block_id }}.qtm-newsletter--layout-card .qtm-newsletter__inner {
@@ -521,7 +528,7 @@
 
   @media screen and (max-width: 749px) {
     .qtm-newsletter-{{ block_id }} {
-      padding: min(var(--qtm-newsletter-padding), 24px);
+      padding: min(var(--qtm-newsletter-padding), 24px, 12%);
     }
 
     .qtm-newsletter-{{ block_id }}.qtm-newsletter--hide-mobile {
@@ -552,6 +559,20 @@
       scroll-behavior: auto !important;
     }
   }
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-newsletter-{{ block_id }}.qtm-newsletter--hide-tablet {
+      display: none !important;
+    }
+  }
+  .qtm-newsletter-{{ block_id }} :is(div,li,a,span,input,textarea,button) { min-width: 0; }
+  .qtm-newsletter-{{ block_id }} :is(a,input,textarea,button) { max-width: 100%; }
+  .qtm-newsletter-{{ block_id }}[hidden] { display: none !important; }
+.qtm-newsletter-{{ block_id }}.qtm-newsletter--no-intro .qtm-newsletter__inner { grid-template-columns: minmax(0, 1fr); }
+  .qtm-newsletter-{{ block_id }} .qtm-newsletter__form-card { min-width: 0; }
+  @container (max-width: 580px) {
+    .qtm-newsletter-{{ block_id }} .qtm-newsletter__inner, .qtm-newsletter-{{ block_id }} .qtm-newsletter__fields { grid-template-columns: minmax(0, 1fr) !important; }
+    .qtm-newsletter-{{ block_id }} .qtm-newsletter__button { width: 100%; }
+  }
 </style>
 
 {% schema %}
@@ -578,7 +599,7 @@
       "type": "richtext",
       "id": "text",
       "label": "Text",
-      "default": "<p>Get updates, offers, product news, and helpful resources delivered to your inbox.</p>"
+      "default": "<p>Sign up for email updates.</p>"
     },
     {
       "type": "text",
@@ -641,8 +662,7 @@
     {
       "type": "richtext",
       "id": "disclaimer",
-      "label": "Disclaimer",
-      "default": "<p>No spam. Unsubscribe anytime.</p>"
+      "label": "Disclaimer"
     },
     {
       "type": "header",
@@ -931,15 +951,15 @@
     {
       "name": "Newsletter Signup",
       "settings": {
-        "eyebrow": "Stay connected",
-        "heading": "Join our newsletter",
-        "text": "<p>Get product updates, helpful resources, and exclusive announcements delivered to your inbox.</p>",
+        "eyebrow": "Email updates",
+        "heading": "Join our mailing list",
+        "text": "<p>Sign up for email updates.</p>",
         "customer_tags": "newsletter",
         "email_placeholder": "Enter your email",
         "button_label": "Sign up",
         "success_message": "Thanks for signing up.",
         "error_message": "Please enter a valid email address.",
-        "disclaimer": "<p>No spam. Unsubscribe anytime.</p>",
+        "disclaimer": "",
         "layout_style": "inline",
         "padding": 24,
         "border_radius": 20
@@ -948,15 +968,15 @@
     {
       "name": "Discount Signup",
       "settings": {
-        "eyebrow": "Exclusive offer",
-        "heading": "Get updates and special offers",
-        "text": "<p>Sign up for emails and be the first to know about new arrivals, promotions, and limited-time offers.</p>",
+        "eyebrow": "Email updates",
+        "heading": "Join our mailing list",
+        "text": "<p>Sign up for email updates.</p>",
         "customer_tags": "newsletter, discount-signup",
         "email_placeholder": "Email address",
-        "button_label": "Unlock offer",
-        "success_message": "Thanks for joining. Check your inbox for updates.",
+        "button_label": "Sign up",
+        "success_message": "Thanks for signing up.",
         "error_message": "Please enter a valid email address.",
-        "disclaimer": "<p>By signing up, you agree to receive marketing emails. You can unsubscribe anytime.</p>",
+        "disclaimer": "",
         "layout_style": "card",
         "show_consent": true,
         "padding": 32,
@@ -968,15 +988,15 @@
     {
       "name": "VIP List Signup",
       "settings": {
-        "eyebrow": "VIP access",
-        "heading": "Join the VIP list",
-        "text": "<p>Get early access to launches, private offers, and priority announcements before everyone else.</p>",
+        "eyebrow": "Email updates",
+        "heading": "Join our mailing list",
+        "text": "<p>Sign up for email updates.</p>",
         "customer_tags": "newsletter, vip",
         "email_placeholder": "Join with your email",
-        "button_label": "Join VIP",
-        "success_message": "You are on the VIP list.",
+        "button_label": "Sign up",
+        "success_message": "Thanks for signing up.",
         "error_message": "Please enter a valid email address.",
-        "disclaimer": "<p>VIP emails are occasional and always optional.</p>",
+        "disclaimer": "",
         "layout_style": "stacked",
         "alignment": "center",
         "width": "medium",

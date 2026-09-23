@@ -1,115 +1,81 @@
+/* Gallery-only accordion and native image dialog. Carousel rotation is shared. */
 (() => {
-  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-
-  function closest(el, sel) {
-    while (el && el.nodeType === 1) {
-      if (el.matches(sel)) return el;
-      el = el.parentElement;
-    }
-    return null;
-  }
-
-  function getGapPx(track) {
-    const cs = window.getComputedStyle(track);
-    const gap = cs.columnGap || cs.gap || "0px";
-    const n = parseFloat(gap);
-    return Number.isFinite(n) ? n : 0;
-  }
-
-  function getStep(track) {
-    const first = track.children && track.children.length ? track.children[0] : null;
-    if (!first) return 0;
-    const gap = getGapPx(track);
-    return first.getBoundingClientRect().width + gap;
-  }
-
-  function scrollBySlides(track, dir) {
-    const step = getStep(track);
-    if (!step) return;
-
-    // scroll 1 full card at a time (feels right for snap)
-    const delta = step * dir;
-    track.scrollBy({ left: delta, behavior: "smooth" });
-  }
-
-  function initCarouselFallback(carouselEl) {
-    const track = carouselEl.querySelector("[data-q-carousel-track]");
-    if (!track) return;
-
-    const prev = carouselEl.querySelector("[data-q-carousel-prev]");
-    const next = carouselEl.querySelector("[data-q-carousel-next]");
-
-    // Buttons
-    if (prev) prev.addEventListener("click", () => scrollBySlides(track, -1));
-    if (next) next.addEventListener("click", () => scrollBySlides(track, 1));
-
-    // Keyboard: left/right when focused inside carousel
-    carouselEl.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        scrollBySlides(track, -1);
-      }
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        scrollBySlides(track, 1);
-      }
-    });
-
-    // Make it focusable for keyboard users
-    if (!carouselEl.hasAttribute("tabindex")) carouselEl.setAttribute("tabindex", "0");
-  }
-
-  function initAccordion(sectionEl) {
-    const mode = sectionEl.getAttribute("data-mode");
-    if (mode !== "image_accordion") return;
-
-    const expandMode = sectionEl.getAttribute("data-accordion-mode") || "hover";
-    const defaultActive = parseInt(sectionEl.getAttribute("data-accordion-default") || "1", 10);
-
-    const panels = $$(".q-gallery__item", sectionEl);
-    if (!panels.length) return;
-
-    const setActive = (idx1) => {
-      panels.forEach((p, i) => {
-        const on = (i + 1) === idx1;
-        p.classList.toggle("is-active", on);
-        p.setAttribute("aria-selected", on ? "true" : "false");
+  if (window.qtmGallery) return;
+  window.qtmGallery = true;
+  const instances = new WeakMap(), selector = '[data-q-gallery]';
+  const each = (scope, fn) => { if (scope.matches?.(selector)) fn(scope); scope.querySelectorAll(selector).forEach(fn); };
+  function init(root) {
+    if (instances.has(root)) return;
+    const life = new AbortController(), on = (node, type, fn) => node?.addEventListener(type, fn, { signal: life.signal });
+    const panels = [...root.querySelectorAll('.q-gallery__panel')], dialog = root.querySelector('[data-q-lightbox]');
+    const images = [...root.querySelectorAll('[data-q-lightbox-open]')];
+    let index = 0, opener, restore = true;
+    function activate(panel, scroll = false) {
+      panels.forEach(item => {
+        item.classList.toggle('is-active', item === panel);
+        item.querySelector('[data-gallery-expand]')?.setAttribute('aria-expanded', String(item === panel));
       });
-    };
-
-    setActive(Math.min(Math.max(defaultActive, 1), panels.length));
-
-    panels.forEach((panel, i) => {
-      const idx1 = i + 1;
-
-      const activate = () => setActive(idx1);
-
-      if (expandMode === "click") {
-        panel.addEventListener("click", (e) => {
-          // don’t hijack link clicks
-          const a = closest(e.target, "a");
-          if (a) return;
-          activate();
-        });
-      } else {
-        panel.addEventListener("mouseenter", activate);
-        panel.addEventListener("focusin", activate);
+      if (scroll) panel.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+    }
+    panels.forEach(panel => {
+      const expand = panel.querySelector('[data-gallery-expand]');
+      if (expand) { expand.hidden = false; on(expand, 'click', () => activate(panel, true)); }
+      if (root.dataset.accordionMode === 'hover') {
+        on(panel, 'mouseenter', () => activate(panel));
+        on(panel, 'focusin', () => activate(panel));
       }
     });
+    function show(next) {
+      index = Math.max(0, Math.min(next, images.length - 1));
+      const link = images[index], item = link?.closest('[data-q-gallery-item]');
+      if (!item || !dialog) return;
+      const image = dialog.querySelector('[data-q-lightbox-img]');
+      Object.assign(image, { src: link.href, alt: item.dataset.alt || '', width: Number(item.dataset.width) || 1600, height: Number(item.dataset.height) || 1600 });
+      dialog.querySelector('[data-q-lightbox-cap]').textContent = [item.dataset.tag, item.dataset.title, item.dataset.desc].filter(Boolean).join(' — ');
+      dialog.querySelector('[data-q-lightbox-status]').textContent = `Image ${index + 1} of ${images.length}`;
+      const prev = dialog.querySelector('[data-q-lightbox-prev]'), nextButton = dialog.querySelector('[data-q-lightbox-next]');
+      prev.hidden = nextButton.hidden = images.length < 2;
+      prev.disabled = root.dataset.lightboxLoop !== 'true' && index === 0;
+      nextButton.disabled = root.dataset.lightboxLoop !== 'true' && index === images.length - 1;
+    }
+    function close(returnFocus = true) {
+      restore = returnFocus;
+      if (dialog?.open) dialog.close();
+    }
+    function navigate(delta) {
+      const next = index + delta;
+      show(root.dataset.lightboxLoop === 'true' ? (next + images.length) % images.length : next);
+    }
+    on(root, 'click', e => {
+      const link = e.target.closest('[data-q-lightbox-open]');
+      if (link && dialog?.showModal && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+        e.preventDefault();
+        opener = link; restore = true;
+        root.querySelector('[data-q-carousel-engine]')?.__qCarousel?.pause();
+        window.dispatchEvent(new CustomEvent('qtm:collection-modal-open', { detail: dialog }));
+        show(images.indexOf(link));
+        if (!dialog.open) dialog.showModal();
+        dialog.querySelector('[data-q-lightbox-close]').focus();
+      }
+      if (e.target.closest('[data-q-lightbox-close]') || e.target === dialog) close();
+      if (e.target.closest('[data-q-lightbox-prev]')) navigate(-1);
+      if (e.target.closest('[data-q-lightbox-next]')) navigate(1);
+    });
+    on(dialog, 'cancel', e => { e.preventDefault(); close(); });
+    on(dialog, 'close', () => { dialog.querySelector('[data-q-lightbox-img]').removeAttribute('src'); if (restore && opener?.isConnected) opener.focus(); });
+    on(dialog, 'keydown', e => {
+      if (!['ArrowLeft','ArrowRight','Home','End','Escape'].includes(e.key) || e.target.matches('input,textarea,select')) return;
+      e.preventDefault();
+      if (e.key === 'Escape') close();
+      else if (e.key === 'Home') show(0);
+      else if (e.key === 'End') show(images.length - 1);
+      else navigate((e.key === 'ArrowRight' ? 1 : -1) * (getComputedStyle(root).direction === 'rtl' ? -1 : 1));
+    });
+    on(window, 'qtm:collection-modal-open', e => { if (e.detail !== dialog) close(false); });
+    on(root, 'shopify:block:select', e => { const panel = e.target.closest('.q-gallery__panel'); if (panel) activate(panel, true); });
+    instances.set(root, () => { close(false); life.abort(); panels.forEach(panel => { const button = panel.querySelector('[data-gallery-expand]'); if (button) button.hidden = true; }); });
   }
-
-  function initGallery(sectionEl) {
-    // 1) Carousel fallback (works even if canonical engine fails)
-    const carousels = $$("[data-q-carousel]", sectionEl);
-    carousels.forEach(initCarouselFallback);
-
-    // 2) Accordion behavior (v1)
-    initAccordion(sectionEl);
-
-    // Lightbox wiring is assumed elsewhere; if you want, I can harden it next.
-  }
-
-  // Boot
-  const galleries = $$("[data-q-gallery]");
-  galleries.forEach(initGallery);
+  document.addEventListener('shopify:section:load', e => each(e.target, init));
+  document.addEventListener('shopify:section:unload', e => each(e.target, root => { instances.get(root)?.(); instances.delete(root); }));
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => each(document, init), { once: true }); else each(document, init);
 })();

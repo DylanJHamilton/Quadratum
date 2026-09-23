@@ -1,18 +1,14 @@
-{% comment %}
-  Quadratum — CTA: Newsletter (Section)
-  • Layouts: Card / Split / Steps
-  • Background media + overlay on ROOT (image/video/gradient/solid)
-  • Uses global JS: assets/frontend-form-logic.js (validation, steps, captcha)
-  • Two destinations:
-      - shopify_customer   → {% form 'customer' %} (accepts_marketing + tags)
-      - custom_endpoint    → <form action="{{ endpoint_url }}"> (server fan-out to ESPs)
-{% endcomment %}
+{% comment %}Newsletter signup with native customer feedback, explicit marketing confirmation and configured custom routing.{% endcomment %}
 {{ 'call-to-action-quote-form.css' | asset_url | stylesheet_tag }}
 
 {%- assign s = section.settings -%}
 
 {%- comment %} INTEGRATIONS (globals → effective values; minimal add) {% endcomment -%}
 {%- assign g = settings -%}
+{%- assign form_surface_color = s.form_bg | default: g.bg_base | default: '#ffffff' -%}
+{%- capture form_surface_text -%}{% render 'contrast-text', background: form_surface_color, preferred: g.text_base %}{%- endcapture -%}
+{%- capture form_input_text -%}{% render 'contrast-text', background: '#ffffff', preferred: g.text_base %}{%- endcapture -%}
+
 {%- assign eff_captcha_mode = s.captcha_mode | default: g.forms_captcha_provider | default: 'none' -%}
 
 {%- assign eff_captcha_key = '' -%}
@@ -23,7 +19,7 @@
 {%- endif -%}
 
 {%- assign tags_theme   = g.forms_default_tags | default: 'form, web' -%}
-{%- assign tags_section = s.hidden_tags | default: 'newsletter, web' -%}
+{%- assign tags_section = s.hidden_tags | default: '' -%}
 {%- assign eff_tags = tags_theme -%}
 {%- if tags_section != blank -%}{%- assign eff_tags = tags_theme | append: ', ' | append: tags_section -%}{%- endif -%}
 
@@ -33,635 +29,221 @@
 {%- endif -%}
 
 {%- comment %} THEME TOKENS (mirror CTA–Quote) {% endcomment -%}
-{%- assign T_font_heading = settings.font_heading -%}
-{%- assign C_primary      = settings.color_primary        | default: '#2563eb' -%}
-{%- assign C_bg_base      = settings.bg_base              | default: '#ffffff' -%}
-{%- assign C_bg_contrast  = settings.bg_contrast          | default: '#f6f7f8' -%}
-{%- assign C_text_base    = settings.text_base            | default: '#111111' -%}
-{%- assign C_text_muted   = settings.text_muted           | default: '#6b7280' -%}
-{%- assign C_success      = settings.color_success        | default: '#16a34a' -%}
-{%- assign C_error        = settings.color_error          | default: '#dc2626' -%}
-{%- assign BTN_default    = settings.button_variant_default | default: 'solid' -%}
-{%- assign BTN_radius     = settings.button_radius        | default: 12 -%}
-{%- assign BTN_bw         = settings.button_border_width  | default: 1 -%}
-{%- assign BTN_hover_op   = settings.button_hover_opacity | default: 92 -%}
-{%- assign BTN_active     = settings.button_active_scale  | default: 98 -%}
+{%- assign t_font_heading = settings.font_heading -%}
+{%- assign c_primary      = settings.color_primary        | default: '#2563eb' -%}
+{%- assign c_bg_base      = settings.bg_base              | default: '#ffffff' -%}
+{%- assign c_bg_contrast  = settings.bg_contrast          | default: '#f6f7f8' -%}
+{%- assign c_text_base    = settings.text_base            | default: '#111111' -%}
+{%- assign c_text_muted   = settings.text_muted           | default: '#6b7280' -%}
+{%- assign c_success      = settings.color_success        | default: '#16a34a' -%}
+{%- assign c_error        = settings.color_error          | default: '#dc2626' -%}
+{%- assign btn_default    = settings.button_variant_default | default: 'solid' -%}
+{%- assign btn_radius     = settings.button_radius        | default: 12 -%}
+{%- assign btn_bw         = settings.button_border_width  | default: 1 -%}
+{%- assign btn_hover_op   = settings.button_hover_opacity | default: 92 -%}
+{%- assign btn_active     = settings.button_active_scale  | default: 98 -%}
 
 {%- comment %} Button variant resolution {% endcomment -%}
-{%- assign _btn_choice = s.button_variant | default: 'inherit' -%}
-{%- assign _btn_variant = BTN_default -%}
-{%- if _btn_choice != 'inherit' and _btn_choice != blank -%}{%- assign _btn_variant = _btn_choice -%}{%- endif -%}
+{%- assign btn_choice = s.button_variant | default: 'inherit' -%}
+{%- assign btn_variant = btn_default -%}
+{%- if btn_choice != 'inherit' and btn_choice != blank -%}{%- assign btn_variant = btn_choice -%}{%- endif -%}
 {%- assign btn_mode_class = 'q-btn--solid' -%}
-{%- if _btn_variant == 'outline' -%}{%- assign btn_mode_class = 'q-btn--outline' -%}{%- endif -%}
-{%- if _btn_variant == 'ghost' -%}{%- assign btn_mode_class = 'q-btn--ghost' -%}{%- endif -%}
+{%- if btn_variant == 'outline' -%}{%- assign btn_mode_class = 'q-btn--outline' -%}{%- endif -%}
+{%- if btn_variant == 'ghost' -%}{%- assign btn_mode_class = 'q-btn--ghost' -%}{%- endif -%}
 
 {%- comment %} Visibility classes {% endcomment -%}
 {%- assign visibility_classes = '' -%}
-{%- if s.hide_on_mobile -%}{%- assign visibility_classes = visibility_classes | append: ' hidden md:block q-hide-mobile' -%}{%- endif -%}
-{%- if s.hide_on_desktop -%}{%- assign visibility_classes = visibility_classes | append: ' md:hidden q-hide-desktop' -%}{%- endif -%}
+{%- if s.hide_on_mobile and request.design_mode == false -%}{%- assign visibility_classes = visibility_classes | append: ' hide-mobile' -%}{%- endif -%}
+{%- if s.hide_on_desktop and request.design_mode == false -%}{%- assign visibility_classes = visibility_classes | append: ' hide-desktop' -%}{%- endif -%}
 
-{%- assign anchor = s.anchor_id -%}
+{%- assign anchor = s.anchor_id | strip -%}
 {%- if anchor == blank -%}{%- assign anchor = 'section-' | append: section.id -%}{%- endif -%}
 
-{%- comment %} Steps count for UI (global JS paints) {% endcomment -%}
-{%- assign steps_count = 0 -%}
-{%- for block in section.blocks -%}{%- if block.type == 'step' -%}{%- assign steps_count = steps_count | plus: 1 -%}{%- endif -%}{%- endfor -%}
-{%- if steps_count == 0 and s.template_style == 'steps' -%}{%- assign steps_count = 1 -%}{%- endif -%}
-
-{%- comment %} Safety: detect if an Email field block exists (prevents missing email break) {% endcomment -%}
-{%- assign has_email_block = false -%}
-{%- for block in section.blocks -%}
-  {%- if block.type == 'field' and block.settings.field_type == 'email' -%}
-    {%- assign has_email_block = true -%}
-  {%- endif -%}
-{%- endfor -%}
-
-{% capture automatic_button_text %}{% render 'contrast-text', background: C_primary, preferred: settings.text_on_color %}{% endcapture %}
+{% capture automatic_button_text %}{% render 'contrast-text', background: c_primary, preferred: settings.text_on_color %}{% endcapture %}
 <style>
-  #{{ anchor }}{
+  .q-form-scope-{{ section.id }}{
     --q-pad-y: {{ s.padding_y | default: 64 }}px;
     --q-pad-x: {{ s.padding_x | default: 24 }}px;
     --q-card-br: {{ s.card_radius | default: 16 }}px;
     --q-card-shadow: {% case s.card_shadow %}{% when 0 %}none{% when 1 %}0 1px 2px rgba(0,0,0,.06){% when 3 %}0 2px 4px rgba(0,0,0,.08), 0 16px 40px rgba(0,0,0,.12){% else %}0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.08){% endcase %};
-    --q-text: {{ C_text_base }};
-    --q-muted: {{ C_text_muted }};
-    --q-bg: {{ s.bg_color | default: C_bg_contrast }};
-    --q-btn-bg: {{ C_primary }};
+    --q-text: {{ c_text_base }};
+    --q-muted: {{ c_text_muted }};
+    --q-bg: {{ s.bg_color | default: c_bg_contrast }};
+    --q-btn-bg: {{ c_primary }};
     --q-btn-fg: {{ automatic_button_text }};
-    --q-btn-bdr: {{ C_text_base }};
-    --q-btn-bw: {{ BTN_bw }}px;
-    --q-btn-br: {{ BTN_radius }}px;
-    --q-btn-hover-op: {{ BTN_hover_op }};
-    --q-btn-active-scale: {{ BTN_active | divided_by: 100.0 }};
+    --q-btn-bdr: {{ c_text_base }};
+    --q-btn-bw: {{ btn_bw }}px;
+    --q-btn-br: {{ btn_radius }}px;
+    --q-btn-hover-op: {{ btn_hover_op }};
+    --q-btn-active-scale: {{ btn_active | divided_by: 100.0 }};
   }
-  #{{ anchor }} .q-wrap{max-width: {% if s.container_mode == 'full' or settings.style_kit == 'full' %}100%{% elsif settings.style_kit == 'wide' %}var(--q-cont-xl, 1440px){% else %}var(--q-cont-lg, 1152px){% endif %}; margin:0 auto; padding:0 var(--q-pad-x);}
-  #{{ anchor }} .q-bleed{position:relative;}
-  #{{ anchor }} .q-bg{position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none;}
-  #{{ anchor }} .q-media{width:100%; height:100%; object-fit:cover; display:block;}
-  #{{ anchor }} .q-overlay{position:absolute; inset:0; pointer-events:none;}
-  #{{ anchor }} .q-layer{position:relative; z-index:1; padding: var(--q-pad-y) 0;}
-  #{{ anchor }} .q-grid{display:grid; gap:24px; align-items:stretch;}
+  .q-form-scope-{{ section.id }} .q-wrap{max-width: {% if s.container_mode == 'full' or settings.style_kit == 'full' %}100%{% elsif settings.style_kit == 'wide' %}var(--q-cont-xl, 1440px){% else %}var(--q-cont-lg, 1152px){% endif %}; margin:0 auto; padding:0 min(var(--q-pad-x), 8vw);}
+  .q-form-scope-{{ section.id }} .q-bleed{position:relative;}
+  .q-form-scope-{{ section.id }} .q-bg{position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none;}
+  .q-form-scope-{{ section.id }} .q-media{width:100%; height:100%; object-fit:cover; display:block;}
+  .q-form-scope-{{ section.id }} .q-overlay{position:absolute; inset:0; pointer-events:none;}
+  .q-form-scope-{{ section.id }} .q-layer{position:relative; z-index:1; padding: var(--q-pad-y) 0;}
+  .q-form-scope-{{ section.id }} .q-grid{display:grid; gap:24px; align-items:stretch;}
   @media (min-width: 768px){
-    #{{ anchor }} .q-grid.split-left{grid-template-columns: 1.1fr 1fr;}
-    #{{ anchor }} .q-grid.split-right{grid-template-columns: 1fr 1.1fr;}
+    .q-form-scope-{{ section.id }} .q-grid.split-left{grid-template-columns: 1.1fr 1fr;}
+    .q-form-scope-{{ section.id }} .q-grid.split-right{grid-template-columns: 1fr 1.1fr;}
   }
-  #{{ anchor }} .q-card{
-    background: {{ s.form_bg | default: C_bg_base }};
+  .q-form-scope-{{ section.id }} .q-card{
+    background: {{ s.form_bg | default: c_bg_base }};
     border-radius: var(--q-card-br);
     box-shadow: var(--q-card-shadow);
     padding: 28px;
   }
-  #{{ anchor }} .q-media-card{ border-radius: var(--q-card-br); overflow:hidden; background: #000; min-height: 240px; }
-  #{{ anchor }} .q-head .q-kicker{color: var(--q-muted); font-size: .95rem; margin:0 0 4px;}
-  #{{ anchor }} .q-head .q-heading{
+  .q-form-scope-{{ section.id }} .q-media-card{ border-radius: var(--q-card-br); overflow:hidden; background: #000; min-height: 240px; }
+  .q-form-scope-{{ section.id }} .q-head .q-kicker{color: var(--q-muted); font-size: .95rem; margin:0 0 4px;}
+  .q-form-scope-{{ section.id }} .q-head .q-heading{
     margin:0 0 8px; color: var(--q-text);
-    {% if T_font_heading %}font-family: {{ T_font_heading.family }}, {{ T_font_heading.fallback_families }};{% endif %}
+    {% if t_font_heading %}font-family: {{ t_font_heading.family }}, {{ t_font_heading.fallback_families }};{% endif %}
   }
-  #{{ anchor }} .q-head .q-sub{color: var(--q-muted); margin:0 0 16px;}
+  .q-form-scope-{{ section.id }} .q-head .q-sub{color: var(--q-muted); margin:0 0 16px;}
 
-  #{{ anchor }} .q-fields{display:flex; flex-wrap:wrap; gap:12px;}
-  #{{ anchor }} .q-field{width:100%;}
-  #{{ anchor }} .q-field.half{width: calc(50% - 6px);}
-  @media (max-width: 639.98px){ #{{ anchor }} .q-field.half{ width:100%; } }
+  .q-form-scope-{{ section.id }} .q-fields{display:flex; flex-wrap:wrap; gap:12px;}
+  .q-form-scope-{{ section.id }} .q-field{width:100%;}
+  .q-form-scope-{{ section.id }} .q-field.half{width: calc(50% - 6px);}
+  @media (max-width: 639.98px){ .q-form-scope-{{ section.id }} .q-field.half{ width:100%; } }
 
-  #{{ anchor }} .q-label{display:block; font-weight:600; margin:8px 0 6px; color: var(--q-text);}
-  #{{ anchor }} .q-help{font-size:.875rem; color: var(--q-muted); margin:4px 0 0;}
-  #{{ anchor }} .q-input, #{{ anchor }} .q-select, #{{ anchor }} .q-textarea{
+  .q-form-scope-{{ section.id }} .q-label{display:block; font-weight:600; margin:8px 0 6px; color: var(--q-text);}
+  .q-form-scope-{{ section.id }} .q-help{font-size:.875rem; color: var(--q-muted); margin:4px 0 0;}
+  .q-form-scope-{{ section.id }} .q-input, .q-form-scope-{{ section.id }} .q-select, .q-form-scope-{{ section.id }} .q-textarea{
     width:100%; border:1px solid {{ s.input_border | default: '#e5e7eb' }}; border-radius: {{ s.input_radius | default: 10 }}px; padding: 12px 14px; background:#fff; color:var(--q-text);
   }
-  #{{ anchor }} .q-radio{ display:flex; gap:10px; align-items:center; margin: 4px 0; }
-  #{{ anchor }} .q-error{ color: {{ C_error }}; font-size:.85rem; margin-top:6px; }
-  #{{ anchor }} [aria-invalid="true"]{ border-color: {{ C_error }}; outline:1px solid {{ C_error }}; }
+  .q-form-scope-{{ section.id }} .q-radio{ display:flex; gap:10px; align-items:center; margin: 4px 0; }
+  .q-form-scope-{{ section.id }} .q-error{ color: {{ c_error }}; font-size:.85rem; margin-top:6px; }
+  .q-form-scope-{{ section.id }} [aria-invalid="true"]{ border-color: {{ c_error }}; outline:1px solid {{ c_error }}; }
 
-  #{{ anchor }} .q-btn{
+  .q-form-scope-{{ section.id }} .q-btn{
     display:inline-flex; align-items:center; justify-content:center;
     padding: 12px 20px; border-radius: var(--q-btn-br); border-width: var(--q-btn-bw); border-style: solid;
     transition: transform .12s ease, opacity .12s ease, background-color .12s ease, color .12s ease;
     text-decoration:none; cursor:pointer; user-select:none;
   }
-  #{{ anchor }} .q-btn span { color: inherit; }
-  #{{ anchor }} .q-btn.q-btn--solid{ background: var(--q-btn-bg); color: var(--q-btn-fg); border-color: var(--q-btn-bg); }
-  #{{ anchor }} .q-btn.q-btn--outline{ background: transparent; color: var(--q-btn-bg); border-color: var(--q-btn-bg); }
-  #{{ anchor }} .q-btn.q-btn--ghost{ background: transparent; color: var(--q-btn-bg); border-color: transparent; }
-  #{{ anchor }} .q-btn[disabled]{ opacity:.6; pointer-events:none; }
-  #{{ anchor }} .q-btn:not([disabled]):hover{ opacity: calc(var(--q-btn-hover-op) / 100); }
-  #{{ anchor }} .q-btn:not([disabled]):active{ transform: scale(var(--q-btn-active-scale)); }
+  .q-form-scope-{{ section.id }} .q-btn span { color: inherit; }
+  .q-form-scope-{{ section.id }} .q-btn.q-btn--solid{ background: var(--q-btn-bg); color: var(--q-btn-fg); border-color: var(--q-btn-bg); }
+  .q-form-scope-{{ section.id }} .q-btn.q-btn--outline{ background: transparent; color: var(--q-btn-bg); border-color: var(--q-btn-bg); }
+  .q-form-scope-{{ section.id }} .q-btn.q-btn--ghost{ background: transparent; color: var(--q-btn-bg); border-color: transparent; }
+  .q-form-scope-{{ section.id }} .q-btn[disabled]{ opacity:.6; pointer-events:none; }
+  .q-form-scope-{{ section.id }} .q-btn:not([disabled]):hover{ opacity: calc(var(--q-btn-hover-op) / 100); }
+  .q-form-scope-{{ section.id }} .q-btn:not([disabled]):active{ transform: scale(var(--q-btn-active-scale)); }
 
-  #{{ anchor }} .q-live{ position:relative; margin:8px 0 0; min-height: 1.2em; }
-  #{{ anchor }} .q-live .ok{ color: {{ C_success }}; }
-  #{{ anchor }} .q-live .bad{ color: {{ C_error }}; }
+  .q-form-scope-{{ section.id }} .q-live{ position:relative; margin:8px 0 0; min-height: 1.2em; }
+  .q-form-scope-{{ section.id }} .q-live .ok{ color: {{ c_success }}; }
+  .q-form-scope-{{ section.id }} .q-live .bad{ color: {{ c_error }}; }
 
   /* Steps */
-  #{{ anchor }} [data-q-steps]{ margin-top: 10px; }
-  #{{ anchor }} .q-steps-nav{ display:flex; align-items:center; gap:10px; margin:0 0 12px; }
-  #{{ anchor }} .q-steps-bar{ flex:1; height:6px; background: rgba(0,0,0,.08); border-radius:6px; overflow:hidden; }
-  #{{ anchor }} .q-steps-fill{ height:100%; background: var(--q-btn-bg); width:0%; }
-  #{{ anchor }} .q-steps-count{ font-size:.875rem; color: var(--q-muted); }
-  #{{ anchor }} .q-steps-actions{ display:flex; gap:8px; margin-top:16px; }
-  #{{ anchor }} .q-step{ display:none; }
-  #{{ anchor }} .q-step.is-active{ display:block; }
+  .q-form-scope-{{ section.id }} [data-q-steps]{ margin-top: 10px; }
+  .q-form-scope-{{ section.id }} .q-steps-nav{ display:flex; align-items:center; gap:10px; margin:0 0 12px; }
+  .q-form-scope-{{ section.id }} .q-steps-bar{ flex:1; height:6px; background: rgba(0,0,0,.08); border-radius:6px; overflow:hidden; }
+  .q-form-scope-{{ section.id }} .q-steps-fill{ height:100%; background: var(--q-btn-bg); width:0%; }
+  .q-form-scope-{{ section.id }} .q-steps-count{ font-size:.875rem; color: var(--q-muted); }
+  .q-form-scope-{{ section.id }} .q-steps-actions{ display:flex; gap:8px; margin-top:16px; }
+  .q-form-scope-{{ section.id }} .q-step{ display:flex; flex-wrap:wrap; gap:12px; width:100%; }
+  .q-form-scope-{{ section.id }} .q-step[hidden]{ display:none !important; }
 
   /* Conditional */
-  #{{ anchor }} .is-hidden{ display:none !important; }
+  .q-form-scope-{{ section.id }} .is-hidden{ display:none !important; }
 
   /* checkbox/radio cosmetics (scoped to this section) */
-  #{{ anchor }} .q-radio{ display:flex; align-items:center; gap:10px; justify-content:flex-start; width:max-content; }
-  #{{ anchor }} .q-radio input.q-input{
+  .q-form-scope-{{ section.id }} .q-radio{ display:flex; align-items:center; gap:10px; justify-content:flex-start; width:auto; max-width:100%; overflow-wrap:anywhere; }
+  .q-form-scope-{{ section.id }} .q-radio input.q-input{
     width:auto; padding:0; border:1px solid rgba(0,0,0,.35); border-radius:3px; height:1.05rem; margin:0;
   }
-  #{{ anchor }} input.q-input[aria-invalid="true"]{
+  .q-form-scope-{{ section.id }} input.q-input[aria-invalid="true"]{
     border-color: var(--q-error, #dc2626);
     outline:2px solid var(--q-error, #dc2626);
     outline-offset:2px;
   }
-  #{{ anchor }} input:not([type="checkbox"]):not([type="radio"]).q-input[aria-invalid="true"],
-  #{{ anchor }} select[aria-invalid="true"],
-  #{{ anchor }} textarea[aria-invalid="true"]{
+  .q-form-scope-{{ section.id }} input:not([type="checkbox"]):not([type="radio"]).q-input[aria-invalid="true"],
+  .q-form-scope-{{ section.id }} select[aria-invalid="true"],
+  .q-form-scope-{{ section.id }} textarea[aria-invalid="true"]{
     outline:1px solid var(--q-error, #dc2626);
   }
+  .q-form-scope-{{ section.id }}{min-width:0;overflow-wrap:anywhere;}
+  .q-form-scope-{{ section.id }} .q-wrap,.q-form-scope-{{ section.id }} .q-wrap-full{box-sizing:border-box;}
+  .q-form-scope-{{ section.id }} .q-card,.q-form-scope-{{ section.id }} .q-surface,.q-form-scope-{{ section.id }} .q-grid>*{min-width:0;max-width:100%;}
+  .q-form-scope-{{ section.id }} .q-field{min-width:0;max-width:100%;text-align:start;}
+  .q-form-scope-{{ section.id }} .q-radio{width:auto;max-width:100%;text-align:start;overflow-wrap:anywhere;}
+  .q-form-scope-{{ section.id }} .q-radio span{min-width:0;}
+  .q-form-scope-{{ section.id }} .q-bg{background:var(--q-bg);}
+  .q-form-scope-{{ section.id }} .q-bg .q-form-background-video{position:absolute;inset:0;width:100%;height:100%;border:0;}
+  .q-form-scope-{{ section.id }} .q-bg .q-form-poster{width:100%;height:100%;object-fit:cover;}
+  .q-form-scope-{{ section.id }} .q-bg [hidden]{display:none !important;}
+  .q-form-scope-{{ section.id }} .q-form-video-toggle{position:absolute;z-index:2;inset-inline-end:12px;bottom:12px;padding:8px 12px;border:1px solid currentColor;border-radius:4px;background:#fff;color:#111;max-width:calc(100% - 24px);}
+  .q-form-scope-{{ section.id }} :is(button,a,input,select,textarea):focus-visible{outline:2px solid currentColor;outline-offset:3px;}
+  .q-form-scope-{{ section.id }} .q-step{grid-column:1 / -1;min-width:0;}
+  .q-form-scope-{{ section.id }} .q-step-heading{width:100%;}
+  .q-form-scope-{{ section.id }} [data-q-submit]{grid-column:1 / -1;max-width:100%;}
+  @media(max-width:767.98px){.q-form-scope-{{ section.id }}.hide-mobile{display:none;}}
+  @media(min-width:768px){.q-form-scope-{{ section.id }}.hide-desktop{display:none;}}
+  @media(prefers-reduced-motion:reduce){.q-form-scope-{{ section.id }} .q-btn{transition:none;}}
+
+  .q-form-scope-{{ section.id }} .q-card,.q-form-scope-{{ section.id }} .q-surface{--q-text:{{ form_surface_text | strip }};--q-muted:{{ form_surface_text | strip }};}
+  .q-form-scope-{{ section.id }} input.q-input,.q-form-scope-{{ section.id }} select.q-select,.q-form-scope-{{ section.id }} textarea.q-textarea{color:{{ form_input_text | strip }};box-sizing:border-box;max-width:100%;}
+  .q-form-scope-{{ section.id }}{--q-btn-hover-op:{{ g.button_hover_opacity | default: 92 }};--q-btn-active-scale:{{ g.button_active_scale | default: 98 | divided_by: 100.0 }};}
+  {% if g.font_heading %}.q-form-scope-{{ section.id }} .q-head :is(h2,h3){font-family:{{ g.font_heading.family }},{{ g.font_heading.fallback_families }};}{% endif %}
 </style>
 
 <section
-  id="{{ anchor }}"
-  class="q-cta-quote-form q-cta-newsletter{{ visibility_classes }}"
+  data-q-form-host data-video-hero data-video-hero-mobile-query="(max-width: 767.98px)"
+  id="{{ anchor | escape }}"
+  class="q-form-scope-{{ section.id }} q-cta-quote-form q-cta-newsletter{{ visibility_classes }}"
   role="region"
-  aria-label="{{ s.aria_label | default: 'Newsletter signup' }}"
-  data-template="{{ s.template_style }}"
+  aria-label="{{ s.aria_label | default: 'Newsletter signup' | escape }}"
+  data-template="{{ s.template_style | escape }}"
   data-msg-error="{{ s.error_text | escape }}"
   data-msg-success="{{ s.success_text | escape }}"
-  data-captcha="{{ eff_captcha_mode }}"
+  data-captcha="{{ eff_captcha_mode | escape }}"
   data-captcha-key="{{ eff_captcha_key | escape }}"
-  data-btn-variant="{{ btn_mode_class }}"
+  data-btn-variant="{{ btn_mode_class | escape }}"
   {% if s.destination == 'custom_endpoint' %}data-q-attrib-create="1"{% endif %}
 >
   <div class="q-bleed">
-    <div class="q-bg" aria-hidden="true">
-      {%- assign vurl = s.bg_video | strip -%}
-      {%- if vurl != blank -%}
-        {%- assign is_yt = false -%}{%- assign is_vm = false -%}
-        {%- if vurl contains 'youtube.com' or vurl contains 'youtu.be' -%}{%- assign is_yt = true -%}{%- endif -%}
-        {%- if vurl contains 'vimeo.com' -%}{%- assign is_vm = true -%}{%- endif -%}
-        {%- if is_yt -%}
-          {%- assign yid = vurl
-            | replace: 'https://youtu.be/','' | replace: 'http://youtu.be/',''
-            | replace: 'https://www.youtube.com/watch?v=','' | replace: 'http://www.youtube.com/watch?v=',''
-            | replace: 'https://youtube.com/watch?v=','' | replace: 'http://youtube.com/watch?v=',''
-            | split:'?' | first -%}
-          <iframe class="q-media" src="https://www.youtube.com/embed/{{ yid }}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&playlist={{ yid }}&modestbranding=1&rel=0" title="" tabindex="-1" allow="autoplay; encrypted-media"></iframe>
-        {%- elsif is_vm -%}
-          {%- assign vid = vurl | split:'/' | last | split:'?' | first -%}
-          <iframe class="q-media" src="https://player.vimeo.com/video/{{ vid }}?background=1&autoplay=1&muted=1&loop=1&autopause=0&controls=0" title="" tabindex="-1" allow="autoplay; fullscreen; picture-in-picture"></iframe>
-        {%- else -%}
-          <video class="q-media" autoplay loop muted playsinline preload="none">
-            <source src="{{ vurl | escape }}" type="video/mp4">
-          </video>
-        {%- endif -%}
-      {%- elsif s.bg_image != blank -%}
-        {{ s.bg_image | image_url: width: 2880 | image_tag: widths: '960,1440,1920,2560,2880', sizes: '100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
-      {%- else -%}
-        <div class="q-media" style="background: var(--q-bg);"></div>
-      {%- endif -%}
-
-      {%- if s.overlay_type == 'gradient' -%}
-        {%- assign g1c = s.grad_start | default: '#000000' -%}
-        {%- assign g2c = s.grad_end   | default: '#000000' -%}
-        {%- assign g1o = s.grad_start_opacity | default: 40 | divided_by: 100.0 -%}
-        {%- assign g2o = s.grad_end_opacity   | default: 0  | divided_by: 100.0 -%}
-        <div class="q-overlay" style="background: linear-gradient({{ s.grad_angle | default: 180 }}deg, {{ g1c | color_modify: 'alpha', g1o }}, {{ g2c | color_modify: 'alpha', g2o }});"></div>
-      {%- elsif s.overlay_type == 'solid' -%}
-        <div class="q-overlay" style="background-color: {{ s.overlay_color | default: '#000000' }}; opacity: {{ s.overlay_opacity | default: 35 | divided_by: 100.0 }};"></div>
-      {%- endif -%}
-    </div>
+    {% render 'form-background', settings: s, providers: true %}
 
     <div class="q-layer">
       <div class="q-wrap">
         {%- assign is_split_left = false -%}
         {%- assign is_split_right = false -%}
-        {%- if s.template_style == 'split' and s.split_media_side == 'left' -%}{%- assign is_split_left = true -%}{%- endif -%}
-        {%- if s.template_style == 'split' and s.split_media_side == 'right' -%}{%- assign is_split_right = true -%}{%- endif -%}
+        {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'left' -%}{%- assign is_split_left = true -%}{%- endif -%}
+        {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'right' -%}{%- assign is_split_right = true -%}{%- endif -%}
 
         <div class="q-grid{% if is_split_left %} split-left{% endif %}{% if is_split_right %} split-right{% endif %}">
 
           {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'left' -%}
             <div class="q-media-card">
-              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
+              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: s.split_image.alt }}
             </div>
           {%- endif -%}
 
           <div class="q-card" data-q-form-card>
             <header class="q-head">
-              {%- if s.kicker != blank -%}<p class="q-kicker">{{ s.kicker }}</p>{%- endif -%}
+              {%- if s.kicker != blank -%}<p class="q-kicker">{{ s.kicker | escape }}</p>{%- endif -%}
               {%- assign htag = s.heading_level | default: 'h2' -%}
-              {%- if s.heading != blank -%}{%- if htag == 'h3' -%}<h3 class="q-heading">{{ s.heading }}</h3>{%- else -%}<h2 class="q-heading">{{ s.heading }}</h2>{%- endif -%}{%- endif -%}
-              {%- if s.subheading != blank -%}<p class="q-sub">{{ s.subheading }}</p>{%- endif -%}
+              {%- if s.heading != blank -%}{%- if htag == 'h3' -%}<h3 class="q-heading">{{ s.heading | escape }}</h3>{%- else -%}<h2 class="q-heading">{{ s.heading | escape }}</h2>{%- endif -%}{%- endif -%}
+              {%- if s.subheading != blank -%}<p class="q-sub">{{ s.subheading | escape }}</p>{%- endif -%}
             </header>
 
-            {%- comment -%} SAFE FLAG (no comparison inside assign) {%- endcomment -%}
-            {%- assign _use_shopify = false -%}
-            {%- if s.destination == 'shopify_customer' -%}{%- assign _use_shopify = true -%}{%- endif -%}
-
-            {%- if _use_shopify -%}
-              {%- assign nl_form_id = 'newsletter-' | append: section.id -%}
-              {%- assign email_fallback_id = 'qf-email-' | append: section.id -%}
-              {% form 'customer', id: nl_form_id, class: 'q-form', novalidate: 'novalidate' %}
-                <input type="hidden" name="contact[tags]" value="{{ eff_tags | escape }}">
-                <input type="hidden" name="contact[accepts_marketing]" value="true">
-
-                <div class="q-fields">
-                  {%- if s.template_style == 'steps' -%}
-                    {%- assign step_open = false -%}
-                    {%- assign fallback_inserted = false -%}
-
-                    {%- for block in section.blocks -%}
-                      {%- if block.type == 'step' -%}
-                        {%- if step_open -%}</div>{%- endif -%}
-                        <div class="q-step">
-                          {%- assign step_open = true -%}
-                          {%- if block.settings.step_title != blank -%}<p class="q-kicker">{{ block.settings.step_title }}</p>{%- endif -%}
-                          {%- if block.settings.step_desc != blank -%}<p class="q-sub">{{ block.settings.step_desc }}</p>{%- endif -%}
-
-                          {%- if fallback_inserted == false and has_email_block == false -%}
-                            <div class="q-field" data-q-field data-required="true">
-                              <label class="q-label" for="{{ email_fallback_id }}">Email</label>
-                              <input id="{{ email_fallback_id }}" class="q-input" type="email" name="contact[email]" placeholder="you@example.com" required>
-                              <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
-                            </div>
-                            {%- assign fallback_inserted = true -%}
-                          {%- endif -%}
-
-                      {%- elsif block.type == 'field' -%}
-                        {%- if step_open == false -%}
-                          <div class="q-step">
-                            {%- assign step_open = true -%}
-                            {%- if fallback_inserted == false and has_email_block == false -%}
-                              <div class="q-field" data-q-field data-required="true">
-                                <label class="q-label" for="{{ email_fallback_id }}">Email</label>
-                                <input id="{{ email_fallback_id }}" class="q-input" type="email" name="contact[email]" placeholder="you@example.com" required>
-                                <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
-                              </div>
-                              {%- assign fallback_inserted = true -%}
-                            {%- endif -%}
-                        {%- endif -%}
-
-                        {%- assign b = block.settings -%}
-                        {%- assign wcls = 'q-field' -%}{% if b.width == 'half' %}{% assign wcls = wcls | append: ' half' %}{% endif %}
-                        <div class="{{ wcls }}" data-q-field data-required="{{ b.required }}" {% if b.condition_enable %}data-cond="1" data-cond-field="{{ b.condition_field | escape }}" data-cond-operator="{{ b.condition_operator }}" data-cond-value="{{ b.condition_value | escape }}"{% endif %}>
-                          {%- if b.field_type == 'html' -%}
-                            <div class="rte">{{ b.html_content }}</div>
-                          {%- else -%}
-                            {%- assign input_id = section.id | append: '-' | append: forloop.index -%}
-                            {%- if b.label != blank and b.field_type != 'checkbox' and b.field_type != 'consent' -%}
-                              <label class="q-label" for="{{ input_id }}">{{ b.label }}</label>
-                            {%- endif -%}
-
-                            {%- case b.field_type -%}
-                              {%- when 'email' -%}
-                                <input id="{{ input_id }}" class="q-input" type="email" name="contact[email]" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                              {%- when 'text' -%}
-                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'contact[first_name]' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                              {%- when 'select' -%}
-                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
-                                <select id="{{ input_id }}" class="q-select" name="{{ b.name_attr | default: 'contact[topic]' }}" {% if b.required %}required{% endif %}>
-                                  <option value="">{{ b.placeholder }}</option>
-                                  {%- for opt in opts -%}
-                                    {%- assign pair = opt | split: '|' -%}
-                                    <option value="{{ pair.first | strip | escape }}" {% if b.default_value == pair.first %}selected{% endif %}>{{ pair.last | default: pair.first | strip }}</option>
-                                  {%- endfor -%}
-                                </select>
-                              {%- when 'checkbox' -%}
-                                <label class="q-radio">
-                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'contact[consent_gdpr]' }}" value="yes" {% if b.required %}required{% endif %}>
-                                  <span>{{ b.label | default: 'I agree to receive emails.' }}</span>
-                                </label>
-                              {%- when 'consent' -%}
-                                <label class="q-radio">
-                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'contact[consent]' }}" value="yes" {% if b.required %}required{% endif %}>
-                                  <span>{{ b.label | default: 'I agree to the privacy policy' }}</span>
-                                </label>
-                              {%- when 'radio' -%}
-                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
-                                {%- for opt in opts -%}
-                                  {%- assign pair = opt | split: '|' -%}
-                                  <label class="q-radio">
-                                    <input class="q-input" type="radio" name="{{ b.name_attr | default: 'contact[preference]' }}" value="{{ pair.first | strip | escape }}" {% if b.required and forloop.first %}required{% endif %}>
-                                    <span>{{ pair.last | default: pair.first | strip }}</span>
-                                  </label>
-                                {%- endfor -%}
-                              {%- else -%}
-                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'contact[field]' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                            {%- endcase -%}
-
-                            <p id="{{ input_id }}-err" class="q-error" aria-live="polite"></p>
-                            {%- if b.help_text != blank -%}<p class="q-help">{{ b.help_text }}</p>{%- endif -%}
-                          {%- endif -%}
-                        </div>
-                      {%- endif -%}
-                    {%- endfor -%}
-
-                    {%- if step_open -%}</div>{%- endif -%}
-
-                    {%- if step_open == false -%}
-                      <div class="q-step">
-                        {%- if has_email_block == false -%}
-                          <div class="q-field" data-q-field data-required="true">
-                            <label class="q-label" for="{{ email_fallback_id }}">Email</label>
-                            <input id="{{ email_fallback_id }}" class="q-input" type="email" name="contact[email]" placeholder="you@example.com" required>
-                            <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
-                          </div>
-                        {%- endif -%}
-                      </div>
-                    {%- endif -%}
-
-                    {%- if fallback_inserted == false and has_email_block == false -%}
-                      <div class="q-step">
-                        <div class="q-field" data-q-field data-required="true">
-                          <label class="q-label" for="{{ email_fallback_id }}">Email</label>
-                          <input id="{{ email_fallback_id }}" class="q-input" type="email" name="contact[email]" placeholder="you@example.com" required>
-                          <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
-                        </div>
-                      </div>
-                    {%- endif -%}
-
-                  {%- else -%}
-                    {%- if has_email_block == false -%}
-                      <div class="q-field" data-q-field data-required="true">
-                        <label class="q-label" for="{{ email_fallback_id }}">Email</label>
-                        <input id="{{ email_fallback_id }}" class="q-input" type="email" name="contact[email]" placeholder="you@example.com" required>
-                        <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
-                      </div>
-                    {%- endif -%}
-
-                    {%- for block in section.blocks -%}
-                      {%- if block.type == 'field' -%}
-                        {%- assign b = block.settings -%}
-                        {%- assign wcls = 'q-field' -%}{% if b.width == 'half' %}{% assign wcls = wcls | append: ' half' %}{% endif %}
-                        <div class="{{ wcls }}" data-q-field data-required="{{ b.required }}" {% if b.condition_enable %}data-cond="1" data-cond-field="{{ b.condition_field | escape }}" data-cond-operator="{{ b.condition_operator }}" data-cond-value="{{ b.condition_value | escape }}"{% endif %}>
-                          {%- if b.field_type == 'html' -%}
-                            <div class="rte">{{ b.html_content }}</div>
-                          {%- else -%}
-                            {%- assign input_id = section.id | append: '-' | append: forloop.index -%}
-                            {%- if b.label != blank and b.field_type != 'checkbox' and b.field_type != 'consent' -%}
-                              <label class="q-label" for="{{ input_id }}">{{ b.label }}</label>
-                            {%- endif -%}
-
-                            {%- case b.field_type -%}
-                              {%- when 'email' -%}
-                                <input id="{{ input_id }}" class="q-input" type="email" name="contact[email]" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                              {%- when 'text' -%}
-                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'contact[first_name]' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                              {%- when 'select' -%}
-                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
-                                <select id="{{ input_id }}" class="q-select" name="{{ b.name_attr | default: 'contact[topic]' }}" {% if b.required %}required{% endif %}>
-                                  <option value="">{{ b.placeholder }}</option>
-                                  {%- for opt in opts -%}
-                                    {%- assign pair = opt | split: '|' -%}
-                                    <option value="{{ pair.first | strip | escape }}" {% if b.default_value == pair.first %}selected{% endif %}>{{ pair.last | default: pair.first | strip }}</option>
-                                  {%- endfor -%}
-                                </select>
-                              {%- when 'checkbox' -%}
-                                <label class="q-radio">
-                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'contact[consent_gdpr]' }}" value="yes" {% if b.required %}required{% endif %}>
-                                  <span>{{ b.label | default: 'I agree to receive emails.' }}</span>
-                                </label>
-                              {%- when 'consent' -%}
-                                <label class="q-radio">
-                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'contact[consent]' }}" value="yes" {% if b.required %}required{% endif %}>
-                                  <span>{{ b.label | default: 'I agree to the privacy policy' }}</span>
-                                </label>
-                              {%- when 'radio' -%}
-                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
-                                {%- for opt in opts -%}
-                                  {%- assign pair = opt | split: '|' -%}
-                                  <label class="q-radio">
-                                    <input class="q-input" type="radio" name="{{ b.name_attr | default: 'contact[preference]' }}" value="{{ pair.first | strip | escape }}" {% if b.required and forloop.first %}required{% endif %}>
-                                    <span>{{ pair.last | default: pair.first | strip }}</span>
-                                  </label>
-                                {%- endfor -%}
-                              {%- else -%}
-                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'contact[field]' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                            {%- endcase -%}
-
-                            <p id="{{ input_id }}-err" class="q-error" aria-live="polite"></p>
-                            {%- if b.help_text != blank -%}<p class="q-help">{{ b.help_text }}</p>{%- endif -%}
-                          {%- endif -%}
-                        </div>
-                      {%- endif -%}
-                    {%- endfor -%}
-                  {%- endif -%}
-                </div>
-
-                <div>
-                  <button type="submit" class="q-btn {{ btn_mode_class }}">{{ s.button_label | default: 'Subscribe' }}</button>
-                  <div class="q-live" aria-live="polite"></div>
-                </div>
-              {% endform %}
-            {%- else -%}
-              {%- assign email_fallback_id = 'qf-email-' | append: section.id -%}
-              <form class="q-form" method="post" action="{{ eff_endpoint | escape }}" novalidate>
-                <input type="hidden" name="source" value="newsletter">
-                <input type="hidden" name="tags" value="{{ eff_tags | escape }}">
-
-                <div class="q-fields">
-                  {%- if s.template_style == 'steps' -%}
-                    {%- assign step_open = false -%}
-                    {%- assign fallback_inserted = false -%}
-
-                    {%- for block in section.blocks -%}
-                      {%- if block.type == 'step' -%}
-                        {%- if step_open -%}</div>{%- endif -%}
-                        <div class="q-step">
-                          {%- assign step_open = true -%}
-                          {%- if block.settings.step_title != blank -%}<p class="q-kicker">{{ block.settings.step_title }}</p>{%- endif -%}
-                          {%- if block.settings.step_desc != blank -%}<p class="q-sub">{{ block.settings.step_desc }}</p>{%- endif -%}
-
-                          {%- if fallback_inserted == false and has_email_block == false -%}
-                            <div class="q-field" data-q-field data-required="true">
-                              <label class="q-label" for="{{ email_fallback_id }}">Email</label>
-                              <input id="{{ email_fallback_id }}" class="q-input" type="email" name="email" placeholder="you@example.com" required>
-                              <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
-                            </div>
-                            {%- assign fallback_inserted = true -%}
-                          {%- endif -%}
-
-                      {%- elsif block.type == 'field' -%}
-                        {%- if step_open == false -%}
-                          <div class="q-step">
-                            {%- assign step_open = true -%}
-                            {%- if fallback_inserted == false and has_email_block == false -%}
-                              <div class="q-field" data-q-field data-required="true">
-                                <label class="q-label" for="{{ email_fallback_id }}">Email</label>
-                                <input id="{{ email_fallback_id }}" class="q-input" type="email" name="email" placeholder="you@example.com" required>
-                                <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
-                              </div>
-                              {%- assign fallback_inserted = true -%}
-                            {%- endif -%}
-                        {%- endif -%}
-
-                        {%- assign b = block.settings -%}
-                        {%- assign wcls = 'q-field' -%}{% if b.width == 'half' %}{% assign wcls = wcls | append: ' half' %}{% endif %}
-                        <div class="{{ wcls }}" data-q-field data-required="{{ b.required }}" {% if b.condition_enable %}data-cond="1" data-cond-field="{{ b.condition_field | escape }}" data-cond-operator="{{ b.condition_operator }}" data-cond-value="{{ b.condition_value | escape }}"{% endif %}>
-                          {%- if b.field_type == 'html' -%}
-                            <div class="rte">{{ b.html_content }}</div>
-                          {%- else -%}
-                            {%- assign input_id = section.id | append: '-' | append: forloop.index -%}
-                            {%- if b.label != blank and b.field_type != 'checkbox' and b.field_type != 'consent' -%}
-                              <label class="q-label" for="{{ input_id }}">{{ b.label }}</label>
-                            {%- endif -%}
-
-                            {%- case b.field_type -%}
-                              {%- when 'email' -%}
-                                <input id="{{ input_id }}" class="q-input" type="email" name="email" placeholder="{{ b.placeholder | default: 'you@example.com' }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                              {%- when 'text' -%}
-                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'first_name' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                              {%- when 'select' -%}
-                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
-                                <select id="{{ input_id }}" class="q-select" name="{{ b.name_attr | default: 'topic' }}" {% if b.required %}required{% endif %}>
-                                  <option value="">{{ b.placeholder }}</option>
-                                  {%- for opt in opts -%}
-                                    {%- assign pair = opt | split: '|' -%}
-                                    <option value="{{ pair.first | strip | escape }}" {% if b.default_value == pair.first %}selected{% endif %}>{{ pair.last | default: pair.first | strip }}</option>
-                                  {%- endfor -%}
-                                </select>
-                              {%- when 'checkbox' -%}
-                                <label class="q-radio">
-                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'consent_gdpr' }}" value="yes" {% if b.required %}required{% endif %}>
-                                  <span>{{ b.label | default: 'I agree to receive emails.' }}</span>
-                                </label>
-                              {%- when 'consent' -%}
-                                <label class="q-radio">
-                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'consent' }}" value="yes" {% if b.required %}required{% endif %}>
-                                  <span>{{ b.label | default: 'I agree to the privacy policy' }}</span>
-                                </label>
-                              {%- when 'radio' -%}
-                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
-                                {%- for opt in opts -%}
-                                  {%- assign pair = opt | split: '|' -%}
-                                  <label class="q-radio">
-                                    <input class="q-input" type="radio" name="{{ b.name_attr | default: 'preference' }}" value="{{ pair.first | strip | escape }}" {% if b.required and forloop.first %}required{% endif %}>
-                                    <span>{{ pair.last | default: pair.first | strip }}</span>
-                                  </label>
-                                {%- endfor -%}
-                              {%- else -%}
-                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'field' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                            {%- endcase -%}
-
-                            <p id="{{ input_id }}-err" class="q-error" aria-live="polite"></p>
-                            {%- if b.help_text != blank -%}<p class="q-help">{{ b.help_text }}</p>{%- endif -%}
-                          {%- endif -%}
-                        </div>
-                      {%- endif -%}
-                    {%- endfor -%}
-
-                    {%- if step_open -%}</div>{%- endif -%}
-
-                    {%- if step_open == false -%}
-                      <div class="q-step">
-                        {%- if has_email_block == false -%}
-                          <div class="q-field" data-q-field data-required="true">
-                            <label class="q-label" for="{{ email_fallback_id }}">Email</label>
-                            <input id="{{ email_fallback_id }}" class="q-input" type="email" name="email" placeholder="you@example.com" required>
-                            <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
-                          </div>
-                        {%- endif -%}
-                      </div>
-                    {%- endif -%}
-
-                    {%- if fallback_inserted == false and has_email_block == false -%}
-                      <div class="q-step">
-                        <div class="q-field" data-q-field data-required="true">
-                          <label class="q-label" for="{{ email_fallback_id }}">Email</label>
-                          <input id="{{ email_fallback_id }}" class="q-input" type="email" name="email" placeholder="you@example.com" required>
-                          <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
-                        </div>
-                      </div>
-                    {%- endif -%}
-
-                  {%- else -%}
-                    {%- if has_email_block == false -%}
-                      <div class="q-field" data-q-field data-required="true">
-                        <label class="q-label" for="{{ email_fallback_id }}">Email</label>
-                        <input id="{{ email_fallback_id }}" class="q-input" type="email" name="email" placeholder="you@example.com" required>
-                        <p id="{{ email_fallback_id }}-err" class="q-error" aria-live="polite"></p>
-                      </div>
-                    {%- endif -%}
-
-                    {%- for block in section.blocks -%}
-                      {%- if block.type == 'field' -%}
-                        {%- assign b = block.settings -%}
-                        {%- assign wcls = 'q-field' -%}{% if b.width == 'half' %}{% assign wcls = wcls | append: ' half' %}{% endif %}
-                        <div class="{{ wcls }}" data-q-field data-required="{{ b.required }}" {% if b.condition_enable %}data-cond="1" data-cond-field="{{ b.condition_field | escape }}" data-cond-operator="{{ b.condition_operator }}" data-cond-value="{{ b.condition_value | escape }}"{% endif %}>
-                          {%- if b.field_type == 'html' -%}
-                            <div class="rte">{{ b.html_content }}</div>
-                          {%- else -%}
-                            {%- assign input_id = section.id | append: '-' | append: forloop.index -%}
-                            {%- if b.label != blank and b.field_type != 'checkbox' and b.field_type != 'consent' -%}
-                              <label class="q-label" for="{{ input_id }}">{{ b.label }}</label>
-                            {%- endif -%}
-
-                            {%- case b.field_type -%}
-                              {%- when 'email' -%}
-                                <input id="{{ input_id }}" class="q-input" type="email" name="email" placeholder="{{ b.placeholder | default: 'you@example.com' }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                              {%- when 'text' -%}
-                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'first_name' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                              {%- when 'select' -%}
-                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
-                                <select id="{{ input_id }}" class="q-select" name="{{ b.name_attr | default: 'topic' }}" {% if b.required %}required{% endif %}>
-                                  <option value="">{{ b.placeholder }}</option>
-                                  {%- for opt in opts -%}
-                                    {%- assign pair = opt | split: '|' -%}
-                                    <option value="{{ pair.first | strip | escape }}" {% if b.default_value == pair.first %}selected{% endif %}>{{ pair.last | default: pair.first | strip }}</option>
-                                  {%- endfor -%}
-                                </select>
-                              {%- when 'checkbox' -%}
-                                <label class="q-radio">
-                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'consent_gdpr' }}" value="yes" {% if b.required %}required{% endif %}>
-                                  <span>{{ b.label | default: 'I agree to receive emails.' }}</span>
-                                </label>
-                              {%- when 'consent' -%}
-                                <label class="q-radio">
-                                  <input id="{{ input_id }}" class="q-input q-check" type="checkbox" name="{{ b.name_attr | default: 'consent' }}" value="yes" {% if b.required %}required{% endif %}>
-                                  <span>{{ b.label | default: 'I agree to the privacy policy' }}</span>
-                                </label>
-                              {%- when 'radio' -%}
-                                {%- assign opts = b.options | newline_to_br | split: '<br />' -%}
-                                {%- for opt in opts -%}
-                                  {%- assign pair = opt | split: '|' -%}
-                                  <label class="q-radio">
-                                    <input class="q-input" type="radio" name="{{ b.name_attr | default: 'preference' }}" value="{{ pair.first | strip | escape }}" {% if b.required and forloop.first %}required{% endif %}>
-                                    <span>{{ pair.last | default: pair.first | strip }}</span>
-                                  </label>
-                                {%- endfor -%}
-                              {%- else -%}
-                                <input id="{{ input_id }}" class="q-input" type="text" name="{{ b.name_attr | default: 'field' }}" placeholder="{{ b.placeholder }}" value="{{ b.default_value }}" {% if b.required %}required{% endif %}>
-                            {%- endcase -%}
-
-                            <p id="{{ input_id }}-err" class="q-error" aria-live="polite"></p>
-                            {%- if b.help_text != blank -%}<p class="q-help">{{ b.help_text }}</p>{%- endif -%}
-                          {%- endif -%}
-                        </div>
-                      {%- endif -%}
-                    {%- endfor -%}
-                  {%- endif -%}
-                </div>
-
-                <div>
-                  <button type="submit" class="q-btn {{ btn_mode_class }}">{{ s.button_label | default: 'Subscribe' }}</button>
-                  <div class="q-live" aria-live="polite"></div>
-                </div>
-              </form>
-            {%- endif -%}
-
-            {%- if s.template_style == 'steps' -%}
-              <div class="q-steps-nav" data-q-steps>
-                <div class="q-steps-bar"><div class="q-steps-fill" data-q-steps-fill></div></div>
-                <div class="q-steps-count" data-q-steps-count></div>
-              </div>
-            {%- endif -%}
+            {% render 'form-dispatch',
+              id: section.id,
+              settings: section.settings,
+              blocks: section.blocks,
+              theme_settings: g,
+              form_source: 'newsletter',
+              require_email: true,
+              eff_captcha_mode: eff_captcha_mode,
+              eff_captcha_key: eff_captcha_key,
+              eff_endpoint_url: eff_endpoint,
+              eff_tags: eff_tags
+            %}
           </div>
 
           {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'right' -%}
             <div class="q-media-card">
-              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
+              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: s.split_image.alt }}
             </div>
           {%- endif -%}
         </div>
@@ -669,14 +251,7 @@
     </div>
   </div>
 
-  {%- if eff_captcha_mode == 'turnstile' and eff_captcha_key != blank -%}
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
-  {%- endif -%}
-  {%- if eff_captcha_mode == 'recaptcha_v3' and eff_captcha_key != blank -%}
-    <script src="https://www.google.com/recaptcha/api.js?render={{ eff_captcha_key | escape }}"></script>
-  {%- endif -%}
-
-  {{ 'frontend-form-logic.js' | asset_url | script_tag }}
+  <script src="{{ 'frontend-form-logic.js' | asset_url }}" defer></script>
 </section>
 
 {% schema %}
@@ -702,7 +277,7 @@
 
     { "type": "header", "content": "Background (root)" },
     { "type": "image_picker", "id": "bg_image", "label": "Background image" },
-    { "type": "text", "id": "bg_video", "label": "Background video URL (MP4, YouTube, Vimeo)" },
+    { "type": "text", "id": "bg_video", "label": "Background video URL (MP4, YouTube, Vimeo)", "info": "Use an HTTPS MP4 or a YouTube/Vimeo video URL. Background image/color remains the fallback; playback starts paused for reduced motion and in the editor." },
     { "type": "color", "id": "bg_color", "label": "Background color", "default": "#f6f7f8" },
     { "type": "select", "id": "overlay_type", "label": "Overlay", "default": "solid", "options": [
       { "value": "none", "label": "None" },
@@ -725,7 +300,7 @@
       { "value": "h3", "label": "H3" }
     ]},
     { "type": "textarea", "id": "subheading", "label": "Subheading", "default": "Fresh articles, launch news, and occasional deals." },
-    { "type": "text", "id": "success_text", "label": "Success message", "default": "Thanks! Check your inbox." },
+    { "type": "text", "id": "success_text", "label": "Success message", "info": "Shown after a successful Shopify response. Confirmation emails depend on store double opt-in settings; custom endpoints own their response.", "default": "Thanks! Check your inbox." },
     { "type": "text", "id": "error_text", "label": "Error message", "default": "Please fix the highlighted fields and try again." },
 
     { "type": "header", "content": "Destination" },
@@ -733,11 +308,11 @@
       { "value": "shopify_customer", "label": "Shopify newsletter (accepts_marketing)" },
       { "value": "custom_endpoint", "label": "Custom endpoint (POST)" }
     ]},
-    { "type": "url", "id": "endpoint_url", "label": "Custom endpoint URL (HTTPS)" },
+    { "type": "url", "id": "endpoint_url", "label": "Custom endpoint URL (HTTPS)", "info": "A configured endpoint must process the POST, captcha and marketing provider integration. Metadata does not enable delivery by itself." },
     { "type": "text", "id": "hidden_tags", "label": "Hidden tags/params (comma-separated)", "default": "newsletter, web" },
 
     { "type": "header", "content": "CAPTCHA" },
-    { "type": "select", "id": "captcha_mode", "label": "Captcha provider", "default": "none", "options": [
+    { "type": "select", "id": "captcha_mode", "label": "Captcha provider", "info": "Custom endpoints only. Native Shopify signup uses Shopify spam protection. Custom providers also require server verification.", "default": "none", "options": [
       { "value": "none", "label": "None" },
       { "value": "turnstile", "label": "Cloudflare Turnstile" },
       { "value": "recaptcha_v3", "label": "reCAPTCHA v3" }
@@ -784,7 +359,7 @@
           { "value": "consent", "label": "Consent" },
           { "value": "html", "label": "HTML content" }
         ]},
-        { "type": "text", "id": "name_attr", "label": "Input name (custom endpoint mode)" },
+        { "type": "text", "id": "name_attr", "label": "Input name", "info": "Native email uses contact[email]. A required, unconditional consent field named contact[consent_marketing] supplies marketing confirmation; use an explicit label. Other fields and custom endpoints keep their configured names." },
         { "type": "text", "id": "label", "label": "Label" },
         { "type": "text", "id": "placeholder", "label": "Placeholder"},
         { "type": "checkbox", "id": "required", "label": "Required", "default": true },

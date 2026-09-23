@@ -3,6 +3,14 @@
   assign section_label = section.settings.accessibility_label | default: 'Content section'
   assign section_tag = section.settings.section_tag | default: 'section'
 
+  unless section_tag == 'section' or section_tag == 'div' or section_tag == 'article' or section_tag == 'aside'
+    assign section_tag = 'section'
+  endunless
+  assign has_page_content = false
+  if section.settings.show_page_content and page != blank
+    assign has_page_content = true
+  endif
+
   assign show_desktop = section.settings.show_desktop
   assign show_tablet = section.settings.show_tablet
   assign show_mobile = section.settings.show_mobile
@@ -14,11 +22,14 @@
     qtm-block-section
     qtm-block-section--{{ section_width }}
     qtm-block-section--mobile-{{ section.settings.mobile_behavior }}
+    {% unless request.design_mode %}
     {% unless show_desktop %} qtm-block-section--hide-desktop{% endunless %}
     {% unless show_tablet %} qtm-block-section--hide-tablet{% endunless %}
     {% unless show_mobile %} qtm-block-section--hide-mobile{% endunless %}
+    {% endunless %}
   "
   aria-label="{{ section_label | escape }}"
+  {% if section_tag == 'div' %}role="region"{% endif %}
   style="
     --qtm-block-section-max-width: {{ section.settings.max_width }}px;
     --qtm-block-section-section-gap: {{ section.settings.section_gap }}px;
@@ -61,7 +72,7 @@
 
     {% if section.settings.background_image != blank %}
       #qtm-block-section-{{ section.id }} {
-        background-image: url({{ section.settings.background_image | image_url: width: 2400 }});
+        background-image: url({{ section.settings.background_image | image_url: width: 2400 | json }});
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
@@ -93,8 +104,8 @@
 
     #qtm-block-section-{{ section.id }} .qtm-layout-row {
       display: grid;
-      gap: var(--qtm-block-section-column-gap);
-      row-gap: var(--qtm-block-section-row-gap);
+      gap: var(--qtm-layout-row-column-gap, var(--qtm-block-section-column-gap));
+      row-gap: var(--qtm-layout-row-row-gap, var(--qtm-block-section-row-gap));
       align-items: var(--qtm-block-section-row-align);
     }
 
@@ -150,11 +161,11 @@
         padding-right: min(var(--qtm-block-section-padding-right), 20px);
       }
 
-      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-stack .qtm-layout-row {
+      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-stack .qtm-layout-row--mobile-inherit {
         grid-template-columns: minmax(0, 1fr);
       }
 
-      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-scroll .qtm-layout-row {
+      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-scroll .qtm-layout-row--mobile-inherit {
         display: grid;
         grid-auto-flow: column;
         grid-auto-columns: minmax(78%, 1fr);
@@ -165,41 +176,53 @@
         padding-bottom: 8px;
       }
 
-      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-scroll .qtm-layout-column {
+      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-scroll .qtm-layout-row--mobile-inherit .qtm-layout-column {
         scroll-snap-align: start;
       }
 
-      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-keep-grid .qtm-layout-row--columns-2 {
+      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-keep-grid .qtm-layout-row--mobile-inherit.qtm-layout-row--columns-2 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
-      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-keep-grid .qtm-layout-row--columns-3,
-      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-keep-grid .qtm-layout-row--columns-4,
-      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-keep-grid .qtm-layout-row--columns-5,
-      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-keep-grid .qtm-layout-row--columns-6 {
+      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-keep-grid .qtm-layout-row--mobile-inherit.qtm-layout-row--columns-3,
+      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-keep-grid .qtm-layout-row--mobile-inherit.qtm-layout-row--columns-4,
+      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-keep-grid .qtm-layout-row--mobile-inherit.qtm-layout-row--columns-5,
+      #qtm-block-section-{{ section.id }}.qtm-block-section--mobile-keep-grid .qtm-layout-row--mobile-inherit.qtm-layout-row--columns-6 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
     #qtm-block-section-{{ section.id }} .qtm-block-section__placeholder {
       padding: 32px;
-      border: 1px dashed rgba(0, 0, 0, 0.25);
+      border: 1px dashed currentColor;
       border-radius: 16px;
       text-align: center;
-      color: rgba(0, 0, 0, 0.65);
-      background: rgba(0, 0, 0, 0.03);
+      color: var(--c-text, currentColor);
+      background: var(--c-bg, transparent);
+    }
+    #qtm-block-section-{{ section.id }} { box-sizing: border-box; min-width: 0; }
+    #qtm-block-section-{{ section.id }} .qtm-block-section__inner,
+    #qtm-block-section-{{ section.id }} .qtm-layout-row,
+    #qtm-block-section-{{ section.id }} .qtm-layout-column,
+    #qtm-block-section-{{ section.id }} .shopify-block { min-width: 0; box-sizing: border-box; }
+    #qtm-block-section-{{ section.id }} .qtm-layout-row:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+    #qtm-block-section-{{ section.id }} > .qtm-block-section__inner > h1 { overflow-wrap: anywhere; }
+    #qtm-block-section-{{ section.id }} > .qtm-block-section__inner > .rte { min-width: 0; overflow-wrap: anywhere; }
+    #qtm-block-section-{{ section.id }} > .qtm-block-section__inner > .rte img { max-width: 100%; height: auto; }
+    @media (prefers-reduced-motion: reduce) {
+      #qtm-block-section-{{ section.id }} .qtm-layout-row { scroll-behavior: auto !important; scroll-snap-type: none; }
     }
   </style>
 
   <div class="qtm-block-section__inner">
-    {% if section.settings.show_page_content and page != blank %}
+    {% if has_page_content %}
       <h1>{{ page.title | escape }}</h1>
       <div class="rte">{{ page.content }}</div>
     {% endif %}
     {% content_for 'blocks' %}
 
-    {% if request.design_mode and section.blocks.size == 0 and section.settings.show_page_content != true %}
-      <div class="qtm-block-section__placeholder">
+    {% if request.design_mode and section.blocks.size == 0 and has_page_content == false %}
+      <div class="qtm-block-section__placeholder" role="status">
         Add Content Blocks to begin building your layout.
       </div>
     {% endif %}

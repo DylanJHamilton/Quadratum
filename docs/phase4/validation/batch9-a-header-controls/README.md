@@ -1,0 +1,18 @@
+# Batch 9 checkpoint A — legacy header controls
+
+Base: `4af9dcb56c7791e198533303bcd452a564cc3a21`. Four deferred Family 1 dependencies reviewed. All four are **DORMANT; retained deletion candidates requiring owner review**. None is activated, deleted, or presented as runtime-certified.
+
+The actual `sections/header-two.liquid` is the Mega Menu Builder V2 implementation. It loads `header-two.css` / `header-two.js`, uses `qh2b-*` selectors, and renders its account/cart/logo/actions inline. It does not call the old `qtm-hm-*` snippets. The independent legacy actions and mobile-menu entry points have no consumers in retained sections, blocks, templates, layouts, or configuration. The six nonliteral `render block` statements are Shopify app-block branches, not computed snippet filenames. Build configuration scans snippets for Tailwind classes; this does not render their Liquid or supply the absent legacy controller/styles. No runtime JS or configuration loader references these filenames.
+
+| Component | Contract and actual consumers | Source/runtime assessment and decision |
+|---|---|---|
+| `header-two-account` | Only the dormant actions snippet; `display`, customer/routes, optional tracking label/URL | Native details markup parses, but obsolete menu/menuitem semantics lack matching menu keyboard behavior; optional merchant tracking text/URL lack escaping. No active consumer executes it. Retain as an owner-review deletion candidate; restore/repair only if an owner elects to reactivate the entire legacy header contract. |
+| `header-two-actions` | No caller; invokes dormant search/account/cart, conditionally forwards display/search/account settings | Straightforward composition; not Header Two V2's action cluster. No independent IDs, listeners, timers, or lifecycle. Do not duplicate active inline controls by connecting it. Retain candidate. |
+| `header-two-cart` | Only dormant actions; global `data-cart-drawer-open` and `data-cart-count`, optional money output | Preserves global drawer/count hooks, but button has no native cart fallback and optional subtotal is initial-render text rather than a live cart subscription. Old classes have no owning CSS. No current runtime impact. Retain candidate without redesign. |
+| `header-two-logo` | Only dormant mobile-menu; global logo settings, intrinsic dimensions, root route | Selected-image guards, dimensions and alt escaping are present. Store-name text is unescaped; desktop/mobile image visibility depends on absent legacy CSS variables/selectors. Current V2 owns separate logo markup. Retain candidate. |
+
+Responsive, accessibility, multi-instance and Theme Editor behavior cannot be certified for an unconnected legacy header. These are explicit preactivation liabilities, not unreviewed active work. The active Header Two controller and all other headers remain unchanged. Existing source/DOM regression suites pass for duplicate loading, independent instances, focus containment/return, Escape/Tab, rapid reopening and editor disposal. Header/footer default/preset renders pass. Four native strict Liquid/HTML parses pass. These fixtures do not certify live Shopify behavior.
+
+`consumers.json` records direct/transitive consumers, file hashes, build scanning, dynamic-reference candidates and tracing limits. Merchant-authored custom Liquid outside the repository remains outside proof of absence. Owner review is therefore required before any deletion. No deletion request interrupts completion of the remaining authorized checkpoints.
+
+Register: 515 components; **21 NOT REVIEWED** remain after A (four deferred Family 1 plus seventeen Family 9). Existing live, visual-icon and historical queues remain intact.

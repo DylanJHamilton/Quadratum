@@ -22,12 +22,7 @@
 
   assign max_products = s.max_products | default: 4
 
-  assign resolved = ''
-  assign items = ''
-  assign count = 0
-
   assign mode_effective = s.mode | default: 'manual'
-
   if mode_effective == 'dynamic'
     if s.collection != blank
       assign mode_effective = 'collection'
@@ -35,61 +30,9 @@
       assign mode_effective = 'manual'
     endif
   endif
-
-  if mode_effective == 'manual'
-    for block in section.blocks
-      if count >= max_products
-        break
-      endif
-
-      assign p = block.settings.product
-      if p == blank
-        continue
-      endif
-
-      if current != blank and p.id == current.id
-        continue
-      endif
-
-      assign token = '|' | append: p.id | append: '|'
-      if resolved contains token
-        continue
-      endif
-
-      assign resolved = resolved | append: token
-      assign items = items | append: '|' | append: p.handle | append: '|'
-      assign count = count | plus: 1
-    endfor
-
-  elsif mode_effective == 'collection'
-    if s.collection != blank and s.collection.products_count > 0
-      for p in s.collection.products limit: 50
-        if count >= max_products
-          break
-        endif
-
-        if p == blank
-          continue
-        endif
-
-        if current != blank and p.id == current.id
-          continue
-        endif
-
-        assign token = '|' | append: p.id | append: '|'
-        if resolved contains token
-          continue
-        endif
-
-        assign resolved = resolved | append: token
-        assign items = items | append: '|' | append: p.handle | append: '|'
-        assign count = count | plus: 1
-      endfor
-    endif
-  endif
-
-  if count == 0
-    break
+  assign source_products = section.blocks | map: 'settings' | map: 'product'
+  if mode_effective == 'collection'
+    assign source_products = s.collection.products
   endif
 
   assign items_class = 'product-cross-sell__items'
@@ -123,6 +66,31 @@
   assign button_style = s.button_style | default: 'filled'
   assign button_size = s.button_size | default: 'md'
 -%}
+
+{%- capture cards -%}
+  {%- assign count = 0 -%}{%- assign seen = '' -%}
+  {%- for p in source_products limit: 50 -%}
+    {%- if count >= max_products -%}{%- break -%}{%- endif -%}
+    {%- if p == blank or p.id == current.id -%}{%- continue -%}{%- endif -%}
+    {%- assign token = '|' | append: p.id | append: '|' -%}
+    {%- if seen contains token -%}{%- continue -%}{%- endif -%}
+    {%- assign seen = seen | append: token -%}
+    <div class="product-cross-sell__item" role="listitem" {% if mode_effective == 'manual' %}{{ section.blocks[forloop.index0].shopify_attributes }}{% endif %}>
+          {% render 'product-card',
+            product: p,
+            enable_quick_add: enable_quick_add,
+            quick_add_mode: quick_add_mode,
+            hover_actions_visibility: quick_add_visibility,
+            primary_cta_label: primary_cta_label,
+            label_select_options: label_select_options,
+            label_sold_out: label_sold_out,
+            button_style: button_style,
+            button_size: button_size
+          %}
+    </div>
+    {%- assign count = count | plus: 1 -%}
+  {%- endfor -%}
+{%- endcapture -%}
 
 {% stylesheet %}
   .product-cross-sell { width: 100%; margin: 0; }
@@ -169,28 +137,22 @@
     scroll-snap-type: x mandatory;
     padding-bottom: .25rem;
   }
-  .product-cross-sell__items--carousel > .product-cross-sell__item {
-    flex: 0 0 auto;
-    scroll-snap-align: start;
-    width: min(78vw, 360px);
-  }
-  @media (min-width: 750px) {
-    .product-cross-sell__items--carousel > .product-cross-sell__item {
-      width: min(44vw, 360px);
-    }
-  }
-  @media (min-width: 990px) {
-    .product-cross-sell__items--carousel > .product-cross-sell__item {
-      width: min(24vw, 360px);
-    }
-  }
+  .product-cross-sell__items--carousel {--pcs-cols:var(--pcs-cols-mobile,1);}
+  .product-cross-sell__items--carousel > .product-cross-sell__item {flex:0 0 calc((100% - (var(--pcs-cols) - 1)*1rem)/var(--pcs-cols));scroll-snap-align:start;min-width:0;}
+  @media(min-width:750px){.product-cross-sell__items--carousel{--pcs-cols:var(--pcs-cols-tablet,2);}}
+  @media(min-width:990px){.product-cross-sell__items--carousel{--pcs-cols:var(--pcs-cols-desktop,4);}}
+  .product-cross-sell{min-width:0;overflow-wrap:anywhere;}
+  .product-cross-sell :focus-visible{outline:2px solid currentColor;outline-offset:2px;}
+  .product-cross-sell__subheading :is(img,video,iframe){max-width:100%;}
+  @media(prefers-reduced-motion:reduce){.product-cross-sell *{scroll-behavior:auto!important;}}
 {% endstylesheet %}
 
 {% assign automatic_button_background = s.btn_bg | default: settings.color_primary | default: '#111827' %}
 {% capture automatic_button_text %}{% render 'contrast-text', background: automatic_button_background, preferred: settings.text_on_color %}{% endcapture %}
+{%- if count > 0 -%}
 <section
   class="product-cross-sell"
-  id="product-cross-sell"
+  id="product-cross-sell-{{ section.id }}"
   style="
     --pcs-cols-desktop: {{ cols_desktop }};
     --pcs-cols-tablet: {{ cols_tablet }};
@@ -216,7 +178,7 @@
     {%- if s.title != blank or s.subheading != blank -%}
       <header class="product-cross-sell__header">
         {%- if s.title != blank -%}
-          <h2 class="product-cross-sell__title">{{ s.title }}</h2>
+          <h2 class="product-cross-sell__title">{{ s.title | escape }}</h2>
         {%- endif -%}
         {%- if s.subheading != blank -%}
           <div class="product-cross-sell__subheading rte">{{ s.subheading }}</div>
@@ -224,30 +186,12 @@
       </header>
     {%- endif -%}
 
-    <div class="{{ items_class }}">
-      {%- assign handles = items | split: '|' -%}
-      {%- for h in handles -%}
-        {%- if h == blank -%}{%- continue -%}{%- endif -%}
-        {%- assign p = all_products[h] -%}
-        {%- if p == blank -%}{%- continue -%}{%- endif -%}
-
-        <div class="product-cross-sell__item">
-          {% render 'product-card',
-            product: p,
-            enable_quick_add: enable_quick_add,
-            quick_add_mode: quick_add_mode,
-            hover_actions_visibility: quick_add_visibility,
-            primary_cta_label: primary_cta_label,
-            label_select_options: label_select_options,
-            label_sold_out: label_sold_out,
-            button_style: button_style,
-            button_size: button_size
-          %}
-        </div>
-      {%- endfor -%}
+    <div class="{{ items_class }}" role="list" aria-label="{{ s.title | default: 'Related products' | escape }}" {% if s.layout == 'carousel' %}tabindex="0"{% endif %}>
+      {{ cards }}
     </div>
   </div>
 </section>
+{%- elsif request.design_mode -%}<p>Select products or a collection to preview Cross Sell.</p>{%- endif -%}
 
 {% schema %}
 {

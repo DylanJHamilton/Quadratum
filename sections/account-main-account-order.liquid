@@ -19,16 +19,17 @@
 
 {{ 'account-main-account-order.css' | asset_url | stylesheet_tag }}
 
+{%- capture account_card_fg -%}{%- render 'contrast-text', bg: section.settings.card_background, preferred: settings.text_base -%}{%- endcapture -%}
 {%- liquid
   assign layout_style = section.settings.layout_style
 
-  assign financial_status = order.financial_status_label | downcase | handleize
-  assign fulfillment_status = order.fulfillment_status_label | downcase | handleize
+  assign financial_status = order.financial_status | replace: '_', '-'
+  assign fulfillment_status = order.fulfillment_status | default: 'unfulfilled' | replace: '_', '-'
+  if fulfillment_status == 'complete'
+    assign fulfillment_status = 'fulfilled'
+  endif
 
   assign tracking_page_url = section.settings.tracking_page_url
-  if tracking_page_url == blank
-    assign tracking_page_url = '/pages/order-tracking'
-  endif
 
   assign back_url = section.settings.orders_page_url
   if back_url == blank
@@ -51,6 +52,7 @@
     --qtm-account-heading-size: {{ section.settings.heading_font_size }}px;
     --qtm-account-body-size: {{ section.settings.body_font_size }}px;
     --qtm-account-meta-size: {{ section.settings.meta_font_size }}px;
+    --qtm-account-card-fg: {{ account_card_fg | strip }};
     --qtm-account-card-bg: {{ section.settings.card_background }};
     --qtm-account-card-border: {{ section.settings.card_border }};
     --qtm-account-radius: {{ section.settings.card_radius }}px;
@@ -62,12 +64,12 @@
   <div class="qtmAccountOrder__shell">
     {% if customer and order %}
       <div class="qtmAccountOrder__topBar">
-        <a href="{{ back_url }}" class="qtmAccountOrder__backLink">
-          {{ section.settings.back_link_label }}
+        <a href="{{ back_url | escape }}" class="qtmAccountOrder__backLink">
+          {{ section.settings.back_link_label | escape }}
         </a>
       </div>
 
-      {% render 'account-main-account-nav',
+      {% render 'account-main-account-nav', section: section,
         active: 'orders',
         show_tracking: true,
         tracking_url: tracking_page_url,
@@ -78,7 +80,7 @@
       <header class="qtmAccountOrder__header">
         <div>
           <h1 class="qtmAccountOrder__heading">
-            Order {{ order.name }}
+            Order {{ order.name | escape }}
           </h1>
 
           <p class="qtmAccountOrder__meta">
@@ -88,11 +90,11 @@
 
         <div class="qtmAccountOrder__statusGroup" aria-label="Order statuses">
           <span class="qtmAccountOrder__badge qtmAccountOrder__badge--{{ financial_status }}">
-            {{ order.financial_status_label }}
+            {{ order.financial_status_label | escape }}
           </span>
 
           <span class="qtmAccountOrder__badge qtmAccountOrder__badge--{{ fulfillment_status }}">
-            {{ order.fulfillment_status_label }}
+            {{ order.fulfillment_status_label | escape }}
           </span>
 
           {% if order.cancelled %}
@@ -104,7 +106,7 @@
       </header>
 
       <div class="qtmAccountOrder__layout">
-        <main class="qtmAccountOrder__main" aria-label="Order details">
+        <div class="qtmAccountOrder__main" aria-label="Order details">
           <section class="qtmAccountOrder__card qtmAccountOrder__lineItems" aria-labelledby="QtmAccountOrderItems-{{ section.id }}">
             <div class="qtmAccountOrder__cardHeader">
               <h2 id="QtmAccountOrderItems-{{ section.id }}" class="qtmAccountOrder__cardTitle">
@@ -134,18 +136,18 @@
 
                   <div class="qtmAccountOrder__itemContent">
                     <h3 class="qtmAccountOrder__itemTitle">
-                      {{ line_item.title }}
+                      {{ line_item.title | escape }}
                     </h3>
 
                     {% if line_item.variant_title != blank and line_item.variant_title != 'Default Title' %}
                       <p class="qtmAccountOrder__itemMeta">
-                        {{ line_item.variant_title }}
+                        {{ line_item.variant_title | escape }}
                       </p>
                     {% endif %}
 
                     {% if line_item.sku != blank %}
                       <p class="qtmAccountOrder__itemMeta">
-                        SKU: {{ line_item.sku }}
+                        SKU: {{ line_item.sku | escape }}
                       </p>
                     {% endif %}
 
@@ -155,8 +157,8 @@
                           {% assign property_first_char = property.first | slice: 0 %}
                           {% unless property.last == blank or property_first_char == '_' %}
                             <div>
-                              <dt>{{ property.first }}</dt>
-                              <dd>{{ property.last }}</dd>
+                              <dt>{{ property.first | escape }}</dt>
+                              <dd>{{ property.last | escape }}</dd>
                             </div>
                           {% endunless %}
                         {% endfor %}
@@ -168,11 +170,12 @@
                         <span>Fulfilled</span>
 
                         {% if line_item.fulfillment.tracking_company != blank %}
-                          <span>{{ line_item.fulfillment.tracking_company }}</span>
+                          <span>{{ line_item.fulfillment.tracking_company | escape }}</span>
                         {% endif %}
 
+                        {% if line_item.fulfillment.tracking_url != blank %}<a href="{{ line_item.fulfillment.tracking_url | escape }}">Track shipment</a>{% endif %}
                         {% if line_item.fulfillment.tracking_number != blank %}
-                          <span>{{ line_item.fulfillment.tracking_number }}</span>
+                          <span>{{ line_item.fulfillment.tracking_number | escape }}</span>
                         {% endif %}
                       </div>
                     {% endif %}
@@ -181,7 +184,7 @@
                   <dl class="qtmAccountOrder__itemPricing">
                     <div>
                       <dt>Quantity</dt>
-                      <dd>{{ line_item.quantity }}</dd>
+                      <dd>{{ line_item.quantity | escape }}</dd>
                     </div>
 
                     <div>
@@ -228,7 +231,7 @@
               </div>
             </div>
           </section>
-        </main>
+        </div>
 
         <aside class="qtmAccountOrder__aside" aria-label="Order summary">
           <section class="qtmAccountOrder__card qtmAccountOrder__summary" aria-labelledby="QtmAccountOrderSummary-{{ section.id }}">
@@ -243,10 +246,10 @@
               </div>
 
               <div>
-                <dt>Discounts</dt>
+                <dt>Discounts already included</dt>
                 <dd>
                   {% if order.total_discounts > 0 %}
-                    -{{ order.total_discounts | money }}
+                    {{ order.total_discounts | money }}
                   {% else %}
                     {{ 0 | money }}
                   {% endif %}
@@ -281,13 +284,16 @@
               </div>
             </dl>
 
-            {% if section.settings.show_tracking_cta %}
+            {% if section.settings.show_tracking_cta and section.settings.tracking_button_label != blank %}
+              {% assign actual_tracking_url = tracking_page_url | default: order.order_status_url %}
+              {% if actual_tracking_url != blank %}
               <a
-                href="{{ tracking_page_url }}?order={{ order.name | url_encode }}"
+                href="{{ actual_tracking_url | escape }}"
                 class="qtmAccountOrder__button qtmAccountOrder__button--{{ section.settings.button_style }}"
               >
-                {{ section.settings.tracking_button_label }}
+                {{ section.settings.tracking_button_label | escape }}
               </a>
+              {% endif %}
             {% endif %}
           </section>
 
@@ -301,7 +307,7 @@
                 <dt>Payment</dt>
                 <dd>
                   <span class="qtmAccountOrder__badge qtmAccountOrder__badge--{{ financial_status }}">
-                    {{ order.financial_status_label }}
+                    {{ order.financial_status_label | escape }}
                   </span>
                 </dd>
               </div>
@@ -310,7 +316,7 @@
                 <dt>Fulfillment</dt>
                 <dd>
                   <span class="qtmAccountOrder__badge qtmAccountOrder__badge--{{ fulfillment_status }}">
-                    {{ order.fulfillment_status_label }}
+                    {{ order.fulfillment_status_label | escape }}
                   </span>
                 </dd>
               </div>
@@ -332,7 +338,7 @@
         <p>This order could not be found, or you need to sign in to view it.</p>
 
         <a
-          href="{{ routes.account_login_url }}"
+          href="{{ routes.account_login_url | escape }}"
           class="qtmAccountOrder__button qtmAccountOrder__button--{{ section.settings.button_style }}"
         >
           Sign in
@@ -348,6 +354,10 @@
   "tag": "section",
   "class": "qtm-account-main-order",
   "settings": [
+    {
+      "type": "paragraph",
+      "content": "Legacy customer-account theme surface. Shopify owns authentication, account data and native form processing; current customer accounts are managed outside the theme. Tracking links require merchant configuration or native fulfillment data."
+    },
     {
       "type": "select",
       "id": "layout_style",

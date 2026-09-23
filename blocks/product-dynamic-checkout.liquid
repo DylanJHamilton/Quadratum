@@ -1,8 +1,19 @@
+{% if product != blank %}
 {%- liquid
   assign block_id = 'product-dynamic-checkout-' | append: block.id
 
   assign product_context = product
   assign current_variant = product_context.selected_or_first_available_variant
+  assign form_id = block_id | append: '-form'
+  assign quantity_min = current_variant.quantity_rule.min | default: 1
+  assign selected_allocation = current_variant.selected_selling_plan_allocation
+  if selected_allocation == blank and product_context.requires_selling_plan
+    assign selected_allocation = current_variant.selling_plan_allocations.first
+  endif
+  assign purchase_available = current_variant.available
+  if product_context.requires_selling_plan and selected_allocation == blank
+    assign purchase_available = false
+  endif
 
   assign width = block.settings.width | default: 'auto'
   assign alignment = block.settings.alignment | default: 'left'
@@ -20,11 +31,11 @@
     product-dynamic-checkout--{{ checkout_style }}
     product-dynamic-checkout--width-{{ width }}
     product-dynamic-checkout--align-{{ alignment }}
-    {% unless current_variant.available %} product-dynamic-checkout--unavailable{% endunless %}
-    {% unless show_on_desktop %} product-dynamic-checkout--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-dynamic-checkout--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-dynamic-checkout--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-dynamic-checkout--animate product-dynamic-checkout--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless purchase_available %} product-dynamic-checkout--unavailable{% endunless %}
+    {% unless show_on_desktop or request.design_mode %} product-dynamic-checkout--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-dynamic-checkout--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-dynamic-checkout--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-dynamic-checkout--animate product-dynamic-checkout--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-dynamic-checkout-margin-top: {{ block.settings.margin_top }}px;
@@ -39,13 +50,27 @@
     --product-dynamic-checkout-note-color: {{ block.settings.note_color }};
     --product-dynamic-checkout-focus-color: {{ block.settings.focus_color }};
   "
+  data-qtm-product-block-commerce="dynamic-checkout"
+  data-product-url="{{ product_context.url | escape }}"
+  data-requires-plan="{{ product_context.requires_selling_plan }}"
+  data-initial-plan="{{ selected_allocation.selling_plan.id }}"
+  data-add-label="{{ 'Add to cart' | escape }}"
+  data-sold-label="{{ 'Sold out' | escape }}"
+  data-unavailable-label="{{ block.settings.unavailable_text | default: 'Unavailable' | escape }}"
+  data-available-label="{{ 'Available' | escape }}"
+  data-cart-adding-message="{{ 'Adding to cart...' | escape }}"
+  data-cart-added-message="{{ 'Added to cart.' | escape }}"
   data-product-id="{{ product_context.id }}"
   data-variant-id="{{ current_variant.id }}"
   data-product-dynamic-checkout
-  {{ block.shopify_attributes }}
+
 >
+  {% render 'qtm-product-block-data', product: product_context %}
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-dynamic-checkout-margin-top);
       margin-bottom: var(--product-dynamic-checkout-margin-bottom);
@@ -122,6 +147,9 @@
     }
 
     #{{ block_id }} .product-dynamic-checkout__payment {
+      min-height: {{ block.settings.button_height }}px;
+      display: grid;
+      align-content: center;
       min-width: 0;
     }
 
@@ -137,12 +165,12 @@
     }
 
     #{{ block_id }}.product-dynamic-checkout--compact .product-dynamic-checkout__payment .shopify-payment-button__button {
-      min-height: 44px;
+      min-height: {{ block.settings.button_height }}px;
     }
 
     #{{ block_id }}.product-dynamic-checkout--minimal .product-dynamic-checkout__payment .shopify-payment-button__button {
-      min-height: 42px;
-      border-radius: max(calc(var(--product-dynamic-checkout-border-radius) - 6px), 6px);
+      min-height: {{ block.settings.button_height }}px;
+      border-radius: max(calc(var(--product-dynamic-checkout-border-radius) - 6px), 0px);
     }
 
     #{{ block_id }} .product-dynamic-checkout__payment .shopify-payment-button__button:focus-visible,
@@ -299,6 +327,20 @@
         transform: none;
       }
     }
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} :is(button, select, input, a):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    #{{ block_id }} :is(button, select, input) { max-width: 100%; }
+    #{{ block_id }}:focus-within { opacity: 1; transform: none; animation: none; }
+    #{{ block_id }} [data-b8-fallback] { display: grid; gap: 6px; min-width: 0; }
+    #{{ block_id }} [data-b8-fallback] select, #{{ block_id }} [name="selling_plan"] { width: 100%; min-width: 0; min-height: 44px; }
+  {% unless block.settings.show_on_desktop or request.design_mode %}@media screen and (min-width: 990px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+{% unless block.settings.show_on_tablet or request.design_mode %}@media screen and (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+{% unless block.settings.show_on_mobile or request.design_mode %}@media screen and (max-width: 749px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+      #{{ block_id }} shopify-accelerated-checkout { --shopify-accelerated-checkout-button-block-size: {{ block.settings.button_height | at_most: 55 }}px; --shopify-accelerated-checkout-button-border-radius: var(--product-dynamic-checkout-border-radius); }
+    #{{ block_id }}.product-dynamic-checkout--minimal shopify-accelerated-checkout { --shopify-accelerated-checkout-button-border-radius: max(calc(var(--product-dynamic-checkout-border-radius) - 6px), 0px); }
+    #{{ block_id }} .product-dynamic-checkout__payment:focus-within { outline: 2px solid var(--product-dynamic-checkout-focus-color); outline-offset: 3px; }
+    @media (prefers-reduced-motion: reduce) { #{{ block_id }} shopify-accelerated-checkout { --shopify-accelerated-checkout-skeleton-animation-duration: 0s; } }
   </style>
 
   <div class="product-dynamic-checkout__inner">
@@ -308,22 +350,24 @@
       </h3>
     {% endif %}
 
-    {% form 'product', product_context, class: 'product-dynamic-checkout__form', data-product-dynamic-checkout-form: '' %}
-      <input
-        type="hidden"
-        name="id"
-        value="{{ current_variant.id }}"
-        data-product-dynamic-checkout-variant-input
-      >
+    {% form 'product', product_context, id: form_id, class: 'product-dynamic-checkout__form', data-product-dynamic-checkout-form: '' %}
+      <div data-b8-fallback>
+        <label for="{{ block_id }}-native-variant">{{ 'Variant' | escape }}</label>
+        <select id="{{ block_id }}-native-variant" name="id" class="product-dynamic-checkout__variant" data-b8-variant-id>
+          {% assign selected_listed = false %}{% for variant in product_context.variants %}{% if variant.id == current_variant.id %}{% assign selected_listed = true %}{% endif %}<option value="{{ variant.id }}" {% if variant.id == current_variant.id %}selected{% endif %}>{{ variant.title | escape }}{% unless variant.available %} — Sold out{% endunless %}</option>{% endfor %}
+        {% unless selected_listed %}<option value="{{ current_variant.id }}" selected>{{ current_variant.title | escape }}{% unless current_variant.available %} — Sold out{% endunless %}</option>{% endunless %}
+        </select>
+      </div>
 
       <input
         type="hidden"
         name="quantity"
-        value="1"
+        value="{{ quantity_min }}"
         data-product-dynamic-checkout-quantity-input
       >
 
-      <div class="product-dynamic-checkout__payment" data-product-dynamic-checkout-payment>
+      {% render 'product-selling-plans', product: product_context, id: block_id %}
+      <div {% unless purchase_available %}hidden{% endunless %} data-b8-payment class="product-dynamic-checkout__payment" data-product-dynamic-checkout-payment>
         {{ form | payment_button }}
       </div>
     {% endform %}
@@ -346,92 +390,9 @@
       </div>
     {% endif %}
   </div>
-
-  <script type="application/json" data-product-dynamic-checkout-variants>
-    {{ product_context.variants | json }}
-  </script>
-
-  <script>
-    (() => {
-      const root = document.getElementById({{ block_id | json }});
-
-      if (!root || root.dataset.productDynamicCheckoutReady === 'true') return;
-
-      root.dataset.productDynamicCheckoutReady = 'true';
-
-      const variantsJson = root.querySelector('[data-product-dynamic-checkout-variants]');
-      const variantInput = root.querySelector('[data-product-dynamic-checkout-variant-input]');
-      const quantityInput = root.querySelector('[data-product-dynamic-checkout-quantity-input]');
-      const unavailableEl = root.querySelector('[data-product-dynamic-checkout-unavailable]');
-
-      if (!variantsJson || !variantInput || !quantityInput) return;
-
-      let variants = [];
-
-      try {
-        variants = JSON.parse(variantsJson.textContent || '[]');
-      } catch (error) {
-        variants = [];
-      }
-
-      const updateVariant = (variantId, variantFromEvent) => {
-        if (!variantId) return;
-
-        const variant = variantFromEvent || variants.find((item) => String(item.id) === String(variantId));
-
-        if (!variant) return;
-
-        variantInput.value = variant.id;
-        root.dataset.variantId = String(variant.id);
-
-        root.classList.toggle('product-dynamic-checkout--unavailable', !variant.available);
-
-        if (unavailableEl) {
-          unavailableEl.hidden = Boolean(variant.available);
-        }
-      };
-
-      const updateQuantity = (quantity) => {
-        const parsed = Math.max(Number(quantity || 1), 1);
-        quantityInput.value = String(Math.floor(parsed));
-      };
-
-      document.addEventListener('variant:change', (event) => {
-        const detail = event.detail || {};
-        const variant = detail.variant || {};
-        const variantId = variant.id || detail.variantId || detail.variant_id || detail.id;
-
-        updateVariant(variantId, variant.id ? variant : null);
-      });
-
-      document.addEventListener('qtm:variant:change', (event) => {
-        const detail = event.detail || {};
-        const variant = detail.variant || {};
-        const variantId = variant.id || detail.variantId || detail.variant_id || detail.id;
-
-        updateVariant(variantId, variant.id ? variant : null);
-      });
-
-      document.addEventListener('quantity:change', (event) => {
-        const detail = event.detail || {};
-        updateQuantity(detail.quantity);
-      });
-
-      document.addEventListener('qtm:quantity:change', (event) => {
-        const detail = event.detail || {};
-        updateQuantity(detail.quantity);
-      });
-
-      const initialVariant = variants.find((item) => String(item.id) === String(variantInput.value));
-
-      if (initialVariant) {
-        updateVariant(initialVariant.id, initialVariant);
-      }
-
-      updateQuantity(quantityInput.value);
-    })();
-  </script>
 </div>
+
+{% elsif request.design_mode %}<p>Select a product to configure this block.</p>{% endif %}
 
 {% schema %}
 {
@@ -500,7 +461,8 @@
     {
       "type": "range",
       "id": "button_height",
-      "label": "Button height",
+      "label": "Checkout area height",
+      "info": "Wallet buttons support up to 55px; larger values add space around the button.",
       "min": 40,
       "max": 80,
       "step": 2,

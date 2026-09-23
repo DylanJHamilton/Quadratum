@@ -1,21 +1,30 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
+  assign form_id = 'qtm-contact-form-' | append: block_id
+  assign has_intro = false
+  if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank
+    assign has_intro = true
+  endif
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 %}
 
 <div
   class="
     qtm-contact-form
     qtm-contact-form-{{ block_id }}
+    {% unless has_intro %} qtm-contact-form--no-intro{% endunless %}
     qtm-contact-form--width-{{ block_width }}
     qtm-contact-form--align-{{ block_alignment }}
     qtm-contact-form--layout-{{ block.settings.layout_style }}
     qtm-contact-form--animation-{{ animation }}
-    {% unless block.settings.show_desktop %} qtm-contact-form--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-contact-form--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-contact-form--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-contact-form--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-contact-form--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-contact-form--hide-mobile{% endunless %}
   "
   style="
     --qtm-contact-form-margin-top: {{ block.settings.margin_top }}px;
@@ -37,7 +46,6 @@
     --qtm-contact-form-border-width: {{ block.settings.border_width }}px;
     --qtm-contact-form-border-radius: {{ block.settings.border_radius }}px;
   "
-  {{ block.shopify_attributes }}
 >
   <div class="qtm-contact-form__inner">
     {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank %}
@@ -63,30 +71,32 @@
     {% endif %}
 
     <div class="qtm-contact-form__form-card">
-      {% form 'contact', class: 'qtm-contact-form__form' %}
+      {% form 'contact', id: form_id, class: 'qtm-contact-form__form' %}
         {% if form.posted_successfully? %}
           <div
             class="qtm-contact-form__message qtm-contact-form__message--success"
             role="status"
             tabindex="-1"
           >
-            {{ block.settings.success_message | escape }}
+            {{ block.settings.success_message | default: 'Thanks. Your message has been received.' | escape }}
           </div>
         {% endif %}
 
         {% if form.errors %}
           <div
+            id="qtm-contact-form-error-{{ block_id }}"
             class="qtm-contact-form__message qtm-contact-form__message--error"
             role="alert"
           >
-            {{ block.settings.error_message | escape }}
+            {{ block.settings.error_message | default: 'Please check the form and try again.' | escape }}
+            {{ form.errors | default_errors }}
           </div>
         {% endif %}
 
         <div class="qtm-contact-form__fields">
           <div class="qtm-contact-form__field qtm-contact-form__field--name">
             <label class="qtm-contact-form__label" for="qtm-contact-form-name-{{ block_id }}">
-              {{ block.settings.name_label | escape }}
+              {{ block.settings.name_label | default: 'Name' | escape }}
             </label>
 
             <input
@@ -94,7 +104,7 @@
               class="qtm-contact-form__input"
               type="text"
               name="contact[name]"
-              value="{% if form.name %}{{ form.name }}{% elsif customer %}{{ customer.name }}{% endif %}"
+              value="{% if form.name %}{{ form.name | escape }}{% elsif customer %}{{ customer.name | escape }}{% endif %}"
               autocomplete="name"
               placeholder="{{ block.settings.name_placeholder | escape }}"
               required
@@ -103,7 +113,7 @@
 
           <div class="qtm-contact-form__field qtm-contact-form__field--email">
             <label class="qtm-contact-form__label" for="qtm-contact-form-email-{{ block_id }}">
-              {{ block.settings.email_label | escape }}
+              {{ block.settings.email_label | default: 'Email address' | escape }}
             </label>
 
             <input
@@ -111,7 +121,7 @@
               class="qtm-contact-form__input"
               type="email"
               name="contact[email]"
-              value="{% if form.email %}{{ form.email }}{% elsif customer %}{{ customer.email }}{% endif %}"
+              value="{% if form.email %}{{ form.email | escape }}{% elsif customer %}{{ customer.email | escape }}{% endif %}"
               autocorrect="off"
               autocapitalize="off"
               autocomplete="email"
@@ -127,7 +137,7 @@
           {% if block.settings.show_phone %}
             <div class="qtm-contact-form__field qtm-contact-form__field--phone">
               <label class="qtm-contact-form__label" for="qtm-contact-form-phone-{{ block_id }}">
-                {{ block.settings.phone_label | escape }}
+                {{ block.settings.phone_label | default: 'Phone' | escape }}
               </label>
 
               <input
@@ -135,7 +145,7 @@
                 class="qtm-contact-form__input"
                 type="tel"
                 name="contact[phone]"
-                value="{% if form.phone %}{{ form.phone }}{% endif %}"
+                value="{% if form.phone %}{{ form.phone | escape }}{% endif %}"
                 autocomplete="tel"
                 placeholder="{{ block.settings.phone_placeholder | escape }}"
                 {% if block.settings.require_phone %}required{% endif %}
@@ -146,7 +156,7 @@
           {% if block.settings.show_subject %}
             <div class="qtm-contact-form__field qtm-contact-form__field--subject">
               <label class="qtm-contact-form__label" for="qtm-contact-form-subject-{{ block_id }}">
-                {{ block.settings.subject_label | escape }}
+                {{ block.settings.subject_label | default: 'Subject' | escape }}
               </label>
 
               <input
@@ -154,7 +164,7 @@
                 class="qtm-contact-form__input"
                 type="text"
                 name="contact[subject]"
-                value="{% if form.subject %}{{ form.subject }}{% endif %}"
+                value="{% if form.subject %}{{ form.subject | escape }}{% endif %}"
                 placeholder="{{ block.settings.subject_placeholder | escape }}"
                 {% if block.settings.require_subject %}required{% endif %}
               >
@@ -163,7 +173,7 @@
 
           <div class="qtm-contact-form__field qtm-contact-form__field--message">
             <label class="qtm-contact-form__label" for="qtm-contact-form-message-{{ block_id }}">
-              {{ block.settings.message_label | escape }}
+              {{ block.settings.message_label | default: 'Message' | escape }}
             </label>
 
             <textarea
@@ -173,7 +183,7 @@
               rows="{{ block.settings.message_rows }}"
               placeholder="{{ block.settings.message_placeholder | escape }}"
               required
-            >{% if form.body %}{{ form.body }}{% endif %}</textarea>
+            >{% if form.body %}{{ form.body | escape }}{% endif %}</textarea>
           </div>
         </div>
 
@@ -184,24 +194,19 @@
               class="qtm-contact-form__checkbox"
               type="checkbox"
               name="contact[consent]"
-              value="{{ block.settings.consent_text | escape }}"
+              value="{{ block.settings.consent_text | default: 'I agree to be contacted about my inquiry.' | escape }}"
               required
             >
 
             <label class="qtm-contact-form__consent-label" for="qtm-contact-form-consent-{{ block_id }}">
-              {{ block.settings.consent_text | escape }}
+              {{ block.settings.consent_text | default: 'I agree to be contacted about my inquiry.' | escape }}
             </label>
           </div>
         {% endif %}
 
-        {% if form.errors %}
-          <span id="qtm-contact-form-error-{{ block_id }}" class="visually-hidden">
-            {{ block.settings.error_message | escape }}
-          </span>
-        {% endif %}
 
         <button class="qtm-contact-form__button" type="submit">
-          {{ block.settings.button_label | escape }}
+          {{ block.settings.button_label | default: 'Send message' | escape }}
         </button>
 
         {% if block.settings.disclaimer != blank %}
@@ -216,9 +221,13 @@
 
 <style>
   .qtm-contact-form-{{ block_id }} {
+    container-type: inline-size;
+    box-sizing: border-box;
+    min-width: 0;
+    overflow-wrap: anywhere;
     margin-top: var(--qtm-contact-form-margin-top);
     margin-bottom: var(--qtm-contact-form-margin-bottom);
-    padding: var(--qtm-contact-form-padding);
+    padding: min(var(--qtm-contact-form-padding), 12%);
     color: var(--qtm-contact-form-text-color);
     background: var(--qtm-contact-form-background-color);
     border: var(--qtm-contact-form-border-width) solid var(--qtm-contact-form-border-color);
@@ -275,7 +284,7 @@
   }
 
   .qtm-contact-form-{{ block_id }}.qtm-contact-form--layout-two-column .qtm-contact-form__inner {
-    grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   }
 
   .qtm-contact-form-{{ block_id }}.qtm-contact-form--layout-stacked .qtm-contact-form__inner,
@@ -589,9 +598,7 @@
   }
 
   @media screen and (max-width: 989px) {
-    .qtm-contact-form-{{ block_id }}.qtm-contact-form--hide-tablet {
-      display: none !important;
-    }
+
 
     .qtm-contact-form-{{ block_id }}.qtm-contact-form--layout-two-column .qtm-contact-form__inner {
       grid-template-columns: 1fr;
@@ -606,7 +613,7 @@
 
   @media screen and (max-width: 749px) {
     .qtm-contact-form-{{ block_id }} {
-      padding: min(var(--qtm-contact-form-padding), 24px);
+      padding: min(var(--qtm-contact-form-padding), 24px, 12%);
     }
 
     .qtm-contact-form-{{ block_id }}.qtm-contact-form--hide-mobile {
@@ -637,6 +644,20 @@
       scroll-behavior: auto !important;
     }
   }
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-contact-form-{{ block_id }}.qtm-contact-form--hide-tablet {
+      display: none !important;
+    }
+  }
+  .qtm-contact-form-{{ block_id }} :is(div,li,a,span,input,textarea,button) { min-width: 0; }
+  .qtm-contact-form-{{ block_id }} :is(a,input,textarea,button) { max-width: 100%; }
+  .qtm-contact-form-{{ block_id }}[hidden] { display: none !important; }
+.qtm-contact-form-{{ block_id }}.qtm-contact-form--no-intro .qtm-contact-form__inner { grid-template-columns: minmax(0, 1fr); }
+  .qtm-contact-form-{{ block_id }} .qtm-contact-form__form-card { min-width: 0; }
+  @container (max-width: 580px) {
+    .qtm-contact-form-{{ block_id }} .qtm-contact-form__inner, .qtm-contact-form-{{ block_id }} .qtm-contact-form__fields { grid-template-columns: minmax(0, 1fr) !important; }
+    .qtm-contact-form-{{ block_id }} .qtm-contact-form__button { width: 100%; }
+  }
 </style>
 
 {% schema %}
@@ -663,7 +684,7 @@
       "type": "richtext",
       "id": "text",
       "label": "Text",
-      "default": "<p>Have a question? Fill out the form and our team will get back to you as soon as possible.</p>"
+      "default": "<p>Send a message using the form below.</p>"
     },
     {
       "type": "header",
@@ -784,7 +805,7 @@
       "type": "text",
       "id": "success_message",
       "label": "Success message",
-      "default": "Thanks for contacting us. We will get back to you soon."
+      "default": "Thanks. Your message has been received."
     },
     {
       "type": "text",
@@ -795,8 +816,7 @@
     {
       "type": "richtext",
       "id": "disclaimer",
-      "label": "Disclaimer",
-      "default": "<p>We respect your privacy and only use your information to respond to your inquiry.</p>"
+      "label": "Disclaimer"
     },
     {
       "type": "header",
@@ -1087,12 +1107,12 @@
       "settings": {
         "eyebrow": "Contact us",
         "heading": "Send us a message",
-        "text": "<p>Have a question? Fill out the form and our team will get back to you as soon as possible.</p>",
+        "text": "<p>Send a message using the form below.</p>",
         "show_phone": true,
         "show_subject": true,
         "show_consent": false,
         "button_label": "Send message",
-        "success_message": "Thanks for contacting us. We will get back to you soon.",
+        "success_message": "Thanks. Your message has been received.",
         "layout_style": "stacked",
         "padding": 24,
         "border_radius": 20
@@ -1103,14 +1123,14 @@
       "settings": {
         "eyebrow": "Support",
         "heading": "Need help with an order?",
-        "text": "<p>Send us your question and include any helpful order details so our support team can assist you.</p>",
+        "text": "<p>Send a message using the form below.</p>",
         "show_phone": false,
         "show_subject": true,
         "subject_placeholder": "Order, product, or support topic",
         "message_placeholder": "Tell us what happened or how we can help...",
         "button_label": "Submit request",
-        "success_message": "Thanks. Your support request has been received.",
-        "disclaimer": "<p>For faster support, include your order number if you have one.</p>",
+        "success_message": "Thanks. Your message has been received.",
+        "disclaimer": "",
         "layout_style": "card",
         "padding": 32,
         "background_color": "#FAFAFA",
@@ -1123,7 +1143,7 @@
       "settings": {
         "eyebrow": "Request a quote",
         "heading": "Tell us what you are looking for",
-        "text": "<p>Share a few details and our team will follow up with the next best step.</p>",
+        "text": "<p>Send a message using the form below.</p>",
         "show_phone": true,
         "require_phone": true,
         "show_subject": true,
@@ -1133,7 +1153,7 @@
         "message_placeholder": "Tell us about your timeline, goals, budget, or special requirements...",
         "show_consent": true,
         "button_label": "Request quote",
-        "success_message": "Thanks. Your quote request has been received.",
+        "success_message": "Thanks. Your message has been received.",
         "layout_style": "two-column",
         "width": "large",
         "padding": 32,

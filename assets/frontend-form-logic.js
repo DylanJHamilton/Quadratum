@@ -1,492 +1,260 @@
-/* Quadratum — Frontend Form Logic (Validator + Steps + Captcha + Optional Attribution)
-   Shared file: designed to be backward-safe across multiple sections/forms.
+/* Quadratum forms. Both legacy asset names intentionally ship this same guarded
+   controller; the regression enforces parity while saved hosts use either name. */
+(() => {
+  'use strict';
+  if (window.QuadratumForms) { window.QuadratumForms.init(document); return; }
+  const hosts = '[data-q-form-host]', instances = new Map(), sdkLoads = new Map();
+  const controls = form => Array.from(form.elements).filter(el => /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName));
+  const named = (form, name) => controls(form).filter(el => el.name === name);
+  const apiFor = mode => mode === 'turnstile' ? window.turnstile : window.grecaptcha;
 
-   Fixes / adds:
-   - Supports init when root IS the form (.q-form) or contains it
-   - Better error target resolution (radio groups + wrapper .q-error fallback)
-   - Turnstile render mount is attached to DOM (fixes “silent” captcha failures)
-   - Boots on more selectors (legacy + new)
-   - Optional attribution capture:
-       - fills hidden inputs if they exist
-       - can CREATE hidden inputs if root has data-q-attrib-create="1"
-   - Optional Shopify tag packing:
-       - if contact[tags] exists, can append UTM/ref/page/path
-       - enabled by default when contact[tags] exists; can disable via data-q-pack-tags="0"
-*/
-
-(function () {
-  function closestWrap(node) {
-    if (!node || !node.closest) return null;
-    return node.closest('.q-cta-quote-form, .q-cta-newsletter, [data-q-form-wrap="1"]');
+  function loadSDK(mode, key, signal) {
+    if (signal.aborted) return Promise.reject(new Error('Cancelled'));
+    if (apiFor(mode)) return Promise.resolve(apiFor(mode));
+    let entry = sdkLoads.get(mode);
+    if (!entry || !entry.script.isConnected) {
+      const prefix = mode === 'turnstile' ? 'https://challenges.cloudflare.com/turnstile/v0/api.js' : 'https://www.google.com/recaptcha/api.js';
+      let script = Array.from(document.scripts).find(el => el.src.split('?')[0] === prefix);
+      const owned = !script;
+      if (!script) {
+        script = document.createElement('script'); script.async = true; script.defer = true;
+        script.src = prefix + (mode === 'turnstile' ? '?render=explicit' : '?render=' + encodeURIComponent(key));
+      }
+      entry = { script, owned, waiters: 0 }; sdkLoads.set(mode, entry);
+    }
+    entry.waiters++;
+    return new Promise((resolve, reject) => {
+      let done = false;
+      const finish = error => {
+        if (done) return; done = true; clearTimeout(timer);
+        entry.script.removeEventListener('load', loaded); entry.script.removeEventListener('error', failed);
+        signal.removeEventListener('abort', cancelled); entry.waiters--;
+        if (!entry.waiters && !apiFor(mode)) {
+          if (entry.owned) entry.script.remove();
+          sdkLoads.delete(mode);
+        }
+        if (error) reject(error); else resolve(apiFor(mode));
+      };
+      const loaded = () => finish(apiFor(mode) ? null : new Error('Unavailable'));
+      const failed = () => finish(new Error('Unavailable'));
+      const cancelled = () => finish(new Error('Cancelled'));
+      const timer = setTimeout(failed, 12000);
+      entry.script.addEventListener('load', loaded); entry.script.addEventListener('error', failed);
+      signal.addEventListener('abort', cancelled, { once: true });
+      if (!entry.script.isConnected) document.head.appendChild(entry.script);
+    });
   }
 
-  function init(root) {
-    if (!root) return;
-
-    // If root is the form itself, use it. Otherwise find child .q-form
-    const form = (root.matches && root.matches('.q-form')) ? root : root.querySelector('.q-form');
-    if (!form) return;
-
-    // Prefer a wrapper for config + error lookup when present
-    const wrap = closestWrap(form) || closestWrap(root) || root;
-
-    // Prevent double init on the FORM (important: wrapper+form selectors can overlap)
-    if (form.dataset.qValidateInit === '1') return;
-    form.dataset.qValidateInit = '1';
-
-    // ---------------------------
-    // Error handling
-    // ---------------------------
-    function errEl(input) {
-      const id = input.id || '';
-      if (id) {
-        // exact match first
-        let el = wrap.querySelector('#' + id + '-err');
-        if (el) return el;
-
-        // radio group fallback: strip trailing -<n> from id (e.g., qf-123-1 -> qf-123-err)
-        const base = id.replace(/-\d+$/, '');
-        el = wrap.querySelector('#' + base + '-err');
-        if (el) return el;
+  function initForm(form, host, dynamic) {
+    if (instances.has(form)) return;
+    const listeners = new AbortController(), signal = listeners.signal;
+    const on = (el, type, callback, options = {}) => el.addEventListener(type, callback, { ...options, signal });
+    const originalNoValidate = form.noValidate;
+    const originalDisabled = new Map(controls(form).map(el => [el, el.disabled]));
+    const conditional = Array.from(form.querySelectorAll('[data-cond="1"]'));
+    const originalConditions = new Map(conditional.map(el => [el, { hidden: el.hidden, classHidden: el.classList.contains('is-hidden') }]));
+    const nativeType = named(form, 'form_type')[0]?.value;
+    const native = form.dataset.qDestination !== 'custom_endpoint' && (nativeType === 'contact' || nativeType === 'customer');
+    const steps = host.dataset.template === 'steps' && !window.Shopify?.designMode
+      ? Array.from(form.querySelectorAll('[data-q-step], .q-step')).filter(el => el.childElementCount > 0) : [];
+    const stepStates = new Map(steps.map(el => [el, { hidden: el.hidden, inert: el.inert, active: el.classList.contains('is-active') }]));
+    const submitWrap = form.querySelector('[data-q-submit]') || form.querySelector('button[type=submit]')?.parentElement;
+    const submitHidden = submitWrap?.hidden;
+    const legacyNav = host.querySelector('[data-q-steps]'), legacyHidden = legacyNav?.hidden;
+    const owned = [], previousTags = new Set();
+    let closed = false, index = 0, nav, back, next, count, operation = null, armed = false, widget = null, mount = null;
+    let live = form.querySelector('.q-live');
+    if (!live) { live = document.createElement('div'); live.className = 'q-live'; form.appendChild(live); owned.push(live); }
+    if (!live.hasAttribute('role')) live.setAttribute('role', 'status');
+    if (!live.hasAttribute('aria-live')) live.setAttribute('aria-live', live.getAttribute('role') === 'alert' ? 'assertive' : 'polite'); live.tabIndex = -1;
+    form.noValidate = true; form.dataset.qValidateInit = '1';
+    const current = op => !closed && form.isConnected && operation === op;
+    const showMessage = (message, error = false) => { live.textContent = message; live.setAttribute('role', error ? 'alert' : 'status'); live.setAttribute('aria-live', error ? 'assertive' : 'polite'); };
+    const errorNode = input => input.closest('[data-q-field]')?.querySelector('.q-error');
+    function clearError(input) { input.removeAttribute('aria-invalid'); const node = errorNode(input); if (node) node.textContent = ''; }
+    function paint(focus = false) {
+      if (steps.length < 2) return;
+      steps.forEach((step, i) => { step.hidden = i !== index; step.inert = i !== index; step.classList.toggle('is-active', i === index); });
+      if (submitWrap) submitWrap.hidden = index !== steps.length - 1;
+      back.hidden = index === 0; next.hidden = index === steps.length - 1;
+      count.textContent = 'Step ' + (index + 1) + ' of ' + steps.length;
+      if (focus) {
+        const target = steps[index].querySelector('h2, h3, legend') || steps[index].querySelector('input:not([type=hidden]):not(:disabled), select:not(:disabled), textarea:not(:disabled)') || steps[index];
+        if (target) { if (!/^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) target.tabIndex = -1; target.focus(); }
       }
-      // last resort: wrapper's .q-error
-      const w = input.closest('[data-q-field]');
-      return w ? w.querySelector('.q-error') : null;
     }
-
-    function setError(input, msg) {
-      input.setAttribute('aria-invalid', 'true');
-      const e = errEl(input);
-      if (e) e.textContent = msg || '';
-    }
-
-    function clearError(input) {
-      input.removeAttribute('aria-invalid');
-      const e = errEl(input);
-      if (e) e.textContent = '';
-    }
-
-    function isRequired(wrapEl, input) {
-      return (wrapEl.getAttribute('data-required') === 'true') || input.hasAttribute('required');
-    }
-
-    // ---------------------------
-    // Captcha helpers
-    // ---------------------------
-    function ensureCaptchaFields() {
-      let t = form.querySelector('input[name="cf-turnstile-response"]');
-      if (!t) { t = document.createElement('input'); t.type = 'hidden'; t.name = 'cf-turnstile-response'; form.appendChild(t); }
-      let r = form.querySelector('input[name="g-recaptcha-response"]');
-      if (!r) { r = document.createElement('input'); r.type = 'hidden'; r.name = 'g-recaptcha-response'; form.appendChild(r); }
-    }
-
-    function ensureTurnstileMount() {
-      // Turnstile must render into an element that exists in the DOM
-      let mount = wrap.querySelector('[data-q-turnstile-mount]');
-      if (mount) return mount;
-
-      mount = document.createElement('div');
-      mount.setAttribute('data-q-turnstile-mount', '1');
-      mount.style.position = 'absolute';
-      mount.style.width = '1px';
-      mount.style.height = '1px';
-      mount.style.overflow = 'hidden';
-      mount.style.left = '-9999px';
-      mount.style.top = '0';
-
-      wrap.appendChild(mount);
-      return mount;
-    }
-
-    // ---------------------------
-    // Optional attribution capture
-    // ---------------------------
-    const qs = new URLSearchParams(window.location.search);
-    const ATTRIB_CREATE = (wrap.getAttribute('data-q-attrib-create') === '1');
-
-    function ensureHidden(name) {
-      let el = form.querySelector('input[name="' + name + '"]');
-      if (!el && ATTRIB_CREATE) {
-        el = document.createElement('input');
-        el.type = 'hidden';
-        el.name = name;
-        form.appendChild(el);
-      }
-      return el;
-    }
-
-    function setHiddenIfPresent(name, value) {
-      const el = ensureHidden(name);
-      if (el) el.value = value || '';
-    }
-
-    function captureAttribution() {
-      const utm_source = qs.get('utm_source') || '';
-      const utm_medium = qs.get('utm_medium') || '';
-      const utm_campaign = qs.get('utm_campaign') || '';
-      const utm_content = qs.get('utm_content') || '';
-      const utm_term = qs.get('utm_term') || '';
-
-      const referrer = document.referrer || '';
-      const page_url = window.location.href || '';
-      const timestamp = (new Date()).toISOString();
-
-      // Common plain names
-      setHiddenIfPresent('utm_source', utm_source);
-      setHiddenIfPresent('utm_medium', utm_medium);
-      setHiddenIfPresent('utm_campaign', utm_campaign);
-      setHiddenIfPresent('utm_content', utm_content);
-      setHiddenIfPresent('utm_term', utm_term);
-      setHiddenIfPresent('referrer', referrer);
-      setHiddenIfPresent('page_url', page_url);
-      setHiddenIfPresent('timestamp', timestamp);
-
-      // Shopify/contact-style names
-      setHiddenIfPresent('contact[utm_source]', utm_source);
-      setHiddenIfPresent('contact[utm_medium]', utm_medium);
-      setHiddenIfPresent('contact[utm_campaign]', utm_campaign);
-      setHiddenIfPresent('contact[utm_content]', utm_content);
-      setHiddenIfPresent('contact[utm_term]', utm_term);
-      setHiddenIfPresent('contact[referrer]', referrer);
-      setHiddenIfPresent('contact[page_url]', page_url);
-      setHiddenIfPresent('contact[timestamp]', timestamp);
-    }
-
-    // Optional: pack into Shopify tags (persistable)
-    function sanitizeTagValue(val) {
-      return String(val || '')
-        .replace(/,/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 80);
-    }
-
-    function parseTags(str) {
-      return String(str || '')
-        .split(',')
-        .map(t => t.trim())
-        .filter(Boolean);
-    }
-
-    function uniqPush(list, tag) {
-      const t = String(tag || '').trim();
-      if (!t) return;
-      if (list.indexOf(t) === -1) list.push(t);
-    }
-
-    function packShopifyTags() {
-      const disablePack = (wrap.getAttribute('data-q-pack-tags') === '0');
-      if (disablePack) return;
-
-      const tagsInput = form.querySelector('input[name="contact[tags]"]');
-      if (!tagsInput) return;
-
-      const tags = parseTags(tagsInput.value);
-
-      const utm_source = qs.get('utm_source') || '';
-      const utm_medium = qs.get('utm_medium') || '';
-      const utm_campaign = qs.get('utm_campaign') || '';
-      const referrer = document.referrer || '';
-
-      if (utm_source) uniqPush(tags, 'utm_source=' + sanitizeTagValue(utm_source));
-      if (utm_medium) uniqPush(tags, 'utm_medium=' + sanitizeTagValue(utm_medium));
-      if (utm_campaign) uniqPush(tags, 'utm_campaign=' + sanitizeTagValue(utm_campaign));
-
-      if (referrer) {
-        try {
-          const u = new URL(referrer);
-          uniqPush(tags, 'ref=' + sanitizeTagValue(u.hostname));
-        } catch (_e) {
-          uniqPush(tags, 'ref=' + sanitizeTagValue(referrer));
-        }
-      }
-
-      try {
-        const page = new URL(window.location.href);
-        uniqPush(tags, 'page=' + sanitizeTagValue(page.pathname));
-      } catch (_e2) {}
-
-      tagsInput.value = tags.join(', ');
-    }
-
-    // Capture once on init
-    captureAttribution();
-
-    // ---------------------------
-    // Known breaker guard: missing email on newsletter/customer forms
-    // ---------------------------
-    (function guardEmail() {
-      const hasShopifyCustomerForm =
-        !!form.querySelector('input[name="form_type"][value="customer"]') ||
-        !!form.querySelector('input[name="contact[tags]"]');
-
-      if (!hasShopifyCustomerForm) return;
-
-      const emailEl = form.querySelector('input[type="email"][name="contact[email]"], input[type="email"][name="email"], input[name="contact[email]"]');
-      if (!emailEl) {
-        // Don’t hard-block rendering; but warn loudly and show message if user tries submit
-        console.warn('[Quadratum Forms] This form looks like a Shopify newsletter/customer form but has no email input. Add an Email field block.');
-        wrap.setAttribute('data-q-missing-email', '1');
-      }
-    })();
-
-    // ---------------------------
-    // Validation
-    // ---------------------------
-    function validateScope(scope) {
-      let ok = true;
-      const wraps = Array.from(form.querySelectorAll('[data-q-field]'));
-      const validatedRadioNames = new Set();
-
-      for (const w of wraps) {
-        if (scope && !scope.contains(w)) continue;
-        if (w.classList.contains('is-hidden')) continue;
-
-        const input = w.querySelector('input, textarea, select');
-        if (!input) continue;
-
+    function validate(scope = form) {
+      const invalid = [];
+      for (const input of controls(form)) {
+        if (!scope.contains(input) || !input.willValidate) continue;
         clearError(input);
-
-        const required = isRequired(w, input);
-        let invalid = false;
-
-        if (input.type === 'radio') {
-          const name = input.name || '';
-          if (validatedRadioNames.has(name)) continue;
-          validatedRadioNames.add(name);
-
-          const group = form.querySelectorAll('input[type="radio"][name="' + name + '"]');
-          const anyChecked = Array.from(group).some(r => r.checked);
-          invalid = required && !anyChecked;
-
-          if (invalid) {
-            const first = group[0];
-            if (first) {
-              if (!(errEl(first) && errEl(first).textContent)) setError(first, 'This field is required.');
-              if (ok) first.focus({ preventScroll: false });
-            }
-            ok = false;
-          }
-          continue;
+        if (!input.validity.valid) {
+          input.setAttribute('aria-invalid', 'true'); const node = errorNode(input);
+          if (node) node.textContent = input.validationMessage || 'Please check this field.';
+          invalid.push(input);
         }
-
-        if (input.type === 'checkbox') {
-          invalid = required && !input.checked;
-        } else if (input.tagName === 'SELECT') {
-          invalid = required && (input.value === '' || input.value == null);
+      }
+      if (!invalid.length) return true;
+      const step = steps.findIndex(el => el.contains(invalid[0]));
+      if (step >= 0) { index = step; paint(); }
+      showMessage(host.dataset.msgError || 'Please fix the highlighted fields and try again.', true);
+      invalid[0].focus(); return false;
+    }
+    function evaluateConditions() {
+      // Bounded passes allow a dependent field to follow another condition without
+      // retaining disabled values. Exact name comparison avoids selector injection.
+      for (let pass = 0; pass <= conditional.length; pass++) {
+        let changed = false;
+        for (const wrap of conditional) {
+          let inputs = named(form, wrap.dataset.condField || '');
+          if (!inputs.length) inputs = controls(form).filter(el => el.closest('[data-source-name]')?.dataset.sourceName === wrap.dataset.condField);
+          const active = inputs.filter(el => !el.disabled);
+          const values = active.filter(el => !['radio', 'checkbox'].includes(el.type) || el.checked).map(el => el.value.toLowerCase());
+          const expected = (wrap.dataset.condValue || '').toLowerCase();
+          const op = wrap.dataset.condOperator;
+          let show = !inputs.length || !wrap.dataset.condField;
+          if (inputs.length) show = op === 'checked' ? active.some(el => el.checked === true)
+            : op === 'contains' ? values.some(value => value.includes(expected))
+            : values.some(value => value === expected);
+          // A native submission always requires its primary email, even when an
+          // older saved field configured a contradictory condition.
+          if (native && wrap.querySelector('input[type=email][name="contact[email]"]')) show = true;
+          changed ||= wrap.hidden === show; wrap.hidden = !show; wrap.classList.toggle('is-hidden', !show);
+          for (const input of controls(form).filter(el => wrap.contains(el))) {
+            input.disabled = !show || originalDisabled.get(input) === true;
+            if (!show) clearError(input);
+          }
+        }
+        if (!changed) break;
+      }
+    }
+    function setHidden(name, value, create = false) {
+      let input = named(form, name).find(el => el.type === 'hidden');
+      if (!input && create) { input = document.createElement('input'); input.type = 'hidden'; input.name = name; form.appendChild(input); owned.push(input); }
+      if (input && value !== '' && value != null) input.value = value;
+      return input;
+    }
+    function capture() {
+      const query = new URLSearchParams(location.search), values = {};
+      for (const name of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']) values[name] = query.get(name) || '';
+      Object.assign(values, { referrer: document.referrer, page_url: location.href, timestamp: new Date().toISOString() });
+      for (const [name, value] of Object.entries(values)) {
+        setHidden(name, value, !native && host.dataset.qAttribCreate === '1'); setHidden('contact[' + name + ']', value);
+      }
+      const tags = named(form, 'contact[tags]')[0];
+      if (!native || !tags || host.dataset.qPackTags === '0') return;
+      const list = tags.value.split(',').map(x => x.trim()).filter(x => x && !previousTags.has(x)); previousTags.clear();
+      const add = (name, value) => {
+        if (!value) return;
+        const tag = name + '=' + String(value).replace(/,/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+        if (!list.includes(tag)) { list.push(tag); previousTags.add(tag); }
+      };
+      for (const name of ['utm_source', 'utm_medium', 'utm_campaign']) add(name, values[name] || named(form, 'contact[' + name + ']')[0]?.value);
+      if (document.referrer) { try { add('ref', new URL(document.referrer).hostname); } catch (_) {} }
+      add('page', location.pathname); tags.value = list.join(', ');
+    }
+    function clearWidget() {
+      if (widget !== null) { try { window.turnstile?.remove(widget); } catch (_) {} widget = null; }
+      if (mount) { mount.remove(); mount = null; }
+    }
+    function stopOperation() {
+      const op = operation; operation = null;
+      if (op) {
+        clearTimeout(op.timer); op.abort.abort();
+        for (const [button, disabled] of op.buttons) { button.disabled = disabled; button.removeAttribute('aria-busy'); }
+      }
+      clearWidget();
+    }
+    function clearTokens() { for (const name of ['cf-turnstile-response', 'g-recaptcha-response']) for (const el of named(form, name)) el.value = ''; }
+    function fail(op, message = 'Verification failed. Please try again.') {
+      if (!current(op)) return; stopOperation(); clearTokens(); showMessage(message, true); live.focus();
+    }
+    function verified(op, token, field) {
+      if (!current(op)) return;
+      if (typeof token !== 'string' || !token.trim()) { fail(op); return; }
+      setHidden(field, token, true); stopOperation(); armed = true;
+      try {
+        // Preserve native submit events, constraint handling and submitter data.
+        HTMLFormElement.prototype.requestSubmit.call(form, op.submitter?.form === form ? op.submitter : undefined);
+      } catch (_) { showMessage('This form could not be submitted. Please try again.', true); }
+      finally { armed = false; }
+    }
+    function verify(submitter) {
+      const mode = host.dataset.captcha, key = host.dataset.captchaKey;
+      if (!key || !['turnstile', 'recaptcha_v3'].includes(mode)) { showMessage('Verification is unavailable. Please try again later.', true); return; }
+      clearTokens(); clearWidget();
+      const op = { abort: new AbortController(), submitter, buttons: new Map(Array.from(form.querySelectorAll('button[type=submit], input[type=submit]')).map(el => [el, el.disabled])) };
+      operation = op;
+      for (const button of op.buttons.keys()) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
+      showMessage('Please complete verification.');
+      op.timer = setTimeout(() => fail(op), mode === 'turnstile' ? 120000 : 30000);
+      loadSDK(mode, key, op.abort.signal).then(api => {
+        if (!current(op)) return;
+        if (mode === 'turnstile') {
+          mount = document.createElement('div'); mount.dataset.qTurnstileMount = '1'; form.appendChild(mount);
+          const rendered = api.render(mount, { sitekey: key, size: 'flexible', 'response-field': false,
+            callback: token => verified(op, token, 'cf-turnstile-response'),
+            'error-callback': () => { fail(op); return true; }, 'expired-callback': () => fail(op) });
+          if (current(op)) widget = rendered; else { try { api.remove(rendered); } catch (_) {} }
         } else {
-          const val = (input.value || '').trim();
-          invalid = required && val === '';
-
-          if (!invalid && input.type === 'email' && val) {
-            invalid = !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val);
-            if (invalid) setError(input, 'Enter a valid email');
-          }
-          if (!invalid && input.type === 'tel' && val) {
-            invalid = !/^[0-9+()\-.\s]{7,}$/.test(val);
-            if (invalid) setError(input, 'Enter a valid phone');
-          }
-          if (!invalid && input.type === 'url' && val) {
-            try { new URL(val); } catch (e) { invalid = true; setError(input, 'Enter a valid URL'); }
-          }
-        }
-
-        if (invalid) {
-          if (!(errEl(input) && errEl(input).textContent)) setError(input, 'This field is required.');
-          if (ok) input.focus({ preventScroll: false });
-          ok = false;
-        }
-      }
-
-      // Missing email guard (treat as invalid on submit)
-      if (wrap.getAttribute('data-q-missing-email') === '1') {
-        ok = false;
-        const live = wrap.querySelector('.q-live');
-        if (live) live.innerHTML = '<span class="bad">This form is missing an Email field. Add an Email block and try again.</span>';
-      }
-
-      return ok;
-    }
-
-    // ---------------------------
-    // Conditional logic
-    // ---------------------------
-    function evalConds() {
-      Array.from(form.querySelectorAll('[data-cond="1"]')).forEach(w => {
-        const field = w.getAttribute('data-cond-field') || '';
-        const op = w.getAttribute('data-cond-operator') || 'equals';
-        const val = (w.getAttribute('data-cond-value') || '').toLowerCase();
-
-        if (!field) { w.classList.remove('is-hidden'); return; }
-
-        const ctrls = form.querySelectorAll('[name="' + field + '"]');
-        if (!ctrls.length) { w.classList.remove('is-hidden'); return; }
-
-        let current = '';
-        ctrls.forEach(el => {
-          if ((el.type === 'radio' || el.type === 'checkbox') && el.checked) current = (el.value || '').toLowerCase();
-          else if (el.tagName === 'SELECT') current = (el.value || '').toLowerCase();
-          else if (el.type !== 'radio' && el.type !== 'checkbox') current = (el.value || '').toLowerCase();
-        });
-
-        let show = true;
-        if (op === 'equals') show = current === val;
-        else if (op === 'contains') show = current.indexOf(val) >= 0;
-        else if (op === 'checked') show = current === 'on' || current === 'yes' || current === 'true';
-
-        w.classList.toggle('is-hidden', !show);
-      });
-    }
-
-    form.addEventListener('input', evalConds, { passive: true });
-    form.addEventListener('change', evalConds, { passive: true });
-    form.addEventListener('click', function (e) {
-      const t = e.target;
-      if (t && (t.type === 'radio' || t.type === 'checkbox')) evalConds();
-    }, { passive: true });
-    evalConds();
-
-    // ---------------------------
-    // Steps
-    // ---------------------------
-    const isSteps = (wrap.getAttribute('data-template') === 'steps');
-    const steps = isSteps ? Array.from(wrap.querySelectorAll('.q-step')) : [];
-    let idx = 0;
-
-    function paintSteps() {
-      if (!isSteps) return;
-
-      steps.forEach((s, k) => s.classList.toggle('is-active', k === idx));
-
-      const fill = wrap.querySelector('.q-steps-fill');
-      const count = wrap.querySelector('.q-steps-count');
-
-      if (fill) fill.style.width = ((idx + 1) / Math.max(steps.length, 1) * 100).toFixed(1) + '%';
-      if (count) count.textContent = (idx + 1) + ' / ' + steps.length;
-
-      const submitWrap = form.querySelector('button[type="submit"]')?.closest('div');
-      let bar = wrap.querySelector('.q-steps-actions');
-
-      if (!bar) {
-        bar = document.createElement('div');
-        bar.className = 'q-steps-actions';
-        const anchor = wrap.querySelector('[data-q-steps]') || form;
-        anchor.parentNode.insertBefore(bar, anchor);
-      }
-
-      bar.innerHTML = '';
-
-      if (idx > 0) {
-        const back = document.createElement('button');
-        back.type = 'button';
-        back.className = 'q-btn q-btn--ghost';
-        back.textContent = 'Back';
-        back.addEventListener('click', () => { idx = Math.max(0, idx - 1); paintSteps(); });
-        bar.appendChild(back);
-      }
-
-      if (idx < steps.length - 1) {
-        const next = document.createElement('button');
-        next.type = 'button';
-        next.className = 'q-btn ' + (wrap.getAttribute('data-btn-variant') || 'q-btn--solid');
-        next.textContent = 'Next';
-        next.addEventListener('click', () => {
-          if (validateScope(steps[idx])) {
-            idx = Math.min(steps.length - 1, idx + 1);
-            paintSteps();
-          }
-        });
-        bar.appendChild(next);
-        if (submitWrap) submitWrap.style.display = 'none';
-      } else {
-        if (submitWrap) submitWrap.style.display = '';
-      }
-    }
-
-    paintSteps();
-
-    // ---------------------------
-    // Submit (and optional captcha)
-    // ---------------------------
-    let submitting = false;
-
-    form.addEventListener('submit', function (e) {
-      // refresh attribution right before submit
-      captureAttribution();
-      packShopifyTags();
-
-      const scope = isSteps ? steps[idx] : null;
-
-      if (!validateScope(scope)) {
-        const live = wrap.querySelector('.q-live');
-        if (live) live.innerHTML = '<span class="bad">' + (wrap.getAttribute('data-msg-error') || 'Please fix the highlighted fields and try again.') + '</span>';
-        e.preventDefault();
-        return;
-      }
-
-      if (submitting) { e.preventDefault(); return; }
-      submitting = true;
-
-      const btn = form.querySelector('button[type="submit"]');
-      if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
-
-      const mode = wrap.getAttribute('data-captcha') || 'none';
-      const siteKey = wrap.getAttribute('data-captcha-key') || '';
-
-      if (mode === 'turnstile' && siteKey && typeof turnstile !== 'undefined') {
-        e.preventDefault();
-        ensureCaptchaFields();
-
-        const mount = ensureTurnstileMount();
-        mount.innerHTML = '';
-
-        turnstile.render(mount, {
-          sitekey: siteKey,
-          size: 'invisible',
-          callback: function (token) {
-            const hidden = form.querySelector('[name="cf-turnstile-response"]');
-            if (hidden) hidden.value = token;
-            form.submit();
-          }
-        });
-      } else if (mode === 'recaptcha_v3' && siteKey && typeof grecaptcha !== 'undefined') {
-        e.preventDefault();
-        ensureCaptchaFields();
-
-        grecaptcha.ready(function () {
-          grecaptcha.execute(siteKey, { action: 'submit' }).then(function (token) {
-            const hidden = form.querySelector('[name="g-recaptcha-response"]');
-            if (hidden) hidden.value = token;
-            form.submit();
+          api.ready(() => {
+            if (!current(op)) return;
+            try { Promise.resolve(api.execute(key, { action: 'submit' })).then(token => verified(op, token, 'g-recaptcha-response'), () => fail(op)); }
+            catch (_) { fail(op); }
           });
-        });
+        }
+      }).catch(() => fail(op));
+    }
+    if (steps.length > 1) {
+      if (legacyNav) legacyNav.hidden = true;
+      nav = document.createElement('div'); nav.className = 'q-steps-actions'; nav.dataset.qStepControls = '1';
+      back = document.createElement('button'); back.type = 'button'; back.className = 'q-btn q-btn--ghost'; back.textContent = 'Back';
+      next = document.createElement('button'); next.type = 'button'; next.className = 'q-btn q-btn--solid'; next.textContent = 'Next';
+      count = document.createElement('span'); count.className = 'q-steps-count'; count.setAttribute('role', 'status');
+      nav.append(back, count, next); form.appendChild(nav); owned.push(nav);
+      on(back, 'click', () => { index = Math.max(0, index - 1); paint(true); });
+      on(next, 'click', () => { if (validate(steps[index])) { index++; paint(true); } });
+      paint();
+    }
+    on(form, 'input', event => { if (operation) { stopOperation(); clearTokens(); showMessage(''); } if (event.target.matches('input, select, textarea')) clearError(event.target); evaluateConditions(); });
+    on(form, 'change', () => { if (operation) { stopOperation(); clearTokens(); showMessage(''); } evaluateConditions(); });
+    on(form, 'reset', () => { stopOperation(); queueMicrotask(() => { if (closed) return; clearTokens(); controls(form).forEach(clearError); evaluateConditions(); index = 0; paint(); showMessage(''); }); });
+    on(form, 'submit', event => {
+      if (closed) { event.preventDefault(); return; }
+      evaluateConditions();
+      if (operation) { event.preventDefault(); return; }
+      if (steps.length > 1 && index < steps.length - 1 && !armed) { event.preventDefault(); if (validate(steps[index])) { index++; paint(true); } return; }
+      if (!validate()) { event.preventDefault(); return; }
+      const trap = named(form, native ? 'contact[hp_field]' : 'hp_field')[0];
+      if (trap?.value) { event.preventDefault(); showMessage('This form could not be submitted.', true); return; }
+      capture();
+      if (native || armed || !host.dataset.captcha || host.dataset.captcha === 'none') return;
+      event.preventDefault(); verify(event.submitter);
+    });
+    on(window, 'pageshow', () => { stopOperation(); clearTokens(); });
+    evaluateConditions(); capture();
+    // Dynamic Shopify forms use only the documented native captcha integration.
+    if (native && dynamic && typeof window.Shopify?.captcha?.protect === 'function') {
+      try { window.Shopify.captcha.protect(form, () => {}); } catch (_) { /* Native form wiring remains owned by Shopify. */ }
+    }
+    instances.set(form, {
+      dispose() {
+        closed = true; stopOperation(); clearTokens(); listeners.abort(); form.noValidate = originalNoValidate; delete form.dataset.qValidateInit;
+        for (const [wrap, state] of originalConditions) { wrap.hidden = state.hidden; wrap.classList.toggle('is-hidden', state.classHidden); }
+        for (const [input, disabled] of originalDisabled) input.disabled = disabled;
+        for (const [step, state] of stepStates) { step.hidden = state.hidden; step.inert = state.inert; step.classList.toggle('is-active', state.active); }
+        if (submitWrap) submitWrap.hidden = submitHidden; if (legacyNav) legacyNav.hidden = legacyHidden;
+        owned.forEach(el => el.remove()); instances.delete(form);
       }
-
-      setTimeout(function () {
-        submitting = false;
-        if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
-      }, 5000);
-    }, false);
+    });
   }
-
-  function boot() {
-    // Shared boot selectors (legacy + newer form roots)
-    document
-      .querySelectorAll('.q-cta-quote-form, .q-cta-newsletter, .q-form.q-form--quote-full, .q-form[data-template], .q-form')
-      .forEach(init);
+  function init(scope = document, dynamic = false) {
+    const found = [...(scope.matches?.(hosts) ? [scope] : []), ...scope.querySelectorAll(hosts)];
+    for (const host of found) for (const form of host.querySelectorAll('form.q-form')) if (form.closest(hosts) === host) initForm(form, host, dynamic);
   }
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
-
-  // Shopify theme editor support
-  document.addEventListener('shopify:section:load', e => {
-    const r = e.target.closest('.q-cta-quote-form, .q-cta-newsletter, .q-form.q-form--quote-full, .q-form[data-template], .q-form');
-    if (r) init(r);
-  });
-
-  document.addEventListener('shopify:section:select', e => {
-    const r = e.target.closest('.q-cta-quote-form, .q-cta-newsletter, .q-form.q-form--quote-full, .q-form[data-template], .q-form');
-    if (r) init(r);
-  });
+  function dispose(scope) { for (const [form, state] of instances) if (scope === form || scope.contains(form)) state.dispose(); }
+  window.QuadratumForms = { init, dispose };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => init(), { once: true }); else init();
+  document.addEventListener('shopify:section:load', event => init(event.target, true));
+  document.addEventListener('shopify:section:unload', event => dispose(event.target));
 })();

@@ -1,32 +1,19 @@
-{% comment %}
-  Quadratum — Form: Support Request (Section)
-  • Reuses shared engine:
-      - snippets/form-dispatch.liquid (routing + hidden meta)
-      - snippets/form-core.liquid (field/steps renderer)
-  • Layouts: Card / Split / Steps
-  • Background media + overlay on ROOT
-  • A11y, inline validation hooks, conditional logic, steps UI
-  • Tokenized CSS; mirrors CTA + Quote sections
-
-  Fixes included:
-  - Section id is ALWAYS section.id (prevents scoped CSS mismatch)
-  - Optional anchor_id rendered as a separate <span> (no duplicate ids)
-  - Captcha mode/key uses globals-first fallback correctly (based on provider)
-  - Checkbox/radio no longer inherit text-input chrome (padding/width/etc.)
-  - Hide on mobile/desktop uses is-hidden-m / is-hidden-d parity
-  - JS loaded once (top), reCAPTCHA script uses defer
-{% endcomment %}
+{% comment %}Configurable native/custom form; shared fields, scoped controller and independent host settings.{% endcomment %}
 
 {{ 'forms-sections.css' | asset_url | stylesheet_tag }}
-{{ 'frontend-form-logic-form-sections.js' | asset_url | script_tag }}
+<script src="{{ 'frontend-form-logic-form-sections.js' | asset_url }}" defer></script>
 
 {%- assign s = section.settings -%}
 {%- assign g = settings -%}
+{%- assign form_surface_color = s.form_bg | default: g.bg_base | default: '#ffffff' -%}
+{%- capture form_surface_text -%}{% render 'contrast-text', background: form_surface_color, preferred: g.text_base %}{%- endcapture -%}
+{%- capture form_input_text -%}{% render 'contrast-text', background: '#ffffff', preferred: g.text_base %}{%- endcapture -%}
+
 
 {%- comment -%}Effective captcha mode (supports inherit){%- endcomment -%}
-{%- assign _cm = s.captcha_mode | default: 'inherit' -%}
-{%- if _cm == 'inherit' -%}{%- assign _cm = blank -%}{%- endif -%}
-{%- assign eff_captcha_mode = _cm | default: g.forms_captcha_provider | default: 'none' -%}
+{%- assign cm = s.captcha_mode | default: 'inherit' -%}
+{%- if cm == 'inherit' -%}{%- assign cm = blank -%}{%- endif -%}
+{%- assign eff_captcha_mode = cm | default: g.forms_captcha_provider | default: 'none' -%}
 
 {%- comment -%}Effective captcha key (provider-aware){%- endcomment -%}
 {%- assign eff_captcha_key = s.captcha_site_key | default: '' -%}
@@ -48,24 +35,21 @@
   {%- assign eff_endpoint = g.forms_global_endpoint | default: '' -%}
 {%- endif -%}
 
-{%- assign BTN_default = g.button_variant_default | default: 'solid' -%}
-{%- assign _btn_choice = s.button_variant | default: 'inherit' -%}
-{%- assign _btn_variant = BTN_default -%}
-{%- if _btn_choice != 'inherit' and _btn_choice != blank -%}{%- assign _btn_variant = _btn_choice -%}{%- endif -%}
+{%- assign btn_default = g.button_variant_default | default: 'solid' -%}
+{%- assign btn_choice = s.button_variant | default: 'inherit' -%}
+{%- assign btn_variant = btn_default -%}
+{%- if btn_choice != 'inherit' and btn_choice != blank -%}{%- assign btn_variant = btn_choice -%}{%- endif -%}
 {%- assign btn_mode_class = 'q-btn--solid' -%}
-{%- if _btn_variant == 'outline' -%}{%- assign btn_mode_class = 'q-btn--outline' -%}{%- endif -%}
-{%- if _btn_variant == 'ghost' -%}{%- assign btn_mode_class = 'q-btn--ghost' -%}{%- endif -%}
+{%- if btn_variant == 'outline' -%}{%- assign btn_mode_class = 'q-btn--outline' -%}{%- endif -%}
+{%- if btn_variant == 'ghost' -%}{%- assign btn_mode_class = 'q-btn--ghost' -%}{%- endif -%}
 
 {%- assign anchor_id = s.anchor_id | strip -%}
 {%- assign wrap_class = 'q-wrap' -%}
 {%- if s.container_mode == 'full' -%}{%- assign wrap_class = 'q-wrap-full' -%}{%- endif -%}
 
-{%- assign _support_source = 'support-request' -%}
-{%- assign _subject_prefix = 'Support – ' -%}
-{%- assign _privacy_cc = 'privacy@' | append: shop.domain -%}
 
 <style>
-  #{{ section.id }}{
+  .q-form-scope-{{ section.id }}{
     --q-pad-y: {{ s.padding_y | default: 64 }}px;
     --q-pad-x: {{ s.padding_x | default: 24 }}px;
     --q-card-br: {{ s.card_radius | default: 16 }}px;
@@ -74,71 +58,76 @@
     --q-bg: {{ s.bg_color | default: g.bg_contrast | default: '#f6f7f8' }};
 
     --q-form-bg: {{ s.form_bg | default: g.bg_base | default: '#ffffff' }};
+    --q-btn-bg: {{ g.color_primary | default: '#2563eb' }};
+    --q-btn-fg: {{ g.text_on_color | default: '#ffffff' }};
+    --q-btn-br: {{ g.button_radius | default: 12 }}px;
+    --q-btn-bw: {{ g.button_border_width | default: 1 }}px;
+    --q-error: {{ g.color_error | default: '#dc2626' }};
     --q-input-br: {{ s.input_radius | default: 10 }}px;
     --q-input-bdr: {{ s.input_border | default: '#e5e7eb' }};
 
     --q-card-shadow-1: {% if s.card_shadow > 0 %}0 1px 2px rgba(0,0,0,.06){% else %}0 0 0 transparent{% endif %};
-    --q-card-shadow-2: {% if s.card_shadow > 1 %}0 8px 24px rgba(0,0,0,.08){% else %}0 0 0 rgba(0,0,0,0){% endif %};
+    --q-card-shadow-2: {% if s.card_shadow == 3 %}0 16px 40px rgba(0,0,0,.12){% elsif s.card_shadow > 1 %}0 8px 24px rgba(0,0,0,.08){% else %}0 0 0 rgba(0,0,0,0){% endif %};
   }
 
-  #{{ section.id }}{ position: relative; }
-  #{{ section.id }} .q-anchor{ position: relative; top: -80px; height: 0; width: 0; display: block; visibility: hidden; }
+  .q-form-scope-{{ section.id }}{ position: relative; }
+  .q-form-scope-{{ section.id }} .q-anchor{ position: relative; top: -80px; height: 0; width: 0; display: block; visibility: hidden; }
 
-  #{{ section.id }} .q-wrap{
+  .q-form-scope-{{ section.id }} .q-wrap{
     max-width:{% if g.style_kit == 'full' %}100%{% elsif g.style_kit == 'wide' %}var(--q-cont-xl,1440px){% else %}var(--q-cont-lg,1152px){% endif %};
     margin:0 auto;
-    padding:0 var(--q-pad-x);
+    padding:0 min(var(--q-pad-x), 8vw);
   }
-  #{{ section.id }} .q-wrap-full{
+  .q-form-scope-{{ section.id }} .q-wrap-full{
     width:100%;
     max-width:none;
     margin:0;
-    padding:0 var(--q-pad-x);
+    padding:0 min(var(--q-pad-x), 8vw);
   }
 
-  #{{ section.id }} .q-bleed{position:relative;}
-  #{{ section.id }} .q-bg{position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none;}
-  #{{ section.id }} .q-media{width:100%; height:100%; object-fit:cover; display:block;}
-  #{{ section.id }} .q-overlay{position:absolute; inset:0; pointer-events:none;}
-  #{{ section.id }} .q-layer{position:relative; z-index:1; padding: var(--q-pad-y) 0;}
+  .q-form-scope-{{ section.id }} .q-bleed{position:relative;}
+  .q-form-scope-{{ section.id }} .q-bg{position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none;}
+  .q-form-scope-{{ section.id }} .q-media{width:100%; height:100%; object-fit:cover; display:block;}
+  .q-form-scope-{{ section.id }} .q-overlay{position:absolute; inset:0; pointer-events:none;}
+  .q-form-scope-{{ section.id }} .q-layer{position:relative; z-index:1; padding: var(--q-pad-y) 0;}
 
-  #{{ section.id }} .q-grid{display:grid; gap:24px; align-items:stretch;}
+  .q-form-scope-{{ section.id }} .q-grid{display:grid; gap:24px; align-items:stretch;}
   @media (min-width: 768px){
-    #{{ section.id }} .q-grid.split-left{grid-template-columns:1.1fr 1fr;}
-    #{{ section.id }} .q-grid.split-right{grid-template-columns:1fr 1.1fr;}
+    .q-form-scope-{{ section.id }} .q-grid.split-left{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);}
+    .q-form-scope-{{ section.id }} .q-grid.split-right{grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);}
   }
 
-  #{{ section.id }} .q-card{
+  .q-form-scope-{{ section.id }} .q-card{
     background: var(--q-form-bg);
     border-radius: var(--q-card-br);
     box-shadow: var(--q-card-shadow-1), var(--q-card-shadow-2);
     padding: 28px;
   }
   /* ✨ Frameless toggle */
-  #{{ section.id }}[data-surface="frameless"] .q-card.is-frameless{
+  .q-form-scope-{{ section.id }}[data-surface="frameless"] .q-card.is-frameless{
     background: transparent !important;
     box-shadow: none !important;
     border-radius: 0 !important;
     padding: 0 !important;
   }
 
-  #{{ section.id }} .q-media-card{ border-radius: var(--q-card-br); overflow:hidden; background:#000; min-height:240px;}
-  #{{ section.id }} .q-head .q-kicker{color:var(--q-muted); font-size:.95rem; margin:0 0 4px;}
-  #{{ section.id }} .q-head .q-heading{ margin:0 0 8px; color:var(--q-text); }
-  #{{ section.id }} .q-head .q-sub{color:var(--q-muted); margin:0 0 16px;}
+  .q-form-scope-{{ section.id }} .q-media-card{ border-radius: var(--q-card-br); overflow:hidden; background:#000; min-height:240px;}
+  .q-form-scope-{{ section.id }} .q-head .q-kicker{color:var(--q-muted); font-size:.95rem; margin:0 0 4px;}
+  .q-form-scope-{{ section.id }} .q-head .q-heading{ margin:0 0 8px; color:var(--q-text); }
+  .q-form-scope-{{ section.id }} .q-head .q-sub{color:var(--q-muted); margin:0 0 16px;}
 
-  #{{ section.id }} .q-live{ min-height: 1.25rem; }
+  .q-form-scope-{{ section.id }} .q-live{ min-height: 1.25rem; }
 
-  #{{ section.id }} .q-error{ color: {{ g.color_error | default: '#dc2626' }}; font-size:.85rem; margin-top:6px; }
-  #{{ section.id }} [aria-invalid="true"]{ border-color: {{ g.color_error | default: '#dc2626' }}; outline:1px solid {{ g.color_error | default: '#dc2626' }}; }
+  .q-form-scope-{{ section.id }} .q-error{ color: {{ g.color_error | default: '#dc2626' }}; font-size:.85rem; margin-top:6px; }
+  .q-form-scope-{{ section.id }} [aria-invalid="true"]{ border-color: {{ g.color_error | default: '#dc2626' }}; outline:1px solid {{ g.color_error | default: '#dc2626' }}; }
 
   /* Conditional visibility */
-  #{{ section.id }} .is-hidden{ display:none !important; }
+  .q-form-scope-{{ section.id }} .is-hidden{ display:none !important; }
 
   /* Inputs parity (tokenized) — text-like only */
-  #{{ section.id }} input.q-input:not([type="checkbox"]):not([type="radio"]),
-  #{{ section.id }} select.q-select,
-  #{{ section.id }} textarea.q-textarea{
+  .q-form-scope-{{ section.id }} input.q-input:not([type="checkbox"]):not([type="radio"]),
+  .q-form-scope-{{ section.id }} select.q-select,
+  .q-form-scope-{{ section.id }} textarea.q-textarea{
     width:100%;
     border:1px solid var(--q-input-bdr);
     border-radius:var(--q-input-br);
@@ -148,9 +137,9 @@
   }
 
   /* Radio/checkbox controls */
-  #{{ section.id }} .q-radio{ display:flex; align-items:center; gap:10px; width:max-content; }
-  #{{ section.id }} input.q-input[type="checkbox"],
-  #{{ section.id }} input.q-input[type="radio"]{
+  .q-form-scope-{{ section.id }} .q-radio{ display:flex; align-items:center; gap:10px; width:auto; max-width:100%; overflow-wrap:anywhere; }
+  .q-form-scope-{{ section.id }} input.q-input[type="checkbox"],
+  .q-form-scope-{{ section.id }} input.q-input[type="radio"]{
     width:auto !important;
     min-width: 1rem;
     max-width: 1rem;
@@ -162,41 +151,63 @@
   }
 
   /* Invalid state for text/select/textarea */
-  #{{ section.id }} input:not([type="checkbox"]):not([type="radio"])[aria-invalid="true"],
-  #{{ section.id }} select[aria-invalid="true"],
-  #{{ section.id }} textarea[aria-invalid="true"]{
+  .q-form-scope-{{ section.id }} input:not([type="checkbox"]):not([type="radio"])[aria-invalid="true"],
+  .q-form-scope-{{ section.id }} select[aria-invalid="true"],
+  .q-form-scope-{{ section.id }} textarea[aria-invalid="true"]{
     border-color: var(--q-error, #dc2626);
     outline:1px solid var(--q-error, #dc2626);
   }
   /* Invalid state for checkboxes/radios */
-  #{{ section.id }} input.q-input[type="checkbox"][aria-invalid="true"],
-  #{{ section.id }} input.q-input[type="radio"][aria-invalid="true"]{
+  .q-form-scope-{{ section.id }} input.q-input[type="checkbox"][aria-invalid="true"],
+  .q-form-scope-{{ section.id }} input.q-input[type="radio"][aria-invalid="true"]{
     outline:2px solid var(--q-error, #dc2626);
     outline-offset:2px;
   }
 
   /* Visibility helpers (parity) */
-  @media (max-width: 767.98px){ #{{ section.id }}.is-hidden-m { display:none !important; } }
-  @media (min-width: 768px){ #{{ section.id }}.is-hidden-d { display:none !important; } }
+  @media (max-width: 767.98px){ .q-form-scope-{{ section.id }}.is-hidden-m { display:none !important; } }
+  @media (min-width: 768px){ .q-form-scope-{{ section.id }}.is-hidden-d { display:none !important; } }
+
+  .q-form-scope-{{ section.id }}{min-width:0;overflow-wrap:anywhere;}
+  .q-form-scope-{{ section.id }} .q-wrap,.q-form-scope-{{ section.id }} .q-wrap-full{box-sizing:border-box;}
+  .q-form-scope-{{ section.id }} .q-card,.q-form-scope-{{ section.id }} .q-surface,.q-form-scope-{{ section.id }} .q-grid>*{min-width:0;max-width:100%;}
+  .q-form-scope-{{ section.id }} .q-field{min-width:0;max-width:100%;text-align:start;}
+  .q-form-scope-{{ section.id }} .q-radio{width:auto;max-width:100%;text-align:start;overflow-wrap:anywhere;}
+  .q-form-scope-{{ section.id }} .q-radio span{min-width:0;}
+  .q-form-scope-{{ section.id }} .q-bg{background:var(--q-bg);}
+  .q-form-scope-{{ section.id }} .q-bg .q-form-background-video{position:absolute;inset:0;width:100%;height:100%;border:0;}
+  .q-form-scope-{{ section.id }} .q-bg .q-form-poster{width:100%;height:100%;object-fit:cover;}
+  .q-form-scope-{{ section.id }} .q-bg [hidden]{display:none !important;}
+  .q-form-scope-{{ section.id }} .q-form-video-toggle{position:absolute;z-index:2;inset-inline-end:12px;bottom:12px;padding:8px 12px;border:1px solid currentColor;border-radius:4px;background:#fff;color:#111;max-width:calc(100% - 24px);}
+  .q-form-scope-{{ section.id }} :is(button,a,input,select,textarea):focus-visible{outline:2px solid currentColor;outline-offset:3px;}
+  .q-form-scope-{{ section.id }} .q-step{grid-column:1 / -1;min-width:0;}
+  .q-form-scope-{{ section.id }} .q-step-heading{width:100%;}
+  .q-form-scope-{{ section.id }} [data-q-submit]{grid-column:1 / -1;max-width:100%;}
+  @media(max-width:767.98px){.q-form-scope-{{ section.id }}.hide-mobile{display:none;}}
+  @media(min-width:768px){.q-form-scope-{{ section.id }}.hide-desktop{display:none;}}
+  @media(prefers-reduced-motion:reduce){.q-form-scope-{{ section.id }} .q-btn{transition:none;}}
+
+  .q-form-scope-{{ section.id }} .q-card,.q-form-scope-{{ section.id }} .q-surface{--q-text:{{ form_surface_text | strip }};--q-muted:{{ form_surface_text | strip }};}
+  .q-form-scope-{{ section.id }}[data-surface="frameless"] .q-card,.q-form-scope-{{ section.id }}[data-surface="frameless"] .q-surface{--q-text:{{ g.text_base | default: '#111111' }};--q-muted:{{ g.text_muted | default: '#6b7280' }};}
+  .q-form-scope-{{ section.id }} input.q-input,.q-form-scope-{{ section.id }} select.q-select,.q-form-scope-{{ section.id }} textarea.q-textarea{color:{{ form_input_text | strip }};box-sizing:border-box;max-width:100%;}
+  .q-form-scope-{{ section.id }}{--q-btn-hover-op:{{ g.button_hover_opacity | default: 92 }};--q-btn-active-scale:{{ g.button_active_scale | default: 98 | divided_by: 100.0 }};}
+  {% if g.font_heading %}.q-form-scope-{{ section.id }} .q-head :is(h2,h3){font-family:{{ g.font_heading.family }},{{ g.font_heading.fallback_families }};}{% endif %}
 </style>
 
 <section
+  data-q-form-host data-video-hero data-video-hero-mobile-query="(max-width: 767.98px)"
   id="{{ section.id }}"
-  class="q-form q-form--support-request{% if s.hide_on_mobile %} is-hidden-m{% endif %}{% if s.hide_on_desktop %} is-hidden-d{% endif %}"
+  class="q-form-scope-{{ section.id }} q-form q-form--support-request{% if s.hide_on_mobile and request.design_mode == false %} is-hidden-m hide-mobile{% endif %}{% if s.hide_on_desktop and request.design_mode == false %} is-hidden-d hide-desktop{% endif %}"
   role="region"
-  aria-label="{{ s.aria_label | default: 'Support request form' }}"
-  data-template="{{ s.template_style }}"
-  data-surface="{{ s.surface_style | default: 'card' }}"
+  aria-label="{{ s.aria_label | default: 'Support request form' | escape }}"
+  data-template="{{ s.template_style | escape }}"
+  data-surface="{{ s.surface_style | default: 'card' | escape }}"
   data-msg-error="{{ s.error_text | escape }}"
   data-msg-success="{{ s.success_text | escape }}"
-  data-captcha="{{ eff_captcha_mode }}"
+  data-captcha="{{ eff_captcha_mode | escape }}"
   data-captcha-key="{{ eff_captcha_key | escape }}"
-  data-btn-variant="{{ btn_mode_class }}"
+  data-btn-variant="{{ btn_mode_class | escape }}"
 
-  data-form-source="{{ _support_source }}"
-  data-subject-prefix="{{ _subject_prefix | escape }}"
-  data-sla-timestamp="1"
-  data-privacy-cc="{{ _privacy_cc | escape }}"
 >
   {%- comment -%}Optional deep-link anchor WITHOUT duplicating section id{%- endcomment -%}
   {%- if anchor_id != blank and anchor_id != section.id -%}
@@ -204,73 +215,36 @@
   {%- endif -%}
 
   <div class="q-bleed">
-    <div class="q-bg" aria-hidden="true">
-      {%- assign vurl = s.bg_video | strip -%}
-      {%- if vurl != blank -%}
-        {%- assign is_yt = false -%}{%- assign is_vm = false -%}
-        {%- if vurl contains 'youtube.com' or vurl contains 'youtu.be' -%}{%- assign is_yt = true -%}{%- endif -%}
-        {%- if vurl contains 'vimeo.com' -%}{%- assign is_vm = true -%}{%- endif -%}
-        {%- if is_yt -%}
-          {%- assign yid = vurl
-            | replace: 'https://youtu.be/','' | replace: 'http://youtu.be/',''
-            | replace: 'https://www.youtube.com/watch?v=','' | replace: 'http://www.youtube.com/watch?v=',''
-            | replace: 'https://youtube.com/watch?v=','' | replace: 'http://youtube.com/watch?v=',''
-            | split:'?' | first -%}
-          <iframe class="q-media" src="https://www.youtube.com/embed/{{ yid }}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&playlist={{ yid }}&modestbranding=1&rel=0" title="" tabindex="-1" allow="autoplay; encrypted-media"></iframe>
-        {%- elsif is_vm -%}
-          {%- assign vid = vurl | split:'/' | last | split:'?' | first -%}
-          <iframe class="q-media" src="https://player.vimeo.com/video/{{ vid }}?background=1&autoplay=1&muted=1&loop=1&autopause=0&controls=0" title="" tabindex="-1" allow="autoplay; fullscreen; picture-in-picture"></iframe>
-        {%- else -%}
-          <video class="q-media" autoplay loop muted playsinline preload="none">
-            <source src="{{ vurl | escape }}" type="video/mp4">
-          </video>
-        {%- endif -%}
-      {%- elsif s.bg_image != blank -%}
-        {{ s.bg_image | image_url: width: 2880 | image_tag: widths: '960,1440,1920,2560,2880', sizes: '100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
-      {%- else -%}
-        <div class="q-media" style="background: var(--q-bg);"></div>
-      {%- endif -%}
-
-      {%- if s.overlay_type == 'gradient' -%}
-        {%- assign g1c = s.grad_start | default: '#000000' -%}
-        {%- assign g2c = s.grad_end   | default: '#000000' -%}
-        {%- assign g1o = s.grad_start_opacity | default: 40 | divided_by: 100.0 -%}
-        {%- assign g2o = s.grad_end_opacity   | default: 0  | divided_by: 100.0 -%}
-        <div class="q-overlay" style="background: linear-gradient({{ s.grad_angle | default: 180 }}deg, {{ g1c | color_modify: 'alpha', g1o }}, {{ g2c | color_modify: 'alpha', g2o }});"></div>
-      {%- elsif s.overlay_type == 'solid' -%}
-        <div class="q-overlay" style="background-color: {{ s.overlay_color | default: '#000000' }}; opacity: {{ s.overlay_opacity | default: 35 | divided_by: 100.0 }};"></div>
-      {%- endif -%}
-    </div>
+    {% render 'form-background', settings: s, providers: true %}
 
     <div class="q-layer">
       <div class="{{ wrap_class }}">
         {%- assign is_split_left = false -%}
         {%- assign is_split_right = false -%}
-        {%- if s.template_style == 'split' and s.split_media_side == 'left' -%}{%- assign is_split_left = true -%}{%- endif -%}
-        {%- if s.template_style == 'split' and s.split_media_side == 'right' -%}{%- assign is_split_right = true -%}{%- endif -%}
+        {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'left' -%}{%- assign is_split_left = true -%}{%- endif -%}
+        {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'right' -%}{%- assign is_split_right = true -%}{%- endif -%}
 
         <div class="q-grid{% if is_split_left %} split-left{% endif %}{% if is_split_right %} split-right{% endif %}">
           {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'left' -%}
             <div class="q-media-card">
-              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
+              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: s.split_image.alt }}
             </div>
           {%- endif -%}
 
           <div class="q-card{% if s.surface_style == 'frameless' %} is-frameless{% endif %}" data-q-form-card>
             <header class="q-head">
-              {%- if s.kicker != blank -%}<p class="q-kicker">{{ s.kicker }}</p>{%- endif -%}
+              {%- if s.kicker != blank -%}<p class="q-kicker">{{ s.kicker | escape }}</p>{%- endif -%}
               {%- assign htag = s.heading_level | default: 'h2' -%}
               {%- if s.heading != blank -%}
-                {%- if htag == 'h3' -%}<h3 class="q-heading">{{ s.heading }}</h3>{%- else -%}<h2 class="q-heading">{{ s.heading }}</h2>{%- endif -%}
+                {%- if htag == 'h3' -%}<h3 class="q-heading">{{ s.heading | escape }}</h3>{%- else -%}<h2 class="q-heading">{{ s.heading | escape }}</h2>{%- endif -%}
               {%- endif -%}
-              {%- if s.subheading != blank -%}<p class="q-sub">{{ s.subheading }}</p>{%- endif -%}
+              {%- if s.subheading != blank -%}<p class="q-sub">{{ s.subheading | escape }}</p>{%- endif -%}
             </header>
-
-            <div class="q-live" aria-live="polite" role="status"></div>
 
             {% render 'form-dispatch',
               id: section.id,
               settings: section.settings,
+              form_source: 'support-request',
               blocks: section.blocks,
               theme_settings: g,
               eff_captcha_mode: eff_captcha_mode,
@@ -278,31 +252,17 @@
               eff_endpoint_url: eff_endpoint,
               eff_tags:         eff_tags
             %}
-
-            {%- if s.template_style == 'steps' -%}
-              <div class="q-steps-nav" data-q-steps>
-                <div class="q-steps-bar"><div class="q-steps-fill" data-q-steps-fill></div></div>
-                <div class="q-steps-count" data-q-steps-count></div>
-              </div>
-            {%- endif -%}
           </div>
 
           {%- if s.template_style == 'split' and s.split_image != blank and s.split_media_side == 'right' -%}
             <div class="q-media-card">
-              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: '' }}
+              {{ s.split_image | image_url: width: 1600 | image_tag: widths: '800,1200,1600', sizes: '(min-width:768px) 50vw, 100vw', loading: 'lazy', class: 'q-media', decoding: 'async', alt: s.split_image.alt }}
             </div>
           {%- endif -%}
         </div>
       </div>
     </div>
   </div>
-
-  {%- if eff_captcha_mode == 'turnstile' and eff_captcha_key != blank -%}
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
-  {%- endif -%}
-  {%- if eff_captcha_mode == 'recaptcha_v3' and eff_captcha_key != blank -%}
-    <script src="https://www.google.com/recaptcha/api.js?render={{ eff_captcha_key | escape }}" defer></script>
-  {%- endif -%}
 </section>
 
 {% schema %}
@@ -332,7 +292,7 @@
 
     { "type": "header", "content": "Background (root)" },
     { "type": "image_picker", "id": "bg_image", "label": "Background image" },
-    { "type": "text", "id": "bg_video", "label": "Background video URL (MP4, YouTube, Vimeo)" },
+    { "type": "text", "id": "bg_video", "label": "Background video URL (MP4, YouTube, Vimeo)" , "info": "Decorative background; image/color remains without playback. Provide an HTTPS URL. Videos must allow embedding."},
     { "type": "color", "id": "bg_color", "label": "Background color", "default": "#f6f7f8" },
     { "type": "select", "id": "overlay_type", "label": "Overlay", "default": "solid", "options": [
       { "value": "none", "label": "None" },
@@ -372,7 +332,7 @@
       { "value": "none", "label": "None" },
       { "value": "turnstile", "label": "Cloudflare Turnstile" },
       { "value": "recaptcha_v3", "label": "reCAPTCHA v3" }
-    ]},
+    ], "info": "Custom endpoints only. Native Shopify forms use Shopify captcha. Your endpoint must verify provider tokens on the server."},
     { "type": "text", "id": "captcha_site_key", "label": "Captcha site key (override)" },
 
     { "type": "header", "content": "Button" },
@@ -423,8 +383,8 @@
           { "value": "password", "label": "Password" },
           { "value": "file", "label": "File upload" },
           { "value": "html", "label": "HTML content" }
-        ]},
-        { "type": "text", "id": "name_attr", "label": "Input name (e.g. contact[email])", "default": "contact[field]" },
+        ], "info": "File uploads and passwords use custom endpoints. Shopify forms use a file link and omit passwords."},
+        { "type": "text", "id": "name_attr", "label": "Input name (e.g. contact[email])", "default": "contact[field]" , "info": "Use a unique field name. Blank/default names receive a stable block suffix. The first native email field is contact[email]."},
         { "type": "text", "id": "label", "label": "Label", "default": "Your field" },
         { "type": "text", "id": "placeholder", "label": "Placeholder" },
         { "type": "checkbox", "id": "required", "label": "Required", "default": false },
@@ -436,7 +396,7 @@
           { "value": "half", "label": "1/2" },
           { "value": "full", "label": "Full" }
         ]},
-        { "type": "checkbox", "id": "condition_enable", "label": "Show conditionally", "default": false },
+        { "type": "checkbox", "id": "condition_enable", "label": "Show conditionally", "default": false , "info": "Requires JavaScript. Hidden fields are omitted from submission. The native email field always stays available."},
         { "type": "text", "id": "condition_field", "label": "When field name equals…" },
         { "type": "text", "id": "condition_value", "label": "…this value (or 'checked')" },
         { "type": "select", "id": "condition_operator", "label": "Operator", "default": "equals", "options": [

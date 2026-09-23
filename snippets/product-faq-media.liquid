@@ -1,109 +1,52 @@
-{%- comment -%}
-  Snippet: product-faq-media.liquid
-  Inputs:
-  - section (required for settings)
-  - media_type: image | video | external_video | model
-  - image, video, model (objects)
-  - external_url (string)
-  - poster (image object, optional)
-  - alt (string)
-  - sizes, widths
-  - mode: 'inline' | 'stage'
-{%- endcomment -%}
-
 {%- liquid
   assign s = section.settings
   assign m_type = media_type | default: 'none'
-  assign fit = s.media_fit | default: 'cover'
-  assign radius = s.media_radius | default: 12
-  assign zoom = s.media_enable_zoom
   assign ar = s.media_aspect_ratio | default: 'adapt'
-  assign ar_style = ''
-
-  if ar != 'adapt'
-    assign ar_style = 'aspect-ratio:' | append: ar | append: ';'
+  assign alt_text = alt | default: 'Product media'
+  assign safe_url = blank
+  assign url_text = external_url.url | default: external_url | append: ''
+  assign start = url_text | slice: 0, 8
+  assign short_start = url_text | slice: 0, 2
+  if start == 'https://' or short_start == '//'
+    assign safe_url = url_text
   endif
-
-  assign wrap_classes = 'q-pfaq__media'
-  if zoom
-    assign wrap_classes = wrap_classes | append: ' q-pfaq__media--zoom'
+  assign media_id = external_url | plus: 0
+  assign native_media = product.media | where: 'id', media_id | first
+  assign image = image | default: native_media.preview_image
+  assign poster_url = blank
+  if poster != blank
+    assign poster_url = poster | image_url: width: 1600
   endif
-
-  assign alt_text = alt | default: ''
 -%}
-
-<div class="{{ wrap_classes }}" style="{{ ar_style }} border-radius: {{ radius }}px;">
+<div class="q-pfaq__media" data-media-ratio="{{ ar }}" style="{% if ar != 'adapt' %}aspect-ratio:{{ ar }};{% endif %} border-radius:{{ s.media_radius | default: 12 }}px; --q-pfaq-fit:{{ s.media_fit | default: 'cover' }};">
   {%- case m_type -%}
     {%- when 'image' -%}
-      {%- if image != blank -%}
-        {{ image
-          | image_url: width: 1600
-          | image_tag:
-            widths: widths,
-            sizes: sizes,
-            loading: 'lazy',
-            class: 'q-pfaq__img',
-            alt: alt_text
-        }}
-      {%- endif -%}
-
+      {%- assign image_href = safe_url -%}
+      {%- if image != blank -%}{% assign image_href = image | image_url: width: 2400 %}{%- endif -%}
+      {% if s.media_enable_zoom and image_href != blank %}<a href="{{ image_href | escape }}" aria-label="Open full-size image: {{ alt_text | escape }}">{% endif %}
+      {% if image != blank %}
+        {{ image | image_url: width: 1600 | image_tag: widths: widths, sizes: sizes, loading: 'lazy', class: 'q-pfaq__img', alt: alt_text }}
+      {% elsif safe_url != blank %}
+        <img class="q-pfaq__img" src="{{ safe_url | escape }}" alt="{{ alt_text | escape }}" loading="lazy" width="1600" height="900">
+      {% endif %}
+      {% if s.media_enable_zoom and image_href != blank %}</a>{% endif %}
     {%- when 'video' -%}
-      {%- if video != blank -%}
-        {{ video | video_tag: class: 'q-pfaq__video', controls: true, preload: 'metadata' }}
-      {%- endif -%}
-
+      {%- assign native_video = video | default: native_media -%}
+      {% if native_video != blank and native_video.media_type == 'video' %}
+        {{ native_video | video_tag: class: 'q-pfaq__video', controls: true, autoplay: false, playsinline: true, preload: 'metadata', poster: poster_url }}
+      {% elsif safe_url != blank %}
+        <video class="q-pfaq__video" src="{{ safe_url | escape }}" controls playsinline preload="metadata" {% if poster_url != blank %}poster="{{ poster_url }}"{% endif %}></video>
+      {% endif %}
     {%- when 'external_video' -%}
-      {%- if external_url != blank -%}
-        <div class="q-pfaq__ext">
-          <iframe
-            class="q-pfaq__iframe"
-            src="{{ external_url | escape }}"
-            loading="lazy"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowfullscreen
-            title="{{ alt_text | escape }}"
-          ></iframe>
-        </div>
-      {%- endif -%}
-
+      {% if safe_url != blank %}<div class="q-pfaq__ext"><a data-faq-external href="{{ safe_url | escape }}" data-title="{{ alt_text | escape }}">Watch video: {{ alt_text | escape }}</a></div>{% endif %}
     {%- when 'model' -%}
-      {%- if model != blank -%}
-        {%- comment -%}
-          Minimal safe fallback: if model is actually a product reference, attempt first 3D model.
-        {%- endcomment -%}
-        {%- assign model_media = blank -%}
-        {%- if model.media != blank -%}
-          {%- for pm in model.media -%}
-            {%- if pm.media_type == 'model' -%}
-              {%- assign model_media = pm -%}
-              {%- break -%}
-            {%- endif -%}
-          {%- endfor -%}
-        {%- endif -%}
-
-        {%- if model_media != blank -%}
-          {{ model_media | model_viewer_tag: class: 'q-pfaq__model', reveal: 'interaction', toggleable: true }}
-        {%- elsif poster != blank -%}
-          {{ poster | image_url: width: 1600 | image_tag: widths: widths, sizes: sizes, loading: 'lazy', class: 'q-pfaq__img', alt: alt_text }}
-        {%- endif -%}
-      {%- endif -%}
+      {%- assign model_media = native_media -%}
+      {% if model.media_type == 'model' %}{% assign model_media = model %}{% elsif model.media != blank %}{% assign model_media = model.media | where: 'media_type', 'model' | first %}{% endif %}
+      {% if model_media.media_type == 'model' %}
+        {{ model_media | model_viewer_tag: class: 'q-pfaq__model', image_size: '800x', alt: alt_text }}
+      {% else %}
+        {% if poster != blank %}{{ poster | image_url: width: 1600 | image_tag: widths: widths, sizes: sizes, loading: 'lazy', class: 'q-pfaq__img', alt: alt_text }}{% endif %}
+        {% if safe_url != blank %}<a href="{{ safe_url | escape }}">View 3D model: {{ alt_text | escape }}</a>{% endif %}
+      {% endif %}
   {%- endcase -%}
 </div>
-
-<style>
-  /* Fit applies across image/video/iframe/model inside wrapper */
-  #ProductFAQ-{{ section.id }} .q-pfaq__img,
-  #ProductFAQ-{{ section.id }} .q-pfaq__video,
-  #ProductFAQ-{{ section.id }} .q-pfaq__iframe,
-  #ProductFAQ-{{ section.id }} .q-pfaq__model {
-    width: 100%;
-    height: 100%;
-    border-radius: inherit;
-    display: block;
-  }
-  #ProductFAQ-{{ section.id }} .q-pfaq__img,
-  #ProductFAQ-{{ section.id }} .q-pfaq__video,
-  #ProductFAQ-{{ section.id }} .q-pfaq__iframe {
-    object-fit: {{ s.media_fit | default: 'cover' }};
-  }
-</style>

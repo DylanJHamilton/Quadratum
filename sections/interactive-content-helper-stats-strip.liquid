@@ -19,11 +19,7 @@
   assign sid = section.id
   assign s = section.settings
   assign stats = section.blocks | where: 'type', 'stat'
-  assign count = stats.size
-
-  if count == 0
-    break
-  endif
+  assign count = usable_stats
 
   assign layout = s.layout | default: 'inline_strip'
   assign alignment = s.alignment | default: 'center'
@@ -36,7 +32,7 @@
   assign value_font_size = s.value_font_size | default: 2
   assign value_font_weight = s.value_font_weight | default: 600
   assign label_font_size = s.label_font_size | default: 1
-  assign label_opacity = s.label_opacity | default: 0.85
+  assign label_opacity = s.label_opacity | default: 0.8
 
   assign icon_size = s.icon_size | default: 1.25
 
@@ -86,6 +82,9 @@
       {%- for block in stats -%}
         {%- liquid
           assign b = block.settings
+          if b.value == blank and b.label == blank
+            continue
+          endif
           assign icon = b.icon
           assign value = b.value
           assign label = b.label
@@ -113,7 +112,9 @@
                   data-q-counter-text="{{ value | strip | escape }}"
                 {% endif %}
               >
-                {{ value | escape }}
+                {% if should_animate %}
+                  <span class="visually-hidden">{{ value | escape }}</span><span aria-hidden="true" data-q-counter-display>{{ value | escape }}</span>
+                {% else %}{{ value | escape }}{% endif %}
               </strong>
 
               <span class="q-stat-label">
@@ -125,7 +126,7 @@
           {%- if layout == 'inline_strip'
             and show_dividers
             and count > 1
-            and forloop.last == false -%}
+ -%}
             <span class="q-stat-divider" aria-hidden="true"></span>
           {%- endif -%}
         </li>
@@ -137,6 +138,8 @@
     /* Section surface */
     #shopify-section-{{ sid }} .q-stats-strip{
       padding-block: var(--q-stats-pad-y);
+      overflow-wrap:anywhere;
+      color:var(--c-text, inherit);
       background: {{ s.background | default: 'transparent' }};
     }
 
@@ -169,7 +172,7 @@
 
     #shopify-section-{{ sid }} .q-stats-subtitle{
       margin: 0;
-      color: var(--q-text-2, var(--q-color-text-2, color-mix(in oklab, rgb(var(--color-foreground,0 0 0)) 80%, transparent)));
+      color: var(--q-text-2, var(--q-color-text-2, var(--c-muted, currentColor)));
     }
 
     /* List base */
@@ -211,7 +214,7 @@
     #shopify-section-{{ sid }} .q-layout-block_grid .q-stat-item{
       background: {{ s.card_background | default: 'transparent' }};
       border-radius: var(--q-stats-radius);
-      padding: calc(var(--q-stats-gap) * 1.05);
+      padding: min(calc(var(--q-stats-gap) * 1.05), 6vw);
       min-width: 0;
       overflow: hidden;
 
@@ -247,7 +250,8 @@
     #shopify-section-{{ sid }} .q-stat-value{
       font-size: var(--q-stats-value-size);
       font-weight: var(--q-stats-value-weight);
-      white-space: nowrap; /* keeps 4.9★ intact */
+      white-space: normal;
+      overflow-wrap:anywhere;
       line-height: 1.1;
       font-variant-numeric: tabular-nums;
       min-width: 0;
@@ -280,98 +284,15 @@
         display: none; /* divider would be awkward in vertical stack */
       }
     }
+    #shopify-section-{{ sid }} .q-stats-strip, #shopify-section-{{ sid }} .q-stats-strip *{box-sizing:border-box}
+    #shopify-section-{{ sid }} .q-stat-item:last-child .q-stat-divider{display:none}
+    #shopify-section-{{ sid }} .q-align-center .q-stat-content{justify-content:center;text-align:center}
+    #shopify-section-{{ sid }} .q-stat-icon :is(svg,img){max-width:1em;max-height:1em;display:block}
+    #shopify-section-{{ sid }} .q-stats-subtitle a:focus-visible{outline:2px solid currentColor;outline-offset:3px}
   </style>
 
   {%- if enable_counters -%}
-    <script>
-      (function(){
-        var root = document.querySelector('#shopify-section-{{ sid }} [data-q-stats-strip]');
-        if(!root) return;
-
-        // Respect reduced motion
-        try {
-          if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        } catch(e){}
-
-        var nodes = root.querySelectorAll('[data-q-counter]');
-        if(!nodes || !nodes.length) return;
-
-        function parseTarget(text){
-          // Extract first numeric chunk: supports "1,250+", "$125,000", "4.9★", "98%"
-          // If no number exists, return null (no animation).
-          var raw = (text || '').toString();
-          var match = raw.match(/-?\d[\d,]*\.?\d*/);
-          if(!match) return null;
-          var num = parseFloat(match[0].replace(/,/g,''));
-          if(!isFinite(num)) return null;
-          return num;
-        }
-
-        function formatLikeOriginal(original, value){
-          // Preserve decimals from original if present
-          var hasDecimal = /\d[\d,]*\.\d+/.test(original);
-          var decimals = 0;
-          if(hasDecimal){
-            var m = original.match(/\.(\d+)/);
-            decimals = m && m[1] ? m[1].length : 1;
-          }
-          var out = value.toFixed(decimals);
-
-          // Add thousands separators if original used commas
-          if(/,\d{3}/.test(original)){
-            out = out.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-          }
-
-          // Keep prefix/suffix by replacing the first number in original with out
-          return original.replace(/-?\d[\d,]*\.?\d*/, out);
-        }
-
-        function animateNode(el){
-          if(el.__qDone) return;
-
-          var original = el.getAttribute('data-q-counter-text') || el.textContent || '';
-          var target = parseTarget(original);
-          if(target === null) return;
-
-          el.__qDone = true;
-
-          var start = 0;
-          var dur = 950;
-
-          var startTs = null;
-          function step(ts){
-            if(!startTs) startTs = ts;
-            var t = Math.min(1, (ts - startTs) / dur);
-            // easeOutCubic
-            var eased = 1 - Math.pow(1 - t, 3);
-            var val = start + (target - start) * eased;
-            el.textContent = formatLikeOriginal(original, val);
-            if(t < 1) requestAnimationFrame(step);
-            else el.textContent = original; // snap to exact final (no rounding drift)
-          }
-          requestAnimationFrame(step);
-        }
-
-        function run(){
-          nodes.forEach(function(el){ animateNode(el); });
-        }
-
-        // Trigger on view when supported
-        if('IntersectionObserver' in window){
-          var io = new IntersectionObserver(function(entries){
-            entries.forEach(function(entry){
-              if(entry.isIntersecting){
-                animateNode(entry.target);
-                io.unobserve(entry.target);
-              }
-            });
-          }, { root: null, threshold: 0.35 });
-          nodes.forEach(function(el){ io.observe(el); });
-        } else {
-          run();
-        }
-      })();
-    </script>
+    <script src="{{ 'interactive-content-stats.js' | asset_url }}" defer></script>
   {%- endif -%}
 </section>
 
@@ -475,7 +396,7 @@
       "min": 0,
       "max": 1,
       "step": 0.1,
-      "default": 0
+      "default": 0.8
     },
 
     {

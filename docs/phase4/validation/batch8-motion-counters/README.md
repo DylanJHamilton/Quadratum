@@ -1,0 +1,19 @@
+# Batch 8 checkpoint — marquee, scrolling text and exact stats counters
+
+98/102 blocks and 27 dependencies individually reviewed; 125/129 Family 8 entries have dispositions (124 live queued, 1 dormant retained), 4 NOT REVIEWED.
+
+Three motion/stat blocks now preserve authoritative merchant content and native fallbacks while using the existing shared motion and stats controllers. Saved IDs/types/options remain intact; new insertion avoids fabricated service claims and numbers.
+
+Individual findings:
+
+- `blocks/content-marquee.liquid`: Reviewed all 75 settings and three presets. Removed invented service/trust claims from new defaults while rendering saved copy unchanged. Empty and disabled slots omit; image visibility is respected and native image alt has a named fallback. Original links are escaped; visual duplicate groups contain no links and are inert. Raw IDs and one Shopify wrapper preserve instance identity. Reuses the existing partner-logo controller with persistent stop, unconditional focus stop, configured hover behavior, offscreen/visibility/reduced-motion/editor gating, measured RTL motion and natural scrolling without JS. Responsive padding/width and independent tablet/mobile visibility repaired.
+- `blocks/content-scrolling-text.liquid`: Reviewed all 41 settings and three presets. Removed campaign sample copy from new insertion and retained every saved setting ID/type/option. Only one text occurrence is exposed to assistive technology; repeated visual text and duplicate groups hide when static/paused/no-JS. Mixed outline styling now alternates independently of separators. Complete escaped CTA and useful editor empty state. Reuses shared measured motion, pause/focus/hover/policy/lifecycle controller; raw ID, bounded nested typography/layout and independent device visibility repaired.
+- `blocks/content-stats-counter.liquid`: Reviewed all 79 settings and its actual preset. Removed invented statistics, names and setup copy from new insertion; saved merchant text remains authoritative. Sparse empty rows omit, plain icons escape, rich descriptions remain intact. Shared single-play stats controller animates only unambiguous numbers, restores exact authored text and maintains an immutable accessible value. No-JS and reduced motion/editor preserve native values. Cancellation, detached completion and mutation lifecycle reuse the existing controller; bounded nested grid/number/padding and native wrapper repaired.
+
+253 actual default/preset/control/data-state renders; every original setting type/option and seven presets, saved text, inert/named originals, sparse/empty/native-image states and raw IDs. Actual shared controllers cover independent motion/RAF, persistent pause, focus/hover/visibility/reduced motion, exact numeric text and stable accessible values, RTL measurement, mutation insert/remove/reorder and editor disposal/reload. All prior Partner Logos and Stats Strip assertions retained. The first gate run found only two trailing-whitespace lines; these were removed, hashes refreshed and diff gate rerun successfully. All 10 affected suites pass. This group covers 195 settings and 7 actual presets. Strict parsing, schema/reference/architecture/source hashes and CSS build pass. All 150 sections, 102 blocks and settings_data are preserved; compiled CSS matches Batch 7. Exact unsuppressed Theme Check movement is in themecheck-comparison.json.
+
+B8-MOTION-COUNTERS live queue: actual native horizontal motion/scroll/RTL/keyboard/AT/focus/zoom/nested layouts; browser reduced-motion/offscreen/visibility transitions and Theme Editor insert/reorder/unload; merchant-supplied claim correctness. Counters are display animation only. DOM/geometry/RAF/native-image adapters are not live acceptance. No Shopify live QA; all previous queues carry forward.
+
+
+
+PR #22 stays DRAFT. No merge/main write, Batch 9, Atelier/Signal/Terrace rollout or live Shopify QA. Continue only Batch 8 to formal engineering closure.

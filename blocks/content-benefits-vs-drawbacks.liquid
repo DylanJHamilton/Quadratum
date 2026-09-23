@@ -1,9 +1,17 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 %}
+
+{% assign has_benefits = false %}{% assign has_drawbacks = false %}{% for i in (1..6) %}{% assign item_key = 'benefit_' | append: i %}{% if block.settings[item_key] != blank %}{% assign has_benefits = true %}{% endif %}{% assign item_key = 'drawback_' | append: i %}{% if block.settings[item_key] != blank %}{% assign has_drawbacks = true %}{% endif %}{% endfor %}
+{% if block.settings.benefits_text != blank %}{% assign has_benefits = true %}{% endif %}{% if block.settings.drawbacks_text != blank %}{% assign has_drawbacks = true %}{% endif %}
+{% assign panel_count = 0 %}{% if has_benefits %}{% assign panel_count = panel_count | plus: 1 %}{% endif %}{% if has_drawbacks %}{% assign panel_count = panel_count | plus: 1 %}{% endif %}
+{% assign has_content = false %}{% if panel_count > 0 or block.settings.text != blank or block.settings.footer_note != blank %}{% assign has_content = true %}{% endif %}{% if block.settings.cta_text != blank and block.settings.cta_url != blank %}{% assign has_content = true %}{% endif %}
 
 <div
   class="
@@ -13,9 +21,9 @@
     qtm-benefits-drawbacks--align-{{ block_alignment }}
     qtm-benefits-drawbacks--layout-{{ block.settings.layout_style }}
     qtm-benefits-drawbacks--animation-{{ animation }}
-    {% unless block.settings.show_desktop %} qtm-benefits-drawbacks--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-benefits-drawbacks--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-benefits-drawbacks--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-benefits-drawbacks--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-benefits-drawbacks--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-benefits-drawbacks--hide-mobile{% endunless %}
   "
   style="
     --qtm-bvd-margin-top: {{ block.settings.margin_top }}px;
@@ -35,8 +43,9 @@
     --qtm-bvd-border-width: {{ block.settings.border_width }}px;
     --qtm-bvd-border-radius: {{ block.settings.border_radius }}px;
   "
-  {{ block.shopify_attributes }}
+  {% unless has_content or request.design_mode %}hidden{% endunless %}
 >
+  {% if has_content == false and request.design_mode %}<p role="note">Add verified advantages and tradeoffs for the options you are comparing.</p>{% endif %}
   <div class="qtm-benefits-drawbacks__inner">
     {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank %}
       <div class="qtm-benefits-drawbacks__header">
@@ -61,6 +70,7 @@
     {% endif %}
 
     <div class="qtm-benefits-drawbacks__grid">
+      {% if has_benefits %}
       <article class="qtm-benefits-drawbacks__panel qtm-benefits-drawbacks__panel--benefits">
         <div class="qtm-benefits-drawbacks__panel-header">
           {% if block.settings.benefits_badge != blank %}
@@ -115,7 +125,9 @@
           {% endfor %}
         </ul>
       </article>
+      {% endif %}
 
+      {% if has_drawbacks %}
       <article class="qtm-benefits-drawbacks__panel qtm-benefits-drawbacks__panel--drawbacks">
         <div class="qtm-benefits-drawbacks__panel-header">
           {% if block.settings.drawbacks_badge != blank %}
@@ -176,15 +188,17 @@
           {% endfor %}
         </ul>
       </article>
+      {% endif %}
     </div>
 
     {% if block.settings.cta_text != blank and block.settings.cta_url != blank %}
       <div class="qtm-benefits-drawbacks__footer">
-        <a class="qtm-benefits-drawbacks__button" href="{{ block.settings.cta_url }}">
+        <a class="qtm-benefits-drawbacks__button" href="{{ block.settings.cta_url | escape }}">
           {{ block.settings.cta_text | escape }}
         </a>
       </div>
-    {% elsif block.settings.footer_note != blank %}
+    {% endif %}
+    {% if block.settings.footer_note != blank %}
       <div class="qtm-benefits-drawbacks__footer">
         <div class="qtm-benefits-drawbacks__footer-note">
           {{ block.settings.footer_note }}
@@ -196,9 +210,13 @@
 
 <style>
   .qtm-benefits-drawbacks-{{ block_id }} {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     margin-top: var(--qtm-bvd-margin-top);
     margin-bottom: var(--qtm-bvd-margin-bottom);
-    padding: var(--qtm-bvd-padding);
+    padding: min(var(--qtm-bvd-padding), 12%);
     color: var(--qtm-bvd-text-color);
     background: var(--qtm-bvd-background-color);
     border: var(--qtm-bvd-border-width) solid var(--qtm-bvd-border-color);
@@ -306,7 +324,7 @@
   }
 
   .qtm-benefits-drawbacks-{{ block_id }}.qtm-benefits-drawbacks--layout-side-by-side .qtm-benefits-drawbacks__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat({{ panel_count | at_least: 1 }}, minmax(0, 1fr));
   }
 
   .qtm-benefits-drawbacks-{{ block_id }}.qtm-benefits-drawbacks--layout-stacked .qtm-benefits-drawbacks__grid {
@@ -338,15 +356,17 @@
     position: absolute;
     inset: 0 auto 0 0;
     width: 5px;
-    background: currentColor;
+    background: var(--qtm-bvd-panel-color);
     opacity: 0.95;
   }
 
   .qtm-benefits-drawbacks-{{ block_id }} .qtm-benefits-drawbacks__panel--benefits {
+    --qtm-bvd-panel-color: var(--qtm-bvd-benefit-color);
     color: var(--qtm-bvd-benefit-color);
   }
 
   .qtm-benefits-drawbacks-{{ block_id }} .qtm-benefits-drawbacks__panel--drawbacks {
+    --qtm-bvd-panel-color: var(--qtm-bvd-drawback-color);
     color: var(--qtm-bvd-drawback-color);
   }
 
@@ -382,16 +402,13 @@
     width: 2.2rem;
     height: 2.2rem;
     color: #ffffff;
-    background: currentColor;
+    background: var(--qtm-bvd-panel-color);
     border-radius: 999px;
     font-weight: 900;
     line-height: 1;
     box-shadow: 0 0.7rem 1.5rem color-mix(in srgb, currentColor, transparent 76%);
   }
 
-  .qtm-benefits-drawbacks-{{ block_id }} .qtm-benefits-drawbacks__panel-icon::first-letter {
-    color: #ffffff;
-  }
 
   .qtm-benefits-drawbacks-{{ block_id }} .qtm-benefits-drawbacks__panel-heading {
     margin: 0;
@@ -428,16 +445,13 @@
     width: 1.45rem;
     height: 1.45rem;
     color: #ffffff;
-    background: currentColor;
+    background: var(--qtm-bvd-panel-color);
     border-radius: 999px;
     font-size: 0.82rem;
     font-weight: 900;
     line-height: 1;
   }
 
-  .qtm-benefits-drawbacks-{{ block_id }} .qtm-benefits-drawbacks__item-icon::first-letter {
-    color: #ffffff;
-  }
 
   .qtm-benefits-drawbacks-{{ block_id }} .qtm-benefits-drawbacks__footer {
     display: flex;
@@ -579,9 +593,7 @@
   }
 
   @media screen and (max-width: 989px) {
-    .qtm-benefits-drawbacks-{{ block_id }}.qtm-benefits-drawbacks--hide-tablet {
-      display: none !important;
-    }
+
 
     .qtm-benefits-drawbacks-{{ block_id }}.qtm-benefits-drawbacks--layout-side-by-side .qtm-benefits-drawbacks__grid {
       grid-template-columns: 1fr;
@@ -636,6 +648,15 @@
       scroll-behavior: auto !important;
     }
   }
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-benefits-drawbacks-{{ block_id }}.qtm-benefits-drawbacks--hide-tablet {
+      display: none !important;
+    }
+  }
+  .qtm-benefits-drawbacks-{{ block_id }}[hidden] { display: none !important; }
+  .qtm-benefits-drawbacks-{{ block_id }}, .qtm-benefits-drawbacks-{{ block_id }} * { box-sizing: border-box; }
+  .qtm-benefits-drawbacks-{{ block_id }} :is(div,article,ul,li,a,span) { min-width: 0; }
+  .qtm-benefits-drawbacks-{{ block_id }} :is(img,a,button) { max-width: 100%; }
 </style>
 
 {% schema %}
@@ -650,19 +671,18 @@
       "type": "text",
       "id": "eyebrow",
       "label": "Eyebrow",
-      "default": "Compare the difference"
+      "default": "Comparison"
     },
     {
       "type": "text",
       "id": "heading",
       "label": "Heading",
-      "default": "A clearer way to choose"
+      "default": "Consider the options"
     },
     {
       "type": "richtext",
       "id": "text",
-      "label": "Text",
-      "default": "<p>Use this section to compare advantages, tradeoffs, product decisions, or your solution against the alternative.</p>"
+      "label": "Text"
     },
     {
       "type": "header",
@@ -671,20 +691,18 @@
     {
       "type": "text",
       "id": "benefits_badge",
-      "label": "Benefits badge",
-      "default": "Recommended"
+      "label": "Benefits badge"
     },
     {
       "type": "text",
       "id": "benefits_heading",
       "label": "Benefits heading",
-      "default": "Why customers choose us"
+      "default": "Advantages"
     },
     {
       "type": "richtext",
       "id": "benefits_text",
-      "label": "Benefits text",
-      "default": "<p>Show the strongest reasons customers should choose this product, package, or solution.</p>"
+      "label": "Benefits text"
     },
     {
       "type": "select",
@@ -713,26 +731,22 @@
     {
       "type": "text",
       "id": "benefit_1",
-      "label": "Benefit 1",
-      "default": "Premium quality and better long-term value"
+      "label": "Benefit 1"
     },
     {
       "type": "text",
       "id": "benefit_2",
-      "label": "Benefit 2",
-      "default": "Clearer shopping experience with fewer decisions"
+      "label": "Benefit 2"
     },
     {
       "type": "text",
       "id": "benefit_3",
-      "label": "Benefit 3",
-      "default": "Designed for performance, trust, and conversion"
+      "label": "Benefit 3"
     },
     {
       "type": "text",
       "id": "benefit_4",
-      "label": "Benefit 4",
-      "default": "Stronger support, education, and product guidance"
+      "label": "Benefit 4"
     },
     {
       "type": "text",
@@ -751,20 +765,18 @@
     {
       "type": "text",
       "id": "drawbacks_badge",
-      "label": "Drawbacks badge",
-      "default": "The alternative"
+      "label": "Drawbacks badge"
     },
     {
       "type": "text",
       "id": "drawbacks_heading",
       "label": "Drawbacks heading",
-      "default": "What shoppers usually avoid"
+      "default": "Tradeoffs"
     },
     {
       "type": "richtext",
       "id": "drawbacks_text",
-      "label": "Drawbacks text",
-      "default": "<p>Use this column for honest tradeoffs, competitor limitations, or the pain points your product solves.</p>"
+      "label": "Drawbacks text"
     },
     {
       "type": "select",
@@ -809,26 +821,22 @@
     {
       "type": "text",
       "id": "drawback_1",
-      "label": "Drawback 1",
-      "default": "Lower-quality options may cost more over time"
+      "label": "Drawback 1"
     },
     {
       "type": "text",
       "id": "drawback_2",
-      "label": "Drawback 2",
-      "default": "Generic choices can make comparison harder"
+      "label": "Drawback 2"
     },
     {
       "type": "text",
       "id": "drawback_3",
-      "label": "Drawback 3",
-      "default": "Limited guidance often leads to hesitation"
+      "label": "Drawback 3"
     },
     {
       "type": "text",
       "id": "drawback_4",
-      "label": "Drawback 4",
-      "default": "Less polished experiences can reduce trust"
+      "label": "Drawback 4"
     },
     {
       "type": "text",
@@ -858,8 +866,7 @@
     {
       "type": "richtext",
       "id": "footer_note",
-      "label": "Footer note",
-      "default": "<p>Use this area for a short note, disclaimer, or supporting explanation.</p>"
+      "label": "Footer note"
     },
     {
       "type": "header",
@@ -1128,71 +1135,71 @@
     {
       "name": "Why Choose Us",
       "settings": {
-        "eyebrow": "Why choose us",
-        "heading": "The difference is in the details",
-        "text": "<p>Show customers why your product, process, or brand experience is the better choice.</p>",
-        "benefits_badge": "Our advantage",
-        "benefits_heading": "Built for better outcomes",
-        "benefits_text": "<p>Use this side to highlight the strongest proof points behind your offer.</p>",
-        "benefit_1": "Higher-quality materials and presentation",
-        "benefit_2": "Clearer buying journey with less hesitation",
-        "benefit_3": "Designed around trust, performance, and conversion",
-        "benefit_4": "Better support before and after purchase",
-        "drawbacks_badge": "Common alternative",
-        "drawbacks_heading": "What customers usually avoid",
-        "drawbacks_text": "<p>Use this side to frame the limitations of cheaper, generic, or less thoughtful options.</p>",
-        "drawback_1": "Generic options feel harder to trust",
-        "drawback_2": "Lower-quality choices can cost more over time",
-        "drawback_3": "Limited product education creates uncertainty",
-        "drawback_4": "Weak presentation can reduce confidence",
+        "eyebrow": "Comparison",
+        "heading": "Consider the options",
+        "text": "",
+        "benefits_badge": "",
+        "benefits_heading": "Advantages",
+        "benefits_text": "",
+        "benefit_1": "",
+        "benefit_2": "",
+        "benefit_3": "",
+        "benefit_4": "",
+        "drawbacks_badge": "",
+        "drawbacks_heading": "Tradeoffs",
+        "drawbacks_text": "",
+        "drawback_1": "",
+        "drawback_2": "",
+        "drawback_3": "",
+        "drawback_4": "",
         "cta_text": "Explore the difference"
       }
     },
     {
       "name": "Product Advantages",
       "settings": {
-        "eyebrow": "Product advantages",
-        "heading": "Designed to outperform the ordinary",
-        "text": "<p>Compare what makes a product better against the usual limitations customers are trying to avoid.</p>",
-        "benefits_badge": "This product",
-        "benefits_heading": "Premium advantages",
+        "eyebrow": "Comparison",
+        "heading": "Consider the options",
+        "text": "",
+        "benefits_badge": "",
+        "benefits_heading": "Advantages",
         "benefits_icon": "star",
-        "benefit_1": "More durable construction",
-        "benefit_2": "Better fit, finish, or usability",
-        "benefit_3": "Thoughtful details that improve daily use",
-        "benefit_4": "Stronger long-term value",
-        "drawbacks_badge": "Standard option",
-        "drawbacks_heading": "Typical limitations",
+        "benefit_1": "",
+        "benefit_2": "",
+        "benefit_3": "",
+        "benefit_4": "",
+        "drawbacks_badge": "",
+        "drawbacks_heading": "Tradeoffs",
         "drawbacks_icon": "minus",
         "drawbacks_item_icon": "dash",
-        "drawback_1": "Less refined materials",
-        "drawback_2": "Fewer thoughtful design details",
-        "drawback_3": "More compromises in daily use",
-        "drawback_4": "Lower perceived value over time",
+        "drawback_1": "",
+        "drawback_2": "",
+        "drawback_3": "",
+        "drawback_4": "",
         "cta_text": "View product"
       }
     },
     {
       "name": "Solution Comparison",
       "settings": {
-        "eyebrow": "Solution comparison",
-        "heading": "A smarter solution for serious shoppers",
-        "text": "<p>Use this block to compare your solution against another path, process, competitor, or outdated workflow.</p>",
-        "benefits_badge": "Our solution",
-        "benefits_heading": "More complete by design",
+        "eyebrow": "Comparison",
+        "heading": "Consider the options",
+        "text": "",
+        "benefits_badge": "",
+        "benefits_heading": "Advantages",
         "benefits_icon": "plus",
-        "benefit_1": "Clearer process from start to finish",
-        "benefit_2": "More complete guidance for the customer",
-        "benefit_3": "Better experience across every touchpoint",
-        "benefit_4": "Built to reduce friction and improve decisions",
-        "drawbacks_badge": "Old way",
-        "drawbacks_heading": "More friction, less clarity",
+        "benefit_1": "",
+        "benefit_2": "",
+        "benefit_3": "",
+        "benefit_4": "",
+        "drawbacks_badge": "",
+        "drawbacks_heading": "Tradeoffs",
         "drawbacks_icon": "warning",
-        "drawback_1": "More manual comparison work",
-        "drawback_2": "Less transparency during the decision",
-        "drawback_3": "More room for confusion or delay",
-        "drawback_4": "Harder to understand total value",
-        "footer_note": "<p>Keep the language honest and merchant-controlled. This block works best when it educates rather than attacks.</p>",
+        "drawback_1": "",
+        "drawback_2": "",
+        "drawback_3": "",
+        "drawback_4": "",
+        "footer_note": "",
         "cta_text": ""
       }
     }

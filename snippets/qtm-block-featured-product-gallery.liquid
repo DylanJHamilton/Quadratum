@@ -1,0 +1,66 @@
+{%- liquid
+  assign media_limit = block.settings.gallery_limit | default: 6
+  unless block.settings.show_gallery
+    assign media_limit = 1
+  endunless
+  assign first_media = current_variant.featured_media | default: product.featured_media | default: product.media.first | default: product.featured_image
+  assign rendered_media = 0
+  assign included_media = '|'
+  assign gallery_items = ''
+  assign gallery_thumbs = ''
+  assign variant_media_ids = '|'
+  for variant in product.variants
+    assign variant_media_ids = variant_media_ids | append: variant.featured_media.id | append: '|'
+  endfor
+-%}
+{%- if first_media != blank -%}
+  {%- for i in (0..product.media.size) -%}
+    {%- liquid
+      if i == 0
+        assign media = first_media
+      else
+        assign media_index = i | minus: 1
+        assign media = product.media[media_index]
+        if media.id == first_media.id
+          continue
+        endif
+      endif
+      if media == blank
+        continue
+      endif
+      assign included_media = included_media | append: media.id | append: '|'
+      assign media_position = rendered_media | plus: 1
+      assign media_alt = media.alt | default: product.title
+    -%}
+    {%- capture item -%}
+      <div id="{{ block_id }}-media-{{ media.id }}" class="content-featured-product__media" data-gallery-item data-media-id="{{ media.id }}" role="group" aria-label="{{ block.settings.view_media_label | default: 'View product media' | escape }} {{ media_position }}">
+        {% if media.media_type == blank %}{{ media | image_url: width: 1800 | image_tag: loading: 'lazy', widths: '400, 600, 800, 1200, 1600, 1800', alt: media_alt }}{% else %}{% render 'qtm-block-product-media', media: media, product: product, image_loading: 'lazy', muted: true %}{% endif %}
+      </div>
+    {%- endcapture -%}
+    {%- capture thumb -%}
+      <button type="button" class="content-featured-product__thumbnail" data-product-gallery-thumbnail data-index="{{ rendered_media }}" data-media-id="{{ media.id }}" aria-controls="{{ block_id }}-media-{{ media.id }}" aria-label="{{ block.settings.view_media_label | default: 'View product media' | escape }} {{ media_position }}">
+        {% if media.preview_image %}{{ media.preview_image | image_url: width: 240 | image_tag: loading: 'lazy', widths: '120, 180, 240', alt: '' }}{% else %}{{ media_position }}{% endif %}
+      </button>
+    {%- endcapture -%}
+    {%- assign gallery_items = gallery_items | append: item -%}
+    {%- assign gallery_thumbs = gallery_thumbs | append: thumb -%}
+    {%- assign rendered_media = rendered_media | plus: 1 -%}
+    {%- if rendered_media >= media_limit -%}{%- break -%}{%- endif -%}
+  {%- endfor -%}
+  {%- assign separator = '' -%}
+  {%- capture gallery_variants -%}[
+    {%- if current_variant != blank -%}{"id":{{ current_variant.id | json }},"mediaId":{{ current_variant.featured_media.id | json }}}{%- assign separator = ',' -%}{%- endif -%}
+    {%- for variant in product.variants -%}{%- unless variant.id == current_variant.id -%}{{ separator }}{"id":{{ variant.id | json }},"mediaId":{{ variant.featured_media.id | json }}}{%- assign separator = ',' -%}{%- endunless -%}{%- endfor -%}
+  ]{%- endcapture -%}
+  <div class="content-featured-product__media-column" data-qtm-block-gallery data-gallery-variant-panels data-gallery-mode="horizontal_thumbs" data-product-id="{{ product.id }}" data-variant-id="{{ current_variant.id }}" data-current-media="{{ first_media.id }}" data-variants="{{ gallery_variants | escape }}" data-design-mode="{{ request.design_mode }}">
+    <div id="{{ block_id }}-gallery" class="content-featured-product__media-frame" data-product-gallery-viewport tabindex="0" role="region" aria-label="{{ block.settings.gallery_label | default: 'Featured product gallery' | escape }}">{{ gallery_items }}</div>
+    {% if block.settings.show_gallery and rendered_media > 1 %}<div class="content-featured-product__thumbnails" hidden data-gallery-nav role="group" aria-label="{{ block.settings.gallery_label | default: 'Featured product gallery' | escape }}">{{ gallery_thumbs }}</div>{% endif %}
+    <span class="visually-hidden" data-gallery-status role="status" aria-live="polite"></span>
+    {% for media in product.media %}
+      {%- assign media_token = media.id | prepend: '|' | append: '|' -%}
+      {% if variant_media_ids contains media_token %}{% unless included_media contains media_token %}
+        <template data-gallery-extra-template data-media-id="{{ media.id }}"><div id="{{ block_id }}-media-{{ media.id }}" class="content-featured-product__media" data-gallery-item data-media-id="{{ media.id }}" role="group" aria-label="{{ media.alt | default: product.title | escape }}">{% render 'qtm-block-product-media', media: media, product: product, image_loading: 'lazy', muted: true %}</div></template>
+      {% endunless %}{% endif %}
+    {% endfor %}
+  </div>
+{%- endif -%}

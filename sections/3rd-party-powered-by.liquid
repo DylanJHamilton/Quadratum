@@ -1,6 +1,6 @@
 {% comment %}
   Quadratum — 3rd Party: Powered By Integrations Panel
-  File: sections/3p-powered-by-integrations.liquid
+  File: sections/3rd-party-powered-by.liquid
 
   Conventions:
   - Schema name: "3rd Party - [Section Name]"
@@ -9,11 +9,39 @@
 
 {%- assign s = section.settings -%}
 
-{%- if s.enable_section -%}
+{%- liquid
+  assign has_header = false
+  if s.kicker != blank or s.heading != blank or s.body != blank
+    assign has_header = true
+  endif
+  assign has_integrations = false
+  for block in section.blocks
+    if block.type == 'integration'
+      assign b = block.settings
+      if b.name != blank or b.logo != blank or b.role != blank or b.description != blank
+        assign has_integrations = true
+      endif
+      if b.link != blank and s.cta_label != blank
+        assign has_integrations = true
+      endif
+    endif
+  endfor
+  assign should_render = false
+  if s.enable_section
+    if has_header or has_integrations
+      assign should_render = true
+    endif
+  endif
+-%}
+{%- assign accent_text = 'var(--c-oncolor, #ffffff)' -%}
+{%- if s.use_custom_colors -%}
+  {%- capture accent_text -%}{%- render 'contrast-text', background: s.custom_accent_color, preferred: settings.text_on_color -%}{%- endcapture -%}
+{%- endif -%}
+{%- if should_render -%}
 <section
   id="q-powered-by-{{ section.id }}"
   class="q-section q-section--powered-by q-section--bg-{{ s.background_style }} q-powered-by--{{ s.layout_style }} q-align-{{ s.align }}"
-  aria-label="{{ s.aria_label | escape }}"
+  aria-label="{{ s.aria_label | default: s.heading | default: 'Service providers' | escape }}"
   style="
     --q-powered-pad-y: {{ s.padding_y | divided_by: 10.0 }}rem;
     --q-powered-pad-x: {{ s.padding_x | divided_by: 10.0 }}rem;
@@ -26,9 +54,11 @@
     --q-powered-logo-max-h: {{ s.logo_max_height }}px;
 
     --q-powered-cols-desktop: {{ s.columns_desktop }};
+    --q-powered-accent-text: {{ accent_text | strip }};
   "
 >
   <div class="q-section__inner q-section__inner--{{ s.max_width }} q-powered-by__inner">
+    {%- if has_header -%}
     <header class="q-powered-by__header">
       {%- if s.kicker != blank -%}
         <p class="q-kicker q-powered-by__kicker">{{ s.kicker | escape }}</p>
@@ -46,37 +76,56 @@
         </div>
       {%- endif -%}
     </header>
+    {%- endif -%}
 
-    {%- if section.blocks.size > 0 -%}
+    {%- if has_integrations -%}
       <div class="q-powered-by__list" role="list">
         {%- for block in section.blocks -%}
           {%- if block.type == 'integration' -%}
-            {%- assign b = block.settings -%}
-
+            {%- liquid
+              assign b = block.settings
+              assign show_integration = false
+              if b.name != blank or b.logo != blank or b.role != blank or b.description != blank
+                assign show_integration = true
+              endif
+              if b.link != blank and s.cta_label != blank
+                assign show_integration = true
+              endif
+            -%}
+            {%- if show_integration -%}
             {%- assign initials = '' -%}
-            {%- assign name_parts = b.name | split: ' ' -%}
-            {%- if name_parts.size >= 2 -%}
-              {%- assign first_i = name_parts[0] | strip | slice: 0, 1 -%}
-              {%- assign second_i = name_parts[1] | strip | slice: 0, 1 -%}
-              {%- assign initials = first_i | append: second_i -%}
-            {%- else -%}
-              {%- assign initials = b.name | strip | slice: 0, 2 -%}
-            {%- endif -%}
+            {%- liquid
+              assign name_parts = b.name | strip | split: ' '
+              for part in name_parts
+                if part != blank
+                  assign letter = part | slice: 0, 1
+                  assign initials = initials | append: letter
+                  if initials.size >= 2
+                    break
+                  endif
+                endif
+              endfor
+              if initials.size == 1
+                assign second_letter = b.name | strip | slice: 1, 1
+                assign initials = initials | append: second_letter
+              endif
+            -%}
 
             <article
               class="q-powered-by__item{% if s.show_border %} q-powered-by__item--bordered{% endif %}"
               role="listitem"
               {{ block.shopify_attributes }}
             >
+              {%- if b.logo != blank or b.name != blank or b.role != blank -%}
               <div class="q-powered-by__top">
                 {%- if b.logo != blank -%}
-                  <div class="q-powered-by__logo" aria-hidden="true">
+                  <div class="q-powered-by__logo"{% if b.name != blank %} aria-hidden="true"{% endif %}>
                     {%- liquid
-                      assign qtm_image_alt = b.name
+                      assign qtm_image_alt = b.logo.alt | default: b.name | default: 'Integration logo'
                     -%}
                     {{ b.logo | image_url: width: 240 | image_tag: loading: 'lazy', alt: qtm_image_alt }}
                   </div>
-                {%- else -%}
+                {%- elsif b.name != blank -%}
                   <div class="q-powered-by__mark" aria-hidden="true">
                     <span class="q-powered-by__mark-text">{{ initials | upcase | escape }}</span>
                   </div>
@@ -87,6 +136,7 @@
                 {%- endif -%}
               </div>
 
+              {%- endif -%}
               <div class="q-powered-by__content">
                 {%- if b.name != blank -%}
                   <h3 class="q-powered-by__name">{{ b.name | escape }}</h3>
@@ -98,12 +148,10 @@
                   </div>
                 {%- endif -%}
 
-                {%- if b.link != blank -%}
-                  {%- assign cta_is_button = false -%}
+                {%- if b.link != blank and s.cta_label != blank -%}
                   {%- assign cta_class = 'q-link q-powered-by__cta' -%}
 
                   {%- if s.cta_style != 'link' -%}
-                    {%- assign cta_is_button = true -%}
                     {%- case s.cta_style -%}
                       {%- when 'button_primary' -%}
                         {%- assign cta_class = 'q-btn q-btn--primary q-powered-by__cta q-powered-by__cta--btn' -%}
@@ -117,10 +165,10 @@
                   {%- endif -%}
 
                   <a
-                    href="{{ b.link }}"
+                    href="{{ b.link | escape }}"
                     class="{{ cta_class }}"
                     {% if s.open_links_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}
-                    aria-label="{{ s.cta_label | escape }}: {{ b.name | escape }}"
+                    aria-label="{{ s.cta_label | escape }}{% if b.name != blank %}: {{ b.name | escape }}{% endif %}"
                   >
                     <span>{{ s.cta_label | escape }}</span>
                     {%- if s.cta_show_icon -%}
@@ -130,6 +178,7 @@
                 {%- endif -%}
               </div>
             </article>
+            {%- endif -%}
           {%- endif -%}
         {%- endfor -%}
       </div>
@@ -155,7 +204,7 @@
       position: relative;
       padding: var(--q-powered-pad-y) 0;
     }
-    #q-powered-by-{{ section.id }}.q-align-left{ text-align: left; }
+    #q-powered-by-{{ section.id }}.q-align-left{ text-align: start; }
     #q-powered-by-{{ section.id }}.q-align-center{ text-align: center; }
 
     /* Use theme vars if present; allow overrides */
@@ -166,7 +215,10 @@
 
     #q-powered-by-{{ section.id }} .q-section__inner{
       margin: 0 auto;
-      padding: 0 var(--q-powered-pad-x);
+      padding: 0 min(var(--q-powered-pad-x),8vw);
+      max-width:var(--container-{{ s.max_width }},1152px);
+      box-sizing:border-box;
+      width:100%;
     }
 
     /* Header */
@@ -209,7 +261,7 @@
       margin-top: 1rem;
     }
 
-    #q-powered-by-{{ section.id }}.q-powered-by--grid .q-powered-by__list{ grid-template-columns: 1fr; }
+    #q-powered-by-{{ section.id }}.q-powered-by--grid .q-powered-by__list{ grid-template-columns: minmax(0,1fr); }
     @media (min-width: 740px){
       #q-powered-by-{{ section.id }}.q-powered-by--grid .q-powered-by__list{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
@@ -219,7 +271,7 @@
       }
     }
 
-    #q-powered-by-{{ section.id }}.q-powered-by--strip .q-powered-by__list{ grid-template-columns: 1fr; }
+    #q-powered-by-{{ section.id }}.q-powered-by--strip .q-powered-by__list{ grid-template-columns: minmax(0,1fr); }
     @media (min-width: 740px){
       #q-powered-by-{{ section.id }}.q-powered-by--strip .q-powered-by__list{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
@@ -235,18 +287,17 @@
       box-shadow:
         0 14px 36px rgba(0,0,0, var(--q-powered-shadow-alpha)),
         0 1px 0 rgba(0,0,0,.03);
-      border: 1px solid rgba(255,255,255,.10);
+      border: 1px solid transparent;
       transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
     }
     #q-powered-by-{{ section.id }} .q-powered-by__item--bordered{
-      border-color: var(--q-powered-border, rgba(255,255,255,.18));
+      border-color: var(--q-powered-border, color-mix(in srgb,currentColor 20%,transparent));
     }
     #q-powered-by-{{ section.id }} .q-powered-by__item:hover{
       transform: translateY(-2px);
       box-shadow:
         0 18px 44px rgba(0,0,0, calc(var(--q-powered-shadow-alpha) + .03)),
         0 1px 0 rgba(0,0,0,.04);
-      border-color: rgba(255,255,255,.18);
     }
 
     /* Top */
@@ -264,7 +315,7 @@
       align-items: center;
       justify-content: flex-start;
       padding: .5rem .6rem;
-      border-radius: calc(var(--q-powered-card-radius) - 6px);
+      border-radius: max(0px,calc(var(--q-powered-card-radius) - 6px));
       background: rgba(255,255,255,.08);
       border: 1px solid rgba(255,255,255,.12);
       max-width: 100%;
@@ -341,7 +392,7 @@
     /* Button style helpers */
     #q-powered-by-{{ section.id }} .q-powered-by__cta--btn{
       justify-content: center;
-      white-space: nowrap;
+      white-space: normal;
     }
 
     #q-powered-by-{{ section.id }} .q-powered-by__cta-icon{
@@ -355,8 +406,29 @@
         0 10px 26px rgba(0,0,0, calc(var(--q-powered-shadow-alpha) - .02)),
         0 1px 0 rgba(0,0,0,.02);
     }
+
+    #q-powered-by-{{ section.id }}{min-width:0;overflow-wrap:anywhere;font-family:var(--font-body,inherit);}
+    #q-powered-by-{{ section.id }} .q-powered-by__heading,#q-powered-by-{{ section.id }} .q-powered-by__name{font-family:var(--font-head,inherit);text-transform:var(--tt-head,none);}
+    #q-powered-by-{{ section.id }} .q-powered-by__item,#q-powered-by-{{ section.id }} .q-powered-by__content,#q-powered-by-{{ section.id }} .q-powered-by__top{min-width:0;max-width:100%;box-sizing:border-box;}
+    #q-powered-by-{{ section.id }} .q-powered-by__logo{min-width:0;box-sizing:border-box;}
+    #q-powered-by-{{ section.id }} .q-powered-by__cta{max-width:100%;box-sizing:border-box;}
+    #q-powered-by-{{ section.id }} .q-powered-by__cta span{min-width:0;}
+    #q-powered-by-{{ section.id }} .q-powered-by__cta--btn{padding:.7rem 1rem;border:var(--btn-border-w,1px) solid var(--q-powered-accent,var(--c-primary,#2563eb));border-radius:var(--btn-radius,12px);text-transform:var(--tt-btn,none);transition:opacity .12s ease,transform .12s ease;}
+    #q-powered-by-{{ section.id }} .q-btn--primary{background:var(--q-powered-accent,var(--c-primary,#2563eb));color:var(--q-powered-accent-text);}
+    #q-powered-by-{{ section.id }} .q-btn--secondary{background:transparent;color:var(--q-powered-text,var(--q-section-fg,#171717));}
+    #q-powered-by-{{ section.id }} .q-btn--ghost{border-color:transparent;}
+    #q-powered-by-{{ section.id }} .q-powered-by__cta--btn:hover{opacity:var(--btn-hover,.92);}
+    #q-powered-by-{{ section.id }} .q-powered-by__cta--btn:active{transform:scale(var(--btn-active,.98));}
+    #q-powered-by-{{ section.id }} a:focus-visible{outline:2px solid currentColor;outline-offset:3px;}
+    {% if s.card_shadow_strength == 0 %}
+      #q-powered-by-{{ section.id }}.q-section--powered-by .q-powered-by__item,#q-powered-by-{{ section.id }}.q-section--powered-by .q-powered-by__item:hover{box-shadow:none;}
+    {% endif %}
+    @media(prefers-reduced-motion:reduce){#q-powered-by-{{ section.id }} .q-powered-by__item,#q-powered-by-{{ section.id }} .q-powered-by__cta--btn{transition:none;}#q-powered-by-{{ section.id }} .q-powered-by__item:hover,#q-powered-by-{{ section.id }} .q-powered-by__cta--btn:active{transform:none;}}
+    @media(forced-colors:active){#q-powered-by-{{ section.id }} .q-powered-by__cta--btn{border-color:ButtonText;}}
   </style>
 </section>
+{%- elsif request.design_mode -%}
+  <p role="status">Powered By: enable the section and add content or a provider card.</p>
 {%- endif -%}
 
 {% schema %}
@@ -365,13 +437,14 @@
   "tag": "section",
   "class": "q-section q-section--powered-by",
   "settings": [
+    { "type": "paragraph", "content": "Display information and links for your actual providers. Adding a card does not install or connect a service. Replace the example provider names and descriptions before publishing." },
     { "type": "checkbox", "id": "enable_section", "label": "Enable section", "default": true },
     { "type": "text", "id": "aria_label", "label": "Section aria-label", "default": "Powered by integrations" },
 
     { "type": "header", "content": "Content" },
     { "type": "text", "id": "kicker", "label": "Kicker", "default": "Our technology stack" },
-    { "type": "text", "id": "heading", "label": "Heading", "default": "Powered by tools you already trust" },
-    { "type": "richtext", "id": "body", "label": "Body text", "default": "<p>Behind every order is a reliable stack for CRM, email, shipping, and tracking. Here are some of the platforms we use every day.</p>" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Our service providers" },
+    { "type": "richtext", "id": "body", "label": "Body text", "default": "<p>Learn about each provider and its role.</p>" },
 
     { "type": "header", "content": "Layout" },
     { "type": "select", "id": "layout_style", "label": "Layout style", "default": "grid", "options": [
@@ -411,7 +484,7 @@
     { "type": "range", "id": "card_radius", "label": "Card radius (px)", "min": 0, "max": 28, "step": 1, "default": 16 },
     { "type": "range", "id": "card_padding", "label": "Card padding (rem ×10)", "min": 10, "max": 34, "step": 2, "default": 18 },
     { "type": "range", "id": "grid_gap", "label": "Grid gap (rem ×10)", "min": 8, "max": 30, "step": 2, "default": 16 },
-    { "type": "select", "id": "columns_desktop", "label": "Grid columns (desktop)", "default": "3", "options": [
+    { "type": "select", "id": "columns_desktop", "info": "Grid layout only. Strip uses up to three columns.", "label": "Grid columns (desktop)", "default": "3", "options": [
       { "value": "2", "label": "2 columns" },
       { "value": "3", "label": "3 columns" },
       { "value": "4", "label": "4 columns" }
@@ -446,9 +519,9 @@
       "name": "Integration",
       "limit": 12,
       "settings": [
-        { "type": "text", "id": "name", "label": "Integration name", "default": "GoHighLevel" },
+        { "type": "text", "id": "name", "label": "Integration name", "default": "CRM provider" },
         { "type": "text", "id": "role", "label": "Short role/label", "default": "CRM & automation" },
-        { "type": "richtext", "id": "description", "label": "Short description", "default": "<p>Manages leads, pipelines, and follow-up workflows so nothing falls through the cracks.</p>" },
+        { "type": "richtext", "id": "description", "label": "Short description", "default": "<p>Describe the service this provider supplies.</p>" },
         { "type": "url", "id": "link", "label": "Optional “Learn more” link" },
         { "type": "image_picker", "id": "logo", "label": "Logo (optional)" }
       ]
@@ -476,28 +549,28 @@
         {
           "type": "integration",
           "settings": {
-            "name": "GoHighLevel",
+            "name": "CRM provider",
             "role": "CRM & funnels",
-            "description": "<p>Captures leads, automates follow-up, and keeps our sales pipeline organized.</p>",
-            "link": "https://www.gohighlevel.com"
+            "description": "<p>Describe your CRM provider and its role.</p>",
+            "link": ""
           }
         },
         {
           "type": "integration",
           "settings": {
-            "name": "Klaviyo",
+            "name": "Messaging provider",
             "role": "Email & SMS",
-            "description": "<p>Delivers personalized email and SMS campaigns based on real customer behavior.</p>",
-            "link": "https://www.klaviyo.com"
+            "description": "<p>Describe your messaging provider and its role.</p>",
+            "link": ""
           }
         },
         {
           "type": "integration",
           "settings": {
-            "name": "ShipStation",
+            "name": "Shipping provider",
             "role": "Fulfillment & shipping",
-            "description": "<p>Routes orders to the right carriers and keeps deliveries moving on time.</p>",
-            "link": "https://www.shipstation.com"
+            "description": "<p>Describe your shipping provider and its role.</p>",
+            "link": ""
           }
         }
       ]

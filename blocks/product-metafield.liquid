@@ -4,8 +4,8 @@
   assign product_context = product
   assign current_variant = product_context.selected_or_first_available_variant
 
-  assign namespace = block.settings.namespace
-  assign metafield_key = block.settings.key
+  assign namespace = block.settings.namespace | strip
+  assign metafield_key = block.settings.key | strip
   assign metafield_value = blank
   assign display_style = block.settings.display_style | default: 'text'
 
@@ -19,6 +19,18 @@
     assign has_value = true
   endif
 
+
+  assign metafield_file_url = ''
+  if metafield_value.type == 'file_reference'
+    if metafield_value.value.media_type == 'image'
+      assign metafield_file_url = metafield_value.value | image_url: width: 2400
+    elsif metafield_value.value.media_type == 'video'
+      assign metafield_file_url = metafield_value.value.sources.first.url
+    else
+      assign metafield_file_url = metafield_value.value.url
+    endif
+  endif
+
   assign width = block.settings.width | default: 'auto'
   assign alignment = block.settings.alignment | default: 'left'
 
@@ -27,6 +39,8 @@
   assign show_on_mobile = block.settings.show_on_mobile
 -%}
 
+{% capture metafield_text_output %}{% if metafield_value.list? %}{% for item in metafield_value.value %}{% unless forloop.first %}, {% endunless %}{% if item.title != blank %}{{ item.title | escape }}{% elsif item.url != blank %}{{ item.url | escape }}{% elsif item.system.handle != blank %}{{ item.system.handle | escape }}{% elsif item.unit != blank %}{{ item.value | escape }} {{ item.unit | escape }}{% else %}{{ item | escape }}{% endif %}{% endfor %}{% else %}{{ metafield_value | metafield_text | escape }}{% endif %}{% endcapture %}
+{% if has_value or block.settings.show_fallback or request.design_mode %}
 <div
   id="{{ block_id }}"
   class="
@@ -34,10 +48,10 @@
     product-metafield--{{ display_style }}
     product-metafield--width-{{ width }}
     product-metafield--align-{{ alignment }}
-    {% unless show_on_desktop %} product-metafield--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-metafield--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-metafield--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-metafield--animate product-metafield--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-metafield--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-metafield--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-metafield--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-metafield--animate product-metafield--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-metafield-margin-top: {{ block.settings.margin_top }}px;
@@ -65,10 +79,13 @@
     data-variant-id="{{ current_variant.id }}"
   {% endif %}
   data-product-metafield
-  {{ block.shopify_attributes }}
+
 >
   <style>
     #{{ block_id }} {
+        min-width: 0;
+        box-sizing: border-box;
+        overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-metafield-margin-top);
       margin-bottom: var(--product-metafield-margin-bottom);
@@ -177,6 +194,8 @@
 
     #{{ block_id }} .product-metafield__badge {
       display: inline-flex;
+        min-width: 0;
+        max-width: 100%;
       width: fit-content;
       max-width: 100%;
       align-items: center;
@@ -212,6 +231,8 @@
 
     #{{ block_id }} .product-metafield__list-item {
       display: inline-flex;
+        min-width: 0;
+        max-width: 100%;
       align-items: center;
       gap: 8px;
       padding: 7px 10px;
@@ -246,6 +267,8 @@
 
     #{{ block_id }} .product-metafield__file-link {
       display: inline-flex;
+        min-width: 0;
+        max-width: 100%;
       width: fit-content;
       max-width: 100%;
       align-items: center;
@@ -270,6 +293,8 @@
     #{{ block_id }} .product-metafield__file-icon {
       flex: 0 0 auto;
       display: inline-flex;
+        min-width: 0;
+        max-width: 100%;
       align-items: center;
       justify-content: center;
       width: 22px;
@@ -373,7 +398,13 @@
         transform: none;
       }
     }
-  </style>
+
+      #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+      #{{ block_id }} :is(a, button):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+      #{{ block_id }}:focus-within { opacity: 1; animation: none; transform: none; }
+          #{{ block_id }} .product-metafield__badge > *, #{{ block_id }} .product-metafield__file-link > *, #{{ block_id }} .product-metafield__list-item { min-width: 0; max-width: 100%; }
+      #{{ block_id }} .product-metafield__file-link { height: auto; }
+    </style>
 
   {% if has_value %}
     <div class="product-metafield__inner">
@@ -390,30 +421,26 @@
               <span>{{ block.settings.label | escape }}:</span>
             {% endif %}
             <span>
-              {% if metafield_value.type == 'single_line_text_field' or metafield_value.type == 'number_integer' or metafield_value.type == 'number_decimal' or metafield_value.type == 'boolean' %}
-                {{ metafield_value.value }}
-              {% else %}
-                {{ metafield_value | metafield_text }}
-              {% endif %}
+              {{ metafield_text_output }}
             </span>
           </span>
 
         {% when 'rich_text' %}
           <div class="product-metafield__content">
-            {{ metafield_value | metafield_tag }}
+            {% if metafield_value.list? or metafield_value.type == 'metaobject_reference' %}{{ metafield_text_output }}{% else %}{{ metafield_value | metafield_tag }}{% endif %}
           </div>
 
         {% when 'list' %}
           <ul class="product-metafield__list">
-            {% if metafield_value.value.size > 0 %}
+            {% if metafield_value.list? %}
               {% for item in metafield_value.value %}
                 <li class="product-metafield__list-item">
-                  {{ item }}
+                  {% if item.title != blank %}{{ item.title | escape }}{% elsif item.url != blank %}{{ item.url | escape }}{% elsif item.system.handle != blank %}{{ item.system.handle | escape }}{% elsif item.unit != blank %}{{ item.value | escape }} {{ item.unit | escape }}{% else %}{{ item | escape }}{% endif %}
                 </li>
               {% endfor %}
             {% else %}
               <li class="product-metafield__list-item">
-                {{ metafield_value | metafield_text }}
+                {{ metafield_text_output }}
               </li>
             {% endif %}
           </ul>
@@ -434,39 +461,35 @@
                 {{ metafield_image | image_url: width: 1200 | image_tag: loading: 'lazy', widths: '240, 360, 540, 720, 900, 1200', alt: metafield_image_alt, class: 'product-metafield__image' }}
               </span>
             {% else %}
-              {{ metafield_value | metafield_tag }}
+              {% if metafield_value.list? or metafield_value.type == 'metaobject_reference' %}{{ metafield_text_output }}{% else %}{{ metafield_value | metafield_tag }}{% endif %}
             {% endif %}
           </div>
 
         {% when 'file_link' %}
-          {% if metafield_value.type == 'file_reference' %}
-            <a class="product-metafield__file-link" href="{{ metafield_value.value.url }}" target="_blank" rel="noopener">
+          {% if metafield_file_url != blank %}
+            <a class="product-metafield__file-link" href="{{ metafield_file_url | escape }}" target="_blank" rel="noopener noreferrer">
               <span class="product-metafield__file-icon" aria-hidden="true">↓</span>
               <span>
                 {% if block.settings.file_link_label != blank %}
                   {{ block.settings.file_link_label | escape }}
                 {% else %}
-                  {{ block.settings.label | escape }}
+                  {{ block.settings.label | default: 'Download file' | escape }}
                 {% endif %}
               </span>
             </a>
           {% else %}
             <div class="product-metafield__content">
-              {{ metafield_value | metafield_tag }}
+              {% if metafield_value.list? or metafield_value.type == 'metaobject_reference' %}{{ metafield_text_output }}{% else %}{{ metafield_value | metafield_tag }}{% endif %}
             </div>
           {% endif %}
 
         {% else %}
           <div class="product-metafield__content">
-            {% if metafield_value.type == 'single_line_text_field' or metafield_value.type == 'number_integer' or metafield_value.type == 'number_decimal' or metafield_value.type == 'boolean' %}
-              {{ metafield_value.value }}
-            {% else %}
-              {{ metafield_value | metafield_text }}
-            {% endif %}
+            {{ metafield_text_output }}
           </div>
       {% endcase %}
     </div>
-  {% elsif block.settings.show_fallback %}
+  {% elsif block.settings.show_fallback or request.design_mode %}
     <div class="product-metafield__inner">
       {% if block.settings.show_label and block.settings.label != blank and display_style != 'badge' %}
         <h3 class="product-metafield__label">
@@ -475,11 +498,12 @@
       {% endif %}
 
       <div class="product-metafield__fallback">
-        {{ block.settings.fallback_text | escape }}
+        {{ block.settings.fallback_text | default: 'Choose an available product metafield.' | escape }}
       </div>
     </div>
   {% endif %}
 </div>
+{% endif %}
 
 {% schema %}
 {

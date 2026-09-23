@@ -1,17 +1,24 @@
-// Delegation keeps the existing password control working after section reloads.
 (() => {
-  if (window.QuadratumRegisterToggleLoaded) return;
-  window.QuadratumRegisterToggleLoaded = true;
-  document.addEventListener('click', event => {
-    const button = event.target.closest('[data-qtm-account-register-password-toggle]');
-    if (!button) return;
-    const input = button.closest('.qtmAccountRegister__passwordField')?.querySelector('[data-qtm-account-register-password-input]');
-    if (!input) return;
-    const reveal = input.type === 'password';
-    input.type = reveal ? 'text' : 'password';
-    button.setAttribute('aria-pressed', String(reveal));
-    button.setAttribute('aria-label', (reveal ? button.dataset.hideLabel : button.dataset.showLabel) || (reveal ? 'Hide password' : 'Show password'));
-    const label = button.querySelector('[data-qtm-account-register-password-toggle-text]');
-    if (label) label.textContent = reveal ? 'Hide' : 'Show';
-  });
+  'use strict';
+  if (window.__qAccountRegister) return;
+  window.__qAccountRegister = true;
+  const selector = '[data-qtm-account-register]', instances = new Map();
+  function mount(root) {
+    if (instances.has(root)) return;
+    const abort = new AbortController(), toggles = [];
+    root.querySelectorAll('[data-qtm-account-register-password-toggle]').forEach(button => {
+      const input = button.closest('.qtmAccountRegister__passwordField')?.querySelector('input');
+      if (!input) return;
+      const label = button.querySelector('[data-qtm-account-register-password-toggle-text]');
+      function paint(reveal) { input.type = reveal ? 'text' : 'password'; button.setAttribute('aria-pressed',String(reveal)); button.setAttribute('aria-controls',input.id); button.setAttribute('aria-label',(reveal ? button.dataset.hideLabel : button.dataset.showLabel) || (reveal ? 'Hide password' : 'Show password')); if(label) label.textContent = reveal ? 'Hide' : 'Show'; }
+      button.hidden = false; paint(false);
+      button.addEventListener('click', () => paint(input.type === 'password'), {signal:abort.signal});
+      toggles.push(() => { paint(false); button.hidden = true; });
+    });
+    instances.set(root, () => { abort.abort(); toggles.forEach(reset=>reset()); instances.delete(root); });
+  }
+  const scan = scope => { if(scope.matches?.(selector)) mount(scope); scope.querySelectorAll?.(selector).forEach(mount); };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>scan(document),{once:true}); else scan(document);
+  document.addEventListener('shopify:section:load',event=>scan(event.target));
+  document.addEventListener('shopify:section:unload',event=>{ for(const[root,dispose]of instances) if(root===event.target||event.target.contains(root))dispose(); });
 })();

@@ -1,35 +1,17 @@
-{% comment %}
-  Quadratum — Feed · Blog List / Grid (Flagship Blog Index Feed)
-  File: sections/feeds-blogs.liquid
-
-  CRITICAL:
-  • MUST use shared snippet: blog-card
-  • One feed supports List / Grid / Masonry layouts
-  • Progressive enhancement: initial render works without JS
-  • Pagination is crawlable + server-side (Shopify paginate) where supported
-  • "Load more" enhances on top of standard pagination (fallback preserved)
-
-  IMPORTANT QUIRK (Shopify):
-  • In some non-blog templates (ex: page.json), paginate chosen_blog.articles may return 0 items
-    even when chosen_blog.articles_count > 0.
-  • We detect that and gracefully fall back to a non-paginated render (still SEO-safe; just no paging).
-{% endcomment %}
+{%- comment -%}Blog feed: native pagination plus optional progressive load-more; filtered previews link to the complete tagged archive.{%- endcomment -%}
 
 {%- liquid
   assign sid = section.id
 
   assign chosen_blog = section.settings.blog
   if chosen_blog == blank
-    assign first_pair = blogs | first
-    if first_pair != blank
-      assign chosen_blog = first_pair[1]
-    endif
+    assign chosen_blog = blog
   endif
 
   assign filter_tag_raw = section.settings.filter_tag | default: ''
   assign filter_tag = filter_tag_raw | strip
 
-  assign per_page = section.settings.per_page | default: 12
+  assign per_page = section.settings.per_page | default: 12 | at_least: 1 | at_most: 50
   assign layout_mode = section.settings.layout_mode | default: 'list'
 
   assign cols_m = section.settings.cols_mobile | default: 1
@@ -39,31 +21,30 @@
   assign gap_token = section.settings.gap_token | default: 'md'
   assign pad_token = section.settings.pad_token | default: 'lg'
 
-  assign excerpt_mode = section.settings.excerpt_mode | default: 'words'
-  assign excerpt_len_words = section.settings.excerpt_words | default: 24
-  assign excerpt_len_chars = section.settings.excerpt_chars | default: 160
 
-  assign show_image = section.settings.show_image
-  assign show_author = section.settings.show_author
-  assign show_date = section.settings.show_date
-  assign show_read_time = section.settings.show_read_time
-  assign show_tags = section.settings.show_tags
-  assign show_excerpt = section.settings.show_excerpt
 
   assign pagination_mode = section.settings.pagination_mode | default: 'standard'
   assign load_more_label = section.settings.load_more_label | default: 'Load more'
-  assign cta_label = section.settings.cta_label | default: 'Read more'
 
   assign list_img_cap = section.settings.list_image_cap | default: 240
 
   assign on_tagged_page = false
-  if filter_tag != blank and current_tags != blank and current_tags contains filter_tag
+  if filter_tag != blank and chosen_blog.id == blog.id and current_tags contains filter_tag
     assign on_tagged_page = true
   endif
 
   assign tagged_url = ''
   if filter_tag != blank and chosen_blog != blank
-    assign tagged_url = chosen_blog.url | append: '/tagged/' | append: filter_tag | handleize
+    assign tag_handle = filter_tag | handleize
+    assign tagged_url = chosen_blog.url | append: '/tagged/' | append: tag_handle
+  endif
+
+  assign tag_preview = false
+  if filter_tag != blank and on_tagged_page == false
+    assign tag_preview = true
+  endif
+  if on_tagged_page
+    assign chosen_blog = blog
   endif
 
   comment
@@ -102,7 +83,10 @@
   endcase
 -%}
 
+<script src="{{ 'feeds-blogs.js' | asset_url }}" defer></script>
+{% if chosen_blog != blank or request.design_mode %}
 <section
+  id="QtmBlogFeed-{{ sid }}"
   class="q-feed q-feed--blog q-feed--{{ layout_mode }}"
   data-q-section="feeds-blogs"
   data-q-sid="{{ sid }}"
@@ -130,13 +114,13 @@
   {%- endif -%}
 
   <div class="q-feed__inner q-container">
-    {%- if section.settings.eyebrow != blank or section.settings.heading != blank or section.settings.subheading != blank -%}
+    {%- if section.settings.eyebrow != blank or section.settings.heading != blank or section.settings.subheading != blank or section.settings.show_blog_title and chosen_blog != blank -%}
       <header class="q-feed__header">
         {%- if section.settings.eyebrow != blank -%}
-          <p class="q-feed__eyebrow">{{ section.settings.eyebrow }}</p>
+          <p class="q-feed__eyebrow">{{ section.settings.eyebrow | escape }}</p>
         {%- endif -%}
         {%- if section.settings.heading != blank -%}
-          <h2 class="q-feed__heading">{{ section.settings.heading }}</h2>
+          <h2 class="q-feed__heading">{{ section.settings.heading | escape }}</h2>
         {%- endif -%}
         {%- if section.settings.subheading != blank -%}
           <div class="q-feed__subheading rte">{{ section.settings.subheading }}</div>
@@ -144,11 +128,11 @@
 
         {%- if chosen_blog != blank and section.settings.show_blog_title -%}
           <p class="q-feed__blogtitle">
-            <a class="q-feed__bloglink" href="{{ chosen_blog.url }}">
-              {{ chosen_blog.title }}
+            <a class="q-feed__bloglink" href="{{ chosen_blog.url | escape }}">
+              {{ chosen_blog.title | escape }}
             </a>
             {%- if filter_tag != blank -%}
-              <span class="q-feed__filterpill" aria-label="Filtered by tag">{{ filter_tag }}</span>
+              <span class="q-feed__filterpill" aria-label="Filtered by tag">{{ filter_tag | escape }}</span>
             {%- endif -%}
           </p>
         {%- endif -%}
@@ -161,266 +145,43 @@
       </div>
     {%- else -%}
 
-      {%- paginate chosen_blog.articles by per_page -%}
-        {%- liquid
-          assign rendered_count = 0
-
-          assign paginate_returned_any = false
-          if paginate.items_count and paginate.items_count > 0
-            assign paginate_returned_any = true
-          endif
-
-          assign needs_fallback = false
-          if paginate_returned_any == false and chosen_blog.articles_count and chosen_blog.articles_count > 0
-            assign needs_fallback = true
-          endif
-        -%}
-
-        <div
-          class="q-feed__items"
-          data-q-feed-items
-          data-q-layout="{{ layout_mode }}"
-          id="q-feed-items-{{ sid }}"
-        >
-          {%- if needs_fallback -%}
-            {%- for article in chosen_blog.articles limit: per_page -%}
-              {%- if filter_tag == blank or article.tags contains filter_tag -%}
-                {%- liquid
-                  assign rendered_count = rendered_count | plus: 1
-                  assign raw = article.excerpt_or_content | strip_html | strip
-
-                  assign excerpt_text = raw
-                  if show_excerpt
-                    if excerpt_mode == 'words'
-                      assign excerpt_text = raw | truncatewords: excerpt_len_words, '…'
-                    else
-                      assign trimmed = raw | truncate: excerpt_len_chars, ''
-                      if trimmed != raw
-                        assign excerpt_words = trimmed | split: ' '
-                        assign complete_word_count = excerpt_words.size | minus: 1
-                        assign last_space = excerpt_words | slice: 0, complete_word_count | join: ' '
-                        if last_space != blank
-                          assign trimmed = last_space
-                        endif
-                        assign excerpt_text = trimmed | append: '…'
-                      else
-                        assign excerpt_text = raw
-                      endif
-                    endif
-                  endif
-                -%}
-
-                <div class="q-feed__item">
-                  {%- render 'blog-card',
-                    article: article,
-                    heading_level: 3,
-                    show_image: show_image,
-                    show_author: show_author,
-                    show_date: show_date,
-                    show_read_time: show_read_time,
-                    show_tags: show_tags,
-                    show_excerpt: show_excerpt,
-                    excerpt_text: excerpt_text,
-                    cta_label: cta_label
-                  -%}
-                </div>
-              {%- endif -%}
-            {%- endfor -%}
-          {%- else -%}
-            {%- for article in paginate.items -%}
-              {%- if filter_tag == blank or article.tags contains filter_tag -%}
-                {%- liquid
-                  assign rendered_count = rendered_count | plus: 1
-                  assign raw = article.excerpt_or_content | strip_html | strip
-
-                  assign excerpt_text = raw
-                  if show_excerpt
-                    if excerpt_mode == 'words'
-                      assign excerpt_text = raw | truncatewords: excerpt_len_words, '…'
-                    else
-                      assign trimmed = raw | truncate: excerpt_len_chars, ''
-                      if trimmed != raw
-                        assign excerpt_words = trimmed | split: ' '
-                        assign complete_word_count = excerpt_words.size | minus: 1
-                        assign last_space = excerpt_words | slice: 0, complete_word_count | join: ' '
-                        if last_space != blank
-                          assign trimmed = last_space
-                        endif
-                        assign excerpt_text = trimmed | append: '…'
-                      else
-                        assign excerpt_text = raw
-                      endif
-                    endif
-                  endif
-                -%}
-
-                <div class="q-feed__item">
-                  {%- render 'blog-card',
-                    article: article,
-                    heading_level: 3,
-                    show_image: show_image,
-                    show_author: show_author,
-                    show_date: show_date,
-                    show_read_time: show_read_time,
-                    show_tags: show_tags,
-                    show_excerpt: show_excerpt,
-                    excerpt_text: excerpt_text,
-                    cta_label: cta_label
-                  -%}
-                </div>
-              {%- endif -%}
-            {%- endfor -%}
-          {%- endif -%}
-        </div>
-
-        {%- if rendered_count == 0 -%}
-          <div class="q-feed__empty" role="status">
-            {%- if filter_tag != blank -%}
-              <p>No articles match this filter yet.</p>
-              {%- if on_tagged_page == false and tagged_url != blank -%}
-                <p class="q-feed__emptyhint">
-                  <a class="q-feed__page" href="{{ tagged_url }}">View the tagged page</a>
-                </p>
-              {%- endif -%}
-            {%- else -%}
-              <p>No articles yet.</p>
-            {%- endif -%}
-          </div>
-        {%- else -%}
-          {%- if needs_fallback == false -%}
+      {%- if tag_preview -%}
+        {% render 'blog-feed-items', articles: chosen_blog.articles, section: section, filter_tag: filter_tag, limit: per_page %}
+        <nav class="q-feed__nav" aria-label="Tagged articles"><a class="q-feed__page" href="{{ tagged_url | escape }}">View all {{ filter_tag | escape }} articles</a></nav>
+      {%- else -%}
+        {% paginate chosen_blog.articles by per_page %}
+          {% render 'blog-feed-items', articles: chosen_blog.articles, section: section, filter_tag: filter_tag, limit: per_page %}
+          {% if paginate.pages > 1 %}
             <div class="q-feed__nav" data-q-feed-nav>
-              {%- if pagination_mode == 'load_more' -%}
-                <button
-                  class="q-feed__loadmore q-btn"
-                  type="button"
-                  data-q-loadmore
-                  {%- if paginate.next == blank -%} disabled aria-disabled="true"{%- endif -%}
-                  data-next-url="{{ paginate.next.url }}"
-                  aria-controls="q-feed-items-{{ sid }}"
-                >
-                  <span data-q-loadmore-label>{{ load_more_label }}</span>
-                  <span class="q-feed__spinner" aria-hidden="true"></span>
+              {% if pagination_mode == 'load_more' and paginate.next %}
+                <button class="q-feed__loadmore q-btn" type="button" hidden data-q-loadmore data-next-url="{{ paginate.next.url | escape }}" aria-controls="q-feed-items-{{ sid }}">
+                  <span>{{ load_more_label | escape }}</span><span class="q-feed__spinner" aria-hidden="true"></span>
                 </button>
-
-                <noscript>
-                  <nav class="q-feed__pagination" aria-label="Pagination">
-                    {%- if paginate.previous -%}
-                      <a class="q-feed__page" href="{{ paginate.previous.url }}">{{ 'general.pagination.previous' | t | default: 'Previous' }}</a>
-                    {%- endif -%}
-                    <span class="q-feed__pageinfo">{{ paginate.current_page }} / {{ paginate.pages }}</span>
-                    {%- if paginate.next -%}
-                      <a class="q-feed__page" href="{{ paginate.next.url }}">{{ 'general.pagination.next' | t | default: 'Next' }}</a>
-                    {%- endif -%}
-                  </nav>
-                </noscript>
-
-                <nav class="q-feed__pagination q-feed__pagination--fallback" aria-label="Pagination" data-q-pagination-fallback>
-                  {%- if paginate.previous -%}
-                    <a class="q-feed__page" href="{{ paginate.previous.url }}">{{ 'general.pagination.previous' | t | default: 'Previous' }}</a>
-                  {%- endif -%}
-                  <span class="q-feed__pageinfo">{{ paginate.current_page }} / {{ paginate.pages }}</span>
-                  {%- if paginate.next -%}
-                    <a class="q-feed__page" href="{{ paginate.next.url }}">{{ 'general.pagination.next' | t | default: 'Next' }}</a>
-                  {%- endif -%}
-                </nav>
-              {%- else -%}
-                <nav class="q-feed__pagination" aria-label="Pagination">
-                  {%- if paginate.previous -%}
-                    <a class="q-feed__page" href="{{ paginate.previous.url }}">{{ 'general.pagination.previous' | t | default: 'Previous' }}</a>
-                  {%- endif -%}
-                  <span class="q-feed__pageinfo">{{ paginate.current_page }} / {{ paginate.pages }}</span>
-                  {%- if paginate.next -%}
-                    <a class="q-feed__page" href="{{ paginate.next.url }}">{{ 'general.pagination.next' | t | default: 'Next' }}</a>
-                  {%- endif -%}
-                </nav>
-              {%- endif -%}
+              {% endif %}
+              <nav class="q-feed__pagination" aria-label="Pagination" data-q-pagination-fallback>
+                {% if paginate.previous %}<a class="q-feed__page" href="{{ paginate.previous.url | escape }}">Previous</a>{% endif %}
+                <span class="q-feed__pageinfo">{{ paginate.current_page }} / {{ paginate.pages }}</span>
+                {% if paginate.next %}<a class="q-feed__page" href="{{ paginate.next.url | escape }}">Next</a>{% endif %}
+              </nav>
             </div>
-          {%- endif -%}
-        {%- endif -%}
-
-        {%- if pagination_mode == 'load_more' and rendered_count > 0 and needs_fallback == false -%}
-          <script>
-            (function() {
-              var root = document.querySelector('[data-q-section="feeds-blogs"][data-q-sid="{{ sid }}"]');
-              if (!root) return;
-
-              var btn = root.querySelector('[data-q-loadmore]');
-              var items = root.querySelector('[data-q-feed-items]');
-              var fallback = root.querySelector('[data-q-pagination-fallback]');
-
-              if (!btn || !items) return;
-              if (fallback) fallback.style.display = 'none';
-
-              var busy = false;
-
-              function setBusy(state) {
-                busy = state;
-                btn.disabled = state || !btn.dataset.nextUrl;
-                btn.setAttribute('aria-busy', state ? 'true' : 'false');
-                root.classList.toggle('is-loading', !!state);
-              }
-
-              async function loadNext() {
-                var nextUrl = btn.dataset.nextUrl;
-                if (!nextUrl || busy) return;
-
-                setBusy(true);
-
-                try {
-                  var res = await fetch(nextUrl, { credentials: 'same-origin' });
-                  if (!res.ok) throw new Error('Network error');
-
-                  var html = await res.text();
-                  var doc = new DOMParser().parseFromString(html, 'text/html');
-                  var nextRoot = doc.querySelector('[data-q-section="feeds-blogs"][data-q-sid="{{ sid }}"]');
-                  if (!nextRoot) throw new Error('Section not found in response');
-
-                  var nextItems = nextRoot.querySelector('[data-q-feed-items]');
-                  var nextBtn = nextRoot.querySelector('[data-q-loadmore]');
-
-                  if (nextItems) {
-                    while (nextItems.firstElementChild) {
-                      items.appendChild(nextItems.firstElementChild);
-                    }
-                  }
-
-                  var nextUrl2 = nextBtn ? nextBtn.getAttribute('data-next-url') : '';
-                  btn.dataset.nextUrl = nextUrl2 || '';
-
-                  if (!btn.dataset.nextUrl) {
-                    btn.disabled = true;
-                    btn.setAttribute('aria-disabled', 'true');
-                  }
-
-                  btn.focus({ preventScroll: false });
-                } catch (e) {
-                  if (fallback) fallback.style.display = '';
-                } finally {
-                  setBusy(false);
-                }
-              }
-
-              btn.addEventListener('click', loadNext);
-              setBusy(false);
-            })();
-          </script>
-        {%- endif -%}
-      {%- endpaginate -%}
+          {% endif %}
+        {% endpaginate %}
+      {%- endif -%}
     {%- endif -%}
   </div>
 
   <style>
-    .q-feed--blog { position: relative; }
-    .q-feed__bg { position: absolute; inset: 0; z-index: 0; }
-    .q-feed__inner { position: relative; z-index: 1; padding-block: var(--q-pad-y, var(--q-section-pad-y)); }
+    #QtmBlogFeed-{{ sid }} { position: relative; }
+    #QtmBlogFeed-{{ sid }} .q-feed__bg { position: absolute; inset: 0; z-index: 0; }
+    #QtmBlogFeed-{{ sid }} .q-feed__inner { position: relative; z-index: 1; padding-block: var(--q-pad-y, var(--q-section-pad-y, 48px)); }
 
-    .q-feed__header { margin-bottom: var(--q-feed-gap); }
-    .q-feed__eyebrow { margin: 0 0 var(--q-gap-xs, 8px); font-size: var(--q-fs-sm, 0.95rem); opacity: .85; }
-    .q-feed__heading { margin: 0; font-size: var(--q-heading-fs, var(--q-fs-2xl, 2rem)); line-height: var(--q-heading-lh, 1.15); }
-    .q-feed__subheading { margin-top: var(--q-gap-sm, 12px); max-width: var(--q-prose, 72ch); }
-    .q-feed__blogtitle { margin-top: var(--q-gap-sm, 12px); display: flex; gap: var(--q-gap-sm, 12px); align-items: center; flex-wrap: wrap; }
-    .q-feed__bloglink { text-decoration: none; }
-    .q-feed__filterpill {
+    #QtmBlogFeed-{{ sid }} .q-feed__header { margin-bottom: var(--q-feed-gap); }
+    #QtmBlogFeed-{{ sid }} .q-feed__eyebrow { margin: 0 0 var(--q-gap-xs, 8px); font-size: var(--q-fs-sm, 0.95rem); opacity: .85; }
+    #QtmBlogFeed-{{ sid }} .q-feed__heading { margin: 0; font-size: var(--q-heading-fs, var(--q-fs-2xl, 2rem)); line-height: var(--q-heading-lh, 1.15); }
+    #QtmBlogFeed-{{ sid }} .q-feed__subheading { margin-top: var(--q-gap-sm, 12px); max-width: var(--q-prose, 72ch); }
+    #QtmBlogFeed-{{ sid }} .q-feed__blogtitle { margin-top: var(--q-gap-sm, 12px); display: flex; gap: var(--q-gap-sm, 12px); align-items: center; flex-wrap: wrap; }
+    #QtmBlogFeed-{{ sid }} .q-feed__bloglink { text-decoration: none; }
+    #QtmBlogFeed-{{ sid }} .q-feed__filterpill {
       display: inline-flex;
       align-items: center;
       padding: .25em .6em;
@@ -430,16 +191,16 @@
     }
 
     /* Items base */
-    .q-feed__items{
+    #QtmBlogFeed-{{ sid }} .q-feed__items{
       display: grid;
       gap: var(--q-feed-gap);
       padding: var(--q-feed-pad); /* OUTER breathing room (you asked for this) */
     }
-    .q-feed__item{ margin: 0; min-width: 0; } /* safety wrapper so cards can't collapse gutters */
+    #QtmBlogFeed-{{ sid }} .q-feed__item{ margin: 0; min-width: 0; } /* safety wrapper so cards can't collapse gutters */
 
     /* LIST */
-    .q-feed--list .q-feed__items { grid-template-columns: 1fr; }
-    .q-feed--list .q-blogcard{
+    #QtmBlogFeed-{{ sid }}.q-feed--list .q-feed__items { grid-template-columns: 1fr; }
+    #QtmBlogFeed-{{ sid }}.q-feed--list .q-blogcard{
       border: 0;
       border-radius: 0;
       background: transparent;
@@ -447,51 +208,51 @@
       padding: var(--q-gap-lg, 24px) 0;
       border-bottom: 1px solid var(--q-border, rgba(0,0,0,.12));
     }
-    .q-feed--list .q-blogcard__media{
+    #QtmBlogFeed-{{ sid }}.q-feed--list .q-blogcard__media{
       display: block;
       border-radius: var(--q-radius-md, 16px);
       overflow: hidden;
       margin-bottom: var(--q-gap-md, 16px);
     }
-    .q-feed--list .q-blogcard__img{
+    #QtmBlogFeed-{{ sid }}.q-feed--list .q-blogcard__img{
       width: 100%;
       height: auto;
       display: block;
       max-height: var(--q-feed-list-img-cap);
       object-fit: cover;
     }
-    .q-feed--list .q-blogcard__body{
+    #QtmBlogFeed-{{ sid }}.q-feed--list .q-blogcard__body{
       padding: 0;
       display: flex;
       flex-direction: column;
       gap: var(--q-gap-sm, 12px);
     }
-    .q-feed--list .q-blogcard__title{
+    #QtmBlogFeed-{{ sid }}.q-feed--list .q-blogcard__title{
       font-size: var(--q-fs-xl, 1.35rem);
       line-height: 1.18;
     }
-    .q-feed--list .q-blogcard__excerpt{ max-width: var(--q-prose, 72ch); }
+    #QtmBlogFeed-{{ sid }}.q-feed--list .q-blogcard__excerpt{ max-width: var(--q-prose, 72ch); }
 
     @media (max-width: 749px){
-      .q-feed--list .q-blogcard{ padding: var(--q-gap-md, 16px) 0; }
-      .q-feed--list .q-blogcard__img{ max-height: calc(var(--q-feed-list-img-cap) - 40px); }
+      #QtmBlogFeed-{{ sid }}.q-feed--list .q-blogcard{ padding: var(--q-gap-md, 16px) 0; }
+      #QtmBlogFeed-{{ sid }}.q-feed--list .q-blogcard__img{ max-height: calc(var(--q-feed-list-img-cap) - 40px); }
     }
 
     /* GRID — real gutters, always */
-    .q-feed--grid .q-feed__items{
+    #QtmBlogFeed-{{ sid }}.q-feed--grid .q-feed__items{
       grid-template-columns: repeat(var(--q-feed-cols-m), minmax(0, 1fr));
       column-gap: var(--q-feed-gap);
       row-gap: var(--q-feed-gap);
     }
     @media (min-width: 750px){
-      .q-feed--grid .q-feed__items{
+      #QtmBlogFeed-{{ sid }}.q-feed--grid .q-feed__items{
         grid-template-columns: repeat(var(--q-feed-cols-t), minmax(0, 1fr));
         column-gap: var(--q-feed-gap);
         row-gap: var(--q-feed-gap);
       }
     }
     @media (min-width: 990px){
-      .q-feed--grid .q-feed__items{
+      #QtmBlogFeed-{{ sid }}.q-feed--grid .q-feed__items{
         grid-template-columns: repeat(var(--q-feed-cols-d), minmax(0, 1fr));
         column-gap: var(--q-feed-gap);
         row-gap: var(--q-feed-gap);
@@ -499,7 +260,7 @@
     }
 
     /* Guardrails: cards cannot “eat” the gap via margins/width hacks */
-    .q-feed--grid .q-feed__items > *{
+    #QtmBlogFeed-{{ sid }}.q-feed--grid .q-feed__items > *{
       margin: 0 !important;
       width: auto !important;
       max-width: 100% !important;
@@ -507,8 +268,8 @@
     }
 
     /* Add breathing between image and content in grid */
-    .q-feed--grid .q-blogcard__media{ margin-bottom: var(--q-gap-sm, 12px); }
-    .q-feed--grid .q-blogcard__body{
+    #QtmBlogFeed-{{ sid }}.q-feed--grid .q-blogcard__media{ margin-bottom: var(--q-gap-sm, 12px); }
+    #QtmBlogFeed-{{ sid }}.q-feed--grid .q-blogcard__body{
       padding: var(--q-gap-md, 16px);
       display: flex;
       flex-direction: column;
@@ -516,28 +277,28 @@
     }
 
     /* MASONRY (unchanged) */
-    .q-feed--masonry .q-feed__items{
+    #QtmBlogFeed-{{ sid }}.q-feed--masonry .q-feed__items{
       display: block;
       column-gap: var(--q-feed-gap);
       columns: var(--q-feed-cols-m);
       padding: var(--q-feed-pad);
     }
-    .q-feed--masonry .q-feed__items > *{
+    #QtmBlogFeed-{{ sid }}.q-feed--masonry .q-feed__items > *{
       break-inside: avoid;
       margin: 0 0 var(--q-feed-gap);
       display: block;
     }
-    @media (min-width: 750px){ .q-feed--masonry .q-feed__items{ columns: var(--q-feed-cols-t); } }
-    @media (min-width: 990px){ .q-feed--masonry .q-feed__items{ columns: var(--q-feed-cols-d); } }
+    @media (min-width: 750px){ #QtmBlogFeed-{{ sid }}.q-feed--masonry .q-feed__items{ columns: var(--q-feed-cols-t); } }
+    @media (min-width: 990px){ #QtmBlogFeed-{{ sid }}.q-feed--masonry .q-feed__items{ columns: var(--q-feed-cols-d); } }
 
     /* Nav */
-    .q-feed__nav { margin-top: var(--q-feed-gap); display: flex; justify-content: center; }
-    .q-feed__pagination { display: inline-flex; align-items: center; gap: var(--q-gap-sm, 12px); }
-    .q-feed__page { text-decoration: none; padding: .45em .8em; border-radius: var(--q-radius-sm, 10px); border: 1px solid var(--q-border, rgba(0,0,0,.12)); }
-    .q-feed__pageinfo { font-size: var(--q-fs-sm, .95rem); opacity: .85; }
+    #QtmBlogFeed-{{ sid }} .q-feed__nav { margin-top: var(--q-feed-gap); display: flex; justify-content: center; }
+    #QtmBlogFeed-{{ sid }} .q-feed__pagination { display: inline-flex; align-items: center; gap: var(--q-gap-sm, 12px); }
+    #QtmBlogFeed-{{ sid }} .q-feed__page { text-decoration: none; padding: .45em .8em; border-radius: var(--q-radius-sm, 10px); border: 1px solid var(--q-border, rgba(0,0,0,.12)); }
+    #QtmBlogFeed-{{ sid }} .q-feed__pageinfo { font-size: var(--q-fs-sm, .95rem); opacity: .85; }
 
-    .q-feed__loadmore { display: inline-flex; align-items: center; gap: var(--q-gap-sm, 12px); }
-    .q-feed__spinner{
+    #QtmBlogFeed-{{ sid }} .q-feed__loadmore { display: inline-flex; align-items: center; gap: var(--q-gap-sm, 12px); }
+    #QtmBlogFeed-{{ sid }} .q-feed__spinner{
       width: 1em; height: 1em;
       border-radius: 999px;
       border: 2px solid currentColor;
@@ -545,13 +306,19 @@
       opacity: 0;
       transform: rotate(0deg);
     }
-    .q-feed--blog.is-loading .q-feed__spinner{ opacity: .6; animation: qspin 700ms linear infinite; }
-    @keyframes qspin { to { transform: rotate(360deg); } }
+    #QtmBlogFeed-{{ sid }}.q-feed--blog.is-loading .q-feed__spinner{ opacity: .6; animation: qFeedBlogSpin 700ms linear infinite; }
+    @keyframes qFeedBlogSpin { to { transform: rotate(360deg); } }
 
-    .q-feed__empty { text-align: center; padding: var(--q-gap-lg, 24px) 0; }
-    .q-feed__emptyhint { margin-top: var(--q-gap-sm, 12px); }
+    #QtmBlogFeed-{{ sid }} .q-feed__empty { text-align: center; padding: var(--q-gap-lg, 24px) 0; }
+    #QtmBlogFeed-{{ sid }} .q-feed__emptyhint { margin-top: var(--q-gap-sm, 12px); }
+    #QtmBlogFeed-{{ sid }} *, #QtmBlogFeed-{{ sid }} { box-sizing: border-box; min-width: 0; overflow-wrap: anywhere; }
+    #QtmBlogFeed-{{ sid }} .q-feed__nav, #QtmBlogFeed-{{ sid }} .q-feed__pagination { flex-wrap: wrap; gap: .75rem; }
+    #QtmBlogFeed-{{ sid }} [hidden] { display: none; }
+    #QtmBlogFeed-{{ sid }} :is(a, button):focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+    @media (prefers-reduced-motion: reduce) { #QtmBlogFeed-{{ sid }} .q-feed__spinner { animation: none; } }
   </style>
 </section>
+{% endif %}
 
 {% schema %}
 {
@@ -564,13 +331,13 @@
       "type": "blog",
       "id": "blog",
       "label": "Blog source",
-      "info": "If not selected, the first available blog is used so the feed renders immediately."
+      "info": "Uses the current blog on blog/article pages when unselected. Choose a source on other pages."
     },
     {
       "type": "text",
       "id": "filter_tag",
       "label": "Optional tag filter",
-      "info": "Only show articles that include this tag. Leave blank for all articles."
+      "info": "Shows matching articles from the available preview (up to 50 articles), with a link to the complete tagged archive. Leave blank for native pagination."
     },
     {
       "type": "range",

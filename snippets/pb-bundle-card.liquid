@@ -1,5 +1,5 @@
 {%- comment -%}
-  pb-bundle-card — minimal, known-good render (no dependencies)
+  Retained legacy bundle card. No repository host; use requires a separate host review.
 {%- endcomment -%}
 
 {%- liquid
@@ -14,6 +14,7 @@
   assign ids = '' | split: ','
   assign seen = '|'
   assign total_price = 0
+  assign needs_options = false
 
   for pr in products
     if pr == blank
@@ -25,17 +26,21 @@
       assign v = pr.variants.first
     endif
 
+    if pr.requires_selling_plan or v.quantity_rule.min > 1 or v.quantity_rule.increment > 1
+      assign needs_options = true
+    endif
+
     if v == blank or v.available == false
       assign all_available = false
     endif
 
     if v != blank
-      assign total_price = total_price | plus: v.price
       assign vid = v.id | append: ''
       assign tok = '|' | append: vid | append: '|'
       if seen contains tok
         continue
       endif
+      assign total_price = total_price | plus: v.price
       assign seen = seen | append: vid | append: '|'
       assign variant_id_array = vid | split: ','
       assign ids = ids | concat: variant_id_array
@@ -43,7 +48,7 @@
   endfor
 
   assign disabled = false
-  if s.disable_if_unavailable and all_available == false
+  if all_available == false or ids.size == 0 or needs_options
     assign disabled = true
   endif
 
@@ -51,7 +56,7 @@
 -%}
 
 <article class="pb__card" {% if block != nil %}{{ block.shopify_attributes }}{% endif %}>
-  <div class="pb__card-inner{% if s.card_border %} pb__card-inner--border{% endif %}" style="border-radius: {{ s.card_radius }}px;">
+  <div class="pb__card-inner{% if s.card_border %} pb__card-inner--border{% endif %}" style="border-radius: {{ s.card_radius | default: 16 }}px;">
     <h3 class="pb__card-title">{{ title | escape }}</h3>
 
     {%- if bundle_description != blank -%}
@@ -59,11 +64,16 @@
     {%- endif -%}
 
     <ul class="pb__items" role="list">
+      {%- assign displayed = '|' -%}
       {%- for pr in products -%}
         {%- if pr == blank -%}{% continue %}{%- endif -%}
+        {%- assign display_variant = pr.selected_or_first_available_variant | default: pr.variants.first -%}
+        {%- assign display_token = '|' | append: display_variant.id | append: '|' -%}
+        {%- if displayed contains display_token -%}{% continue %}{%- endif -%}
+        {%- assign displayed = displayed | append: display_token -%}
         {%- assign img = pr.featured_image -%}
         <li class="pb__item">
-          <a class="pb__item-media" href="{{ pr.url }}">
+          <a class="pb__item-media" href="{{ pr.url | escape }}">
             {%- if img != blank -%}
               {%- liquid
                 assign qtm_image_alt = img.alt | default: pr.title
@@ -72,7 +82,7 @@
             {%- endif -%}
           </a>
           <div class="pb__item-meta">
-            <a class="pb__item-title" href="{{ pr.url }}">{{ pr.title }}</a>
+            <a class="pb__item-title" href="{{ pr.url | escape }}">{{ pr.title | escape }}</a>
           </div>
         </li>
       {%- endfor -%}
@@ -88,6 +98,7 @@
     {%- endif -%}
 
     <div class="pb__cta">
+      {% if needs_options %}<p>Choose purchase options on each product page.</p>{% endif %}
       <button
         type="button"
         class="pb__add button"
@@ -96,7 +107,7 @@
         aria-busy="false"
         {% if disabled %}disabled{% endif %}
       >
-        {{ s.button_label | escape }}
+        {{ s.button_label | default: 'Add bundle' | escape }}
       </button>
       <div class="pb__error" role="alert" hidden></div>
     </div>

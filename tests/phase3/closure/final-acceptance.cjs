@@ -43,28 +43,22 @@ variants.forEach(v=>{v.sku='';v.selling_plan_allocations=v.id===100?[{selling_pl
   d.window.history.replaceState({},'', '?variant=10');d.window.dispatchEvent(new d.window.PopStateEvent('popstate'));assert.equal(options[0].value,'Small');assert.equal(options[1].value,'Red');assert.equal(q('[name=id]').value,'10');d.window.close();
   console.log('PASS Compact: actual Liquid form; one ID; no-JS native fallback; multi-option/different/equal-price/compare-at/sold-out/invalid combination; quantity and plan payload; URL and restoration.');
 
-  const modern=read('sections/main-product-modern-variant.liquid');
-  const formStart=modern.indexOf("{%- form 'product'");
-  const formSource=modern.slice(formStart,modern.indexOf('endform',formStart));
-  assert.equal((formSource.match(/name="id"/g)||[]).length,1,'Modern source has one authoritative ID');
-  assert(!modern.match(/<select[^>]+id="QtmVariantSelect[^>]+name=/));
-  let variantScript=modern.slice(modern.indexOf('      // Variant selection ->'),modern.indexOf('      // Initialize currentIndex'));
-  variantScript=await engine.parseAndRender(variantScript,{section:{id:'qa'},cart:{currency:{iso_code:'USD'}}});
-  const modernFormInner = formSource.slice(formSource.indexOf('-%}')+4,formSource.lastIndexOf('{%-'));
-  product.options_with_values.forEach((option,index)=>{option.position=index+1;});
-  const actualModernForm = await engine.parseAndRender(modernFormInner,{p:product,current_variant:variants[0],section:{id:'qa',blocks:[{type:'variant_picker',settings:{picker:'dropdown'}},{type:'qty_buy_combo',settings:{}}]},settings:{}});
-  const m=dom(`<section id="root"><img id="image" src="original.jpg" srcset="original.jpg 100w"><span id="QtmPrice-qa"></span><s id="QtmCompare-qa"></s><form action="/cart/add">${actualModernForm}</form></section>`);
-  m.window.eval(`var root=document.querySelector('#root'), variants=${JSON.stringify(variants)}, mainImg=document.querySelector('#image'),modalImg=null,thumbs=[];${variantScript}`);
-  m.window.eval(read('assets/product-selling-plans.js'));m.window.document.dispatchEvent(new m.window.Event('DOMContentLoaded'));
-  const mq=s=>m.window.document.querySelector(s);const selectModern=(a,b)=>{mq('[name=qtm-option-1]').value=a;mq('[name=qtm-option-2]').value=b;mq('[name=qtm-option-2]').dispatchEvent(new m.window.Event('change',{bubbles:true}));};
-  selectModern('Large','Red');assert.deepEqual(new m.window.FormData(mq('form')).getAll('id'),['100']);assert.equal(mq('#QtmPrice-qa').textContent,'$100.00');assert.equal(mq('#QtmCompare-qa').style.display,'');
+  // Phase 4 extracts the host's gallery/resolver and reuses the native purchase
+  // helper. Execute the complete Liquid host + actual assets instead of a JS slice.
+  const commerce=require('../../phase4/support/commerce.cjs');
+  const modernProduct={...commerce.product,...product,options_with_values:product.options_with_values.map((option,i)=>({...option,position:i+1})),variants:variants.map(v=>({...v,featured_image:v.id===100?{url:'https://example.test/variant.jpg',width:800,height:600}:null})),selected_or_first_available_variant:variants[0]};
+  const modernHTML=await commerce.render('main-product-modern-variant',{id:'qa',settings:{gallery_layout:'thumbnails'},data:{product:modernProduct},blocks:[{type:'price'},{type:'variant_picker',settings:{picker:'dropdown'}},{type:'qty_buy_combo'}]});
+  const m=commerce.dom(modernHTML);commerce.boot(m.window,['product-selling-plans.js','product-purchase-sync.js','product-gallery-options.js']);
+  const mq=s=>m.window.document.querySelector(s),original=mq('#QtmMainImage-qa').src;
+  const selectModern=(a,b)=>{mq('[name=qtm-option-qa-1]').value=a;mq('[name=qtm-option-qa-2]').value=b;mq('[name=qtm-option-qa-2]').dispatchEvent(new m.window.Event('change',{bubbles:true}));};
+  selectModern('Small','Red');assert.equal(mq('#QtmMainImage-qa').src,original,'no-image variant preserves gallery');
+  selectModern('Large','Red');assert.deepEqual(new m.window.FormData(mq('form')).getAll('id'),['100']);assert.equal(mq('#QtmPrice-qa').textContent,'$100.00');assert(!mq('#QtmCompare-qa').hidden);
+  assert(mq('#QtmMainImage-qa').src.includes('variant.jpg'));assert(!mq('#QtmMainImage-qa').hasAttribute('srcset'));assert(!mq('#QtmAtc-qa').disabled);
   mq('[name=selling_plan]').value='45';assert.equal(new m.window.FormData(mq('form')).get('selling_plan'),'45');
   mq('#QtmQty-qa').value='4';mq('#QtmQty-qa').dispatchEvent(new m.window.Event('input'));assert.equal(new m.window.FormData(mq('form')).get('quantity'),'4');
-  selectModern('Large','Blue');assert.equal(mq('[name=selling_plan]').value,'');assert(mq('#QtmAtc-qa').disabled,'sold-out works without optional availability block');assert.equal(mq('#QtmCompare-qa').style.display,'none');
-  selectModern('Small','Blue');assert.equal(mq('[name=id]').value,'');assert.equal(mq('form').dispatchEvent(new m.window.Event('submit',{cancelable:true})),false);
-  assert(mq('#image').src.endsWith('original.jpg'),'no-image variant preserves gallery');
-  m.window.eval("variants[1].featured_image={src:'https://example.test/variant.jpg'}");selectModern('Large','Red');assert(mq('#image').src.endsWith('variant.jpg'));assert(!mq('#image').hasAttribute('srcset'));assert(!mq('#QtmAtc-qa').disabled);m.window.close();
-  console.log('PASS Modern: actual resolver; one authoritative ID; multi-option price/compare/sold-out without status block; invalid submission blocked; quantity; featured-image update and no-image preservation.');
+  selectModern('Large','Blue');assert.equal(mq('[name=selling_plan]').value,'');assert(mq('#QtmAtc-qa').disabled,'sold-out works without optional availability block');assert(mq('#QtmCompare-qa').hidden);
+  selectModern('Small','Blue');assert.equal(mq('[name=id]').value,'');assert.equal(mq('form').dispatchEvent(new m.window.Event('submit',{cancelable:true})),false);m.window.close();
+  console.log('PASS Modern: actual Liquid host and resolver; one authoritative ID; multi-option price/compare/sold-out without status block; invalid submission blocked; quantity; featured-image update and no-image preservation.');
 
   const networks=['instagram','tiktok','facebook','youtube','pinterest','twitter','linkedin'];
   const globals=Object.fromEntries(networks.map(n=>['social_url_'+n,'https://example.test/global/'+n]));

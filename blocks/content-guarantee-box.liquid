@@ -1,9 +1,14 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 %}
+
+{% assign has_content = false %}{% if block.settings.heading != blank or block.settings.text != blank or block.settings.eyebrow != blank %}{% assign has_content = true %}{% endif %}{% if block.settings.show_support_points %}{% if block.settings.point_1 != blank or block.settings.point_2 != blank or block.settings.point_3 != blank %}{% assign has_content = true %}{% endif %}{% endif %}{% if block.settings.button_label != blank and block.settings.button_url != blank %}{% assign has_content = true %}{% endif %}
 
 <div
   class="
@@ -13,9 +18,9 @@
     qtm-guarantee-box--align-{{ block_alignment }}
     qtm-guarantee-box--layout-{{ block.settings.layout_style }}
     qtm-guarantee-box--animation-{{ animation }}
-    {% unless block.settings.show_desktop %} qtm-guarantee-box--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-guarantee-box--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-guarantee-box--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-guarantee-box--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-guarantee-box--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-guarantee-box--hide-mobile{% endunless %}
   "
   style="
     --qtm-guarantee-box-margin-top: {{ block.settings.margin_top }}px;
@@ -36,10 +41,11 @@
     --qtm-guarantee-box-border-width: {{ block.settings.border_width }}px;
     --qtm-guarantee-box-border-radius: {{ block.settings.border_radius }}px;
   "
-  {{ block.shopify_attributes }}
+  {% unless has_content or request.design_mode %}hidden{% endunless %}
 >
+  {% if has_content == false and request.design_mode %}<p role="note">Add the actual terms and policy link that support your guarantee.</p>{% endif %}
   <div class="qtm-guarantee-box__inner">
-    {% if block.settings.show_icon %}
+    {% if block.settings.show_icon and block.settings.icon != blank %}
       <div class="qtm-guarantee-box__icon-wrap" aria-hidden="true">
         <span class="qtm-guarantee-box__icon">
           {{ block.settings.icon | escape }}
@@ -66,7 +72,8 @@
         </div>
       {% endif %}
 
-      {% if block.settings.show_support_points %}
+      {% assign has_points = false %}{% if block.settings.point_1 != blank or block.settings.point_2 != blank or block.settings.point_3 != blank %}{% assign has_points = true %}{% endif %}
+      {% if block.settings.show_support_points and has_points %}
         <ul class="qtm-guarantee-box__points" role="list">
           {% if block.settings.point_1 != blank %}
             <li class="qtm-guarantee-box__point">
@@ -92,7 +99,7 @@
       {% endif %}
 
       {% if block.settings.button_label != blank and block.settings.button_url != blank %}
-        <a class="qtm-guarantee-box__button" href="{{ block.settings.button_url }}">
+        <a class="qtm-guarantee-box__button" href="{{ block.settings.button_url | escape }}">
           {{ block.settings.button_label | escape }}
         </a>
       {% endif %}
@@ -102,9 +109,13 @@
 
 <style>
   .qtm-guarantee-box-{{ block_id }} {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     margin-top: var(--qtm-guarantee-box-margin-top);
     margin-bottom: var(--qtm-guarantee-box-margin-bottom);
-    padding: var(--qtm-guarantee-box-padding);
+    padding: min(var(--qtm-guarantee-box-padding), 12%);
     color: var(--qtm-guarantee-box-text-color);
     background: var(--qtm-guarantee-box-background-color);
     border: var(--qtm-guarantee-box-border-width) solid var(--qtm-guarantee-box-border-color);
@@ -157,7 +168,7 @@
   .qtm-guarantee-box-{{ block_id }} .qtm-guarantee-box__inner {
     position: relative;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: {% if block.settings.show_icon and block.settings.icon != blank %}auto {% endif %}minmax(0, 1fr);
     gap: var(--qtm-guarantee-box-gap);
     align-items: start;
     padding: clamp(1rem, 2vw, 1.5rem);
@@ -215,7 +226,7 @@
   .qtm-guarantee-box-{{ block_id }} .qtm-guarantee-box__icon {
     display: grid;
     place-items: center;
-    width: {{ block.settings.icon_size }}px;
+    width: min({{ block.settings.icon_size }}px, 20vw);
     height: {{ block.settings.icon_size }}px;
     color: var(--qtm-guarantee-box-icon-color);
     background: var(--qtm-guarantee-box-icon-background);
@@ -417,9 +428,7 @@
   }
 
   @media screen and (max-width: 989px) {
-    .qtm-guarantee-box-{{ block_id }}.qtm-guarantee-box--hide-tablet {
-      display: none !important;
-    }
+
   }
 
   @media screen and (min-width: 990px) {
@@ -443,7 +452,7 @@
     }
 
     .qtm-guarantee-box-{{ block_id }}.qtm-guarantee-box--layout-banner .qtm-guarantee-box__inner {
-      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-columns: {% if block.settings.show_icon and block.settings.icon != blank %}auto {% endif %}minmax(0, 1fr);
     }
 
     .qtm-guarantee-box-{{ block_id }} .qtm-guarantee-box__button {
@@ -461,6 +470,15 @@
       scroll-behavior: auto !important;
     }
   }
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-guarantee-box-{{ block_id }}.qtm-guarantee-box--hide-tablet {
+      display: none !important;
+    }
+  }
+  .qtm-guarantee-box-{{ block_id }}[hidden] { display: none !important; }
+  .qtm-guarantee-box-{{ block_id }}, .qtm-guarantee-box-{{ block_id }} * { box-sizing: border-box; }
+  .qtm-guarantee-box-{{ block_id }} :is(div,article,ul,li,a,span) { min-width: 0; }
+  .qtm-guarantee-box-{{ block_id }} :is(img,a,button) { max-width: 100%; }
 </style>
 
 {% schema %}
@@ -486,20 +504,18 @@
     {
       "type": "text",
       "id": "eyebrow",
-      "label": "Eyebrow",
-      "default": "Our promise"
+      "label": "Eyebrow"
     },
     {
       "type": "text",
       "id": "heading",
-      "label": "Heading",
-      "default": "Shop with confidence"
+      "label": "Heading"
     },
     {
       "type": "richtext",
       "id": "text",
       "label": "Text",
-      "default": "<p>Your satisfaction matters. We stand behind the products, support, and shopping experience we provide.</p>"
+      "info": "Merchant-authored terms. This block does not create a return, warranty or payment policy."
     },
     {
       "type": "checkbox",
@@ -516,20 +532,17 @@
     {
       "type": "text",
       "id": "point_1",
-      "label": "Support point 1",
-      "default": "Easy returns"
+      "label": "Support point 1"
     },
     {
       "type": "text",
       "id": "point_2",
-      "label": "Support point 2",
-      "default": "Secure checkout"
+      "label": "Support point 2"
     },
     {
       "type": "text",
       "id": "point_3",
-      "label": "Support point 3",
-      "default": "Helpful support"
+      "label": "Support point 3"
     },
     {
       "type": "text",
@@ -845,15 +858,15 @@
   ],
   "presets": [
     {
-      "name": "Satisfaction Guarantee",
+      "name": "Guarantee Details",
       "settings": {
         "icon": "✓",
-        "eyebrow": "Our promise",
-        "heading": "Satisfaction guaranteed",
-        "text": "<p>We want you to feel confident before and after you buy. If something is not right, our team is here to help.</p>",
-        "point_1": "Helpful customer support",
-        "point_2": "Simple return process",
-        "point_3": "Trusted shopping experience",
+        "eyebrow": "",
+        "heading": "",
+        "text": "",
+        "point_1": "",
+        "point_2": "",
+        "point_3": "",
         "button_label": "View guarantee",
         "layout_style": "card",
         "padding": 20,
@@ -863,15 +876,15 @@
       }
     },
     {
-      "name": "Easy Returns",
+      "name": "Return Policy Details",
       "settings": {
         "icon": "↺",
-        "eyebrow": "Returns made simple",
-        "heading": "Easy returns and exchanges",
-        "text": "<p>Shop with less worry. Our return and exchange process is designed to be clear, helpful, and customer-friendly.</p>",
-        "point_1": "Clear return policy",
-        "point_2": "Exchange-friendly support",
-        "point_3": "Fast help when you need it",
+        "eyebrow": "",
+        "heading": "",
+        "text": "",
+        "point_1": "",
+        "point_2": "",
+        "point_3": "",
         "button_label": "View return policy",
         "layout_style": "banner",
         "padding": 24,
@@ -883,15 +896,15 @@
       }
     },
     {
-      "name": "Secure Purchase Promise",
+      "name": "Purchase Policy Details",
       "settings": {
         "icon": "🔒",
-        "eyebrow": "Secure purchase",
-        "heading": "Checkout with confidence",
-        "text": "<p>Your order is protected by secure checkout, trusted payment options, and support from our team.</p>",
-        "point_1": "Secure checkout",
-        "point_2": "Trusted payment methods",
-        "point_3": "Order support available",
+        "eyebrow": "",
+        "heading": "",
+        "text": "",
+        "point_1": "",
+        "point_2": "",
+        "point_3": "",
         "button_label": "Learn more",
         "layout_style": "bordered",
         "padding": 20,

@@ -1,11 +1,17 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 %}
 
+{% assign has_items = false %}{% for i in (1..10) %}{% assign enabled_key = 'anchor_' | append: i | append: '_enabled' %}{% assign label_key = 'anchor_' | append: i | append: '_label' %}{% assign target_key = 'anchor_' | append: i | append: '_id' %}{% assign target_value = block.settings[target_key] | strip %}{% assign target_first = target_value | slice: 0 %}{% if target_first == '#' %}{% assign target_value = target_value | remove_first: '#' %}{% endif %}{% if block.settings[enabled_key] and block.settings[label_key] != blank and target_value != blank %}{% assign has_items = true %}{% endif %}{% endfor %}
+
 <div
+  id="qtm-anchor-nav-{{ block.id }}"
   class="
     qtm-anchor-nav
     qtm-anchor-nav-{{ block_id }}
@@ -15,9 +21,9 @@
     qtm-anchor-nav--animation-{{ animation }}
     {% if block.settings.enable_sticky %} qtm-anchor-nav--sticky{% endif %}
     {% if block.settings.enable_scroll_snap %} qtm-anchor-nav--scroll-snap{% endif %}
-    {% unless block.settings.show_desktop %} qtm-anchor-nav--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-anchor-nav--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-anchor-nav--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-anchor-nav--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-anchor-nav--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-anchor-nav--hide-mobile{% endunless %}
   "
   style="
     --qtm-anchor-nav-margin-top: {{ block.settings.margin_top }}px;
@@ -43,7 +49,9 @@
   {% if block.settings.enable_smooth_scroll %}data-smooth-scroll="true"{% endif %}
   {% if block.settings.active_on_click %}data-active-on-click="true"{% endif %}
   {{ block.shopify_attributes }}
+  {% unless has_items or request.design_mode %}hidden{% endunless %}
 >
+  {% if has_items == false and request.design_mode %}<p role="note">Set each link to the exact ID of an existing section or heading.</p>{% endif %}
   <div class="qtm-anchor-nav__inner">
     {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank %}
       <div class="qtm-anchor-nav__header">
@@ -67,8 +75,9 @@
       </div>
     {% endif %}
 
-    <nav class="qtm-anchor-nav__nav" aria-label="{{ block.settings.nav_label | escape }}">
+    <nav class="qtm-anchor-nav__nav" aria-label="{{ block.settings.nav_label | default: 'On this page' | escape }}">
       <ul class="qtm-anchor-nav__list" role="list">
+        {% assign displayed_items = 0 %}
         {% for i in (1..10) %}
           {% liquid
             assign enabled_key = 'anchor_' | append: i | append: '_enabled'
@@ -78,20 +87,26 @@
 
             assign anchor_enabled = block.settings[enabled_key]
             assign anchor_label = block.settings[label_key]
-            assign anchor_id = block.settings[id_key] | remove: '#'
+            assign anchor_id = block.settings[id_key] | strip
+            assign first_character = anchor_id | slice: 0
+            if first_character == '#'
+              assign anchor_id = anchor_id | remove_first: '#'
+            endif
             assign anchor_badge = block.settings[badge_key]
           %}
 
           {% if anchor_enabled and anchor_label != blank and anchor_id != blank %}
+            {% assign displayed_items = displayed_items | plus: 1 %}
             <li class="qtm-anchor-nav__item">
               <a
-                class="qtm-anchor-nav__link {% if forloop.first and block.settings.mark_first_active %}is-active{% endif %}"
-                href="#{{ anchor_id | escape }}"
+                class="qtm-anchor-nav__link {% if displayed_items == 1 and block.settings.mark_first_active %}is-active{% endif %}"
+                href="#{{ anchor_id | url_encode | replace: '+', '%20' | escape }}"
                 data-anchor-target="{{ anchor_id | escape }}"
+                {% if displayed_items == 1 and block.settings.mark_first_active %}aria-current="location"{% endif %}
               >
                 {% if block.settings.show_numbers %}
                   <span class="qtm-anchor-nav__number" aria-hidden="true">
-                    {{ forloop.index }}
+                    {{ displayed_items }}
                   </span>
                 {% endif %}
 
@@ -111,46 +126,16 @@
       </ul>
     </nav>
   </div>
-</div>
-
-{% if block.settings.enable_smooth_scroll or block.settings.active_on_click %}
-  <script>
-    (() => {
-      const root = document.querySelector('[data-qtm-anchor-nav="{{ block_id }}"]');
-      if (!root) return;
-
-      const links = Array.from(root.querySelectorAll('[data-anchor-target]'));
-      if (!links.length) return;
-
-      const smoothScroll = root.dataset.smoothScroll === 'true';
-      const activeOnClick = root.dataset.activeOnClick === 'true';
-
-      links.forEach((link) => {
-        link.addEventListener('click', (event) => {
-          const targetId = link.dataset.anchorTarget;
-          const target = document.getElementById(targetId);
-
-          if (smoothScroll && target) {
-            event.preventDefault();
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            history.pushState(null, '', `#${targetId}`);
-          }
-
-          if (activeOnClick) {
-            links.forEach((item) => item.classList.remove('is-active'));
-            link.classList.add('is-active');
-          }
-        });
-      });
-    })();
-  </script>
-{% endif %}
 
 <style>
   .qtm-anchor-nav-{{ block_id }} {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     margin-top: var(--qtm-anchor-nav-margin-top);
     margin-bottom: var(--qtm-anchor-nav-margin-bottom);
-    padding: var(--qtm-anchor-nav-padding);
+    padding: min(var(--qtm-anchor-nav-padding), 12%);
     color: var(--qtm-anchor-nav-text-color);
     background: var(--qtm-anchor-nav-background-color);
     border: var(--qtm-anchor-nav-border-width) solid var(--qtm-anchor-nav-border-color);
@@ -293,6 +278,7 @@
 
   .qtm-anchor-nav-{{ block_id }} .qtm-anchor-nav__item {
     flex: 0 0 auto;
+    max-width: 100%;
   }
 
   .qtm-anchor-nav-{{ block_id }} .qtm-anchor-nav__link {
@@ -310,7 +296,7 @@
     font-weight: 800;
     line-height: 1.1;
     text-decoration: none;
-    white-space: nowrap;
+    white-space: normal;
     transition: transform 180ms ease, opacity 180ms ease, background 180ms ease, border-color 180ms ease, color 180ms ease;
   }
 
@@ -327,7 +313,7 @@
   }
 
   .qtm-anchor-nav-{{ block_id }} .qtm-anchor-nav__link.is-active,
-  .qtm-anchor-nav-{{ block_id }} .qtm-anchor-nav__link[aria-current="true"] {
+  .qtm-anchor-nav-{{ block_id }} .qtm-anchor-nav__link[aria-current="location"] {
     color: var(--qtm-anchor-nav-active-color);
     background: var(--qtm-anchor-nav-active-background);
     border-color: color-mix(in srgb, var(--qtm-anchor-nav-active-color), transparent 72%);
@@ -477,13 +463,11 @@
   }
 
   @media screen and (max-width: 989px) {
-    .qtm-anchor-nav-{{ block_id }}.qtm-anchor-nav--hide-tablet {
-      display: none !important;
-    }
+
 
     .qtm-anchor-nav-{{ block_id }}.qtm-anchor-nav--sticky {
       position: sticky;
-      top: 0;
+      top: var(--qtm-anchor-nav-sticky-offset);
     }
   }
 
@@ -523,7 +507,16 @@
       scroll-behavior: auto !important;
     }
   }
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-anchor-nav-{{ block_id }}.qtm-anchor-nav--hide-tablet {
+      display: none !important;
+    }
+  }
+  .qtm-anchor-nav-{{ block_id }}[hidden] { display: none !important; }
+  .qtm-anchor-nav-{{ block_id }} :is(div, ul, ol, li, a, span, table) { min-width: 0; }
+  .qtm-anchor-nav-{{ block_id }} :is(a, button, img) { max-width: 100%; }
 </style>
+</div>
 
 {% schema %}
 {
@@ -606,7 +599,6 @@
       "label": "Enable horizontal scroll snap",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Anchor 1"
@@ -627,14 +619,13 @@
       "type": "text",
       "id": "anchor_1_id",
       "label": "Anchor 1 ID",
-      "default": "overview"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "anchor_1_badge",
       "label": "Anchor 1 badge"
     },
-
     {
       "type": "header",
       "content": "Anchor 2"
@@ -655,14 +646,13 @@
       "type": "text",
       "id": "anchor_2_id",
       "label": "Anchor 2 ID",
-      "default": "features"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "anchor_2_badge",
       "label": "Anchor 2 badge"
     },
-
     {
       "type": "header",
       "content": "Anchor 3"
@@ -683,14 +673,13 @@
       "type": "text",
       "id": "anchor_3_id",
       "label": "Anchor 3 ID",
-      "default": "benefits"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "anchor_3_badge",
       "label": "Anchor 3 badge"
     },
-
     {
       "type": "header",
       "content": "Anchor 4"
@@ -711,14 +700,13 @@
       "type": "text",
       "id": "anchor_4_id",
       "label": "Anchor 4 ID",
-      "default": "reviews"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "anchor_4_badge",
       "label": "Anchor 4 badge"
     },
-
     {
       "type": "header",
       "content": "Anchor 5"
@@ -739,14 +727,13 @@
       "type": "text",
       "id": "anchor_5_id",
       "label": "Anchor 5 ID",
-      "default": "faqs"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "anchor_5_badge",
       "label": "Anchor 5 badge"
     },
-
     {
       "type": "header",
       "content": "Anchor 6"
@@ -767,14 +754,13 @@
       "type": "text",
       "id": "anchor_6_id",
       "label": "Anchor 6 ID",
-      "default": "section"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "anchor_6_badge",
       "label": "Anchor 6 badge"
     },
-
     {
       "type": "header",
       "content": "Anchor 7"
@@ -795,14 +781,13 @@
       "type": "text",
       "id": "anchor_7_id",
       "label": "Anchor 7 ID",
-      "default": "section"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "anchor_7_badge",
       "label": "Anchor 7 badge"
     },
-
     {
       "type": "header",
       "content": "Anchor 8"
@@ -823,14 +808,13 @@
       "type": "text",
       "id": "anchor_8_id",
       "label": "Anchor 8 ID",
-      "default": "section"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "anchor_8_badge",
       "label": "Anchor 8 badge"
     },
-
     {
       "type": "header",
       "content": "Anchor 9"
@@ -851,14 +835,13 @@
       "type": "text",
       "id": "anchor_9_id",
       "label": "Anchor 9 ID",
-      "default": "section"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "anchor_9_badge",
       "label": "Anchor 9 badge"
     },
-
     {
       "type": "header",
       "content": "Anchor 10"
@@ -879,14 +862,13 @@
       "type": "text",
       "id": "anchor_10_id",
       "label": "Anchor 10 ID",
-      "default": "section"
+      "info": "Exact existing element ID, optionally beginning with #."
     },
     {
       "type": "text",
       "id": "anchor_10_badge",
       "label": "Anchor 10 badge"
     },
-
     {
       "type": "header",
       "content": "Sizing"
@@ -931,7 +913,6 @@
       "unit": "px",
       "default": 11
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -1018,7 +999,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1053,7 +1033,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1118,7 +1097,6 @@
       "label": "Active background",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1143,7 +1121,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1166,7 +1143,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1238,15 +1214,15 @@
         "heading": "",
         "text": "",
         "anchor_1_label": "Overview",
-        "anchor_1_id": "overview",
+        "anchor_1_id": "",
         "anchor_2_label": "Features",
-        "anchor_2_id": "features",
+        "anchor_2_id": "",
         "anchor_3_label": "Specs",
-        "anchor_3_id": "specs",
+        "anchor_3_id": "",
         "anchor_4_label": "Reviews",
-        "anchor_4_id": "reviews",
+        "anchor_4_id": "",
         "anchor_5_label": "FAQs",
-        "anchor_5_id": "faqs",
+        "anchor_5_id": "",
         "layout_style": "tabs",
         "enable_sticky": true,
         "sticky_offset": 80,
@@ -1291,6 +1267,7 @@
         "border_radius": 16
       }
     }
-  ]
+  ],
+  "tag": null
 }
 {% endschema %}

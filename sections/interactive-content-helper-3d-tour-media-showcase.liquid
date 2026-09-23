@@ -1,10 +1,10 @@
 {%- comment -%}
-  Quadratum — Interactive · 3D Tour & Media Showcase (Owned 3D Model Viewer v2)
+  Quadratum — Interactive · 3D Tour & Media Showcase (3D Model Viewer)
   File: sections/interactive-content-helper-3d-tour-media-showcase.liquid
 
-  This section supports self-hosted 3D (GLB + optional USDZ) using <model-viewer>.
-  NOTE: Rendering 3D requires JS. We load an owned local asset:
-    assets/q-model-viewer.min.js
+  This section supports self-hosted 3D (GLB + optional USDZ) using <qtm-model-viewer>.
+  NOTE: Rendering 3D requires JS. A scoped loader reuses an existing qtm-model-viewer registration or loads
+    the pinned local 4.3.1 module only when this host is in view.
 
   Graceful degradation:
   - Poster image always renders (if provided)
@@ -21,12 +21,23 @@
   assign s = section.settings
 
   assign layout = s.layout | default: 'viewer_primary_gallery_below'
-  assign title = s.title | default: 'Explore the space'
-  assign subtitle = s.subtitle | default: '<p>Inspect the space in 3D—interactive, premium, and fully self-hosted.</p>'
+  assign title = s.title
+  assign subtitle = s.subtitle
 
-  assign glb_url = s.model_glb_url | default: ''
-  assign usdz_url = s.model_usdz_url | default: ''
+  assign glb_url = s.model_glb_url | default: '' | strip
+  assign usdz_url = s.model_usdz_url | default: '' | strip
   assign poster = s.poster_image
+
+  assign glb_prefix = glb_url | slice: 0, 8 | downcase
+  assign glb_first = glb_url | slice: 0, 1
+  unless glb_prefix == 'https://' or glb_first == '/'
+    assign glb_url = ''
+  endunless
+  assign usdz_prefix = usdz_url | slice: 0, 8 | downcase
+  assign usdz_first = usdz_url | slice: 0, 1
+  unless usdz_prefix == 'https://' or usdz_first == '/'
+    assign usdz_url = ''
+  endunless
 
   assign has_glb = false
   if glb_url != blank
@@ -48,11 +59,16 @@
   elsif aspect == '1:1'
     assign aspect_pad = '100%'
   elsif aspect == 'custom'
-    assign aspect_pad = '56.25%'
+    assign aspect_pad = s.custom_aspect_height | default: 56.25 | at_least: 10 | at_most: 200 | append: '%'
   endif
 
   assign media_blocks = section.blocks | where: 'type', 'supporting_media'
-  assign media_count = media_blocks.size
+  assign media_count = 0
+  for block in media_blocks
+    if block.settings.image != blank
+      assign media_count = media_count | plus: 1
+    endif
+  endfor
   assign has_media = false
   if media_count > 0
     assign has_media = true
@@ -68,7 +84,6 @@
   assign show_loading_ui = s.show_loading_ui
   assign poster_fit = s.poster_fit | default: 'cover'
 
-  assign MV_ASSET = 'q-model-viewer.min.js'
 
   assign should_render = true
   if has_glb == false and has_poster == false and has_media == false
@@ -81,6 +96,9 @@
   id="q-3d-model-{{ sid }}"
   class="q-3dmv"
   data-layout="{{ layout }}"
+  data-model-runtime="{{ 'q-model-viewer.min.js' | asset_url }}"
+  data-q-showcase
+  data-auto-rotate="{{ auto_rotate }}"
   data-media-count="{{ media_count }}"
   data-loading-ui="{% if show_loading_ui %}true{% else %}false{% endif %}"
   style="
@@ -106,6 +124,7 @@
     #q-3d-model-{{ sid }}{
       background: var(--q-3dmv-section-bg, transparent);
       width: 100%;
+      color:var(--c-text, inherit);
       container-type: inline-size;
     }
 
@@ -168,7 +187,7 @@
       width: 100%;
       padding-top: var(--q-3dmv-aspect-pad, 56.25%);
       overflow: hidden;
-      border-radius: calc(var(--q-3dmv-surface-radius, 18px) - 8px);
+      border-radius: max(0px, calc(var(--q-3dmv-surface-radius, 18px) - 8px));
       background: rgba(0,0,0,0.02);
     }
 
@@ -182,8 +201,8 @@
       object-fit: {{ poster_fit }};
     }
 
-    /* model-viewer fills */
-    #q-3d-model-{{ sid }} model-viewer.q-3dmv__mv{
+    /* qtm-model-viewer fills */
+    #q-3d-model-{{ sid }} qtm-model-viewer.q-3dmv__mv{
       position: absolute;
       inset: 0;
       width: 100%;
@@ -202,7 +221,7 @@
       display: none;
       pointer-events: none;
     }
-    #q-3d-model-{{ sid }}[data-loading-ui="true"] .q-3dmv__loading{
+    #q-3d-model-{{ sid }}[data-loading-ui="true"].is-loading .q-3dmv__loading{
       display: block;
     }
 
@@ -253,7 +272,8 @@
 
     #q-3d-model-{{ sid }} .q-3dmv__thumb{
       flex: 0 0 auto;
-      width: min(220px, 80vw);
+      width: min(220px, 100%);
+      max-width:100%;
       scroll-snap-align: start;
       text-decoration: none;
       color: inherit;
@@ -309,16 +329,23 @@
       line-height: 1.45;
       opacity: var(--q-3dmv-subtitle-opacity, 0.85);
     }
+    #q-3d-model-{{ sid }}, #q-3d-model-{{ sid }} * { box-sizing:border-box; min-width:0; overflow-wrap:anywhere; }
+    #q-3d-model-{{ sid }} .q-3dmv__thumb > a { display:block; color:inherit; text-decoration:none; }
+    #q-3d-model-{{ sid }} a:focus-visible, #q-3d-model-{{ sid }} .q-3dmv__strip:focus-visible, #q-3d-model-{{ sid }} qtm-model-viewer:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
+    #q-3d-model-{{ sid }} qtm-model-viewer:not(:defined), #q-3d-model-{{ sid }}.has-error qtm-model-viewer { display:none; }
+    #q-3d-model-{{ sid }}.is-ready .q-3dmv__poster { visibility:hidden; }
+    #q-3d-model-{{ sid }} [hidden] { display:none !important; }
+    @media (prefers-reduced-motion:reduce) { #q-3d-model-{{ sid }} .q-3dmv__loading-fill { transition:none; } }
   </style>
 
   <div class="q-3dmv__inner">
-    <header class="q-3dmv__header">
-      <h2 class="q-3dmv__title">{{ title | escape }}</h2>
-      <div class="q-3dmv__subtitle">{{ subtitle }}</div>
-    </header>
+    {% if title != blank or subtitle != blank %}<header class="q-3dmv__header">
+      {% if title != blank %}<h2 class="q-3dmv__title">{{ title | escape }}</h2>{% endif %}
+      {% if subtitle != blank %}<div class="q-3dmv__subtitle">{{ subtitle }}</div>{% endif %}
+    </header>{% endif %}
 
     <div class="q-3dmv__layout">
-      <div class="q-3dmv__surface q-3dmv__viewer">
+      {% if has_glb or has_poster %}<div class="q-3dmv__surface q-3dmv__viewer">
         <div class="q-3dmv__aspect">
           {%- if has_poster -%}
             <img
@@ -332,19 +359,19 @@
           {%- endif -%}
 
           {%- if has_glb -%}
-            <model-viewer
+            <qtm-model-viewer
               class="q-3dmv__mv"
               data-q-model-viewer
               src="{{ glb_url | escape }}"
-              {%- if usdz_url != blank -%} ios-src="{{ usdz_url | escape }}"{%- endif -%}
-              {%- if enable_ar -%} ar{%- endif -%}
-              {%- if camera_controls -%} camera-controls{%- endif -%}
-              {%- if auto_rotate -%} auto-rotate{%- endif -%}
+              {% if usdz_url != blank %} ios-src="{{ usdz_url | escape }}"{% endif %}
+              {% if enable_ar %} ar{% endif %}
+              {% if camera_controls %} camera-controls{% endif %}
+
               loading="lazy"
-              alt="{{ title | escape }}"
-              aria-label="{{ title | escape }}"
+              alt="{{ title | default: '3D model' | escape }}"
+              aria-label="{{ title | default: '3D model' | escape }}"
               disable-pan
-            ></model-viewer>
+            ></qtm-model-viewer>
 
             {%- if show_loading_ui -%}
               <div class="q-3dmv__loading" aria-hidden="true">
@@ -356,14 +383,15 @@
           {%- endif -%}
         </div>
 
-        {%- if has_glb == false and show_fallback_message -%}
-          <div class="q-3dmv__message">{{ fallback_message | escape }}</div>
+        {% if has_glb %}<p class="q-3dmv__download"><a href="{{ glb_url | escape }}">View 3D model file</a></p>{% endif %}
+        {%- if show_fallback_message -%}
+          <div class="q-3dmv__message" data-q-model-message>{{ fallback_message | escape }}</div>
         {%- endif -%}
-      </div>
+      </div>{% endif %}
 
       {%- if has_media -%}
         <div class="q-3dmv__media">
-          <div class="q-3dmv__strip" role="list" aria-label="Supporting media">
+          <div class="q-3dmv__strip" role="list" aria-label="Supporting media" tabindex="0">
             {%- for block in media_blocks -%}
               {%- liquid
                 assign b = block.settings
@@ -381,7 +409,7 @@
                   if m_title != blank
                     assign alt_text = m_title
                   else
-                    assign alt_text = title
+                    assign alt_text = title | default: 'Supporting image'
                   endif
                 endif
 
@@ -392,7 +420,7 @@
               -%}
 
               {%- if is_link -%}
-                <a class="q-3dmv__thumb" href="{{ m_url }}" role="listitem" {{ block.shopify_attributes }}>
+                <div class="q-3dmv__thumb" role="listitem" {{ block.shopify_attributes }}><a href="{{ m_url | escape }}">
                   <div class="q-3dmv__thumb-surface">
                     <div class="q-3dmv__thumb-media">
                       <img
@@ -414,9 +442,9 @@
                       </div>
                     {%- endif -%}
                   </div>
-                </a>
+                </a></div>
               {%- else -%}
-                <div class="q-3dmv__thumb" role="listitem" tabindex="0" {{ block.shopify_attributes }}>
+                <div class="q-3dmv__thumb" role="listitem" {{ block.shopify_attributes }}>
                   <div class="q-3dmv__thumb-surface">
                     <div class="q-3dmv__thumb-media">
                       <img
@@ -447,50 +475,10 @@
     </div>
   </div>
 
-  <script>
-    (function(){
-      var root = document.getElementById('q-3d-model-{{ sid }}');
-      if(!root) return;
-
-      var mv = root.querySelector('model-viewer[data-q-model-viewer]');
-      if(!mv) return;
-
-      function bindLoadingUI(){
-        var fill = root.querySelector('[data-q-loading-fill]');
-        if(!fill) return;
-
-        function setPct(p){
-          var pct = Math.max(0, Math.min(100, Math.round(p * 100)));
-          fill.style.width = pct + '%';
-        }
-
-        try{
-          var obs = new MutationObserver(function(){
-            var p = mv.getAttribute('progress');
-            if(p){
-              var n = parseFloat(p);
-              if(!isNaN(n)) setPct(n);
-            }
-          });
-          obs.observe(mv, { attributes: true, attributeFilter: ['progress'] });
-        }catch(e){}
-
-        mv.addEventListener('load', function(){ setPct(1); });
-      }
-
-      if(window.customElements && window.customElements.get('model-viewer')){
-        bindLoadingUI();
-        return;
-      }
-
-      var s = document.createElement('script');
-      s.src = {{ MV_ASSET | asset_url | json }};
-      s.defer = true;
-      s.onload = function(){ bindLoadingUI(); };
-      document.head.appendChild(s);
-    })();
-  </script>
+  {% if has_glb %}<script src="{{ 'interactive-content-showcase.js' | asset_url }}" defer></script>{% endif %}
 </section>
+{%- else -%}
+  {% render 'section-empty-state', section: section %}
 {%- endif -%}
 
 {% schema %}
@@ -515,7 +503,7 @@
       "type": "richtext",
       "id": "subtitle",
       "label": "Subtitle",
-      "default": "<p>Inspect the space in 3D—interactive, premium, and fully self-hosted.</p>"
+      "default": "<p>Inspect the space in 3D—with an interactive model and supporting images.</p>"
     },
 
     { "type": "header", "content": "3D model (self-hosted)" },
@@ -545,10 +533,12 @@
         { "value": "16:9", "label": "16:9" },
         { "value": "4:3", "label": "4:3" },
         { "value": "1:1", "label": "1:1" },
-        { "value": "custom", "label": "Custom (future-proof)" }
+        { "value": "custom", "label": "Custom height" }
       ]
     },
 
+    { "type": "range", "id": "custom_aspect_height", "label": "Custom viewer height (% of width)", "min": 10, "max": 200, "step": 2, "default": 56 },
+    { "type": "paragraph", "content": "The viewer loads a pinned local Google model-viewer module when needed. Keep a poster image for browser or network fallback." },
     { "type": "header", "content": "Viewer behavior" },
     { "type": "checkbox", "id": "camera_controls", "label": "Enable camera controls", "default": true },
     { "type": "checkbox", "id": "auto_rotate", "label": "Auto rotate", "default": false },
@@ -566,7 +556,7 @@
     },
 
     { "type": "header", "content": "Fallback messaging" },
-    { "type": "checkbox", "id": "show_fallback_message", "label": "Show message when no GLB provided", "default": true },
+    { "type": "checkbox", "id": "show_fallback_message", "label": "Show message while 3D is unavailable", "default": true },
     { "type": "text", "id": "fallback_message", "label": "Fallback message", "default": "Interactive 3D unavailable. Please view the images below." },
 
     { "type": "header", "content": "Styling (scoped variables)" },

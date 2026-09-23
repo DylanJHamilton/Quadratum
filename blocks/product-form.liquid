@@ -1,8 +1,21 @@
+{% if product != blank %}
 {%- liquid
   assign block_id = 'product-form-' | append: block.id
 
   assign product_context = product
   assign current_variant = product_context.selected_or_first_available_variant
+  assign form_id = block_id | append: '-form'
+  assign quantity_min = current_variant.quantity_rule.min | default: 1
+  assign quantity_step = current_variant.quantity_rule.increment | default: 1
+  assign quantity_max = current_variant.quantity_rule.max
+  assign selected_allocation = current_variant.selected_selling_plan_allocation
+  if selected_allocation == blank and product_context.requires_selling_plan
+    assign selected_allocation = current_variant.selling_plan_allocations.first
+  endif
+  assign purchase_available = current_variant.available
+  if product_context.requires_selling_plan and selected_allocation == blank
+    assign purchase_available = false
+  endif
 
   assign width = block.settings.width | default: 'auto'
   assign alignment = block.settings.alignment | default: 'left'
@@ -20,10 +33,10 @@
     product-form-block--{{ form_style }}
     product-form-block--width-{{ width }}
     product-form-block--align-{{ alignment }}
-    {% unless show_on_desktop %} product-form-block--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-form-block--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-form-block--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-form-block--animate product-form-block--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-form-block--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-form-block--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-form-block--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-form-block--animate product-form-block--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-form-margin-top: {{ block.settings.margin_top }}px;
@@ -43,19 +56,33 @@
     --product-form-button-text: {{ block.settings.button_text_color }};
     --product-form-input-background: {{ block.settings.input_background_color }};
   "
+  data-qtm-product-block-commerce="form"
+  data-product-url="{{ product_context.url | escape }}"
+  data-requires-plan="{{ product_context.requires_selling_plan }}"
+  data-initial-plan="{{ selected_allocation.selling_plan.id }}"
+  data-add-label="{{ block.settings.add_to_cart_label | default: 'Add to cart' | escape }}"
+  data-sold-label="{{ block.settings.sold_out_label | default: 'Sold out' | escape }}"
+  data-unavailable-label="{{ block.settings.unavailable_label | default: 'Unavailable' | escape }}"
+  data-available-label="{{ 'Available' | escape }}"
+  data-cart-adding-message="{{ block.settings.adding_message | default: 'Adding to cart...' | escape }}"
+  data-cart-added-message="{{ block.settings.added_message | default: 'Added to cart.' | escape }}"
   data-product-id="{{ product_context.id }}"
   data-variant-id="{{ current_variant.id }}"
   data-product-form-block
-  {{ block.shopify_attributes }}
+
 >
+  {% render 'qtm-product-block-data', product: product_context %}
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-form-margin-top);
       margin-bottom: var(--product-form-margin-bottom);
       padding: var(--product-form-padding);
       color: var(--product-form-text-color);
-      background: transparent;
+      background: var(--product-form-background-color);
     }
 
     #{{ block_id }}.product-form-block--width-auto {
@@ -156,7 +183,7 @@
       color: var(--product-form-heading-color);
       background: var(--product-form-input-background);
       border: var(--product-form-border-width) solid var(--product-form-border-color);
-      border-radius: max(calc(var(--product-form-border-radius) - 10px), 6px);
+      border-radius: max(calc(var(--product-form-border-radius) - 10px), 0px);
     }
 
     #{{ block_id }} .product-form-block__select {
@@ -200,7 +227,7 @@
       color: var(--product-form-heading-color);
       background: var(--product-form-input-background);
       border: var(--product-form-border-width) solid var(--product-form-border-color);
-      border-radius: max(calc(var(--product-form-border-radius) - 10px), 6px);
+      border-radius: max(calc(var(--product-form-border-radius) - 10px), 0px);
       cursor: pointer;
       font: inherit;
       line-height: 1;
@@ -232,7 +259,7 @@
       color: var(--product-form-button-text);
       background: var(--product-form-button-background);
       border: var(--product-form-border-width) solid var(--product-form-button-background);
-      border-radius: max(calc(var(--product-form-border-radius) - 10px), 6px);
+      border-radius: max(calc(var(--product-form-border-radius) - 10px), 0px);
       cursor: pointer;
       text-align: center;
       line-height: 1.2;
@@ -267,7 +294,7 @@
     }
 
     #{{ block_id }}.product-form-block--compact .product-form-block__message {
-      display: none;
+      display: block;
     }
 
     #{{ block_id }} .product-form-block__selling-plan {
@@ -412,6 +439,18 @@
         transform: none;
       }
     }
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} :is(button, select, input, a):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    #{{ block_id }} :is(button, select, input) { max-width: 100%; }
+    #{{ block_id }}:focus-within { opacity: 1; transform: none; animation: none; }
+    #{{ block_id }} [data-b8-fallback] { display: grid; gap: 6px; min-width: 0; }
+    #{{ block_id }} [data-b8-fallback] select, #{{ block_id }} [name="selling_plan"] { width: 100%; min-width: 0; min-height: 44px; }
+  {% unless block.settings.show_on_desktop or request.design_mode %}@media screen and (min-width: 990px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+{% unless block.settings.show_on_tablet or request.design_mode %}@media screen and (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+{% unless block.settings.show_on_mobile or request.design_mode %}@media screen and (max-width: 749px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+      #{{ block_id }} shopify-accelerated-checkout { --shopify-accelerated-checkout-button-block-size: 50px; --shopify-accelerated-checkout-button-border-radius: max(calc(var(--product-form-border-radius) - 10px), 0px); }
+    @media (prefers-reduced-motion: reduce) { #{{ block_id }} shopify-accelerated-checkout { --shopify-accelerated-checkout-skeleton-animation-duration: 0s; } }
   </style>
 
   <div class="product-form-block__inner">
@@ -421,11 +460,17 @@
       </h3>
     {% endif %}
 
-    {% form 'product', product_context, class: 'product-form-block__form', data-product-form: '', data-ajax-cart-form: '', data-cart-add-form: '', data-product-form-block-form: '' %}
-      <input type="hidden" name="id" value="{{ current_variant.id }}" data-product-form-variant-input>
+    {% form 'product', product_context, id: form_id, class: 'product-form-block__form', data-product-form: '', data-cart-drawer-add: '', data-product-form-block-form: '' %}
+      <div data-b8-fallback>
+        <label for="{{ block_id }}-native-variant">{{ 'Variant' | escape }}</label>
+        <select id="{{ block_id }}-native-variant" name="id" class="product-form-block__select" data-b8-variant-id>
+          {% assign selected_listed = false %}{% for variant in product_context.variants %}{% if variant.id == current_variant.id %}{% assign selected_listed = true %}{% endif %}<option value="{{ variant.id }}" {% if variant.id == current_variant.id %}selected{% endif %}>{{ variant.title | escape }}{% unless variant.available %} — Sold out{% endunless %}</option>{% endfor %}
+        {% unless selected_listed %}<option value="{{ current_variant.id }}" selected>{{ current_variant.title | escape }}{% unless current_variant.available %} — Sold out{% endunless %}</option>{% endunless %}
+        </select>
+      </div>
 
       {% if block.settings.show_variant_picker and product_context.has_only_default_variant == false %}
-        <div class="product-form-block__options">
+        <div class="product-form-block__options" data-b8-option-controls hidden>
           {% for option in product_context.options_with_values %}
             <div class="product-form-block__option">
               <label class="product-form-block__label" for="{{ block_id }}-option-{{ forloop.index }}">
@@ -435,16 +480,17 @@
               <select
                 id="{{ block_id }}-option-{{ forloop.index }}"
                 class="product-form-block__select"
-                data-product-form-option-select
+                data-product-form-option-select data-b8-option-select
                 data-option-position="{{ option.position }}"
                 aria-label="{{ option.name | escape }}"
               >
                 {% for value in option.values %}
+              {% assign value_text = value.name | default: value | append: '' %}
                   <option
-                    value="{{ value | escape }}"
-                    {% if option.selected_value == value %}selected{% endif %}
+                    value="{{ value_text | escape }}"
+                    {% if value.selected or option.selected_value == value_text %}selected{% endif %}
                   >
-                    {{ value | escape }}
+                    {{ value_text | escape }}
                   </option>
                 {% endfor %}
               </select>
@@ -455,12 +501,13 @@
 
       {% if block.settings.show_selling_plans or product_context.requires_selling_plan %}
         {% render 'product-selling-plans', product: product_context, id: block_id, label: block.settings.selling_plan_label, one_time_label: block.settings.one_time_purchase_label, note: block.settings.selling_plan_note %}
+      {% else %}<input type="hidden" name="selling_plan" value="">
       {% endif %}
 
       {% if block.settings.show_quantity %}
         <div class="product-form-block__option">
           <label class="product-form-block__label" for="{{ block_id }}-quantity">
-            {{ block.settings.quantity_label | escape }}
+            {{ block.settings.quantity_label | default: 'Quantity' | escape }}
           </label>
 
           <div class="product-form-block__quantity-row">
@@ -468,8 +515,8 @@
               <button
                 type="button"
                 class="product-form-block__quantity-button"
-                data-product-form-quantity-minus
-                aria-label="{{ block.settings.decrease_quantity_label | escape }}"
+                data-product-form-quantity-minus data-b8-minus disabled
+                aria-label="{{ block.settings.decrease_quantity_label | default: 'Decrease quantity' | escape }}"
               >
                 −
               </button>
@@ -480,19 +527,21 @@
               class="product-form-block__quantity"
               type="number"
               name="quantity"
-              min="1"
-              value="1"
+              min="{{ quantity_min }}"
+              step="{{ quantity_step }}"
+              {% if quantity_max != blank %}max="{{ quantity_max }}"{% endif %}
+              value="{{ quantity_min }}"
               inputmode="numeric"
               data-product-form-quantity
-              aria-label="{{ block.settings.quantity_label | escape }}"
+              aria-label="{{ block.settings.quantity_label | default: 'Quantity' | escape }}"
             >
 
             {% if block.settings.show_quantity_buttons %}
               <button
                 type="button"
                 class="product-form-block__quantity-button"
-                data-product-form-quantity-plus
-                aria-label="{{ block.settings.increase_quantity_label | escape }}"
+                data-product-form-quantity-plus data-b8-plus disabled
+                aria-label="{{ block.settings.increase_quantity_label | default: 'Increase quantity' | escape }}"
               >
                 +
               </button>
@@ -500,7 +549,7 @@
           </div>
         </div>
       {% else %}
-        <input type="hidden" name="quantity" value="1">
+        <input type="hidden" name="quantity" value="{{ quantity_min }}">
       {% endif %}
 
       <div class="product-form-block__actions">
@@ -508,22 +557,20 @@
           <button
             type="submit"
             class="product-form-block__button"
-            {% unless current_variant.available %}disabled{% endunless %}
+            {% unless purchase_available %}disabled{% endunless %}
             data-add-to-cart
-            data-ajax-cart-submit
-            data-cart-drawer-trigger
-            data-product-form-submit
+            data-product-form-submit name="add" data-b8-submit
           >
             {% if current_variant.available %}
-              {{ block.settings.add_to_cart_label | escape }}
+              {{ block.settings.add_to_cart_label | default: 'Add to cart' | escape }}
             {% else %}
-              {{ block.settings.sold_out_label | escape }}
+              {{ block.settings.sold_out_label | default: 'Sold out' | escape }}
             {% endif %}
           </button>
         {% endif %}
 
         {% if block.settings.show_dynamic_checkout %}
-          <div class="product-form-block__payment-button">
+          <div class="product-form-block__payment-button" data-b8-payment {% unless purchase_available %}hidden{% endunless %}>
             {{ form | payment_button }}
           </div>
         {% endif %}
@@ -532,154 +579,15 @@
       <div
         class="product-form-block__message"
         data-product-form-message
+        data-cart-add-status
         role="status"
         aria-live="polite"
       ></div>
     {% endform %}
   </div>
-
-  <script type="application/json" data-product-form-variants>
-    {{ product_context.variants | json }}
-  </script>
-
-  <script>
-    (() => {
-      const root = document.getElementById({{ block_id | json }});
-
-      if (!root || root.dataset.productFormBlockReady === 'true') return;
-
-      root.dataset.productFormBlockReady = 'true';
-
-      const form = root.querySelector('[data-product-form-block-form]');
-      const variantsJson = root.querySelector('[data-product-form-variants]');
-      const variantInput = root.querySelector('[data-product-form-variant-input]');
-      const optionSelects = Array.from(root.querySelectorAll('[data-product-form-option-select]'));
-      const submitButton = root.querySelector('[data-product-form-submit]');
-      const quantityInput = root.querySelector('[data-product-form-quantity]');
-      const quantityMinus = root.querySelector('[data-product-form-quantity-minus]');
-      const quantityPlus = root.querySelector('[data-product-form-quantity-plus]');
-      const messageEl = root.querySelector('[data-product-form-message]');
-
-      if (!form || !variantsJson || !variantInput) return;
-
-      let variants = [];
-
-      try {
-        variants = JSON.parse(variantsJson.textContent || '[]');
-      } catch (error) {
-        variants = [];
-      }
-
-      const setMessage = (message) => {
-        if (messageEl) messageEl.textContent = message || '';
-      };
-
-      const selectedOptions = () => {
-        return optionSelects.map((select) => select.value);
-      };
-
-      const findVariantByOptions = () => {
-        const selected = selectedOptions();
-
-        return variants.find((variant) => {
-          return selected.every((value, index) => variant.options[index] === value);
-        });
-      };
-
-      const dispatchVariantChange = (variant) => {
-        if (!variant) return;
-
-        root.dataset.variantId = String(variant.id);
-
-        document.dispatchEvent(new CustomEvent('variant:change', {
-          bubbles: true,
-          detail: {
-            productId: {{ product_context.id | json }},
-            variantId: Number(variant.id),
-            variant
-          }
-        }));
-
-        document.dispatchEvent(new CustomEvent('qtm:variant:change', {
-          bubbles: true,
-          detail: {
-            productId: {{ product_context.id | json }},
-            variantId: Number(variant.id),
-            variant
-          }
-        }));
-      };
-
-      const updateVariant = () => {
-        if (!optionSelects.length) {
-          const existingVariant = variants.find((variant) => String(variant.id) === String(variantInput.value));
-          dispatchVariantChange(existingVariant);
-          return;
-        }
-
-        const variant = findVariantByOptions();
-
-        if (!variant) {
-          if (submitButton) {
-            submitButton.disabled = true;
-            submitButton.textContent = {{ block.settings.unavailable_label | json }};
-          }
-
-          return;
-        }
-
-        variantInput.value = variant.id;
-
-        if (submitButton) {
-          submitButton.disabled = !variant.available;
-          submitButton.textContent = variant.available
-            ? {{ block.settings.add_to_cart_label | json }}
-            : {{ block.settings.sold_out_label | json }};
-        }
-
-        dispatchVariantChange(variant);
-      };
-
-      optionSelects.forEach((select) => {
-        select.addEventListener('change', updateVariant);
-      });
-
-      if (quantityMinus && quantityInput) {
-        quantityMinus.addEventListener('click', () => {
-          const value = Math.max(Number(quantityInput.value || 1) - 1, 1);
-          quantityInput.value = String(value);
-          quantityInput.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-      }
-
-      if (quantityPlus && quantityInput) {
-        quantityPlus.addEventListener('click', () => {
-          const value = Math.max(Number(quantityInput.value || 1) + 1, 1);
-          quantityInput.value = String(value);
-          quantityInput.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-      }
-
-      form.addEventListener('submit', () => {
-        setMessage({{ block.settings.adding_message | json }});
-
-        window.setTimeout(() => {
-          setMessage('');
-        }, 3500);
-      });
-
-      document.addEventListener('cart:updated', () => {
-        setMessage({{ block.settings.added_message | json }});
-      });
-
-      document.addEventListener('ajaxCart:refresh', () => {
-        setMessage({{ block.settings.added_message | json }});
-      });
-
-      updateVariant();
-    })();
-  </script>
 </div>
+
+{% elsif request.design_mode %}<p>Select a product to configure this block.</p>{% endif %}
 
 {% schema %}
 {

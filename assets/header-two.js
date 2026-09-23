@@ -6,13 +6,19 @@
 
 (function () {
   'use strict';
+  if (window.qtmHeaderTwoBound) return;
+  window.qtmHeaderTwoBound = true;
+  const lifecycles = new WeakMap();
+  function on(header, target, type, listener, options) {
+    target.addEventListener(type, listener, Object.assign({}, options, {signal:lifecycles.get(header).signal}));
+  }
 
   var DESKTOP_MQ = window.matchMedia('(min-width: 990px) and (hover: hover) and (pointer: fine)');
   var CLOSE_DELAY = 150;
 
   function isVisible(element) {
     if (!element) return false;
-    if (element.hidden) return false;
+    if (element.closest('[hidden], [aria-hidden="true"]')) return false;
     var style = window.getComputedStyle(element);
     return style.display !== 'none' && style.visibility !== 'hidden';
   }
@@ -30,6 +36,13 @@
   function initHeader(header) {
     if (!header || header.dataset.qh2bInitialized === 'true') return;
     header.dataset.qh2bInitialized = 'true';
+    lifecycles.set(header, new AbortController());
+    on(header, document, 'shopify:section:unload', function(event) {
+      if (!event.target.contains(header)) return;
+      header.dispatchEvent(new Event('qtm:header-destroy'));
+      lifecycles.get(header).abort();
+      delete header.dataset.qh2bInitialized;
+    });
 
     initMegaMenus(header);
     initMobileDrawer(header);
@@ -81,6 +94,8 @@
       openItem = null;
     }
 
+    on(header, header, 'qtm:header-destroy', function() { window.clearTimeout(closeTimer); close(); });
+
     function scheduleClose() {
       window.clearTimeout(closeTimer);
       closeTimer = window.setTimeout(close, CLOSE_DELAY);
@@ -95,7 +110,7 @@
       var panel = getPanel(item);
       if (!trigger || !panel) return;
 
-      trigger.addEventListener('click', function (event) {
+      on(header, trigger, 'click', function (event) {
         event.preventDefault();
         event.stopPropagation();
 
@@ -106,23 +121,23 @@
         }
       });
 
-      item.addEventListener('mouseenter', function () {
+      on(header, item, 'mouseenter', function () {
         if (!DESKTOP_MQ.matches) return;
         cancelClose();
         open(item);
       });
 
-      item.addEventListener('mouseleave', function () {
+      on(header, item, 'mouseleave', function () {
         if (!DESKTOP_MQ.matches) return;
         scheduleClose();
       });
 
-      item.addEventListener('focusout', function (event) {
+      on(header, item, 'focusout', function (event) {
         if (openItem !== item) return;
         if (!item.contains(event.relatedTarget)) close();
       });
 
-      trigger.addEventListener('keydown', function (event) {
+      on(header, trigger, 'keydown', function (event) {
         if (event.key === 'ArrowDown') {
           event.preventDefault();
           open(item);
@@ -132,14 +147,14 @@
       });
     });
 
-    header.addEventListener('keydown', function (event) {
+    on(header, header, 'keydown', function (event) {
       if (event.key !== 'Escape' || !openItem) return;
       var trigger = getTrigger(openItem);
       close();
       if (trigger) trigger.focus();
     });
 
-    document.addEventListener('click', function (event) {
+    on(header, document, 'click', function (event) {
       if (openItem && !header.contains(event.target)) close();
     });
 
@@ -148,9 +163,12 @@
     }
 
     if (typeof DESKTOP_MQ.addEventListener === 'function') {
-      DESKTOP_MQ.addEventListener('change', onMQChange);
+      on(header, DESKTOP_MQ, 'change', onMQChange);
     } else if (typeof DESKTOP_MQ.addListener === 'function') {
       DESKTOP_MQ.addListener(onMQChange);
+      on(header, header, 'qtm:header-destroy', function() {
+        if (typeof DESKTOP_MQ.removeListener === 'function') DESKTOP_MQ.removeListener(onMQChange);
+      });
     }
   }
 
@@ -166,6 +184,12 @@
     var lastFocused = null;
     var closeTimer = null;
 
+    on(header, header, 'qtm:header-destroy', function() { closeDrawer(); window.clearTimeout(closeTimer); drawer.hidden = true; if (overlay) overlay.hidden = true; });
+    on(header, document, 'qtm:header-mobile-open', function(event) { if (event.detail !== header) closeDrawer(); });
+    on(header, document, 'focusin', function(event) {
+      if (isOpen && header.isConnected && !drawer.contains(event.target)) (getFocusable(drawer)[0] || drawer).focus();
+    });
+
     function setOpenButtons(expanded) {
       openButtons.forEach(function (button) {
         button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
@@ -176,8 +200,9 @@
       if (event) event.preventDefault();
       if (isOpen) return;
 
+      document.dispatchEvent(new CustomEvent('qtm:header-mobile-open', {detail:header}));
       isOpen = true;
-      lastFocused = document.activeElement;
+      lastFocused = event?.currentTarget || openButtons[0];
 
       if (closeTimer) {
         window.clearTimeout(closeTimer);
@@ -193,7 +218,10 @@
       document.body.classList.add('qh2b-mobile-open');
       setOpenButtons(true);
 
+      drawer.classList.add('is-open');
+      (getFocusable(drawer)[0] || drawer).focus();
       window.requestAnimationFrame(function () {
+        if (!isOpen || !header.isConnected) return;
         drawer.classList.add('is-open');
         if (overlay) overlay.classList.add('is-open');
 
@@ -207,6 +235,7 @@
       if (!isOpen) return;
 
       isOpen = false;
+      if (lastFocused?.isConnected) lastFocused.focus();
       drawer.classList.remove('is-open');
       drawer.setAttribute('aria-hidden', 'true');
       if (overlay) overlay.classList.remove('is-open');
@@ -220,22 +249,19 @@
         if (overlay) overlay.hidden = true;
         closeTimer = null;
 
-        if (lastFocused && typeof lastFocused.focus === 'function') {
-          lastFocused.focus();
-        }
-      }, 280);
+      }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 280);
     }
 
     openButtons.forEach(function (button) {
-      button.addEventListener('click', openDrawer);
+      on(header, button, 'click', openDrawer);
     });
 
     closeButtons.forEach(function (button) {
-      button.addEventListener('click', closeDrawer);
+      on(header, button, 'click', closeDrawer);
     });
 
     drawer.querySelectorAll('[data-qh2b-mobile-subtoggle]').forEach(function (toggle) {
-      toggle.addEventListener('click', function (event) {
+      on(header, toggle, 'click', function (event) {
         event.preventDefault();
 
         var targetId = toggle.getAttribute('aria-controls');
@@ -249,18 +275,18 @@
     });
 
     drawer.querySelectorAll('[data-qh2b-mobile-system-action]').forEach(function (button) {
-      button.addEventListener('click', function () {
+      on(header, button, 'click', function () {
         closeDrawer();
       });
     });
 
-    document.addEventListener('keydown', function (event) {
+    on(header, document, 'keydown', function (event) {
       if (event.key === 'Escape' && isOpen) {
         closeDrawer(event);
       }
     });
 
-    drawer.addEventListener('keydown', function (event) {
+    on(header, drawer, 'keydown', function (event) {
       if (event.key !== 'Tab' || !isOpen) return;
 
       var focusable = getFocusable(drawer);
@@ -278,7 +304,7 @@
       }
     });
 
-    window.addEventListener('resize', function () {
+    on(header, window, 'resize', function () {
       if (window.innerWidth > 989 && isOpen) closeDrawer();
     });
   }
@@ -287,13 +313,13 @@
     var account = header.querySelector('[data-qh2b-account]');
     if (!account) return;
 
-    document.addEventListener('click', function (event) {
+    on(header, document, 'click', function (event) {
       if (account.open && !account.contains(event.target)) {
         account.open = false;
       }
     });
 
-    account.addEventListener('keydown', function (event) {
+    on(header, account, 'keydown', function (event) {
       if (event.key === 'Escape' && account.open) {
         account.open = false;
         var summary = account.querySelector('summary');
@@ -308,9 +334,18 @@
     var sectionWrap = header.closest('[id^="shopify-section-"]') || header;
     var lastY = window.scrollY;
     var ticking = false;
+    var frame = null;
     var threshold = 80;
 
+    on(header, header, 'qtm:header-destroy', function() {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      frame = null;
+      ticking = false;
+      sectionWrap.classList.remove('qh2b-section-hidden');
+    });
+
     function update() {
+      frame = null;
       var currentY = window.scrollY;
 
       if (currentY > lastY && currentY > threshold) {
@@ -323,10 +358,10 @@
       ticking = false;
     }
 
-    window.addEventListener('scroll', function () {
+    on(header, window, 'scroll', function () {
       if (!ticking) {
         ticking = true;
-        window.requestAnimationFrame(update);
+        frame = window.requestAnimationFrame(update);
       }
     }, { passive: true });
   }
@@ -347,7 +382,7 @@
 
     if (!closeButton) return;
 
-    closeButton.addEventListener('click', function () {
+    on(header, closeButton, 'click', function () {
       announce.classList.add('is-dismissed');
       try {
         if (window.sessionStorage) sessionStorage.setItem(storageKey, '1');
@@ -372,7 +407,6 @@
 
     var header = event.target.querySelector('[data-qh2b-header]');
     if (header) {
-      header.dataset.qh2bInitialized = 'false';
       initHeader(header);
     }
   });

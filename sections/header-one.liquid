@@ -47,6 +47,7 @@
 
 <header
   id="HeaderOne-{{ section.id }}"
+  data-qtm-header-one
   class="q-header-one q-header-one--width-{{ header_width }} q-header-one--layout-{{ header_layout }} q-header-one--mobile-{{ mobile_menu_style }}{% if sticky_enabled %} q-header-one--sticky{% endif %}{% if sticky_shadow_enabled %} q-header-one--sticky-shadow{% endif %}{% if section.settings.icon_button_shadow %} q-header-one--icon-shadow{% endif %}"
   aria-label="Site header"
   data-qh1-header
@@ -944,11 +945,11 @@
       <a class="qh1__brand" href="{{ routes.root_url }}" aria-label="{{ shop.name | escape }}">
         <span class="qh1__logo-wrap">
           {% if section.settings.logo != blank %}
-            <img class="qh1__logo" src="{{ section.settings.logo | image_url: width: 600 }}" alt="{{ section.settings.logo_alt | default: shop.name | escape }}" loading="eager">
+            <img width="{{ section.settings.logo.width }}" height="{{ section.settings.logo.height }}" class="qh1__logo" src="{{ section.settings.logo | image_url: width: 600 }}" alt="{{ section.settings.logo_alt | default: shop.name | escape }}" loading="eager">
           {% elsif settings.logo_primary != blank %}
-            <img class="qh1__logo" src="{{ settings.logo_primary | image_url: width: 600 }}" alt="{{ shop.name | escape }}" loading="eager">
+            <img width="{{ settings.logo_primary.width }}" height="{{ settings.logo_primary.height }}" class="qh1__logo" src="{{ settings.logo_primary | image_url: width: 600 }}" alt="{{ shop.name | escape }}" loading="eager">
           {% elsif settings.logo_mobile != blank %}
-            <img class="qh1__logo" src="{{ settings.logo_mobile | image_url: width: 600 }}" alt="{{ shop.name | escape }}" loading="eager">
+            <img width="{{ settings.logo_mobile.width }}" height="{{ settings.logo_mobile.height }}" class="qh1__logo" src="{{ settings.logo_mobile | image_url: width: 600 }}" alt="{{ shop.name | escape }}" loading="eager">
           {% else %}
             <span class="qh1__brand-text">{{ shop.name }}</span>
           {% endif %}
@@ -1074,7 +1075,7 @@
 
     <button type="button" class="qh1__mobile-overlay" aria-label="Close mobile menu" data-qh1-mobile-close></button>
 
-    <div id="qh1-mobile-panel-{{ section.id }}" class="qh1__mobile-panel" hidden aria-hidden="true" data-qh1-mobile-panel>
+    <div id="qh1-mobile-panel-{{ section.id }}" class="qh1__mobile-panel" hidden aria-hidden="true" tabindex="-1" {% if mobile_menu_style == 'drawer_like' %}role="dialog" aria-modal="true" aria-label="Mobile navigation"{% endif %} data-qh1-mobile-panel>
       <div class="qh1__mobile-panel-inner">
         {%- if header_search_mode == 'inline_static' -%}
           <div class="qh1__mobile-search">
@@ -1115,7 +1116,7 @@
                       <a class="qh1__mobile-link{% if link.active or link.child_active %} qh1__mobile-link--active{% endif %}" href="{{ link.url }}" {% if link.active %}aria-current="page"{% endif %}>
                         {{ link.title }}
                       </a>
-                      <button type="button" class="qh1__mobile-subtoggle" aria-expanded="false" aria-controls="qh1-mobile-submenu-{{ section.id }}-{{ forloop.index }}" data-qh1-mobile-subtoggle>
+                      <button type="button" class="qh1__mobile-subtoggle" aria-expanded="false" aria-controls="qh1-mobile-submenu-{{ section.id }}-{{ forloop.index }}" data-qh1-mobile-subtoggle aria-label="Toggle {{ link.title | escape }} submenu">
                         <svg class="qh1__chevron" viewBox="0 0 12 8" fill="none" aria-hidden="true">
                           <path d="M1 1.25L6 6.25L11 1.25" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
@@ -1175,160 +1176,7 @@
     </div>
   </div>
 
-  <script>
-    (function() {
-      var root = document.getElementById('HeaderOne-{{ section.id }}');
-      if (!root || root.dataset.qh1Initialized === 'true') return;
-      root.dataset.qh1Initialized = 'true';
-
-      var toggle = root.querySelector('[data-qh1-mobile-toggle]');
-      var panel = root.querySelector('[data-qh1-mobile-panel]');
-      var overlay = root.querySelector('[data-qh1-mobile-close]');
-      var dropdownToggles = root.querySelectorAll('[data-qh1-dropdown-toggle]');
-      var mobileSubtoggles = root.querySelectorAll('[data-qh1-mobile-subtoggle]');
-      var lastFocusedElement = null;
-
-      function getFocusableElements(container) {
-        if (!container) return [];
-
-        return Array.prototype.slice.call(
-          container.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')
-        ).filter(function(element) {
-          return element.offsetParent !== null;
-        });
-      }
-
-      function closeDropdowns(exceptButton) {
-        dropdownToggles.forEach(function(button) {
-          if (exceptButton && button === exceptButton) return;
-
-          var panelId = button.getAttribute('aria-controls');
-          var dropdown = panelId ? document.getElementById(panelId) : null;
-
-          button.setAttribute('aria-expanded', 'false');
-          if (dropdown) dropdown.hidden = true;
-        });
-      }
-
-      function toggleDropdown(button) {
-        var panelId = button.getAttribute('aria-controls');
-        var dropdown = panelId ? document.getElementById(panelId) : null;
-        var isOpen = button.getAttribute('aria-expanded') === 'true';
-
-        closeDropdowns(button);
-
-        button.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
-        if (dropdown) dropdown.hidden = isOpen;
-      }
-
-      function setOpen(isOpen) {
-        if (!toggle || !panel) return;
-
-        toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        panel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
-
-        if (isOpen) {
-          lastFocusedElement = document.activeElement;
-          panel.hidden = false;
-          panel.classList.add('is-open');
-          if (overlay) overlay.classList.add('is-open');
-          document.documentElement.classList.add('qh1-mobile-open');
-          document.body.classList.add('qh1-mobile-open');
-
-          var focusable = getFocusableElements(panel);
-          if (focusable.length && root.classList.contains('q-header-one--mobile-drawer_like')) {
-            focusable[0].focus();
-          }
-        } else {
-          panel.hidden = true;
-          panel.classList.remove('is-open');
-          if (overlay) overlay.classList.remove('is-open');
-          document.documentElement.classList.remove('qh1-mobile-open');
-          document.body.classList.remove('qh1-mobile-open');
-
-          if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-            lastFocusedElement.focus();
-          }
-        }
-      }
-
-      dropdownToggles.forEach(function(button) {
-        button.addEventListener('click', function(event) {
-          event.preventDefault();
-          event.stopPropagation();
-          toggleDropdown(button);
-        });
-      });
-
-      mobileSubtoggles.forEach(function(button) {
-        button.addEventListener('click', function() {
-          var targetId = button.getAttribute('aria-controls');
-          var target = targetId ? document.getElementById(targetId) : null;
-          if (!target) return;
-
-          var isOpen = button.getAttribute('aria-expanded') === 'true';
-          button.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
-          target.hidden = isOpen;
-        });
-      });
-
-      document.addEventListener('click', function(event) {
-        if (!root.contains(event.target)) {
-          closeDropdowns();
-        }
-      });
-
-      if (toggle) {
-        toggle.addEventListener('click', function() {
-          var isOpen = toggle.getAttribute('aria-expanded') === 'true';
-          setOpen(!isOpen);
-        });
-      }
-
-      if (overlay) {
-        overlay.addEventListener('click', function() {
-          setOpen(false);
-        });
-      }
-
-      document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape') {
-          closeDropdowns();
-          if (panel && !panel.hidden) setOpen(false);
-        }
-
-        if (event.key === 'Tab' && panel && !panel.hidden && root.classList.contains('q-header-one--mobile-drawer_like')) {
-          var focusable = getFocusableElements(panel);
-          if (!focusable.length) return;
-
-          var first = focusable[0];
-          var last = focusable[focusable.length - 1];
-
-          if (event.shiftKey && document.activeElement === first) {
-            event.preventDefault();
-            last.focus();
-          } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first.focus();
-          }
-        }
-      });
-
-      window.addEventListener('resize', function() {
-        if (window.innerWidth > 989) {
-          setOpen(false);
-        }
-      });
-
-      root.querySelectorAll('[data-cart-drawer-open], [data-search-popup-open]').forEach(function(trigger) {
-        trigger.addEventListener('click', function() {
-          if (panel && !panel.hidden) setOpen(false);
-        });
-      });
-
-      setOpen(false);
-    })();
-  </script>
+  <script src="{{ 'header-one.js' | asset_url }}" defer></script>
 </header>
 
 {% schema %}

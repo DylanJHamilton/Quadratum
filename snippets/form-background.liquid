@@ -1,0 +1,99 @@
+{% comment %}Decorative form background. Native fallback image/color; playback belongs to video-hero-banner.js.{% endcomment %}
+{%- liquid
+  assign s = settings
+  assign video_url = s.bg_video | strip
+  assign video_kind = ''
+  assign video_id = ''
+  assign private_hash = ''
+  assign protocol = video_url | slice: 0, 8
+  assign video_scheme = video_url | split: '://' | first | downcase
+  assign local_start = video_url | slice: 0, 1
+  assign protocol_pair = video_url | slice: 0, 2
+  assign url_path = video_url | split: '?' | first | split: '#' | first
+  assign extension = url_path | split: '.' | last | downcase
+  if extension == 'mp4'
+    if protocol == 'https://' or local_start == '/' and protocol_pair != '//'
+      assign video_kind = 'mp4'
+    endif
+  endif
+  if providers
+    if video_scheme == 'https' or video_scheme == 'http'
+      assign source_parts = video_url | split: '://'
+      assign parts = source_parts[1] | split: '/'
+      assign hostname = parts[0] | downcase
+      assign path_one = parts[1] | split: '?' | first | split: '#' | first
+      assign path_two = parts[2] | split: '?' | first | split: '#' | first
+      if hostname == 'youtu.be' or hostname == 'www.youtu.be'
+        assign video_id = path_one
+        assign video_kind = 'youtube'
+      elsif hostname == 'youtube.com' or hostname == 'www.youtube.com' or hostname == 'm.youtube.com' or hostname == 'www.youtube-nocookie.com'
+        assign video_kind = 'youtube'
+        if path_one == 'embed' or path_one == 'shorts' or path_one == 'live'
+          assign video_id = path_two
+        elsif path_one == 'watch'
+          assign query = video_url | split: '?' | last | split: '&'
+          for pair in query
+            assign entry = pair | split: '='
+            if entry[0] == 'v'
+              assign video_id = entry[1] | split: '#' | first
+            endif
+          endfor
+        endif
+      elsif hostname == 'vimeo.com' or hostname == 'www.vimeo.com' or hostname == 'player.vimeo.com'
+        assign video_kind = 'vimeo'
+        assign video_id = path_one
+        if path_one == 'video'
+          assign video_id = path_two
+        elsif path_two != blank
+          assign private_hash = path_two
+        endif
+        assign query = video_url | split: '?' | last | split: '&'
+        for pair in query
+          assign entry = pair | split: '='
+          if entry[0] == 'h'
+            assign private_hash = entry[1] | split: '#' | first
+          endif
+        endfor
+      endif
+    endif
+  endif
+  if video_kind == 'youtube'
+    assign allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-'
+    assign letters = video_id | split: ''
+    for letter in letters
+      unless allowed contains letter
+        assign video_kind = ''
+      endunless
+    endfor
+    if video_id.size != 11
+      assign video_kind = ''
+    endif
+  elsif video_kind == 'vimeo'
+    assign residue = video_id | remove: '0' | remove: '1' | remove: '2' | remove: '3' | remove: '4' | remove: '5' | remove: '6' | remove: '7' | remove: '8' | remove: '9'
+    if residue != blank or video_id == blank
+      assign video_kind = ''
+    endif
+  endif
+  assign alpha = s.overlay_opacity | default: 0 | at_least: 0 | at_most: 100 | divided_by: 100.0
+  assign gradient_from = s.grad_start | default: s.gradient_from | default: '#000000'
+  assign gradient_to = s.grad_end | default: s.gradient_to | default: '#000000'
+  assign gradient_alpha_from = s.grad_start_opacity | default: s.overlay_opacity | default: 0 | at_least: 0 | at_most: 100 | divided_by: 100.0
+  assign gradient_alpha_to = s.grad_end_opacity | default: s.overlay_opacity | default: 0 | at_least: 0 | at_most: 100 | divided_by: 100.0
+  assign gradient_angle = s.grad_angle | default: s.gradient_angle | default: 180 | at_least: 0 | at_most: 360
+-%}
+<div class="q-bg" aria-hidden="true">
+  {% if s.bg_image != blank %}{{ s.bg_image | image_url: width: 2560 | image_tag: widths: '960,1440,1920,2560', sizes: '100vw', loading: 'lazy', class: 'q-media q-form-poster', alt: '' }}{% endif %}
+  {% case video_kind %}
+    {% when 'mp4' %}<video class="q-media q-form-background-video" loop muted playsinline preload="none"{% if s.bg_image != blank %} poster="{{ s.bg_image | image_url: width: 1920 | escape }}"{% endif %}><source src="{{ video_url | escape }}" type="video/mp4"></video>
+    {% when 'youtube' %}<iframe class="q-media q-form-background-video" data-video-hero-src="https://www.youtube-nocookie.com/embed/{{ video_id | url_encode }}?autoplay=1&amp;mute=1&amp;controls=0&amp;playsinline=1&amp;loop=1&amp;playlist={{ video_id | url_encode }}&amp;rel=0" title="Decorative background video" tabindex="-1" allow="autoplay; encrypted-media" hidden></iframe>
+    {% when 'vimeo' %}<iframe class="q-media q-form-background-video" data-video-hero-src="https://player.vimeo.com/video/{{ video_id | url_encode }}?background=1&amp;autoplay=1&amp;muted=1&amp;loop=1{% if private_hash != blank %}&amp;h={{ private_hash | url_encode }}{% endif %}" title="Decorative background video" tabindex="-1" allow="autoplay" hidden></iframe>
+  {% endcase %}
+  {% if s.overlay_type == 'solid' %}<div class="q-overlay" style="background:{{ s.overlay_color | default: '#000000' }};opacity:{{ alpha }}"></div>
+  {% elsif s.overlay_type == 'gradient' %}<div class="q-overlay" style="background:linear-gradient({{ gradient_angle }}deg,{{ gradient_from | color_modify: 'alpha', gradient_alpha_from }},{{ gradient_to | color_modify: 'alpha', gradient_alpha_to }})"></div>{% endif %}
+</div>
+{% if video_kind != blank %}
+  <button type="button" class="q-form-video-toggle" data-video-hero-toggle aria-pressed="false" hidden>Pause background video</button>
+  <script src="{{ 'video-hero-banner.js' | asset_url }}" defer></script>
+{% elsif video_url != blank and request.design_mode %}
+  <p class="q-help q-form-media-guide">Choose a valid HTTPS MP4{% if providers %}, YouTube or Vimeo{% endif %} URL for the background video.</p>
+{% endif %}

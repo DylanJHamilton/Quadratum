@@ -1,7 +1,7 @@
 const fs=require('node:fs'), assert=require('node:assert/strict');
 const {JSDOM}=require('jsdom');
 const markup=id=>`<div id="${id}"><section class="q-multipurpose-banner" data-mode="slideshow" data-autoplay="true" data-autoplay-speed="5000"><div class="q-mpb-slides-wrapper"><div class="q-mpb-slide active"><a href="#">One</a></div><div class="q-mpb-slide"><a href="#">Two</a></div></div><button class="q-mpb-arrow-next">Next</button><button class="q-mpb-dot"></button><button class="q-mpb-dot"></button><button data-mpb-pause>Pause slides</button></section></div>`;
-const dom=new JSDOM(markup('a')+markup('b'),{runScripts:'outside-only'}),w=dom.window;
+const dom=new JSDOM(markup('a')+markup('b'),{runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;
 w.matchMedia=()=>({matches:false,addEventListener(){}});
 const timers=new Map();let timer=0;
 w.setTimeout=fn=>{timers.set(++timer,fn);return timer;};w.clearTimeout=id=>timers.delete(id);

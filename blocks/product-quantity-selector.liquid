@@ -1,15 +1,33 @@
+{% if product != blank %}
 {%- liquid
   assign block_id = 'product-quantity-selector-' | append: block.id
 
   assign product_context = product
   assign current_variant = product_context.selected_or_first_available_variant
+  assign quantity_min = current_variant.quantity_rule.min | default: 1
+  assign quantity_step = current_variant.quantity_rule.increment | default: 1
+  assign quantity_max = current_variant.quantity_rule.max
+  assign selected_allocation = current_variant.selected_selling_plan_allocation
+  if selected_allocation == blank and product_context.requires_selling_plan
+    assign selected_allocation = current_variant.selling_plan_allocations.first
+  endif
 
   assign width = block.settings.width | default: 'auto'
   assign alignment = block.settings.alignment | default: 'left'
   assign selector_style = block.settings.selector_style | default: 'standard'
 
-  assign min_quantity = block.settings.min_quantity | default: 1
+  assign min_quantity = block.settings.min_quantity | default: 1 | at_least: quantity_min
+  assign quantity_offset = min_quantity | minus: quantity_min | modulo: quantity_step
+  if quantity_offset > 0
+    assign min_quantity = min_quantity | plus: quantity_step | minus: quantity_offset
+  endif
   assign max_quantity = block.settings.max_quantity | default: 99
+  if quantity_max != blank
+    assign max_quantity = max_quantity | at_most: quantity_max
+  endif
+  assign initial_quantity = block.settings.default_quantity | at_least: min_quantity | at_most: max_quantity
+  assign quantity_offset = initial_quantity | minus: quantity_min | modulo: quantity_step
+  assign initial_quantity = initial_quantity | minus: quantity_offset | at_least: min_quantity
 
   assign show_on_desktop = block.settings.show_on_desktop
   assign show_on_tablet = block.settings.show_on_tablet
@@ -23,10 +41,10 @@
     product-quantity-selector--{{ selector_style }}
     product-quantity-selector--width-{{ width }}
     product-quantity-selector--align-{{ alignment }}
-    {% unless show_on_desktop %} product-quantity-selector--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-quantity-selector--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-quantity-selector--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-quantity-selector--animate product-quantity-selector--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-quantity-selector--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-quantity-selector--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-quantity-selector--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-quantity-selector--animate product-quantity-selector--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-quantity-selector-margin-top: {{ block.settings.margin_top }}px;
@@ -43,13 +61,29 @@
     --product-quantity-selector-border-color: {{ block.settings.border_color }};
     --product-quantity-selector-active-color: {{ block.settings.active_color }};
   "
+  data-qtm-product-block-commerce="quantity-selector"
+  data-product-url="{{ product_context.url | escape }}"
+  data-requires-plan="{{ product_context.requires_selling_plan }}"
+  data-initial-plan="{{ selected_allocation.selling_plan.id }}"
+  data-add-label="{{ 'Add to cart' | escape }}"
+  data-sold-label="{{ 'Sold out' | escape }}"
+  data-unavailable-label="{{ 'Unavailable' | escape }}"
+  data-available-label="{{ 'Available' | escape }}"
+  data-cart-adding-message="{{ 'Adding to cart...' | escape }}"
+  data-cart-added-message="{{ 'Added to cart.' | escape }}"
   data-product-id="{{ product_context.id }}"
   data-variant-id="{{ current_variant.id }}"
   data-product-quantity-selector
-  {{ block.shopify_attributes }}
+  data-min-quantity="{{ block.settings.min_quantity }}"
+  data-max-quantity="{{ block.settings.max_quantity }}"
+
 >
+  {% render 'qtm-product-block-data', product: product_context %}
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-quantity-selector-margin-top);
       margin-bottom: var(--product-quantity-selector-margin-bottom);
@@ -111,7 +145,7 @@
 
     #{{ block_id }} .product-quantity-selector__control {
       display: inline-grid;
-      grid-template-columns: var(--product-quantity-selector-height) minmax(64px, 1fr) var(--product-quantity-selector-height);
+      grid-template-columns: minmax(24px, 1fr) minmax(0, 2fr) minmax(24px, 1fr);
       align-items: stretch;
       width: var(--product-quantity-selector-width);
       max-width: 100%;
@@ -124,8 +158,8 @@
     }
 
     #{{ block_id }}.product-quantity-selector--compact .product-quantity-selector__control {
-      grid-template-columns: 38px minmax(54px, 1fr) 38px;
-      height: 38px;
+      grid-template-columns: minmax(24px, 1fr) minmax(0, 2fr) minmax(24px, 1fr);
+      height: var(--product-quantity-selector-height);
     }
 
     #{{ block_id }}.product-quantity-selector--minimal .product-quantity-selector__control {
@@ -345,8 +379,19 @@
         transition: none;
       }
     }
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} :is(button, select, input, a):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    #{{ block_id }} :is(button, select, input) { max-width: 100%; }
+    #{{ block_id }}:focus-within { opacity: 1; transform: none; animation: none; }
+    #{{ block_id }} [data-b8-fallback] { display: grid; gap: 6px; min-width: 0; }
+    #{{ block_id }} [data-b8-fallback] select, #{{ block_id }} [name="selling_plan"] { width: 100%; min-width: 0; min-height: 44px; }
+  {% unless block.settings.show_on_desktop or request.design_mode %}@media screen and (min-width: 990px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+{% unless block.settings.show_on_tablet or request.design_mode %}@media screen and (min-width: 750px) and (max-width: 989px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
+{% unless block.settings.show_on_mobile or request.design_mode %}@media screen and (max-width: 749px) { #shopify-block-{{ block.id }} { display: none; } }{% endunless %}
   </style>
 
+  <noscript><p>Set quantity in the purchase form.</p></noscript>
   <div class="product-quantity-selector__inner">
     {% if block.settings.show_label and block.settings.label != blank %}
       <label class="product-quantity-selector__label" for="{{ block_id }}-quantity">
@@ -358,8 +403,8 @@
       <button
         type="button"
         class="product-quantity-selector__button"
-        data-product-quantity-minus
-        aria-label="{{ block.settings.decrease_label | escape }}"
+        data-product-quantity-minus data-b8-minus disabled
+        aria-label="{{ block.settings.decrease_label | default: 'Decrease quantity' | escape }}"
       >
         −
       </button>
@@ -371,17 +416,18 @@
         name="quantity"
         min="{{ min_quantity }}"
         max="{{ max_quantity }}"
-        value="{{ block.settings.default_quantity }}"
+        value="{{ initial_quantity }}"
+        step="{{ quantity_step }}"
         inputmode="numeric"
-        data-product-quantity-input
-        aria-label="{{ block.settings.input_label | escape }}"
+        data-product-quantity-input disabled
+        aria-label="{{ block.settings.input_label | default: 'Quantity' | escape }}"
       >
 
       <button
         type="button"
         class="product-quantity-selector__button"
-        data-product-quantity-plus
-        aria-label="{{ block.settings.increase_label | escape }}"
+        data-product-quantity-plus data-b8-plus disabled
+        aria-label="{{ block.settings.increase_label | default: 'Increase quantity' | escape }}"
       >
         +
       </button>
@@ -393,101 +439,9 @@
       </div>
     {% endif %}
   </div>
-
-  <script>
-    (() => {
-      const root = document.getElementById({{ block_id | json }});
-
-      if (!root || root.dataset.productQuantitySelectorReady === 'true') return;
-
-      root.dataset.productQuantitySelectorReady = 'true';
-
-      const input = root.querySelector('[data-product-quantity-input]');
-      const minusButton = root.querySelector('[data-product-quantity-minus]');
-      const plusButton = root.querySelector('[data-product-quantity-plus]');
-
-      if (!input || !minusButton || !plusButton) return;
-
-      const min = Number(input.getAttribute('min') || 1);
-      const max = Number(input.getAttribute('max') || 9999);
-
-      const normalize = (value) => {
-        const parsed = Number(value || min);
-
-        if (Number.isNaN(parsed)) return min;
-
-        return Math.min(Math.max(Math.floor(parsed), min), max);
-      };
-
-      const dispatchQuantityChange = () => {
-        document.dispatchEvent(new CustomEvent('quantity:change', {
-          bubbles: true,
-          detail: {
-            productId: {{ product_context.id | json }},
-            variantId: Number(root.dataset.variantId || {{ current_variant.id | json }}),
-            quantity: Number(input.value || min)
-          }
-        }));
-
-        document.dispatchEvent(new CustomEvent('qtm:quantity:change', {
-          bubbles: true,
-          detail: {
-            productId: {{ product_context.id | json }},
-            variantId: Number(root.dataset.variantId || {{ current_variant.id | json }}),
-            quantity: Number(input.value || min)
-          }
-        }));
-      };
-
-      const updateButtons = () => {
-        const value = normalize(input.value);
-
-        input.value = String(value);
-        minusButton.disabled = value <= min;
-        plusButton.disabled = value >= max;
-      };
-
-      minusButton.addEventListener('click', () => {
-        input.value = String(normalize(Number(input.value || min) - 1));
-        updateButtons();
-        dispatchQuantityChange();
-      });
-
-      plusButton.addEventListener('click', () => {
-        input.value = String(normalize(Number(input.value || min) + 1));
-        updateButtons();
-        dispatchQuantityChange();
-      });
-
-      input.addEventListener('change', () => {
-        updateButtons();
-        dispatchQuantityChange();
-      });
-
-      input.addEventListener('blur', updateButtons);
-
-      document.addEventListener('variant:change', (event) => {
-        const detail = event.detail || {};
-        const variantId = detail.variantId || detail.variant_id || detail.id;
-
-        if (variantId) {
-          root.dataset.variantId = String(variantId);
-        }
-      });
-
-      document.addEventListener('qtm:variant:change', (event) => {
-        const detail = event.detail || {};
-        const variantId = detail.variantId || detail.variant_id || detail.id;
-
-        if (variantId) {
-          root.dataset.variantId = String(variantId);
-        }
-      });
-
-      updateButtons();
-    })();
-  </script>
 </div>
+
+{% elsif request.design_mode %}<p>Select a product to configure this block.</p>{% endif %}
 
 {% schema %}
 {

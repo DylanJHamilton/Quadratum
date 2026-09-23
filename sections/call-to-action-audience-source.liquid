@@ -27,6 +27,10 @@
 {%- assign cols_t = s.columns_tablet | default: 2 -%}
 {%- assign cols_d = s.columns_desktop | default: 4 -%}
 
+{%- assign cols_m = cols_m | plus: 0 | at_most: section.blocks.size | at_least: 1 -%}
+{%- assign cols_t = cols_t | plus: 0 | at_most: section.blocks.size | at_least: 1 -%}
+{%- assign cols_d = cols_d | plus: 0 | at_most: section.blocks.size | at_least: 1 -%}
+
 {%- assign card_gap = s.card_gap | default: 16 -%}
 {%- assign card_pad = s.card_padding | default: 20 -%}
 
@@ -82,7 +86,7 @@
   }
   [data-q-section="{{ section.id }}"] .q-grid{
     display: inline-grid;
-    gap: max(var(--q-card-gap), 24px);
+    gap:var(--q-card-gap); width:100%; max-width:calc({{ cols_d }} * 20rem + {{ cols_d | minus: 1 }} * var(--q-card-gap));
     grid-template-columns: repeat({{ cols_m }}, minmax(0, 1fr));
     align-items: stretch;
   }
@@ -96,7 +100,7 @@
   /* Cards */
   [data-q-section="{{ section.id }}"] .q-grid > .q-card{ height: 100%; }
   [data-q-section="{{ section.id }}"] .q-card{
-    background: #fff; border-radius: 12px; padding: var(--q-card-pad);
+    background:{{ settings.bg_base | default: '#ffffff' }}; border-radius: 12px; padding: var(--q-card-pad);
     box-shadow: 0 1px 2px rgba(0,0,0,.06);
     display:flex; flex-direction:column; gap:.5rem; position:relative;
     transition: transform .2s ease, box-shadow .2s ease, outline-color .2s ease;
@@ -115,7 +119,7 @@
 
   /* Badge + icon + text */
   [data-q-section="{{ section.id }}"] .q-card .q-badge{
-    position:absolute; top:12px; right:12px; background: {{ C_primary }}; color:#fff;
+    align-self:flex-start; max-width:100%; background: {{ C_primary }}; color:#fff;
     font-size:.75rem; padding:.2rem .5rem; border-radius:999px;
   }
   [data-q-section="{{ section.id }}"] .q-icon{
@@ -143,20 +147,31 @@
   }
 
   /* CTA – Audience Source: spacing + icon size */
-    #audience-source .q-grid { gap: 28px; }
-    #audience-source .q-card { padding: 24px; }
-    #audience-source .q-icon { width: 32px; height: 32px; }
-    #audience-source .q-heading { margin-bottom: 0.75rem; }
-    #audience-source .q-sub { margin-bottom: 1.5rem; }
 
+
+  #shopify-section-{{ section.id }} [data-video-hero] * { box-sizing:border-box; min-width:0; overflow-wrap:anywhere; }
+  #shopify-section-{{ section.id }} .q-ctas { flex-wrap:wrap; }
+  #shopify-section-{{ section.id }} .q-btn { min-height:44px; max-width:100%; }
+  #shopify-section-{{ section.id }} .q-btn:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
+  #shopify-section-{{ section.id }} [data-video-hero-toggle] { position:relative; z-index:2; min-height:44px; max-width:100%; padding:8px 12px; background:#111; color:#fff; border:1px solid #fff; }
+  #shopify-section-{{ section.id }} [hidden] { display:none; }
+  @media (max-width:767px) { #shopify-section-{{ section.id }} .hide-mobile { display:none; } }
+  @media (min-width:768px) { #shopify-section-{{ section.id }} .hide-desktop { display:none; } }
+  @media (prefers-reduced-motion:reduce) { #shopify-section-{{ section.id }} .q-btn, #shopify-section-{{ section.id }} .q-card { transition:none; transform:none; } }
+
+  [data-q-section="{{ section.id }}"] .q-btn { display:inline-flex; align-items:center; justify-content:center; padding:12px 20px; border-radius:{{ settings.button_radius | default: 12 }}px; border:{{ settings.button_border_width | default: 1 }}px solid {{ C_primary }}; text-decoration:none; background:{{ C_primary }}; color:{{ settings.text_on_color | default: '#ffffff' }}; }
+  [data-q-section="{{ section.id }}"] .q-btn--outline { background:transparent; color:{{ C_primary }}; }
+  [data-q-section="{{ section.id }}"] .q-btn--ghost { background:transparent; color:{{ C_primary }}; border-color:transparent; }
 </style>
 
 <section
-  id="{{ s.anchor_id | default: 'section-' | append: section.id }}"
+  data-video-hero data-video-hero-mobile-query="(max-width: 767px)"
+  id="{{ s.anchor_id | default: section.id | escape }}"
   data-q-section="{{ section.id }}"
-  class="q-cta-audience-source{% if s.hide_on_mobile %} hidden md:block q-hide-mobile{% endif %}{% if s.hide_on_desktop %} md:hidden q-hide-desktop{% endif %}"
+  data-audience-source data-match="{{ s.enable_utm_match }}" data-hide-others="{{ s.hide_non_matching }}" data-default-key="{{ s.default_active_key | escape }}"
+  class="q-cta-audience-source{% if s.hide_on_mobile %} hide-mobile{% endif %}{% if s.hide_on_desktop %} hide-desktop{% endif %}"
   role="region"
-  aria-label="{{ s.aria_label | default: 'Audience source call to action' }}"
+  aria-label="{{ s.aria_label | default: 'Audience source call to action' | escape }}"
   style="
     padding-top: var(--q-pad-top);
     padding-bottom: var(--q-pad-bottom);
@@ -181,21 +196,21 @@
             | replace: 'http://www.youtube.com/watch?v=',''
             | replace: 'https://youtube.com/watch?v=',''
             | replace: 'http://youtube.com/watch?v=',''
-            | split:'?' | first -%}
+            | split:'?' | first | split:'&' | first -%}
           <div class="q-media-wrap" style="position:absolute; inset:0; overflow:hidden;">
             <iframe class="q-media"
-              src="https://www.youtube.com/embed/{{ yid }}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&playlist={{ yid }}&modestbranding=1&rel=0"
+              hidden data-video-hero-src="https://www.youtube.com/embed/{{ yid | escape }}?autoplay=1&mute=1&controls=0&playsinline=1&loop=1&playlist={{ yid | escape }}&modestbranding=1&rel=0"
               title="Background video" tabindex="-1" allow="autoplay; encrypted-media"></iframe>
           </div>
         {%- elsif is_vimeo -%}
-          {%- assign vid = vurl | split:'/' | last | split:'?' | first -%}
+          {%- assign vid = vurl | split:'/' | last | split:'?' | first | split:'&' | first -%}
           <div class="q-media-wrap" style="position:absolute; inset:0; overflow:hidden;">
             <iframe class="q-media"
-              src="https://player.vimeo.com/video/{{ vid }}?background=1&autoplay=1&muted=1&loop=1&autopause=0&controls=0"
+              hidden data-video-hero-src="https://player.vimeo.com/video/{{ vid | escape }}?background=1&autoplay=1&muted=1&loop=1&autopause=0&controls=0"
               title="Background video" tabindex="-1" allow="autoplay; fullscreen; picture-in-picture"></iframe>
           </div>
         {%- else -%}
-          <video class="q-media" autoplay loop muted playsinline preload="none"
+          <video class="q-media" loop muted playsinline preload="none"
             {% if s.background_image != blank %}poster="{{ s.background_image | image_url: width: 1600 }}"{% endif %}>
             <source src="{{ vurl | escape }}" type="video/mp4">
           </video>
@@ -246,21 +261,21 @@
             {%- for block in section.blocks -%}
               {%- if block.type == 'audience_card' -%}
                 {%- assign b = block.settings -%}
-                <article class="q-card" data-source-key="{{ b.source_key | strip | downcase }}" {{ block.shopify_attributes }}>
+                <article class="q-card" data-source-key="{{ b.source_key | strip | downcase | escape }}" {{ block.shopify_attributes }}>
                   {% if b.badge_text != blank %}<span class="q-badge">{{ b.badge_text }}</span>{% endif %}
 
                   {% if b.image_icon != blank %}
                     {{ b.image_icon | image_url: width: 64 | image_tag: loading: 'lazy', class: 'q-icon', alt: '' }}
                   {% elsif b.icon_filename != blank %}
-                    <img class="q-icon" src="{{ b.icon_filename | asset_url }}" alt="" width="24" height="24" loading="lazy" decoding="async" onerror="this.style.display='none'">
+                    {% render 'cta-icon', filename: b.icon_filename, class: 'q-icon', size: 24 %}
                   {% endif %}
 
                   <h3>{{ b.title }}</h3>
                   {% if b.body != blank %}<p>{{ b.body }}</p>{% endif %}
 
-                  {% if b.cta_text != blank %}
+                  {% if b.cta_text != blank and b.cta_link != blank %}
                     <div class="q-cta">
-                      <a class="q-btn {{ btn_mode_class }}" href="{{ b.cta_link | default: '#' }}" rel="noopener" aria-label="{{ b.cta_text | escape }}">{{ b.cta_text }}</a>
+                      <a class="q-btn {{ btn_mode_class }}" href="{{ b.cta_link | escape }}" rel="noopener" aria-label="{{ b.cta_text | escape }}">{{ b.cta_text }}</a>
                     </div>
                   {% endif %}
                 </article>
@@ -269,58 +284,19 @@
           </div>
         </div>
 
-        {% if s.cta_global_text != blank %}
+        {% if s.cta_global_text != blank and s.cta_global_link != blank %}
           <div class="q-ctas">
-            <a href="{{ s.cta_global_link | default: '/' }}" class="q-btn {{ btn_mode_class }}" rel="noopener" aria-label="{{ s.cta_global_text | escape }}">{{ s.cta_global_text }}</a>
+            <a href="{{ s.cta_global_link | escape }}" class="q-btn {{ btn_mode_class }}" rel="noopener" aria-label="{{ s.cta_global_text | escape }}">{{ s.cta_global_text }}</a>
           </div>
         {% endif %}
       </div>
     </div>
   </div>
+  {% if vurl != blank and vurl != 'none' %}<button type="button" data-video-hero-toggle hidden aria-pressed="false">Pause background video</button>{% endif %}
 </section>
+<script src="{{ 'video-hero-banner.js' | asset_url }}" defer="defer"></script>
 
-<script>
-(function(){
-  const root = document.getElementById('{{ s.anchor_id | default: 'section-' | append: section.id }}');
-  if(!root) return;
-
-  const enableMatch = {{ s.enable_utm_match | json }};
-  const hideOthers  = {{ s.hide_non_matching | json }};
-  const defaultKey  = {{ s.default_active_key | json }};
-
-  if(!enableMatch) return;
-
-  function getParam(name){
-    try {
-      const url = new URL(window.location.href);
-      return (url.searchParams.get(name) || '').toLowerCase();
-    } catch(e){ return ''; }
-  }
-
-  let key = getParam('utm_source') || getParam('source');
-  if(!key && defaultKey) key = String(defaultKey).toLowerCase();
-  if(!key) return;
-
-  const cards = root.querySelectorAll('[data-source-key]');
-  let anyMatch = false;
-  cards.forEach(card => {
-    const ck = (card.getAttribute('data-source-key') || '').toLowerCase();
-    const match = ck === key;
-    if(match) {
-      anyMatch = true;
-      card.style.outline = '2px solid rgba(37,99,235,.35)';
-      card.style.boxShadow = '0 6px 18px rgba(0,0,0,.12)';
-      card.setAttribute('data-active','true');
-    } else if(hideOthers){
-      card.style.display = 'none';
-    }
-  });
-
-  if(!anyMatch && hideOthers){
-    cards.forEach(c => c.style.display = '');
-  }
-})();
-</script>
+<script src="{{ 'call-to-action-audience-source.js' | asset_url }}" defer="defer"></script>
 
 {% schema %}
 {

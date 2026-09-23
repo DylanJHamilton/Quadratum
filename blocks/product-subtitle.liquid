@@ -9,6 +9,7 @@
   assign subtitle_source = block.settings.subtitle_source | default: 'custom'
 
   assign subtitle_text = block.settings.custom_text
+  assign subtitle_is_html = true
 
   if subtitle_source == 'metafield'
     assign namespace = block.settings.metafield_namespace | strip
@@ -19,9 +20,11 @@
 
       if metafield_value != blank
         assign subtitle_text = metafield_value | metafield_text
+        assign subtitle_is_html = false
       endif
     endif
   elsif subtitle_source == 'tagline'
+    assign subtitle_is_html = false
     assign subtitle_text = product_context.metafields.custom.tagline | metafield_text
 
     if subtitle_text == blank
@@ -30,6 +33,7 @@
 
     if subtitle_text == blank
       assign subtitle_text = block.settings.custom_text
+      assign subtitle_is_html = true
     endif
   endif
 
@@ -38,7 +42,7 @@
   assign show_on_mobile = block.settings.show_on_mobile
 -%}
 
-{% if subtitle_text != blank %}
+{% if subtitle_text != blank or request.design_mode %}
   <div
     id="{{ block_id }}"
     class="
@@ -46,10 +50,10 @@
       product-subtitle--width-{{ width }}
       product-subtitle--align-{{ alignment }}
       product-subtitle--style-{{ block.settings.subtitle_style }}
-      {% unless show_on_desktop %} product-subtitle--hide-desktop{% endunless %}
-      {% unless show_on_tablet %} product-subtitle--hide-tablet{% endunless %}
-      {% unless show_on_mobile %} product-subtitle--hide-mobile{% endunless %}
-      {% if block.settings.animation_style != 'none' %} product-subtitle--animate product-subtitle--animate-{{ block.settings.animation_style }}{% endif %}
+      {% unless show_on_desktop or request.design_mode %} product-subtitle--hide-desktop{% endunless %}
+      {% unless show_on_tablet or request.design_mode %} product-subtitle--hide-tablet{% endunless %}
+      {% unless show_on_mobile or request.design_mode %} product-subtitle--hide-mobile{% endunless %}
+      {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-subtitle--animate product-subtitle--animate-{{ block.settings.animation_style }}{% endif %}
     "
     style="
       --product-subtitle-margin-top: {{ block.settings.margin_top }}px;
@@ -67,10 +71,13 @@
     "
     data-product-id="{{ product_context.id }}"
     data-variant-id="{{ current_variant.id }}"
-    {{ block.shopify_attributes }}
+
   >
     <style>
       #{{ block_id }} {
+        min-width: 0;
+        box-sizing: border-box;
+        overflow-wrap: anywhere;
         width: 100%;
         margin-top: var(--product-subtitle-margin-top);
         margin-bottom: var(--product-subtitle-margin-bottom);
@@ -120,14 +127,16 @@
       #{{ block_id }} .product-subtitle__text {
         margin: 0;
         color: var(--product-subtitle-color);
-        font-size: clamp(var(--product-subtitle-font-size-mobile), 2vw, var(--product-subtitle-font-size-desktop));
+        font-size: var(--product-subtitle-font-size-desktop);
         line-height: var(--product-subtitle-line-height);
         letter-spacing: var(--product-subtitle-letter-spacing);
         overflow-wrap: anywhere;
       }
 
       #{{ block_id }}.product-subtitle--style-badge .product-subtitle__text {
-        display: inline-flex;
+        display: inline-block;
+        min-width: 0;
+        max-width: 100%;
         width: fit-content;
         padding: 8px 12px;
         background: var(--product-subtitle-background);
@@ -261,6 +270,7 @@
       }
 
       @media screen and (max-width: 749px) {
+        #{{ block_id }} .product-subtitle__text { font-size: var(--product-subtitle-font-size-mobile); }
         #{{ block_id }}.product-subtitle--hide-mobile {
           display: none !important;
         }
@@ -277,15 +287,21 @@
           transform: none;
         }
       }
+
+      #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+      #{{ block_id }} :is(a, button):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+      #{{ block_id }}:focus-within { opacity: 1; animation: none; transform: none; }
+          #{{ block_id }} .product-subtitle__text > :first-child { margin-top: 0; }
+      #{{ block_id }} .product-subtitle__text > :last-child { margin-bottom: 0; }
     </style>
 
-    {% if block.settings.render_as_paragraph %}
-      <p class="product-subtitle__text">
-        {{ subtitle_text }}
-      </p>
+    {% if subtitle_text == blank %}
+      <p class="product-subtitle__text">Configure this block's content for the selected product.</p>
+    {% elsif block.settings.render_as_paragraph and subtitle_is_html == false %}
+      <p class="product-subtitle__text">{{ subtitle_text | escape }}</p>
     {% else %}
       <div class="product-subtitle__text">
-        {{ subtitle_text }}
+        {% if subtitle_is_html %}{{ subtitle_text }}{% else %}{{ subtitle_text | escape }}{% endif %}
       </div>
     {% endif %}
   </div>
@@ -340,7 +356,8 @@
     {
       "type": "checkbox",
       "id": "render_as_paragraph",
-      "label": "Render as paragraph",
+      "label": "Wrap plain text in a paragraph",
+      "info": "Rich text keeps its own paragraph and list markup.",
       "default": true
     },
 

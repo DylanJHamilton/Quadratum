@@ -14,7 +14,7 @@
   assign s = section.settings
 
   assign source_mode = s.source_mode | default: 'manual'
-  assign limit = s.limit | default: 10
+  assign limit = s.limit | default: 10 | at_least: 2 | at_most: 24
 
   assign resolved_collection = nil
 
@@ -45,13 +45,19 @@
   assign resolved_count = 0
   if source_mode == 'manual'
     for block in section.blocks
+      if resolved_count >= limit
+        break
+      endif
       if block.type == 'manual_product' and block.settings.product != blank
         assign resolved_count = resolved_count | plus: 1
       endif
     endfor
   else
     if resolved_collection != blank
-      for p in resolved_collection.products limit: limit
+      for p in resolved_collection.products
+        if resolved_count >= limit
+          break
+        endif
         if source_mode == 'related_products' and product != blank and p.id == product.id
           continue
         endif
@@ -95,16 +101,12 @@
   assign arrows_mode = s.arrows_mode | default: 'desktop_only'
   assign controls_position = s.controls_position | default: 'overlay'
 
-  assign aria_live = 'off'
-  if s.autoplay
-    assign aria_live = 'polite'
-  endif
 -%}
 
 {%- if should_render -%}
 <section
   class="q-section q-product-slider q-ta--{{ text_align }} q-arrows--{{ arrows_mode }} q-controls--{{ controls_position }}{% if show_empty_state %} q-product-slider--empty{% endif %}"
-  data-section-id="{{ sid }}"
+  data-section-id="{{ sid }}" data-product-slider
   style="
     --q-ps-maxw: {{ max_width }}px;
     --q-ps-pad-y: {{ pad_y }}px;
@@ -112,7 +114,7 @@
     --q-ps-gap: {{ gap }}px;
 
     --q-ps-radius: {{ s.radius | default: 16 }}px;
-    --q-ps-shadow: {{ s.shadow | default: '0' }};
+    --q-ps-shadow: {{ s.shadow | default: 'none' | escape }};
 
     --q-ps-slides-d: {{ slides_d }};
     --q-ps-slides-t: {{ slides_t }};
@@ -140,7 +142,7 @@
     --q-ps-title-ls: {{ s.heading_ls | default: -0.01 }}em;
 
     --q-ps-subtitle-fs: {{ s.subtitle_fs | default: 14 }}px;
-    --q-ps-subtitle-op: {{ s.subtitle_opacity | default: 85 }}%;
+    --q-ps-subtitle-op: {{ s.subtitle_opacity | default: 85 }};
 
     --q-ps-heading-ff: {{ s.heading_font_family | default: 'inherit' }};
     --q-ps-body-ff: {{ s.body_font_family | default: 'inherit' }};
@@ -163,7 +165,7 @@
         <header class="q-product-slider__header">
           <div class="q-product-slider__heading">
             {%- if s.title != blank -%}
-              <h2 class="q-product-slider__title">{{ s.title }}</h2>
+              <h2 class="q-product-slider__title">{{ s.title | escape }}</h2>
             {%- endif -%}
             {%- if s.subtitle != blank -%}
               <div class="q-product-slider__subtitle rte">{{ s.subtitle }}</div>
@@ -181,8 +183,8 @@
               endif
             -%}
             {%- if view_all_url != blank -%}
-              <a class="q-product-slider__viewall" href="{{ view_all_url }}">
-                {{ s.view_all_label | default: 'Shop all' }}
+              <a class="q-product-slider__viewall" href="{{ view_all_url | escape }}">
+                {{ s.view_all_label | default: 'Shop all' | escape }}
               </a>
             {%- endif -%}
           {%- endif -%}
@@ -200,8 +202,7 @@
           <div
             class="q-product-slider__frame"
             {%- if should_init -%}
-              data-q-carousel
-              data-carousel
+              data-product-slider-controls
               data-loop="{{ s.loop }}"
               data-autoplay="{{ s.autoplay }}"
               data-autoplay-speed="{{ s.autoplay_speed | default: 4500 }}"
@@ -225,7 +226,7 @@
             role="region"
             aria-roledescription="carousel"
             aria-label="{{ s.title | default: 'Product slider' | escape }}"
-            aria-live="{{ aria_live }}"
+            aria-live="off"
           >
             {%- comment -%}
               FIX: Keep controls INSIDE the frame so the engine can find/bind them.
@@ -233,7 +234,7 @@
             {%- endcomment -%}
 
             {%- if should_init and s.show_arrows -%}
-              <div class="q-product-slider__nav q-product-slider__nav--{{ controls_position }}" aria-hidden="false">
+              <div class="q-product-slider__nav q-product-slider__nav--{{ controls_position }}" hidden>
                 <button
                   class="q-product-slider__btn q-product-slider__btn--prev"
                   type="button"
@@ -271,11 +272,14 @@
             >
               <ul class="q-product-slider__list" role="list">
                 {%- if source_mode == 'manual' -%}
+                  {%- assign rendered_count = 0 -%}
                   {%- for block in section.blocks -%}
+                    {%- if rendered_count >= limit -%}{% break %}{%- endif -%}
                     {%- if block.type != 'manual_product' or block.settings.product == blank -%}
                       {%- continue -%}
                     {%- endif -%}
                     {%- assign p = block.settings.product -%}
+                    {%- assign rendered_count = rendered_count | plus: 1 -%}
                     <li class="q-product-slider__slide" role="listitem" {{ block.shopify_attributes }}>
                       {% render 'product-card',
                         product: p,
@@ -314,10 +318,13 @@
                   {%- endfor -%}
                 {%- else -%}
                   {%- if resolved_collection != blank -%}
-                    {%- for p in resolved_collection.products limit: limit -%}
+                    {%- assign rendered_count = 0 -%}
+                    {%- for p in resolved_collection.products -%}
+                      {%- if rendered_count >= limit -%}{% break %}{%- endif -%}
                       {%- if source_mode == 'related_products' and product != blank and p.id == product.id -%}
                         {%- continue -%}
                       {%- endif -%}
+                      {%- assign rendered_count = rendered_count | plus: 1 -%}
                       <li class="q-product-slider__slide" role="listitem">
                         {% render 'product-card',
                           product: p,
@@ -359,34 +366,18 @@
               </ul>
             </div>
 
+            {%- if should_init and s.autoplay -%}<button type="button" data-product-slider-pause hidden aria-pressed="false">Pause automatic sliding</button>{%- endif -%}
             {%- if should_init and s.show_dots -%}
-              <div class="q-product-slider__dots" data-q-carousel-dots data-carousel-dots aria-label="Carousel pagination"></div>
+              <div class="q-product-slider__dots" data-product-slider-dots aria-label="Carousel pagination"></div>
             {%- endif -%}
           </div>
         </div>
-
-        <script>
-          (function(){
-            var root = document.currentScript && document.currentScript.closest('.q-product-slider');
-            if(!root) return;
-
-            // Respect reduced motion: suppress autoplay safely
-            try{
-              var prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-              if(prefersReduced){
-                var frame = root.querySelector('[data-q-carousel], [data-carousel]');
-                if(frame){
-                  frame.setAttribute('data-autoplay', 'false');
-                }
-              }
-            }catch(e){}
-          })();
-        </script>
       {%- endif -%}
 
     </div>
   </div>
 
+  <script src="{{ 'product-slider.js' | asset_url }}" defer></script>
   <style>
     /* ================================
       Quadratum — Interactive Product Slides
@@ -394,6 +385,8 @@
     =================================== */
 
     .q-product-slider{
+      --q-font-heading: var(--font-heading-family);
+      --q-font-body: var(--font-body-family);
       color: var(--q-ps-fg, inherit);
       font-family: var(--q-ps-body-ff, inherit);
     }
@@ -432,7 +425,7 @@
       margin-top:6px;
       max-width: 68ch;
       font-size: var(--q-ps-subtitle-fs, 14px);
-      opacity: calc(var(--q-ps-subtitle-op, 85%) / 100);
+      opacity: calc(var(--q-ps-subtitle-op, 85) / 100);
       color: var(--q-ps-subtitle-color, currentColor);
     }
 
@@ -445,7 +438,7 @@
       border-bottom: 1px solid currentColor;
       padding-bottom:2px;
       opacity:.9;
-      white-space:nowrap;
+      white-space:normal;
       color: var(--q-ps-link, currentColor);
     }
     .q-product-slider__viewall:hover{ opacity:1; }
@@ -478,7 +471,7 @@
       -webkit-overflow-scrolling:touch;
       scrollbar-width:none;
       border-radius: calc(var(--q-ps-radius) - 6px);
-      outline:none;
+
       scroll-padding-left: 2px;
     }
     .q-product-slider__track::-webkit-scrollbar{ display:none; }
@@ -489,9 +482,6 @@
 
     .q-product-slider{
       --q-ps-slides: 4;           /* active slides-per-view */
-      --q-ps-item-min: 220px;     /* safety floor */
-      --q-ps-item-max: 420px;     /* safety ceiling */
-      --q-ps-mobile-peek: 84vw;   /* premium mobile */
     }
 
     @media (min-width: 990px){
@@ -506,7 +496,6 @@
 
     .q-product-slider{
       --q-ps-item: calc((100% - (var(--q-ps-gap) * (var(--q-ps-slides) - 1))) / var(--q-ps-slides));
-      --q-ps-item-clamped: clamp(var(--q-ps-item-min), var(--q-ps-item), var(--q-ps-item-max));
     }
 
     .q-product-slider__list{
@@ -519,13 +508,13 @@
     }
 
     .q-product-slider__slide{
-      flex: 0 0 var(--q-ps-item-clamped);
+      flex: 0 0 var(--q-ps-item);
       scroll-snap-align: start;
       min-width: 0;
     }
 
     @media (max-width: 749px){
-      .q-product-slider__slide{ flex-basis: var(--q-ps-mobile-peek); }
+      .q-product-slider__header{ flex-wrap: wrap; }
     }
 
     /* ================================
@@ -611,73 +600,19 @@
       transform: scale(1.15);
     }
 
+    .q-product-slider [hidden] { display: none !important; }
+    .q-product-slider { min-width: 0; overflow-wrap: anywhere; }
+    .q-product-slider :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    .q-product-slider__btn:disabled { opacity: .45; cursor: not-allowed; }
+    .q-product-slider__dots button { min-width: 24px; min-height: 24px; background: radial-gradient(circle, var(--q-ps-dot) 0 calc(var(--q-ps-dot-size) / 2), transparent calc(var(--q-ps-dot-size) / 2)); }
+    .q-product-slider__dots button[aria-current="true"] { background: radial-gradient(circle, var(--q-ps-dot-active) 0 calc(var(--q-ps-dot-size) / 2), transparent calc(var(--q-ps-dot-size) / 2)); }
     /* Reduced motion */
     @media (prefers-reduced-motion: reduce){
-      .q-product-slider__btn{ transition: none; }
+      .q-product-slider__btn, .q-product-slider__btn:hover{ transition: none; transform: none; }
       .q-product-slider__dots button,
       .q-product-slider__dots .q-carousel__dot{ transition: none; }
     }
   </style>
-
-  <script>
-    (function(){
-      var root = document.currentScript && document.currentScript.closest('.q-product-slider');
-      if(!root) return;
-
-      var track = root.querySelector('.q-product-slider__track');
-      if(!track) return;
-
-      // If your shared carousel engine is present, it may bind arrows itself.
-      // Only run this fallback when no obvious engine global exists.
-      var engineLikelyPresent = !!(window.QuadratumCarousel || window.QCarousel || window.qCarousel);
-      if(engineLikelyPresent) return;
-
-      var prevBtns = root.querySelectorAll('[data-q-carousel-prev]');
-      var nextBtns = root.querySelectorAll('[data-q-carousel-next]');
-      if(!prevBtns.length && !nextBtns.length) return;
-
-      function getStep(){
-        var first = track.querySelector('.q-product-slider__slide');
-        if(!first) return Math.max(320, track.clientWidth * 0.8);
-        var list = track.querySelector('.q-product-slider__list');
-        var cs = list ? window.getComputedStyle(list) : null;
-        var gap = cs ? (parseFloat(cs.columnGap || cs.gap || '0') || 0) : 0;
-        return first.getBoundingClientRect().width + gap;
-      }
-
-      function scrollByStep(dir){
-        var step = getStep() * dir;
-        var reduce = false;
-        try{
-          reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        }catch(e){}
-        track.scrollBy({ left: step, top: 0, behavior: reduce ? 'auto' : 'smooth' });
-      }
-
-      prevBtns.forEach(function(btn){
-        if(btn.dataset.psBound) return;
-        btn.dataset.psBound = '1';
-        btn.addEventListener('click', function(e){
-          e.preventDefault();
-          scrollByStep(-1);
-        });
-      });
-
-      nextBtns.forEach(function(btn){
-        if(btn.dataset.psBound) return;
-        btn.dataset.psBound = '1';
-        btn.addEventListener('click', function(e){
-          e.preventDefault();
-          scrollByStep(1);
-        });
-      });
-
-      track.addEventListener('keydown', function(e){
-        if(e.key === 'ArrowLeft'){ e.preventDefault(); scrollByStep(-1); }
-        if(e.key === 'ArrowRight'){ e.preventDefault(); scrollByStep(1); }
-      });
-    })();
-  </script>
 </section>
 {%- endif -%}
 
@@ -697,7 +632,7 @@
         { "value": "manual", "label": "Manual (blocks)" },
         { "value": "collection", "label": "Collection" },
         { "value": "current_collection", "label": "Current collection (template context)" },
-        { "value": "related_products", "label": "Related products (safe stub)" }
+        { "value": "related_products", "label": "Same-collection products" }
       ]
     },
     { "type": "collection", "id": "collection", "label": "Collection (for Collection or optional fallback)" },
@@ -986,10 +921,10 @@
     { "type": "range", "id": "pad_x", "label": "Horizontal padding", "min": 0, "max": 60, "step": 2, "default": 20 },
     { "type": "range", "id": "gap", "label": "Card gap", "min": 8, "max": 40, "step": 2, "default": 18 },
     { "type": "range", "id": "radius", "label": "Corner radius", "min": 0, "max": 28, "step": 1, "default": 16 },
-    { "type": "text", "id": "shadow", "label": "Shadow token (advanced)", "default": "0" },
+    { "type": "text", "id": "shadow", "label": "Shadow token (advanced)", "default": "none" },
 
     { "type": "header", "content": "Designer styling — enable" },
-    { "type": "checkbox", "id": "use_custom_colors", "label": "Enable custom styling (colors/controls/typography)", "default": false },
+    { "type": "checkbox", "id": "use_custom_colors", "label": "Enable custom colors", "default": false },
 
     { "type": "header", "content": "Designer styling — surface + header colors" },
     { "type": "color", "id": "surface_bg", "label": "Surface background" },

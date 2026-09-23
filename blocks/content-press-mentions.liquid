@@ -13,8 +13,77 @@
   assign show_on_mobile = block.settings.show_on_mobile
 -%}
 
+{% assign rendered_count = 0 %}
+{% capture rendered_items %}
+  <div class="content-press-mentions__items">
+    {%- for index in (1..8) -%}
+      {%- if index <= item_count -%}
+        {%- liquid
+          assign logo_key = 'item_' | append: index | append: '_logo'
+          assign logo_alt_key = 'item_' | append: index | append: '_logo_alt'
+          assign quote_key = 'item_' | append: index | append: '_quote'
+          assign source_name_key = 'item_' | append: index | append: '_source_name'
+          assign link_url_key = 'item_' | append: index | append: '_link_url'
+          assign badge_label_key = 'item_' | append: index | append: '_badge_label'
+
+          assign item_logo = block.settings[logo_key]
+          assign item_logo_alt = block.settings[logo_alt_key]
+          assign item_quote = block.settings[quote_key]
+          assign item_source_name = block.settings[source_name_key]
+          assign item_link_url = block.settings[link_url_key]
+          assign item_badge_label = block.settings[badge_label_key]
+          assign item_logo_alt = item_logo_alt | default: item_logo.alt | default: item_source_name | default: 'Publication logo'
+          assign item_link_name = item_source_name | default: item_quote | default: item_badge_label | default: item_logo_alt
+        -%}
+
+        {% if item_logo != blank or item_quote != blank or item_source_name != blank or item_badge_label != blank %}
+          {%- assign rendered_count = rendered_count | plus: 1 -%}
+          {% capture item_content %}
+            {% if item_logo != blank %}
+              <div class="content-press-mentions__logo-wrap">
+                {{
+                  item_logo
+                  | image_url: width: 500
+                  | image_tag:
+                    class: 'content-press-mentions__logo',
+                    loading: 'lazy',
+                    alt: item_logo_alt
+                }}
+              </div>
+            {% elsif item_source_name != blank %}
+              <div class="content-press-mentions__logo-placeholder">
+                {{ item_source_name | escape }}
+              </div>
+            {% endif %}
+
+            {% if item_badge_label != blank %}
+              <span class="content-press-mentions__badge">
+                {{ item_badge_label | escape }}
+              </span>
+            {% endif %}
+
+            {% if item_quote != blank %}
+              <blockquote class="content-press-mentions__quote">
+                “{{ item_quote | escape }}”
+              </blockquote>
+            {% endif %}
+
+            {% if item_source_name != blank and item_logo != blank %}
+              <p class="content-press-mentions__source">
+                {{ item_source_name | escape }}
+              </p>
+            {% endif %}
+
+          {% endcapture %}
+          {% if item_link_url != blank %}<a class="content-press-mentions__item" href="{{ item_link_url | escape }}" aria-label="{{ item_link_name | escape }}">{{ item_content }}</a>{% else %}<article class="content-press-mentions__item">{{ item_content }}</article>{% endif %}
+        {% endif %}
+      {%- endif -%}
+    {%- endfor -%}
+  </div>
+{% endcapture %}
 <div
   id="{{ block_id }}"
+  {% if rendered_count == 0 and request.design_mode == false %}hidden{% endif %}
   class="
     content-press-mentions
     content-press-mentions--{{ layout_style }}
@@ -22,10 +91,10 @@
     content-press-mentions--align-{{ text_alignment }}
     content-press-mentions--desktop-{{ desktop_columns }}
     content-press-mentions--mobile-{{ mobile_columns }}
-    {% unless show_on_desktop %} content-press-mentions--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} content-press-mentions--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} content-press-mentions--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} content-press-mentions--animate content-press-mentions--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} content-press-mentions--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} content-press-mentions--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} content-press-mentions--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} content-press-mentions--animate content-press-mentions--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --content-press-mentions-margin-top: {{ block.settings.margin_top }}px;
@@ -45,36 +114,36 @@
     --content-press-mentions-badge-text: {{ block.settings.badge_text_color }};
     --content-press-mentions-logo-height: {{ block.settings.logo_height }}px;
   "
-  {{ block.shopify_attributes }}
+
 >
   <style>
     #{{ block_id }} {
       width: 100%;
       margin-top: var(--content-press-mentions-margin-top);
       margin-bottom: var(--content-press-mentions-margin-bottom);
-      padding: var(--content-press-mentions-padding);
+      padding: min(var(--content-press-mentions-padding), 8%);
       color: var(--content-press-mentions-text-color);
       background: var(--content-press-mentions-background-color);
     }
 
     #{{ block_id }}.content-press-mentions--width-auto {
-      max-width: none;
+      max-width: 100%;
     }
 
     #{{ block_id }}.content-press-mentions--width-small {
-      max-width: 720px;
+      max-width: min(100%, 720px);
     }
 
     #{{ block_id }}.content-press-mentions--width-medium {
-      max-width: 960px;
+      max-width: min(100%, 960px);
     }
 
     #{{ block_id }}.content-press-mentions--width-large {
-      max-width: 1200px;
+      max-width: min(100%, 1200px);
     }
 
     #{{ block_id }}.content-press-mentions--width-full {
-      max-width: none;
+      max-width: 100%;
     }
 
     #{{ block_id }}.content-press-mentions--align-left {
@@ -130,7 +199,7 @@
       background: var(--content-press-mentions-card-background-color);
       border: var(--content-press-mentions-border-width) solid var(--content-press-mentions-border-color);
       border-radius: var(--content-press-mentions-border-radius);
-      padding: var(--content-press-mentions-card-padding);
+      padding: min(var(--content-press-mentions-card-padding), 8%);
       text-decoration: none;
     }
 
@@ -235,7 +304,7 @@
     }
 
     #{{ block_id }}.content-press-mentions--animate {
-      opacity: 0;
+      opacity: 1;
       animation-duration: 700ms;
       animation-fill-mode: forwards;
       animation-timing-function: ease;
@@ -376,78 +445,18 @@
         transform: none;
       }
     }
+    #{{ block_id }} { min-width: 0; overflow-wrap: anywhere; container-type: inline-size; }
+    #{{ block_id }}, #{{ block_id }} * { box-sizing: border-box; }
+    #{{ block_id }}[hidden], #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} img, #{{ block_id }} a { max-width: 100%; }
+    #{{ block_id }} :focus-visible { outline: 2px solid var(--content-press-mentions-link-color); outline-offset: -3px; }
+    @container (max-width: 749px) {
+      #{{ block_id }}.content-press-mentions .content-press-mentions__items { display: grid; grid-template-columns: repeat({{ mobile_columns }}, minmax(0, 1fr)); }
+      #{{ block_id }}.content-press-mentions .content-press-mentions__item { padding: min(var(--content-press-mentions-card-padding), 8%); }
+    }
   </style>
 
-  <div class="content-press-mentions__items">
-    {%- for index in (1..8) -%}
-      {%- if index <= item_count -%}
-        {%- liquid
-          assign logo_key = 'item_' | append: index | append: '_logo'
-          assign logo_alt_key = 'item_' | append: index | append: '_logo_alt'
-          assign quote_key = 'item_' | append: index | append: '_quote'
-          assign source_name_key = 'item_' | append: index | append: '_source_name'
-          assign link_url_key = 'item_' | append: index | append: '_link_url'
-          assign badge_label_key = 'item_' | append: index | append: '_badge_label'
-
-          assign item_logo = block.settings[logo_key]
-          assign item_logo_alt = block.settings[logo_alt_key]
-          assign item_quote = block.settings[quote_key]
-          assign item_source_name = block.settings[source_name_key]
-          assign item_link_url = block.settings[link_url_key]
-          assign item_badge_label = block.settings[badge_label_key]
-        -%}
-
-        {% if item_logo != blank or item_quote != blank or item_source_name != blank or item_badge_label != blank %}
-          {% if item_link_url != blank %}
-            <a class="content-press-mentions__item" href="{{ item_link_url }}" aria-label="{{ item_source_name | default: item_logo_alt | escape }}">
-          {% else %}
-            <article class="content-press-mentions__item">
-          {% endif %}
-
-            {% if item_logo != blank %}
-              <div class="content-press-mentions__logo-wrap">
-                {{
-                  item_logo
-                  | image_url: width: 500
-                  | image_tag:
-                    class: 'content-press-mentions__logo',
-                    loading: 'lazy',
-                    alt: item_logo_alt
-                }}
-              </div>
-            {% elsif item_source_name != blank %}
-              <div class="content-press-mentions__logo-placeholder">
-                {{ item_source_name | escape }}
-              </div>
-            {% endif %}
-
-            {% if item_badge_label != blank %}
-              <span class="content-press-mentions__badge">
-                {{ item_badge_label | escape }}
-              </span>
-            {% endif %}
-
-            {% if item_quote != blank %}
-              <blockquote class="content-press-mentions__quote">
-                “{{ item_quote | escape }}”
-              </blockquote>
-            {% endif %}
-
-            {% if item_source_name != blank %}
-              <p class="content-press-mentions__source">
-                {{ item_source_name | escape }}
-              </p>
-            {% endif %}
-
-          {% if item_link_url != blank %}
-            </a>
-          {% else %}
-            </article>
-          {% endif %}
-        {% endif %}
-      {%- endif -%}
-    {%- endfor -%}
-  </div>
+  {% if rendered_count > 0 %}{{ rendered_items }}{% elsif request.design_mode %}<p role="note">Add press mentions in this block’s settings.</p>{% endif %}
 </div>
 
 {% schema %}
@@ -613,7 +622,6 @@
       "unit": "px",
       "default": 48
     },
-
     {
       "type": "header",
       "content": "Item 1"
@@ -626,20 +634,17 @@
     {
       "type": "text",
       "id": "item_1_logo_alt",
-      "label": "Logo alt text",
-      "default": "Press logo"
+      "label": "Logo alt text"
     },
     {
       "type": "textarea",
       "id": "item_1_quote",
-      "label": "Quote",
-      "default": "A standout customer experience built around clarity and trust."
+      "label": "Quote"
     },
     {
       "type": "text",
       "id": "item_1_source_name",
-      "label": "Source name",
-      "default": "Featured Publication"
+      "label": "Source name"
     },
     {
       "type": "url",
@@ -649,10 +654,8 @@
     {
       "type": "text",
       "id": "item_1_badge_label",
-      "label": "Badge label",
-      "default": "Featured"
+      "label": "Badge label"
     },
-
     {
       "type": "header",
       "content": "Item 2"
@@ -665,20 +668,17 @@
     {
       "type": "text",
       "id": "item_2_logo_alt",
-      "label": "Logo alt text",
-      "default": "Award logo"
+      "label": "Logo alt text"
     },
     {
       "type": "textarea",
       "id": "item_2_quote",
-      "label": "Quote",
-      "default": "Recognized for thoughtful design, practical storytelling, and customer-focused execution."
+      "label": "Quote"
     },
     {
       "type": "text",
       "id": "item_2_source_name",
-      "label": "Source name",
-      "default": "Industry Award"
+      "label": "Source name"
     },
     {
       "type": "url",
@@ -688,10 +688,8 @@
     {
       "type": "text",
       "id": "item_2_badge_label",
-      "label": "Badge label",
-      "default": "Award"
+      "label": "Badge label"
     },
-
     {
       "type": "header",
       "content": "Item 3"
@@ -704,20 +702,17 @@
     {
       "type": "text",
       "id": "item_3_logo_alt",
-      "label": "Logo alt text",
-      "default": "Certification logo"
+      "label": "Logo alt text"
     },
     {
       "type": "textarea",
       "id": "item_3_quote",
-      "label": "Quote",
-      "default": "A trusted choice for brands that need polished, conversion-aware content sections."
+      "label": "Quote"
     },
     {
       "type": "text",
       "id": "item_3_source_name",
-      "label": "Source name",
-      "default": "Certification Partner"
+      "label": "Source name"
     },
     {
       "type": "url",
@@ -727,10 +722,8 @@
     {
       "type": "text",
       "id": "item_3_badge_label",
-      "label": "Badge label",
-      "default": "Certified"
+      "label": "Badge label"
     },
-
     {
       "type": "header",
       "content": "Item 4"
@@ -743,20 +736,17 @@
     {
       "type": "text",
       "id": "item_4_logo_alt",
-      "label": "Logo alt text",
-      "default": "Mention logo"
+      "label": "Logo alt text"
     },
     {
       "type": "textarea",
       "id": "item_4_quote",
-      "label": "Quote",
-      "default": "Built to help merchants present trust signals without creating layout clutter."
+      "label": "Quote"
     },
     {
       "type": "text",
       "id": "item_4_source_name",
-      "label": "Source name",
-      "default": "Trusted Source"
+      "label": "Source name"
     },
     {
       "type": "url",
@@ -766,10 +756,8 @@
     {
       "type": "text",
       "id": "item_4_badge_label",
-      "label": "Badge label",
-      "default": "Mention"
+      "label": "Badge label"
     },
-
     {
       "type": "header",
       "content": "Item 5"
@@ -804,7 +792,6 @@
       "id": "item_5_badge_label",
       "label": "Badge label"
     },
-
     {
       "type": "header",
       "content": "Item 6"
@@ -839,7 +826,6 @@
       "id": "item_6_badge_label",
       "label": "Badge label"
     },
-
     {
       "type": "header",
       "content": "Item 7"
@@ -874,7 +860,6 @@
       "id": "item_7_badge_label",
       "label": "Badge label"
     },
-
     {
       "type": "header",
       "content": "Item 8"
@@ -909,7 +894,6 @@
       "id": "item_8_badge_label",
       "label": "Badge label"
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -962,7 +946,6 @@
       "label": "Badge text",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border and radius"
@@ -987,7 +970,6 @@
       "unit": "px",
       "default": 20
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1022,7 +1004,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1045,7 +1026,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1089,7 +1069,7 @@
   ],
   "presets": [
     {
-      "name": "As Seen In",
+      "name": "Press logos",
       "settings": {
         "layout_style": "logos",
         "item_count": 4,
@@ -1100,14 +1080,14 @@
         "gap": 20,
         "card_padding": 24,
         "logo_height": 48,
-        "item_1_logo_alt": "Press logo",
-        "item_1_source_name": "Featured Publication",
-        "item_2_logo_alt": "Press logo",
-        "item_2_source_name": "Industry Source",
-        "item_3_logo_alt": "Press logo",
-        "item_3_source_name": "Media Mention",
-        "item_4_logo_alt": "Press logo",
-        "item_4_source_name": "Trusted Source",
+        "item_1_logo_alt": "",
+        "item_1_source_name": "",
+        "item_2_logo_alt": "",
+        "item_2_source_name": "",
+        "item_3_logo_alt": "",
+        "item_3_source_name": "",
+        "item_4_logo_alt": "",
+        "item_4_source_name": "",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",
@@ -1128,7 +1108,7 @@
       }
     },
     {
-      "name": "Press Quotes",
+      "name": "Press quotes",
       "settings": {
         "layout_style": "quotes",
         "item_count": 3,
@@ -1139,15 +1119,15 @@
         "gap": 24,
         "card_padding": 28,
         "logo_height": 44,
-        "item_1_quote": "A standout customer experience built around clarity and trust.",
-        "item_1_source_name": "Featured Publication",
-        "item_1_badge_label": "Featured",
-        "item_2_quote": "Recognized for thoughtful design, practical storytelling, and customer-focused execution.",
-        "item_2_source_name": "Industry Review",
-        "item_2_badge_label": "Mention",
-        "item_3_quote": "A trusted choice for brands that need polished, conversion-aware content sections.",
-        "item_3_source_name": "Commerce Weekly",
-        "item_3_badge_label": "Press",
+        "item_1_quote": "",
+        "item_1_source_name": "",
+        "item_1_badge_label": "",
+        "item_2_quote": "",
+        "item_2_source_name": "",
+        "item_2_badge_label": "",
+        "item_3_quote": "",
+        "item_3_source_name": "",
+        "item_3_badge_label": "",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",
@@ -1168,7 +1148,7 @@
       }
     },
     {
-      "name": "Awards / Certifications",
+      "name": "Press cards",
       "settings": {
         "layout_style": "awards",
         "item_count": 4,
@@ -1179,18 +1159,18 @@
         "gap": 20,
         "card_padding": 24,
         "logo_height": 52,
-        "item_1_source_name": "Quality Certified",
-        "item_1_badge_label": "Certified",
-        "item_1_quote": "Recognized for quality standards and reliable customer experience.",
-        "item_2_source_name": "Top Rated",
-        "item_2_badge_label": "Award",
-        "item_2_quote": "A trust signal for stronger buyer confidence.",
-        "item_3_source_name": "Verified Partner",
-        "item_3_badge_label": "Verified",
-        "item_3_quote": "Useful for partner, platform, and association badges.",
-        "item_4_source_name": "Industry Recognition",
-        "item_4_badge_label": "Recognition",
-        "item_4_quote": "Showcase milestones, awards, and credibility markers.",
+        "item_1_source_name": "",
+        "item_1_badge_label": "",
+        "item_1_quote": "",
+        "item_2_source_name": "",
+        "item_2_badge_label": "",
+        "item_2_quote": "",
+        "item_3_source_name": "",
+        "item_3_badge_label": "",
+        "item_3_quote": "",
+        "item_4_source_name": "",
+        "item_4_badge_label": "",
+        "item_4_quote": "",
         "heading_color": "#111111",
         "text_color": "#444444",
         "background_color": "rgba(0,0,0,0)",

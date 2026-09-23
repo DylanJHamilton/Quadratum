@@ -1,30 +1,9 @@
 {%- comment -%}
-  Quadratum — Main Product Modern (Standalone / No Snippet Dependencies)
-  File: sections/main-product-modern-varianttwo.liquid
-
-  PATCH (ROUTINE ONLY)
-  1) Thumbnail selected state cleanup (no outline; border + subtle shadow)
-  2) Per-block styling controls (text_color, font_size, font_weight, margin_bottom) for all key blocks
-     - FIX: Ensure styling actually applies (override internal element font-size/weight that was blocking changes)
-  3) Buy Buttons size option (small/medium/large) + CSS
-  4) New qty_buy_combo block (Quantity + Buy Buttons)
-  5) Accordion styling controls applied to <summary> (and spacing applied via wrapper)
-  6) Buy button background color capability (buy_buttons + qty_buy_combo)
-
-  KEEP:
-  - Media behavior/settings unchanged.
-  - JS expects IDs: QtmVariantId, QtmPrice, QtmCompare, QtmSkuWrap, QtmSku, QtmAvailText, QtmAtc, QtmQty, QtmQtyHidden.
-
-  ADDITIONS (MATCH MAIN PRODUCT CLASSIC ADD-ONS)
-  A) Variant compatibility select (hidden <select name="id">) for apps/scripts that expect it
-  B) Wishlist block + localStorage toggle (no external deps)
+  Quadratum — Main Product Modern Variant. Block configuration is preserved;
+  purchase state uses the shared native purchase/selling-plan contracts.
 {%- endcomment -%}
-
 {%- liquid
   assign p = product
-  if p == blank
-    break
-  endif
 
   assign s = section.settings
 
@@ -44,7 +23,7 @@
   assign image_media_all = p.media | where: 'media_type', 'image'
 
   assign featured = p.selected_or_first_available_variant.featured_media | default: p.featured_media
-  if featured == blank and image_media_all.first
+  if featured.media_type != 'image' and image_media_all.first
     assign featured = image_media_all.first
   endif
 
@@ -88,6 +67,16 @@
     assign image_media = image_media_all
   endif
 
+  assign allocation = current_variant.selected_selling_plan_allocation
+  if p.requires_selling_plan and allocation == blank
+    assign allocation = current_variant.selling_plan_allocations.first
+  endif
+  assign purchase_price = allocation.price | default: current_variant.price
+  assign purchase_compare = allocation.compare_at_price | default: current_variant.compare_at_price
+  assign can_purchase = current_variant.available
+  if p.requires_selling_plan and allocation == blank
+    assign can_purchase = false
+  endif
   assign media_ratio = 0.55
   if s.media_size == 'large'
     assign media_ratio = 0.65
@@ -100,8 +89,12 @@
   comment
     Detect qty_buy_combo to avoid duplicate Quantity / Buy Buttons (same IDs).
   endcomment
+  assign has_quantity = false
   assign has_qty_buy_combo = false
   for b in section.blocks
+    if b.type == 'quantity' or b.type == 'qty_buy_combo'
+      assign has_quantity = true
+    endif
     if b.type == 'qty_buy_combo'
       assign has_qty_buy_combo = true
       break
@@ -109,10 +102,13 @@
   endfor
 -%}
 
+{%- if p != blank -%}
 <section
   id="MainProductModern-{{ section.id }}"
   class="qtm-modern section-{{ section.id }}-padding{% if s.media_position == 'right' %} qtm-modern--media-right{% else %} qtm-modern--media-left{% endif %}"
   aria-label="{{ section_aria | escape }}"
+  data-modern-product data-product-gallery data-product-purchase-sync data-product-url="{{ p.url | escape }}"
+  data-featured-media="{{ featured.id }}"
   data-section-id="{{ section.id }}"
   data-product-id="{{ p.id }}"
   data-gallery-layout="{{ s.gallery_layout }}"
@@ -135,7 +131,7 @@
 
     @media (min-width: 990px){
       #MainProductModern-{{ section.id }} .qtm-modern__grid{
-        grid-template-columns: {{ media_ratio }}fr {{ 1.0 | minus: media_ratio }}fr;
+        grid-template-columns: minmax(0, {{ media_ratio }}fr) minmax(0, {{ 1.0 | minus: media_ratio }}fr);
       }
       #MainProductModern-{{ section.id }}.qtm-modern--media-right .qtm-modern__media { order: 2; }
       #MainProductModern-{{ section.id }}.qtm-modern--media-right .qtm-modern__info { order: 1; }
@@ -168,11 +164,11 @@
 
     /* Constrain to viewport (best-effort) */
     #MainProductModern-{{ section.id }}[data-constrain="true"] .qtm-modern__main-media{
-      max-height: calc(100vh - 12rem);
+      max-height: max(10rem, calc(100vh - 12rem));
     }
     #MainProductModern-{{ section.id }}[data-constrain="true"] .qtm-modern__main-media img{
       height: 100%;
-      max-height: calc(100vh - 12rem);
+      max-height: max(10rem, calc(100vh - 12rem));
       width: 100%;
     }
 
@@ -249,6 +245,7 @@
     }
 
     /* Mobile thumbnail modes */
+    @media(max-width:749px){
     #MainProductModern-{{ section.id }}[data-mobile-thumbnails="hide"] .qtm-modern__thumbs{ display:none; }
     #MainProductModern-{{ section.id }}[data-mobile-thumbnails="columns"] .qtm-modern__thumbs{
       display:grid;
@@ -258,6 +255,7 @@
     #MainProductModern-{{ section.id }}[data-mobile-thumbnails="columns"] .qtm-modern__thumb{
       width:100%;
       height: 92px;
+    }
     }
 
     /* Two columns gallery (media) */
@@ -544,6 +542,22 @@
       border-color: currentColor;
       box-shadow: 0 0 0 1px currentColor;
     }
+    #MainProductModern-{{ section.id }} [hidden]{display:none!important;}
+    #MainProductModern-{{ section.id }} :is(.qtm-modern__media,.qtm-modern__info,.qtm-modern__media-row>div){min-width:0;overflow-wrap:anywhere;}
+    #MainProductModern-{{ section.id }} :focus-visible{outline:2px solid currentColor;outline-offset:3px;}
+    #MainProductModern-{{ section.id }} .qtm-modern__thumb{flex-shrink:0;}
+    #MainProductModern-{{ section.id }} .qtm-modern__native-media{display:grid;gap:1rem;margin-top:1rem;}
+    #MainProductModern-{{ section.id }} :is(video,iframe,model-viewer){width:100%;max-width:100%;}
+    #MainProductModern-{{ section.id }} :is(iframe,model-viewer){aspect-ratio:1; height:auto;}
+    #MainProductModern-{{ section.id }} .rte :is(img,video,iframe){max-width:100%;}
+    #MainProductModern-{{ section.id }} dialog:not([open]){display:none;}
+    #MainProductModern-{{ section.id }} .qtm-modern__modal-body img{max-height:75vh;object-fit:contain;}
+    @media(max-width:749px){#MainProductModern-{{ section.id }}[data-mobile-thumbnails="hide"] .qtm-modern__thumb-carousel{display:none;}}
+    @media(prefers-reduced-motion:reduce){#MainProductModern-{{ section.id }} *{scroll-behavior:auto!important;transition:none!important;}}
+    #MainProductModern-{{ section.id }} .qtm-modern__qty-buy{flex-wrap:wrap;}
+    #MainProductModern-{{ section.id }} .qtm-block-style :is(.qtm-modern__atc,.qtm-modern__wishlist){font-size:inherit;font-weight:inherit;}
+    #MainProductModern-{{ section.id }} .qtm-modern__wishlist{color:inherit;white-space:normal;}
+    #MainProductModern-{{ section.id }} .qtm-modern__radios input:focus-visible+label{outline:2px solid currentColor;outline-offset:4px;}
   </style>
 
   <div class="page-width">
@@ -551,26 +565,26 @@
 
       {%- comment -%} ================= MEDIA ================= {%- endcomment -%}
       <div class="qtm-modern__media">
-        {%- if s.gallery_layout == 'columns' -%}
+        {%- if s.gallery_layout == 'columns' or s.gallery_layout == 'stacked' -%}
           <div class="qtm-modern__grid-gallery" aria-label="Product images grid">
             {%- for m in image_media -%}
               {%- assign full_src = m | image_url: width: 1800 -%}
               <button
                 type="button"
-                data-qtm-image="{{ full_src }}"
+                data-qtm-image="{{ full_src }}" data-media-id="{{ m.id }}" data-image-alt="{{ m.alt | default: p.title | escape }}" data-image-width="{{ m.preview_image.width }}" data-image-height="{{ m.preview_image.height }}"
                 data-qtm-index="{{ forloop.index0 }}"
                 aria-label="Open image {{ forloop.index }}"
                 {% if s.image_zoom != 'lightbox' %}data-qtm-no-modal="true"{% endif %}
               >
-                <img src="{{ m | image_url: width: 1200 }}" alt="{{ m.alt | escape }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
+                <img src="{{ m | image_url: width: 1200 }}" width="{{ m.preview_image.width }}" height="{{ m.preview_image.height }}" alt="{{ m.alt | default: p.title | escape }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
               </button>
             {%- endfor -%}
           </div>
         {%- else -%}
-          <div class="qtm-modern__media-row">
+          <div class="qtm-modern__media-row" {% if image_media.size == 0 %}hidden{% endif %}>
             {%- if s.gallery_layout == 'thumbnails' -%}
               <div>
-                {%- if image_media.size > 1 and s.mobile_thumbnails != 'hide' -%}
+                {%- if image_media.size > 1 -%}
                   <div class="qtm-modern__thumbs" aria-label="Product thumbnails">
                     {%- for m in image_media -%}
                       {%- assign thumb_src = m | image_url: width: 240 -%}
@@ -578,11 +592,11 @@
                       <button
                         type="button"
                         class="qtm-modern__thumb"
-                        data-qtm-image="{{ full_src }}"
+                        data-qtm-image="{{ full_src }}" data-media-id="{{ m.id }}" data-image-alt="{{ m.alt | default: p.title | escape }}" data-image-width="{{ m.preview_image.width }}" data-image-height="{{ m.preview_image.height }}"
                         data-qtm-index="{{ forloop.index0 }}"
                         aria-current="{% if featured and m.id == featured.id %}true{% else %}false{% endif %}"
                       >
-                        <img src="{{ thumb_src }}" alt="{{ m.alt | escape }}" loading="lazy">
+                        <img src="{{ thumb_src }}" width="{{ m.preview_image.width }}" height="{{ m.preview_image.height }}" alt="{{ m.alt | default: p.title | escape }}" loading="lazy">
                       </button>
                     {%- endfor -%}
                   </div>
@@ -595,13 +609,13 @@
                 <button
                   type="button"
                   data-qtm-open-main
-                  aria-haspopup="dialog"
+                  {% if s.image_zoom == 'lightbox' %}aria-haspopup="dialog"{% endif %}
                   {% if s.image_zoom != 'lightbox' %}data-qtm-no-modal="true"{% endif %}
                 >
                   <img
                     id="QtmMainImage-{{ section.id }}"
-                    src="{{ featured_src }}"
-                    alt="{{ featured.alt | escape }}"
+                    {% if featured_src != blank %}src="{{ featured_src }}"{% endif %}
+                    width="{{ featured.preview_image.width | default: 800 }}" height="{{ featured.preview_image.height | default: 800 }}" alt="{{ featured.alt | default: p.title | escape }}"
                     loading="eager"
                   >
                 </button>
@@ -611,7 +625,7 @@
                     type="button"
                     class="qtm-modern__zoom-btn"
                     data-qtm-open-modal
-                    aria-haspopup="dialog"
+                    {% if s.image_zoom == 'lightbox' %}aria-haspopup="dialog"{% endif %}
                   >
                     View larger
                   </button>
@@ -629,18 +643,18 @@
                         <button
                           type="button"
                           class="qtm-modern__thumb"
-                          data-qtm-image="{{ full_src }}"
+                          data-qtm-image="{{ full_src }}" data-media-id="{{ m.id }}" data-image-alt="{{ m.alt | default: p.title | escape }}" data-image-width="{{ m.preview_image.width }}" data-image-height="{{ m.preview_image.height }}"
                           data-qtm-index="{{ forloop.index0 }}"
                           aria-current="{% if featured and m.id == featured.id %}true{% else %}false{% endif %}"
                         >
-                          <img src="{{ thumb_src }}" alt="{{ m.alt | escape }}" loading="lazy">
+                          <img src="{{ thumb_src }}" width="{{ m.preview_image.width }}" height="{{ m.preview_image.height }}" alt="{{ m.alt | default: p.title | escape }}" loading="lazy">
                         </button>
                       {%- endfor -%}
                     </div>
                     <button type="button" class="qtm-modern__thumb-nav" data-qtm-thumb-next aria-label="Next thumbnails">›</button>
                   </div>
                 {%- else -%}
-                  {%- if s.mobile_thumbnails != 'hide' -%}
+                  {%- if image_media.size > 1 -%}
                     <div class="qtm-modern__thumbs" aria-label="Product thumbnails">
                       {%- for m in image_media -%}
                         {%- assign thumb_src = m | image_url: width: 240 -%}
@@ -648,11 +662,11 @@
                         <button
                           type="button"
                           class="qtm-modern__thumb"
-                          data-qtm-image="{{ full_src }}"
+                          data-qtm-image="{{ full_src }}" data-media-id="{{ m.id }}" data-image-alt="{{ m.alt | default: p.title | escape }}" data-image-width="{{ m.preview_image.width }}" data-image-height="{{ m.preview_image.height }}"
                           data-qtm-index="{{ forloop.index0 }}"
                           aria-current="{% if featured and m.id == featured.id %}true{% else %}false{% endif %}"
                         >
-                          <img src="{{ thumb_src }}" alt="{{ m.alt | escape }}" loading="lazy">
+                          <img src="{{ thumb_src }}" width="{{ m.preview_image.width }}" height="{{ m.preview_image.height }}" alt="{{ m.alt | default: p.title | escape }}" loading="lazy">
                         </button>
                       {%- endfor -%}
                     </div>
@@ -662,6 +676,14 @@
             </div>
           </div>
         {%- endif -%}
+        <button type="button" class="qtm-modern__main-media" data-simple-variant-image hidden aria-label="View variant image"><img width="800" height="800" alt=""></button>
+        <div class="qtm-modern__native-media">
+          {%- for m in p.media -%}
+            {%- unless m.media_type == 'image' -%}
+              <div data-simple-media="{{ m.id }}">{{ m | media_tag: controls: true, preload: 'metadata', loop: s.enable_video_looping }}</div>
+            {%- endunless -%}
+          {%- endfor -%}
+        </div>
       </div>
 
       {%- comment -%} ================= INFO (BLOCK-DRIVEN) ================= {%- endcomment -%}
@@ -700,12 +722,12 @@
                   <span
                     class="qtm-modern__compare"
                     id="QtmCompare-{{ section.id }}"
-                    {% unless current_variant.compare_at_price > current_variant.price %}style="display:none"{% endunless %}
+                    data-purchase-compare {% unless purchase_compare > purchase_price %}hidden{% endunless %}
                   >
-                    {{ current_variant.compare_at_price | money }}
+                    {{ purchase_compare | money }}
                   </span>
-                  <span class="qtm-modern__current" id="QtmPrice-{{ section.id }}">
-                    {{ current_variant.price | money }}
+                  <span class="qtm-modern__current" id="QtmPrice-{{ section.id }}" data-purchase-current>
+                    {{ purchase_price | money }}
                   </span>
                 </div>
               </div>
@@ -722,12 +744,12 @@
                 {{ block.shopify_attributes }}
               >
                 <div class="qtm-modern__meta">
-                  <span id="QtmSkuWrap-{{ section.id }}" {% if current_variant.sku == blank %}style="display:none"{% endif %}>
-                    <strong>SKU:</strong> <span id="QtmSku-{{ section.id }}">{{ current_variant.sku }}</span>
+                  <span id="QtmSkuWrap-{{ section.id }}" data-purchase-sku-wrap {% if current_variant.sku == blank %}hidden{% endif %}>
+                    <strong>SKU:</strong> <span id="QtmSku-{{ section.id }}" data-purchase-sku>{{ current_variant.sku | escape }}</span>
                   </span>
                   <span id="QtmAvail-{{ section.id }}">
                     <strong>Status:</strong>
-                    <span id="QtmAvailText-{{ section.id }}">
+                    <span id="QtmAvailText-{{ section.id }}" data-purchase-availability>
                       {% if current_variant.available %}In stock{% else %}Sold out{% endif %}
                     </span>
                   </span>
@@ -761,11 +783,7 @@
                         {%- if ns != blank and k != blank -%}
                           {%- assign mf = p.metafields[ns][k] -%}
                           {%- if mf != blank -%}
-                            {%- if mf.value != blank -%}
-                              {%- assign short_src = mf.value -%}
-                            {%- else -%}
-                              {%- assign short_src = mf -%}
-                            {%- endif -%}
+                            {%- capture short_src -%}{{ mf | metafield_tag }}{%- endcapture -%}
                           {%- endif -%}
                         {%- endif -%}
                       {%- endif -%}
@@ -773,7 +791,7 @@
                       {%- if short_src != blank -%}
                         {{ short_src }}
                       {%- else -%}
-                        {{ p.description | strip_html | truncate: 200 }}
+                        {{ p.description | strip_html | truncate: 200 | escape }}
                       {%- endif -%}
                     {%- endif -%}
                   </div>
@@ -784,18 +802,17 @@
         {%- endfor -%}
 
         {%- comment -%} Single product form wrapper; FORM blocks render inside {%- endcomment -%}
-        {%- form 'product', p, id: product_form_id, class: 'qtm-modern__form', data-cart-drawer-add: settings.enable_ajax_cart_drawer -%}
+        {%- form 'product', p, id: product_form_id, class: 'qtm-modern__form', data-cart-drawer-add: true -%}
             {% render 'product-selling-plans', product: p, id: section.id %}
-          <input type="hidden" name="id" id="QtmVariantId-{{ section.id }}" value="{{ current_variant.id }}">
-          <input type="hidden" name="quantity" id="QtmQtyHidden-{{ section.id }}" value="1">
+          <div data-simple-fallback>
+            <label for="QtmVariantId-{{ section.id }}">Variant</label>
+            <select name="id" id="QtmVariantId-{{ section.id }}">
+              {% for v in p.variants %}<option value="{{ v.id }}" {% if v.id == current_variant.id %}selected{% endif %}>{{ v.title | escape }}{% unless v.available %} — Sold out{% endunless %}</option>{% endfor %}
+            </select>
+            <noscript><p>Select a variant to refresh price and purchase options:</p>{% for v in p.variants %}<a href="{{ v.url | escape }}">{{ v.title | escape }}</a> {% endfor %}</noscript>
+          </div>
 
-          {%- comment -%} ADDITION A: Variant compatibility select (hidden). {%- endcomment -%}
-          <select id="QtmVariantSelect-{{ section.id }}" style="display:none !important" aria-hidden="true" tabindex="-1">
-            {%- for v in p.variants -%}
-              <option value="{{ v.id }}" {% if v.id == current_variant.id %}selected{% endif %}>{{ v.title | escape }}</option>
-            {%- endfor -%}
-          </select>
-
+          {%- unless has_quantity -%}<input type="hidden" name="quantity" id="QtmQtyHidden-{{ section.id }}" value="{{ current_variant.quantity_rule.min | default: 1 }}">{%- endunless -%}
           {%- for block in section.blocks -%}
             {%- case block.type -%}
 
@@ -812,14 +829,14 @@
                     {{ block.shopify_attributes }}
                   >
                     {%- for option in p.options_with_values -%}
-                      <div class="qtm-modern__option" data-qtm-option data-index="{{ option.position }}">
-                        <label>{{ option.name | escape }}</label>
+                      <div class="qtm-modern__option" data-qtm-option data-index="{{ option.position }}" hidden>
+                        <label {% if block.settings.picker == 'dropdown' %}for="QtmOption-{{ section.id }}-{{ option.position }}"{% endif %}>{{ option.name | escape }}</label>
 
                         {%- if block.settings.picker == 'dropdown' -%}
-                          <select name="qtm-option-{{ option.position }}">
+                          <select id="QtmOption-{{ section.id }}-{{ option.position }}" name="qtm-option-{{ section.id }}-{{ option.position }}">
                             {%- for value in option.values -%}
-                              <option value="{{ value | escape }}" {% if value.selected %}selected{% endif %}>
-                                {{ value }}
+                              <option value="{{ value | escape }}" {% if value.selected or option.selected_value == value %}selected{% endif %}>
+                                {{ value | escape }}
                               </option>
                             {%- endfor -%}
                           </select>
@@ -830,11 +847,11 @@
                               <input
                                 type="radio"
                                 id="{{ input_id }}"
-                                name="qtm-option-{{ option.position }}"
+                                name="qtm-option-{{ section.id }}-{{ option.position }}"
                                 value="{{ value | escape }}"
-                                {% if value.selected %}checked{% endif %}
+                                {% if value.selected or option.selected_value == value %}checked{% endif %}
                               >
-                              <label for="{{ input_id }}">{{ value }}</label>
+                              <label for="{{ input_id }}">{{ value | escape }}</label>
                             {%- endfor -%}
                           </div>
                         {%- endif -%}
@@ -857,25 +874,25 @@
                   <div class="qtm-modern__qty-buy">
                     <div class="qtm-modern__qty">
                       <label for="QtmQty-{{ section.id }}">Quantity</label>
-                      <input id="QtmQty-{{ section.id }}" type="number" min="1" value="1">
+                      <input id="QtmQty-{{ section.id }}" type="number" name="quantity" required min="{{ current_variant.quantity_rule.min | default: 1 }}" step="{{ current_variant.quantity_rule.increment | default: 1 }}" {% if current_variant.quantity_rule.max %}max="{{ current_variant.quantity_rule.max }}"{% endif %} value="{{ current_variant.quantity_rule.min | default: 1 }}">
                     </div>
 
                     <button
                       type="submit"
                       class="qtm-modern__atc qtm-btn--{{ block.settings.button_size | default: 'medium' }}"
-                      id="QtmAtc-{{ section.id }}"
+                      id="QtmAtc-{{ section.id }}" name="add"
                       style="
                         background: {{ block.settings.button_background | default: '#111111' }};
                         color: {{ block.settings.button_text_color | default: '#ffffff' }};
                       "
-                      {% unless current_variant.available %}disabled{% endunless %}
+                      {% unless can_purchase %}disabled{% endunless %}
                     >
-                      {% if current_variant.available %}Add to cart{% else %}Sold out{% endif %}
+                      {% if can_purchase %}Add to cart{% elsif current_variant.available %}Unavailable{% else %}Sold out{% endif %}
                     </button>
                   </div>
 
                   {%- if block.settings.show_dynamic_checkout -%}
-                    <div style="margin-top: .75rem;">
+                    <div class="q-dynamic-checkout" {% unless can_purchase %}hidden{% endunless %} style="margin-top: .75rem;">
                       {{ form | payment_button }}
                     </div>
                   {%- endif -%}
@@ -895,7 +912,7 @@
                   >
                     <div class="qtm-modern__qty">
                       <label for="QtmQty-{{ section.id }}">Quantity</label>
-                      <input id="QtmQty-{{ section.id }}" type="number" min="1" value="1">
+                      <input id="QtmQty-{{ section.id }}" type="number" name="quantity" required min="{{ current_variant.quantity_rule.min | default: 1 }}" step="{{ current_variant.quantity_rule.increment | default: 1 }}" {% if current_variant.quantity_rule.max %}max="{{ current_variant.quantity_rule.max }}"{% endif %} value="{{ current_variant.quantity_rule.min | default: 1 }}">
                     </div>
                   </div>
                 {%- endunless -%}
@@ -915,18 +932,18 @@
                     <button
                       type="submit"
                       class="qtm-modern__atc qtm-btn--{{ block.settings.button_size | default: 'medium' }}"
-                      id="QtmAtc-{{ section.id }}"
+                      id="QtmAtc-{{ section.id }}" name="add"
                       style="
                         background: {{ block.settings.button_background | default: '#111111' }};
                         color: {{ block.settings.button_text_color | default: '#ffffff' }};
                       "
-                      {% unless current_variant.available %}disabled{% endunless %}
+                      {% unless can_purchase %}disabled{% endunless %}
                     >
-                      {% if current_variant.available %}Add to cart{% else %}Sold out{% endif %}
+                      {% if can_purchase %}Add to cart{% elsif current_variant.available %}Unavailable{% else %}Sold out{% endif %}
                     </button>
 
                     {%- if block.settings.show_dynamic_checkout -%}
-                      <div style="margin-top: .75rem;">
+                      <div class="q-dynamic-checkout" {% unless can_purchase %}hidden{% endunless %} style="margin-top: .75rem;">
                         {{ form | payment_button }}
                       </div>
                     {%- endif -%}
@@ -948,19 +965,26 @@
                   <button
                     type="button"
                     class="qtm-modern__wishlist qtm-btn--{{ block.settings.button_size | default: 'medium' }}"
-                    data-qtm-wishlist
+                    data-qtm-wishlist data-wishlist-button hidden
+                    data-wishlist-mode="{{ block.settings.wishlist_mode | default: 'product' }}"
+                    data-wishlist-label-add="{{ block.settings.label_add | escape }}"
+                    data-wishlist-label-remove="{{ block.settings.label_remove | escape }}"
+                    data-icon-active="{{ block.settings.icon_active | escape }}"
+                    data-icon-inactive="{{ block.settings.icon_inactive | escape }}"
                     aria-pressed="false"
                     data-product-id="{{ p.id }}"
-                    data-product-handle="{{ p.handle }}"
+                    data-product-handle="{{ p.handle | escape }}"
                     data-variant-id="{{ current_variant.id }}"
                   >
-                    <span data-qtm-wl-icon aria-hidden="true">{{ block.settings.icon_inactive | default: '♡' }}</span>
-                    <span data-qtm-wl-text>{{ block.settings.label_add | default: 'Add to wishlist' }}</span>
+                    <span data-qtm-wl-icon aria-hidden="true">{{ block.settings.icon_inactive | default: '♡' | escape }}</span>
+                    <span data-qtm-wl-text>{{ block.settings.label_add | default: 'Add to wishlist' | escape }}</span>
                   </button>
+                  <span data-wishlist-notice hidden role="status">Saved for this page visit; browser storage is unavailable.</span>
                 </div>
 
             {%- endcase -%}
           {%- endfor -%}
+          <p data-purchase-status role="status" aria-live="polite"></p>
         {%- endform -%}
 
         {%- comment -%} Accordion blocks area {%- endcomment -%}
@@ -978,7 +1002,7 @@
 
                 {%- when 'accordion_description' -%}
                   <div style="margin-bottom: {{ block.settings.margin_bottom | default: 16 }}px;">
-                    <details {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
+                    <details data-simple-block="{{ block.id }}" {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
                       <summary
                         class="qtm-block-style"
                         style="
@@ -998,7 +1022,7 @@
 
                 {%- when 'accordion_reviews' -%}
                   <div style="margin-bottom: {{ block.settings.margin_bottom | default: 16 }}px;">
-                    <details {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
+                    <details data-simple-block="{{ block.id }}" {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
                       <summary
                         class="qtm-block-style"
                         style="
@@ -1011,7 +1035,7 @@
                         <span aria-hidden="true">+</span>
                       </summary>
                       <div class="qtm-modern__accordion-content rte">
-                        <p>{{ block.settings.placeholder_text | default: 'Add your reviews app block elsewhere on the product template, or paste embed code into a Custom liquid accordion.' }}</p>
+                        <p>{{ block.settings.placeholder_text | default: 'Add your reviews app block elsewhere on the product template, or paste embed code into a Custom liquid accordion.' | escape }}</p>
                       </div>
                     </details>
                   </div>
@@ -1026,13 +1050,13 @@
                     {%- if ns != blank and k != blank -%}
                       {%- assign mf = p.metafields[ns][k] -%}
                       {%- if mf != blank -%}
-                        {%- if mf.value != blank -%}{%- assign mf_out = mf.value -%}{%- else -%}{%- assign mf_out = mf -%}{%- endif -%}
+                        {%- capture mf_out -%}{{ mf | metafield_tag }}{%- endcapture -%}
                       {%- endif -%}
                     {%- endif -%}
                   {%- endif -%}
 
                   <div style="margin-bottom: {{ block.settings.margin_bottom | default: 16 }}px;">
-                    <details {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
+                    <details data-simple-block="{{ block.id }}" {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
                       <summary
                         class="qtm-block-style"
                         style="
@@ -1058,7 +1082,7 @@
 
                 {%- when 'accordion_page' -%}
                   <div style="margin-bottom: {{ block.settings.margin_bottom | default: 16 }}px;">
-                    <details {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
+                    <details data-simple-block="{{ block.id }}" {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
                       <summary
                         class="qtm-block-style"
                         style="
@@ -1080,7 +1104,7 @@
 
                 {%- when 'accordion_liquid' -%}
                   <div style="margin-bottom: {{ block.settings.margin_bottom | default: 16 }}px;">
-                    <details {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
+                    <details data-simple-block="{{ block.id }}" {% if block.settings.open_by_default %}open{% endif %} {{ block.shopify_attributes }}>
                       <summary
                         class="qtm-block-style"
                         style="
@@ -1108,14 +1132,14 @@
   </div>
 
   {%- comment -%} ================= LIGHTBOX MODAL ================= {%- endcomment -%}
-  {%- if s.image_zoom == 'lightbox' -%}
+  {%- if s.image_zoom == 'lightbox' and image_media.size > 0 -%}
     <dialog class="qtm-modern__modal" id="QtmModal-{{ section.id }}" aria-label="Product images">
       <div class="qtm-modern__modal-head">
         <div style="font-weight:800;">{{ p.title | escape }}</div>
         <button type="button" class="qtm-modern__modal-close" data-qtm-close-modal aria-label="Close">✕</button>
       </div>
       <div class="qtm-modern__modal-body">
-        <img id="QtmModalImg-{{ section.id }}" src="{{ featured_src }}" alt="{{ featured.alt | escape }}">
+        <img id="QtmModalImg-{{ section.id }}" {% if featured_src != blank %}src="{{ featured_src }}"{% endif %} width="{{ featured.preview_image.width | default: 800 }}" height="{{ featured.preview_image.height | default: 800 }}" alt="{{ featured.alt | default: p.title | escape }}">
         <div class="qtm-modern__modal-nav">
           <button type="button" data-qtm-prev aria-label="Previous">‹</button>
           <button type="button" data-qtm-next aria-label="Next">›</button>
@@ -1124,395 +1148,13 @@
     </dialog>
   {%- endif -%}
 
-  {%- comment -%} ================= PRODUCT JSON ================= {%- endcomment -%}
-  <script type="application/json" id="QtmProductJson-{{ section.id }}">
-    {{ p | json }}
-  </script>
-
-  <script>
-    (function(){
-      var root = document.getElementById('MainProductModern-{{ section.id }}');
-      if (!root) return;
-
-      var productJsonEl = document.getElementById('QtmProductJson-{{ section.id }}');
-      if (!productJsonEl) return;
-
-      var product = JSON.parse(productJsonEl.textContent);
-      var variants = product.variants || [];
-
-      // Media
-      var mainImg = document.getElementById('QtmMainImage-{{ section.id }}');
-      var thumbs = root.querySelectorAll('.qtm-modern__thumb');
-      var gridButtons = root.querySelectorAll('.qtm-modern__grid-gallery [data-qtm-image]');
-
-      // Lightbox
-      var modal = document.getElementById('QtmModal-{{ section.id }}');
-      var modalImg = document.getElementById('QtmModalImg-{{ section.id }}');
-
-      var openBtn = root.querySelector('[data-qtm-open-modal]');
-      var closeBtn = root.querySelector('[data-qtm-close-modal]');
-      var prevBtn = root.querySelector('[data-qtm-prev]');
-      var nextBtn = root.querySelector('[data-qtm-next]');
-      var mainOpen = root.querySelector('[data-qtm-open-main]');
-
-      // Carousel rail nav
-      var rail = root.querySelector('[data-qtm-thumb-rail]');
-      var railPrev = root.querySelector('[data-qtm-thumb-prev]');
-      var railNext = root.querySelector('[data-qtm-thumb-next]');
-
-      var currentIndex = 0;
-
-      function setActiveThumb(idx){
-        thumbs.forEach(function(t){ t.setAttribute('aria-current','false'); });
-        if (thumbs[idx]) thumbs[idx].setAttribute('aria-current','true');
-      }
-
-      function getButtonByIndex(idx){
-        if (thumbs && thumbs.length) return thumbs[idx] || null;
-        if (gridButtons && gridButtons.length) return gridButtons[idx] || null;
-        return null;
-      }
-
-      function setImageByIndex(idx){
-        var btn = getButtonByIndex(idx);
-        if (!btn) return;
-
-        currentIndex = idx;
-
-        var src = btn.getAttribute('data-qtm-image');
-        if (src && mainImg) mainImg.src = src;
-        if (src && modalImg) modalImg.src = src;
-
-        if (thumbs && thumbs.length) setActiveThumb(idx);
-      }
-
-      // thumb click
-      thumbs.forEach(function(btn){
-        btn.addEventListener('click', function(){
-          var idx = parseInt(btn.getAttribute('data-qtm-index'), 10) || 0;
-          setImageByIndex(idx);
-        });
-      });
-
-      // grid click (columns layout)
-      gridButtons.forEach(function(btn){
-        btn.addEventListener('click', function(){
-          var idx = parseInt(btn.getAttribute('data-qtm-index'), 10) || 0;
-          setImageByIndex(idx);
-          if (modal && modal.showModal && root.getAttribute('data-gallery-layout') === 'columns'){
-            modal.showModal();
-          }
-        });
-      });
-
-      // modal open/close
-      function openModal(){
-        if (modal && modal.showModal){
-          modal.showModal();
-        }
-      }
-      if (openBtn) openBtn.addEventListener('click', openModal);
-
-      if (mainOpen){
-        mainOpen.addEventListener('click', function(){
-          if (!modal) return;
-          openModal();
-        });
-      }
-
-      if (closeBtn && modal){
-        closeBtn.addEventListener('click', function(){ modal.close(); });
-      }
-
-      if (modal){
-        modal.addEventListener('click', function(e){
-          if (e.target === modal) modal.close();
-        });
-        document.addEventListener('keydown', function(e){
-          if (e.key === 'Escape' && modal.open) modal.close();
-          if (!modal.open) return;
-          if (e.key === 'ArrowLeft') prev();
-          if (e.key === 'ArrowRight') next();
-        });
-      }
-
-      function prev(){
-        var total = (thumbs && thumbs.length) ? thumbs.length : (gridButtons ? gridButtons.length : 0);
-        if (!total) return;
-        var idx = currentIndex - 1;
-        if (idx < 0) idx = total - 1;
-        setImageByIndex(idx);
-      }
-      function next(){
-        var total = (thumbs && thumbs.length) ? thumbs.length : (gridButtons ? gridButtons.length : 0);
-        if (!total) return;
-        var idx = currentIndex + 1;
-        if (idx >= total) idx = 0;
-        setImageByIndex(idx);
-      }
-      if (prevBtn) prevBtn.addEventListener('click', prev);
-      if (nextBtn) nextBtn.addEventListener('click', next);
-
-      // carousel scroll
-      function scrollRail(dir){
-        if (!rail) return;
-        var amt = Math.max(220, rail.clientWidth * 0.75);
-        rail.scrollLeft += (dir === 'next' ? amt : -amt);
-      }
-      if (railPrev) railPrev.addEventListener('click', function(){ scrollRail('prev'); });
-      if (railNext) railNext.addEventListener('click', function(){ scrollRail('next'); });
-
-      // Variant selection -> updates price/sku/availability + hidden variant id
-      var variantIdInput = document.getElementById('QtmVariantId-{{ section.id }}');
-      var priceEl = document.getElementById('QtmPrice-{{ section.id }}');
-      var compareEl = document.getElementById('QtmCompare-{{ section.id }}');
-      var skuWrap = document.getElementById('QtmSkuWrap-{{ section.id }}');
-      var skuEl = document.getElementById('QtmSku-{{ section.id }}');
-      var availText = document.getElementById('QtmAvailText-{{ section.id }}');
-      var atcBtn = document.getElementById('QtmAtc-{{ section.id }}');
-
-      var qtyInput = document.getElementById('QtmQty-{{ section.id }}');
-      var qtyHidden = document.getElementById('QtmQtyHidden-{{ section.id }}');
-
-      /* ADDITION A: hidden select reference */
-      var variantSelect = document.getElementById('QtmVariantSelect-{{ section.id }}');
-
-      if (qtyInput && qtyHidden){
-        qtyInput.addEventListener('input', function(){
-          var v = parseInt(qtyInput.value, 10);
-          if (!v || v < 1) v = 1;
-          qtyHidden.value = String(v);
-        });
-      }
-
-      function formatMoney(cents){
-        try{
-          return new Intl.NumberFormat(undefined, { style: 'currency', currency: '{{ cart.currency.iso_code | default: "USD" }}' }).format(cents/100);
-        }catch(e){
-          return '$' + (cents/100).toFixed(2);
-        }
-      }
-
-      function getSelectedOptions(){
-        var selections = [];
-        var optionGroups = root.querySelectorAll('[data-qtm-option]');
-        optionGroups.forEach(function(group){
-          var radios = group.querySelectorAll('input[type="radio"]');
-          if (radios.length){
-            var checked = group.querySelector('input[type="radio"]:checked');
-            selections.push(checked ? checked.value : '');
-          } else {
-            var select = group.querySelector('select');
-            selections.push(select ? select.value : '');
-          }
-        });
-        return selections;
-      }
-
-      function findVariantByOptions(opts){
-        return variants.find(function(v){
-          if (!v || !v.options) return false;
-          for (var i=0; i<opts.length; i++){
-            if (v.options[i] !== opts[i]) return false;
-          }
-          return true;
-        }) || null;
-      }
-
-      function applyVariant(v){
-        if (!v) {
-          if (variantIdInput) {
-            variantIdInput.value = '';
-            variantIdInput.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-          if (variantSelect) variantSelect.value = '';
-          if (priceEl) priceEl.textContent = 'Unavailable';
-          if (compareEl) compareEl.style.display = 'none';
-          if (skuWrap) skuWrap.style.display = 'none';
-          if (availText) availText.textContent = 'Unavailable';
-          if (atcBtn) { atcBtn.disabled = true; atcBtn.textContent = 'Unavailable'; }
-          var unavailableUrl = new URL(window.location.href);
-          unavailableUrl.searchParams.delete('variant');
-          window.history.replaceState({}, '', unavailableUrl.toString());
-          return;
-        }
-
-        if (variantIdInput) variantIdInput.value = v.id;
-
-        /* ADDITION A: keep hidden select in sync */
-        if (variantSelect) variantSelect.value = String(v.id);
-
-        if (priceEl) priceEl.textContent = formatMoney(v.price);
-
-        if (compareEl){
-          if (v.compare_at_price && v.compare_at_price > v.price){
-            compareEl.style.display = '';
-            compareEl.textContent = formatMoney(v.compare_at_price);
-          } else {
-            compareEl.style.display = 'none';
-          }
-        }
-
-        if (skuWrap && skuEl){
-          if (v.sku){
-            skuWrap.style.display = '';
-            skuEl.textContent = v.sku;
-          } else {
-            skuWrap.style.display = 'none';
-          }
-        }
-
-        if (availText) availText.textContent = v.available ? 'In stock' : 'Sold out';
-        if (atcBtn) {
-          atcBtn.disabled = !v.available;
-          atcBtn.textContent = v.available ? 'Add to cart' : 'Sold out';
-        }
-        if (variantIdInput) variantIdInput.dispatchEvent(new Event('change', { bubbles: true }));
-
-        // If variant has a featured image, try to switch main image to match
-        if (v.featured_image && v.featured_image.src && mainImg){
-          mainImg.removeAttribute('srcset');
-          mainImg.src = v.featured_image.src;
-          if (modalImg) modalImg.src = v.featured_image.src;
-
-          // update active thumb if it matches (best-effort)
-          thumbs.forEach(function(t, idx){
-            var src = t.getAttribute('data-qtm-image');
-            if (src && src.indexOf(v.featured_image.src) !== -1){
-              currentIndex = idx;
-              setActiveThumb(idx);
-            }
-          });
-        }
-
-        // Update URL with variant param
-        try{
-          var url = new URL(window.location.href);
-          url.searchParams.set('variant', v.id);
-          window.history.replaceState({}, '', url.toString());
-        }catch(e){}
-
-        /* ADDITION B: keep wishlist button variant-id in sync + refresh label/state */
-        try{
-          var wlBtn = root.querySelector('[data-qtm-wishlist]');
-          if (wlBtn){
-            wlBtn.setAttribute('data-variant-id', String(v.id));
-            updateWishlistUI(wlBtn);
-          }
-        }catch(e){}
-      }
-
-      if (variantIdInput && variantIdInput.form) {
-        variantIdInput.form.addEventListener('submit', function(event) {
-          var selected = variants.find(function(variant) { return String(variant.id) === variantIdInput.value; });
-          if (!selected || !selected.available) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-          }
-        }, true);
-      }
-
-      // Listen to option changes
-      root.addEventListener('change', function(e){
-        if (!e.target) return;
-        if (e.target.name && e.target.name.indexOf('qtm-option-') === 0){
-          var opts = getSelectedOptions();
-          var v = findVariantByOptions(opts);
-          applyVariant(v);
-        }
-      });
-
-      // Initialize currentIndex based on aria-current (if thumbs exist)
-      thumbs.forEach(function(t, idx){
-        if (t.getAttribute('aria-current') === 'true') currentIndex = idx;
-      });
-
-      /* ================= ADDITION B: Wishlist logic ================= */
-      var WL_KEY = 'qtm_wishlist_v1';
-
-      function readWishlist(){
-        try{
-          var raw = window.localStorage.getItem(WL_KEY);
-          var arr = raw ? JSON.parse(raw) : [];
-          return Array.isArray(arr) ? arr : [];
-        }catch(e){
-          return [];
-        }
-      }
-
-      function writeWishlist(arr){
-        try{
-          window.localStorage.setItem(WL_KEY, JSON.stringify(arr || []));
-        }catch(e){}
-      }
-
-      function wlId(btn){
-        // store by product id by default; optionally variant if merchant wants (toggle by setting below)
-        var mode = (btn && btn.getAttribute('data-wishlist-mode')) || 'product';
-        var pid = btn.getAttribute('data-product-id') || '';
-        var vid = btn.getAttribute('data-variant-id') || '';
-        return (mode === 'variant') ? ('v:' + vid) : ('p:' + pid);
-      }
-
-      function isWishlisted(id){
-        var list = readWishlist();
-        return list.indexOf(id) !== -1;
-      }
-
-      function toggleWishlist(id){
-        var list = readWishlist();
-        var i = list.indexOf(id);
-        if (i === -1) list.push(id);
-        else list.splice(i, 1);
-        writeWishlist(list);
-        return (i === -1); // now added?
-      }
-
-      function updateWishlistUI(btn){
-        if (!btn) return;
-        var id = wlId(btn);
-        var active = isWishlisted(id);
-
-        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-
-        var iconEl = btn.querySelector('[data-qtm-wl-icon]');
-        var textEl = btn.querySelector('[data-qtm-wl-text]');
-
-        var iconOn = btn.getAttribute('data-icon-active') || '♥';
-        var iconOff = btn.getAttribute('data-icon-inactive') || '♡';
-
-        var labelAdd = btn.getAttribute('data-label-add') || 'Add to wishlist';
-        var labelRemove = btn.getAttribute('data-label-remove') || 'Remove from wishlist';
-
-        if (iconEl) iconEl.textContent = active ? iconOn : iconOff;
-        if (textEl) textEl.textContent = active ? labelRemove : labelAdd;
-      }
-
-      // Init wishlist buttons in this section
-      var wlBtns = root.querySelectorAll('[data-qtm-wishlist]');
-      wlBtns.forEach(function(btn){
-        // map settings to data-attrs without changing markup structure
-        btn.setAttribute('data-label-add', btn.getAttribute('data-label-add') || btn.textContent.trim());
-        btn.setAttribute('data-label-add', btn.getAttribute('data-label-add') || 'Add to wishlist');
-        btn.setAttribute('data-label-remove', btn.getAttribute('data-label-remove') || 'Remove from wishlist');
-        btn.setAttribute('data-icon-active', btn.getAttribute('data-icon-active') || '♥');
-        btn.setAttribute('data-icon-inactive', btn.getAttribute('data-icon-inactive') || '♡');
-
-        // allow variant-level if merchant wants
-        // (block setting wires this)
-        updateWishlistUI(btn);
-
-        btn.addEventListener('click', function(){
-          var id = wlId(btn);
-          toggleWishlist(id);
-          updateWishlistUI(btn);
-        });
-      });
-
-    })();
-  </script>
+  {% render 'product-purchase-data', product: p, include_image: true, include_media: true %}
+  <script src="{{ 'product-purchase-sync.js' | asset_url }}" defer></script>
+  <script src="{{ 'product-gallery-options.js' | asset_url }}" defer></script>
+  <script src="{{ 'product-wishlist.js' | asset_url }}" defer></script>
 
 </section>
+{%- elsif request.design_mode -%}<p>Select a product template to preview Main Product Modern.</p>{%- endif -%}
 
 {% schema %}
 {

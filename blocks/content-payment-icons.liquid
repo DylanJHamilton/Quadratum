@@ -1,11 +1,92 @@
 {% liquid
-  assign block_id = block.id | replace: '_', '-' | downcase
+  assign block_id = block.id
   assign block_width = block.settings.width
   assign block_alignment = block.settings.alignment
   assign animation = block.settings.animation
+  if request.design_mode
+    assign animation = 'none'
+  endif
 %}
 
+{% capture payment_items %}
+{% for payment_type in shop.enabled_payment_types %}
+  {% liquid
+    assign show_payment = false
+    assign payment_label = ''
+    case payment_type
+      when 'shopify_pay'
+        assign show_payment = block.settings.show_shop_pay
+        assign payment_label = 'Shop Pay'
+      when 'apple_pay'
+        assign show_payment = block.settings.show_apple_pay
+        assign payment_label = 'Apple Pay'
+      when 'google_pay'
+        assign show_payment = block.settings.show_google_pay
+        assign payment_label = 'Google Pay'
+      when 'paypal'
+        assign show_payment = block.settings.show_paypal
+        assign payment_label = 'PayPal'
+      when 'visa'
+        assign show_payment = block.settings.show_visa
+        assign payment_label = 'Visa'
+      when 'master'
+        assign show_payment = block.settings.show_mastercard
+        assign payment_label = 'Mastercard'
+      when 'american_express'
+        assign show_payment = block.settings.show_amex
+        assign payment_label = 'American Express'
+      when 'discover'
+        assign show_payment = block.settings.show_discover
+        assign payment_label = 'Discover'
+      when 'affirm'
+        assign show_payment = block.settings.show_affirm
+        assign payment_label = 'Affirm'
+      when 'klarna' or 'klarna-pay-later'
+        assign show_payment = block.settings.show_klarna
+        assign payment_label = 'Klarna'
+      when 'afterpay_touch' or 'afterpay'
+        assign show_payment = block.settings.show_afterpay
+        assign payment_label = 'Afterpay'
+      when 'sezzle'
+        assign show_payment = block.settings.show_sezzle
+        assign payment_label = 'Sezzle'
+      when 'zip'
+        assign show_payment = block.settings.show_zip
+        assign payment_label = 'Zip'
+    endcase
+  %}
+  {% if show_payment %}
+    <li class="qtm-payment-icons__item" data-payment-type="{{ payment_type | escape }}">
+      <span class="qtm-payment-icons__icon" aria-hidden="true">{%- liquid
+        assign svg_prefix = 'qtm-payment-' | append: block_id | append: '-' | append: payment_type | append: '-'
+        assign svg_id = ' id="' | append: svg_prefix
+        assign svg_label = 'aria-labelledby="' | append: svg_prefix
+        assign svg_url = 'url(#' | append: svg_prefix
+        assign svg_href = 'href="#' | append: svg_prefix
+        assign payment_svg = payment_type | payment_type_svg_tag: class: 'qtm-payment-icons__svg'
+        echo payment_svg | replace: ' id="', svg_id | replace: 'aria-labelledby="', svg_label | replace: 'url(#', svg_url | replace: 'href="#', svg_href
+      -%}</span>
+      <span class="qtm-payment-icons__label{% unless block.settings.show_labels %} visually-hidden{% endunless %}">{{ payment_label | escape }}</span>
+    </li>
+  {% endif %}
+{% endfor %}
+{% if block.settings.custom_1_label != blank %}
+  <li class="qtm-payment-icons__item" data-custom-payment>
+    <span class="qtm-payment-icons__icon qtm-payment-icons__icon--custom" aria-hidden="true">{{ block.settings.custom_1_icon | default: block.settings.custom_1_label | escape }}</span>
+    <span class="qtm-payment-icons__label{% unless block.settings.show_labels %} visually-hidden{% endunless %}">{{ block.settings.custom_1_label | escape }}</span>
+  </li>
+{% endif %}
+{% if block.settings.custom_2_label != blank %}
+  <li class="qtm-payment-icons__item" data-custom-payment>
+    <span class="qtm-payment-icons__icon qtm-payment-icons__icon--custom" aria-hidden="true">{{ block.settings.custom_2_icon | default: block.settings.custom_2_label | escape }}</span>
+    <span class="qtm-payment-icons__label{% unless block.settings.show_labels %} visually-hidden{% endunless %}">{{ block.settings.custom_2_label | escape }}</span>
+  </li>
+{% endif %}
+{% endcapture %}
+{% assign payment_items = payment_items | strip %}
+
 <div
+  {% if payment_items == blank and request.design_mode == false %}hidden{% endif %}
   class="
     qtm-payment-icons
     qtm-payment-icons-{{ block_id }}
@@ -13,9 +94,9 @@
     qtm-payment-icons--align-{{ block_alignment }}
     qtm-payment-icons--layout-{{ block.settings.layout_style }}
     qtm-payment-icons--animation-{{ animation }}
-    {% unless block.settings.show_desktop %} qtm-payment-icons--hide-desktop{% endunless %}
-    {% unless block.settings.show_tablet %} qtm-payment-icons--hide-tablet{% endunless %}
-    {% unless block.settings.show_mobile %} qtm-payment-icons--hide-mobile{% endunless %}
+    {% unless block.settings.show_desktop or request.design_mode %} qtm-payment-icons--hide-desktop{% endunless %}
+    {% unless block.settings.show_tablet or request.design_mode %} qtm-payment-icons--hide-tablet{% endunless %}
+    {% unless block.settings.show_mobile or request.design_mode %} qtm-payment-icons--hide-mobile{% endunless %}
   "
   style="
     --qtm-payment-icons-margin-top: {{ block.settings.margin_top }}px;
@@ -34,9 +115,9 @@
     --qtm-payment-icons-border-width: {{ block.settings.border_width }}px;
     --qtm-payment-icons-border-radius: {{ block.settings.border_radius }}px;
   "
-  {{ block.shopify_attributes }}
 >
   <div class="qtm-payment-icons__inner">
+    {% if payment_items == blank and request.design_mode %}<p role="note">Choose enabled payment methods or add a custom method label.</p>{% endif %}
     {% if block.settings.eyebrow != blank or block.settings.heading != blank or block.settings.text != blank %}
       <div class="qtm-payment-icons__header">
         {% if block.settings.eyebrow != blank %}
@@ -60,184 +141,9 @@
     {% endif %}
 
     <div class="qtm-payment-icons__card">
-      <ul class="qtm-payment-icons__list" role="list" aria-label="{{ block.settings.list_label | escape }}">
-        {% if block.settings.show_shop_pay %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--shop-pay" aria-hidden="true">
-              Shop Pay
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">Shop Pay</span>
-            {% endif %}
-          </li>
-        {% endif %}
-
-        {% if block.settings.show_apple_pay %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--apple-pay" aria-hidden="true">
-              Apple Pay
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">Apple Pay</span>
-            {% endif %}
-          </li>
-        {% endif %}
-
-        {% if block.settings.show_google_pay %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--google-pay" aria-hidden="true">
-              G Pay
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">Google Pay</span>
-            {% endif %}
-          </li>
-        {% endif %}
-
-        {% if block.settings.show_paypal %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--paypal" aria-hidden="true">
-              PayPal
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">PayPal</span>
-            {% endif %}
-          </li>
-        {% endif %}
-
-        {% if block.settings.show_visa %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--visa" aria-hidden="true">
-              Visa
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">Visa</span>
-            {% endif %}
-          </li>
-        {% endif %}
-
-        {% if block.settings.show_mastercard %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--mastercard" aria-hidden="true">
-              Mastercard
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">Mastercard</span>
-            {% endif %}
-          </li>
-        {% endif %}
-
-        {% if block.settings.show_amex %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--amex" aria-hidden="true">
-              Amex
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">American Express</span>
-            {% endif %}
-          </li>
-        {% endif %}
-
-        {% if block.settings.show_discover %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--discover" aria-hidden="true">
-              Discover
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">Discover</span>
-            {% endif %}
-          </li>
-        {% endif %}
-
-        {% if block.settings.show_affirm %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--affirm" aria-hidden="true">
-              Affirm
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">Affirm</span>
-            {% endif %}
-          </li>
-        {% endif %}
-
-        {% if block.settings.show_klarna %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--klarna" aria-hidden="true">
-              Klarna
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">Klarna</span>
-            {% endif %}
-          </li>
-        {% endif %}
-
-        {% if block.settings.show_afterpay %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--afterpay" aria-hidden="true">
-              Afterpay
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">Afterpay</span>
-            {% endif %}
-          </li>
-        {% endif %}
-
-        {% if block.settings.show_sezzle %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--sezzle" aria-hidden="true">
-              Sezzle
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">Sezzle</span>
-            {% endif %}
-          </li>
-        {% endif %}
-
-        {% if block.settings.show_zip %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--zip" aria-hidden="true">
-              Zip
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">Zip</span>
-            {% endif %}
-          </li>
-        {% endif %}
-
-        {% if block.settings.custom_1_label != blank %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--custom" aria-hidden="true">
-              {% if block.settings.custom_1_icon != blank %}
-                {{ block.settings.custom_1_icon | escape }}
-              {% else %}
-                {{ block.settings.custom_1_label | escape }}
-              {% endif %}
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">
-                {{ block.settings.custom_1_label | escape }}
-              </span>
-            {% endif %}
-          </li>
-        {% endif %}
-
-        {% if block.settings.custom_2_label != blank %}
-          <li class="qtm-payment-icons__item">
-            <span class="qtm-payment-icons__icon qtm-payment-icons__icon--custom" aria-hidden="true">
-              {% if block.settings.custom_2_icon != blank %}
-                {{ block.settings.custom_2_icon | escape }}
-              {% else %}
-                {{ block.settings.custom_2_label | escape }}
-              {% endif %}
-            </span>
-            {% if block.settings.show_labels %}
-              <span class="qtm-payment-icons__label">
-                {{ block.settings.custom_2_label | escape }}
-              </span>
-            {% endif %}
-          </li>
-        {% endif %}
-      </ul>
+      {% if payment_items != blank %}<ul class="qtm-payment-icons__list" role="list" aria-label="{{ block.settings.list_label | default: 'Payment methods' | escape }}">
+{{ payment_items }}
+      </ul>{% endif %}
 
       {% if block.settings.note != blank %}
         <div class="qtm-payment-icons__note">
@@ -250,9 +156,12 @@
 
 <style>
   .qtm-payment-icons-{{ block_id }} {
+    box-sizing: border-box;
+    min-width: 0;
+    overflow-wrap: anywhere;
     margin-top: var(--qtm-payment-icons-margin-top);
     margin-bottom: var(--qtm-payment-icons-margin-bottom);
-    padding: var(--qtm-payment-icons-padding);
+    padding: min(var(--qtm-payment-icons-padding), 12%);
     color: var(--qtm-payment-icons-text-color);
     background: var(--qtm-payment-icons-background-color);
     border: var(--qtm-payment-icons-border-width) solid var(--qtm-payment-icons-border-color);
@@ -392,7 +301,7 @@
 
   .qtm-payment-icons-{{ block_id }}.qtm-payment-icons--layout-grid .qtm-payment-icons__list {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax({{ block.settings.grid_min_width }}px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, {{ block.settings.grid_min_width }}px), 1fr));
     align-items: stretch;
   }
 
@@ -401,6 +310,8 @@
     align-items: center;
     justify-content: center;
     gap: 0.55rem;
+    flex-wrap: wrap;
+    max-width: 100%;
     min-height: {{ block.settings.item_height }}px;
     color: var(--qtm-payment-icons-text-color);
     text-align: center;
@@ -433,7 +344,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: {{ block.settings.icon_min_width }}px;
+    min-width: min(100%, {{ block.settings.icon_min_width }}px);
     min-height: {{ block.settings.icon_height }}px;
     padding: 0.35rem 0.55rem;
     color: var(--qtm-payment-icons-icon-text);
@@ -445,78 +356,21 @@
     letter-spacing: -0.03em;
     line-height: 1;
     box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.04);
-    white-space: nowrap;
+    white-space: normal;
   }
 
-  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--shop-pay {
-    color: #ffffff;
-    background: #5a31f4;
-    border-color: #5a31f4;
-  }
 
-  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--apple-pay {
-    color: #ffffff;
-    background: #000000;
-    border-color: #000000;
-  }
 
-  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--google-pay {
-    color: #111111;
-    background: #ffffff;
-  }
 
-  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--paypal {
-    color: #003087;
-    background: #ffffff;
-  }
 
-  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--visa {
-    color: #1434cb;
-    background: #ffffff;
-  }
 
-  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--mastercard {
-    color: #111111;
-    background: #ffffff;
-  }
 
-  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--amex {
-    color: #ffffff;
-    background: #2e77bb;
-    border-color: #2e77bb;
-  }
 
-  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--discover {
-    color: #f58220;
-    background: #ffffff;
-  }
 
-  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--affirm {
-    color: #111111;
-    background: #ffffff;
-  }
 
-  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--klarna {
-    color: #111111;
-    background: #ffb3c7;
-    border-color: #ffb3c7;
-  }
 
-  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--afterpay {
-    color: #111111;
-    background: #b2fce4;
-    border-color: #b2fce4;
-  }
 
-  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--sezzle {
-    color: #111111;
-    background: #ffffff;
-  }
 
-  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--zip {
-    color: #111111;
-    background: #ffffff;
-  }
 
   .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--custom {
     color: var(--qtm-payment-icons-icon-text);
@@ -528,7 +382,7 @@
     font-size: 0.9rem;
     font-weight: 750;
     line-height: 1.2;
-    white-space: nowrap;
+    white-space: normal;
   }
 
   .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__note {
@@ -635,9 +489,7 @@
   }
 
   @media screen and (max-width: 989px) {
-    .qtm-payment-icons-{{ block_id }}.qtm-payment-icons--hide-tablet {
-      display: none !important;
-    }
+
   }
 
   @media screen and (min-width: 990px) {
@@ -648,7 +500,7 @@
 
   @media screen and (max-width: 749px) {
     .qtm-payment-icons-{{ block_id }} {
-      padding: min(var(--qtm-payment-icons-padding), 24px);
+      padding: min(var(--qtm-payment-icons-padding), 24px, 12%);
     }
 
     .qtm-payment-icons-{{ block_id }}.qtm-payment-icons--hide-mobile {
@@ -686,6 +538,17 @@
       scroll-behavior: auto !important;
     }
   }
+  @media screen and (min-width: 750px) and (max-width: 989px) {
+    .qtm-payment-icons-{{ block_id }}.qtm-payment-icons--hide-tablet {
+      display: none !important;
+    }
+  }
+  .qtm-payment-icons-{{ block_id }} :is(div,li,a,span,input,textarea,button) { min-width: 0; }
+  .qtm-payment-icons-{{ block_id }} :is(a,input,textarea,button) { max-width: 100%; }
+  .qtm-payment-icons-{{ block_id }}[hidden] { display: none !important; }
+.qtm-payment-icons-{{ block_id }} .qtm-payment-icons__svg { display: block; max-width: 100%; width: auto; height: {{ block.settings.icon_height }}px; }
+  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon { max-width: 100%; }
+  .qtm-payment-icons-{{ block_id }} .qtm-payment-icons__icon--custom { border-color: var(--qtm-payment-icons-accent-color); }
 </style>
 
 {% schema %}
@@ -699,20 +562,18 @@
     {
       "type": "text",
       "id": "eyebrow",
-      "label": "Eyebrow",
-      "default": "Secure checkout"
+      "label": "Eyebrow"
     },
     {
       "type": "text",
       "id": "heading",
       "label": "Heading",
-      "default": "Accepted payment methods"
+      "default": "Payment methods"
     },
     {
       "type": "richtext",
       "id": "text",
-      "label": "Text",
-      "default": "<p>Checkout confidently with trusted payment methods and flexible payment options.</p>"
+      "label": "Text"
     },
     {
       "type": "text",
@@ -819,7 +680,8 @@
     {
       "type": "text",
       "id": "custom_1_label",
-      "label": "Custom method 1 label"
+      "label": "Custom method 1 label",
+      "info": "Only add payment methods you offer. Custom labels are merchant supplied; native methods are filtered by Shopify availability."
     },
     {
       "type": "text",
@@ -1175,9 +1037,9 @@
     {
       "name": "Accepted Payments",
       "settings": {
-        "eyebrow": "Secure checkout",
-        "heading": "Accepted payment methods",
-        "text": "<p>Checkout confidently with trusted cards, wallets, and secure payment options.</p>",
+        "eyebrow": "",
+        "heading": "Payment methods",
+        "text": "",
         "note": "<p>Payment availability may vary by location, device, and checkout eligibility.</p>",
         "layout_style": "inline",
         "show_shop_pay": true,
@@ -1200,9 +1062,9 @@
     {
       "name": "Express Checkout",
       "settings": {
-        "eyebrow": "Fast checkout",
-        "heading": "Pay faster with express checkout",
-        "text": "<p>Use express payment options for a faster, simpler checkout experience.</p>",
+        "eyebrow": "",
+        "heading": "Payment methods",
+        "text": "",
         "note": "<p>Express checkout options may appear based on customer device, browser, and payment eligibility.</p>",
         "layout_style": "pills",
         "alignment": "center",
@@ -1229,9 +1091,9 @@
     {
       "name": "Financing Options",
       "settings": {
-        "eyebrow": "Flexible payments",
-        "heading": "Buy now, pay over time",
-        "text": "<p>Show flexible payment and installment options to help shoppers buy with confidence.</p>",
+        "eyebrow": "",
+        "heading": "Payment methods",
+        "text": "",
         "note": "<p>Financing approval, terms, and availability are handled by the selected payment provider at checkout.</p>",
         "layout_style": "grid",
         "show_labels": true,

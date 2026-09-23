@@ -1,4 +1,9 @@
+/* Retained legacy helper; no repository asset include. New hosts require an individual review. */
 (() => {
+  if (window.qtmLegacyBundlesReady) return;
+  window.qtmLegacyBundlesReady = true;
+  const pending = new WeakSet();
+  const rootURL = () => (window.Shopify?.routes?.root || '/').replace(/\/?$/, '/');
   const SELECTOR = "[data-pb-add]";
 
   function idsFrom(el) {
@@ -30,12 +35,12 @@
 
   function setLoading(btn, on) {
     btn.setAttribute("aria-busy", on ? "true" : "false");
-    btn.disabled = on || btn.disabled;
+    btn.disabled = on;
     btn.classList.toggle("is-loading", !!on);
   }
 
   async function addItems(items) {
-    const res = await fetch("/cart/add.js", {
+    const res = await fetch(rootURL() + "cart/add.js", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ items }),
@@ -52,17 +57,18 @@
     "click",
     async (e) => {
       const btn = e.target.closest(SELECTOR);
-      if (!btn) return;
+      if (!btn || btn.disabled || pending.has(btn)) return;
 
       e.preventDefault();
       clearError(btn);
 
-      const ids = idsFrom(btn);
+      const ids = [...new Set(idsFrom(btn))];
       if (!ids.length) return;
 
       const section = btn.closest(".product-bundles");
       const addMode = section?.getAttribute("data-add-mode") || "ajax";
 
+      pending.add(btn);
       setLoading(btn, true);
 
       try {
@@ -74,12 +80,13 @@
           })
         );
 
-        if (addMode === "redirect_to_cart") {
-          window.location.href = "/cart";
+        if (addMode === "redirect_to_cart" || window.QuadratumSettings?.cart?.ajaxDrawerEnabled !== true) {
+          window.location.href = rootURL() + "cart";
         }
       } catch (err) {
         setError(btn, err?.message || "Unable to add bundle.");
       } finally {
+        pending.delete(btn);
         setLoading(btn, false);
       }
     },

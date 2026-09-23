@@ -22,13 +22,12 @@
 
 {%- liquid
   assign s = section.settings
-  assign product_ctx = product
 
   assign source_mode = s.source_mode | default: 'auto'
   assign merge_mode = s.merge_mode | default: 'append'
   assign currency_code_enabled = false
 
-  if shop.currency != blank
+  if cart.currency.iso_code != blank
     assign currency_code_enabled = s.show_currency_code
   endif
 
@@ -39,7 +38,6 @@
   assign bundle_subheading = s.subheading
   assign bundle_desc = s.description
 
-  assign money_format = shop.money_format
 -%}
 
 {%- comment -%}
@@ -168,7 +166,7 @@
   /* layout: split shows summary side-by-side on desktop */
   #QtmBundles-{{ id }} .qtm-layout-split{
     display:grid;
-    grid-template-columns: 1.35fr 0.65fr;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, .65fr);
     gap: {{ gap }}px;
     align-items:start;
   }
@@ -192,7 +190,7 @@
     box-shadow: {{ item_shadow }};
     padding: {{ s.item_pad }}px;
     display:grid;
-    grid-template-columns: {{ s.item_image_col }}px 1fr;
+    grid-template-columns: {{ s.item_image_col }}px minmax(0, 1fr);
     gap: {{ s.item_inner_gap }}px;
     align-items:start;
   }
@@ -450,13 +448,19 @@
       grid-template-columns: 1fr;
     }
     #QtmBundles-{{ id }} .qtm-item{
-      grid-template-columns: {{ s.item_image_col_mobile }}px 1fr;
+      grid-template-columns: {{ s.item_image_col_mobile }}px minmax(0, 1fr);
     }
     #QtmBundles-{{ id }} .qtm-summary.sticky{
       position: static;
       top:auto;
     }
   }
+  #QtmBundles-{{ id }} { overflow-wrap:anywhere; }
+  #QtmBundles-{{ id }} [hidden] { display:none !important; }
+  #QtmBundles-{{ id }} :focus-visible { outline:2px solid currentColor; outline-offset:3px; }
+  #QtmBundles-{{ id }} .qtm-price-row { flex-wrap:wrap; }
+  @media (max-width: 480px) { #QtmBundles-{{ id }} .qtm-item { grid-template-columns:minmax(0, 1fr); } }
+  @media (prefers-reduced-motion:reduce) { #QtmBundles-{{ id }} * { transition:none !important; } }
 </style>
 
 {%- comment -%}
@@ -489,17 +493,22 @@
   endif
 -%}
 
-<section id="QtmBundles-{{ id }}" class="qtm-bundles" data-section-id="{{ id }}">
+<section id="QtmBundles-{{ id }}" class="qtm-bundles" data-section-id="{{ id }}" data-product-bundles
+  data-add-url="{{ routes.cart_add_url | append: '.js' | escape }}" data-cart-url="{{ routes.cart_url | escape }}"
+  data-money-format="{{ shop.money_format | strip_html | escape }}" data-base-currency="{{ shop.currency | escape }}" data-currency="{{ cart.currency.iso_code | escape }}" data-show-currency="{{ s.show_currency_code }}"
+  data-redirect="{{ s.redirect_to_cart }}" data-disable-unavailable="{{ s.disable_unavailable_items }}"
+  data-savings-prefix="{{ s.savings_prefix | escape }}" data-savings-default="{{ s.savings_default_text | escape }}"
+  data-success="{{ s.msg_added | escape }}" data-error="{{ s.msg_error | escape }}" data-no-items="{{ s.err_no_items | escape }}">
   <div class="qtm-bundles-wrap">
     <header class="qtm-bundles-header">
       {%- if bundle_kicker != blank -%}
-        <p class="qtm-kicker">{{ bundle_kicker }}</p>
+        <p class="qtm-kicker">{{ bundle_kicker | escape }}</p>
       {%- endif -%}
       {%- if bundle_title != blank -%}
-        <h2 class="qtm-heading">{{ bundle_title }}</h2>
+        <h2 class="qtm-heading">{{ bundle_title | escape }}</h2>
       {%- endif -%}
       {%- if bundle_subheading != blank -%}
-        <p class="qtm-subheading">{{ bundle_subheading }}</p>
+        <p class="qtm-subheading">{{ bundle_subheading | escape }}</p>
       {%- endif -%}
       {%- if bundle_desc != blank -%}
         <div class="qtm-desc">{{ bundle_desc }}</div>
@@ -525,13 +534,13 @@
 
           {%- if allow_meta and meta_bundle != blank -%}
             {%- liquid
-              assign mo_title = meta_bundle.title | default: meta_bundle.name
-              assign mo_items = meta_bundle.items
+
+              assign mo_items = meta_bundle.items.value | default: meta_bundle.items
               if mo_items == blank
-                assign mo_items = meta_bundle.products
+                assign mo_items = meta_bundle.products.value | default: meta_bundle.products
               endif
               if mo_items == blank
-                assign mo_items = meta_bundle.bundle_items
+                assign mo_items = meta_bundle.bundle_items.value | default: meta_bundle.bundle_items
               endif
             -%}
 
@@ -544,16 +553,20 @@
                 {%- if items_rendered >= max_items -%}{% break %}{%- endif -%}
 
                 {%- liquid
-                  assign it_qty = it.quantity | default: 1
+                  assign it_qty = it.quantity.value | default: it.quantity | default: 1
                   if it_qty == blank or it_qty < 1
                     assign it_qty = 1
                   endif
 
-                  assign it_optional = it.optional | default: false
-                  assign it_badge = it.badge | default: it.badge_text
+                  assign it_optional = it.optional.value | default: it.optional, allow_false: true | default: false
+                  assign it_badge = it.badge.value | default: it.badge_text.value
 
-                  assign it_variant = it.variant
-                  assign it_product = it.product
+                  assign it_variant = it.variant.value | default: it.variant
+                  assign v = blank
+                  assign it_product = it.product.value | default: it.product
+                  if it.variants != blank
+                    assign it_product = it
+                  endif
 
                   if it_variant != blank
                     assign v = it_variant
@@ -574,9 +587,17 @@
 
                   assign img = p.featured_image
                   if it.image != blank
-                    assign img = it.image
+                    assign img = it.image.value | default: it.image
                   endif
 
+                  assign quantity_min = v.quantity_rule.min | default: 1
+                  assign quantity_step = v.quantity_rule.increment | default: 1
+                  assign it_qty = it_qty | floor | at_least: quantity_min
+                  if v.quantity_rule.max != blank
+                    assign it_qty = it_qty | at_most: v.quantity_rule.max
+                  endif
+                  assign quantity_remainder = it_qty | minus: quantity_min | modulo: quantity_step
+                  assign it_qty = it_qty | minus: quantity_remainder
                   assign is_available = v.available
 
                   assign price = v.price
@@ -586,16 +607,18 @@
                 <article class="qtm-item"
                   data-source="metaobject"
                   data-variant-id="{{ v.id }}"
+                  data-requires-plan="{{ p.requires_selling_plan | default: false }}"
+                  data-min="{{ v.quantity_rule.min | default: 1 }}" data-max="{{ v.quantity_rule.max }}" data-step="{{ v.quantity_rule.increment | default: 1 }}"
                   data-qty="{{ it_qty }}"
                   data-optional="{{ it_optional }}"
                   data-available="{{ is_available }}"
                   data-price="{{ price }}"
                   data-compare="{{ compare }}"
                 >
-                  <a class="qtm-item-media" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
+                  <a class="qtm-item-media" href="{{ v.url | default: p.url | escape }}" aria-label="{{ p.title | escape }}">
                     <span class="qtm-img">
                       {%- if img != blank -%}
-                        <img src="{{ img | image_url: width: 600 }}" alt="{{ img.alt | default: p.title | escape }}" loading="lazy">
+                        <img src="{{ img | image_url: width: 600 }}" alt="{{ img.alt | default: p.title | escape }}" loading="lazy" width="{{ img.width | default: 600 }}" height="{{ img.height | default: 600 }}">
                       {%- endif -%}
                     </span>
                   </a>
@@ -603,31 +626,31 @@
                   <div class="qtm-item-content">
                     <div class="qtm-item-top">
                       <div class="qtm-item-titles">
-                        <h3 class="qtm-item-title">{{ it.title | default: p.title }}</h3>
-                        <p class="qtm-item-meta">
-                          {%- if s.show_vendor and p.vendor != blank -%}{{ p.vendor }}{%- endif -%}
+                        <h3 class="qtm-item-title">{{ it.title.value | default: p.title | escape }}</h3>
+                        <p class="qtm-item-meta">{% unless p.has_only_default_variant %}{{ v.title | escape }} · {% endunless %}
+                          {%- if s.show_vendor and p.vendor != blank -%}{{ p.vendor | escape }}{%- endif -%}
                           {%- if s.show_sku -%}
                             {%- if v.sku != blank -%}
                               {%- if s.show_vendor and p.vendor != blank -%} · {%- endif -%}
-                              SKU: {{ v.sku }}
+                              SKU: {{ v.sku | escape }}
                             {%- endif -%}
                           {%- endif -%}
                         </p>
                       </div>
                       {%- if it_badge != blank -%}
-                        <span class="qtm-badge">{{ it_badge }}</span>
+                        <span class="qtm-badge">{{ it_badge | escape }}</span>
                       {%- endif -%}
                     </div>
 
                     <div class="qtm-price-row">
                       <span class="qtm-price" data-price-display>
                         {{ price | money }}
-                        {%- if currency_code_enabled -%} {{ shop.currency }}{%- endif -%}
+                        {%- if currency_code_enabled -%} {{ cart.currency.iso_code | escape }}{%- endif -%}
                       </span>
                       {%- if compare != blank and compare > price -%}
                         <span class="qtm-compare" data-compare-display>
                           {{ compare | money }}
-                          {%- if currency_code_enabled -%} {{ shop.currency }}{%- endif -%}
+                          {%- if currency_code_enabled -%} {{ cart.currency.iso_code | escape }}{%- endif -%}
                         </span>
                       {%- endif -%}
                     </div>
@@ -637,36 +660,37 @@
                         <input type="checkbox" class="qtm-include" {% if it_optional == false %}checked{% endif %} {% if it_optional == false %}disabled{% endif %}>
                         <span>
                           {%- if it_optional -%}
-                            {{ s.optional_label }}
+                            {{ s.optional_label | escape }}
                           {%- else -%}
-                            {{ s.included_label }}
+                            {{ s.included_label | escape }}
                           {%- endif -%}
                         </span>
                       </label>
 
                       {%- if s.allow_item_qty -%}
                         <div class="qtm-qty">
-                          <label for="QtmQty-{{ id }}-mo-{{ forloop.index0 }}">{{ s.qty_label }}</label>
-                          <input id="QtmQty-{{ id }}-mo-{{ forloop.index0 }}" class="qtm-item-qty" type="number" min="1" value="{{ it_qty }}">
+                          <label for="QtmQty-{{ id }}-mo-{{ forloop.index0 }}">{{ s.qty_label | escape }}</label>
+                          <input id="QtmQty-{{ id }}-mo-{{ forloop.index0 }}" class="qtm-item-qty" type="number" required min="{{ v.quantity_rule.min | default: 1 }}" step="{{ v.quantity_rule.increment | default: 1 }}" {% if v.quantity_rule.max != blank %}max="{{ v.quantity_rule.max }}"{% endif %} value="{{ it_qty }}">
                         </div>
                       {%- endif -%}
 
-                      {%- if s.show_view_link -%}
-                        <a class="qtm-view" href="{{ p.url }}" style="text-decoration:none;color:{{ s.view_link_color }};font-size:{{ s.view_link_size }}px;font-weight:{{ s.view_link_weight }};">
-                          {{ s.view_link_text }}
+                      {%- if p.requires_selling_plan -%}<a href="{{ v.url | default: p.url | escape }}">Choose subscription separately on product page</a>{%- endif -%}
+                    {%- if s.show_view_link -%}
+                        <a class="qtm-view" href="{{ v.url | default: p.url | escape }}" style="text-decoration:none;color:{{ s.view_link_color }};font-size:{{ s.view_link_size }}px;font-weight:{{ s.view_link_weight }};">
+                          {{ s.view_link_text | escape }}
                         </a>
                       {%- endif -%}
                     </div>
 
                     {%- if s.show_item_note and it.note != blank -%}
                       <div class="qtm-item-meta" style="margin-top:{{ s.note_mt }}px;color:{{ s.note_color }};font-size:{{ s.note_size }}px;">
-                        {{ it.note }}
+                        {{ it.note | escape }}
                       </div>
                     {%- endif -%}
 
                     {%- unless is_available -%}
                       <div class="qtm-item-meta" style="margin-top:{{ s.oos_mt }}px;color:{{ s.oos_color }};font-size:{{ s.oos_size }}px;font-weight:{{ s.oos_weight }};">
-                        {{ s.oos_text }}
+                        {{ s.oos_text | escape }}
                       </div>
                     {%- endunless -%}
                   </div>
@@ -680,6 +704,7 @@
           {%- comment -%}
             B) BLOCKS
           {%- endcomment -%}
+          {%- if merge_mode == 'replace' and items_rendered > 0 -%}{% assign allow_blocks = false %}{% assign allow_collection = false %}{%- endif -%}
           {%- if allow_blocks -%}
             {%- if merge_mode == 'replace' and allow_meta == false -%}
               {%- assign items_rendered = 0 -%}
@@ -693,17 +718,18 @@
                 assign bp = block.settings.product
                 assign bv = block.settings.variant
 
+                assign p = bp
+                assign v = p.selected_or_first_available_variant | default: p.variants.first
                 if bv != blank
-                  assign v = bv
-                  assign p = v.product
-                else
-                  assign p = bp
-                  if p != blank
-                    assign v = p.selected_or_first_available_variant
-                    if v == blank
-                      assign v = p.variants.first
+                  assign v = blank
+                  assign requested_id = bv.id | default: bv | append: ''
+                  for candidate in p.variants
+                    assign candidate_id = candidate.id | append: ''
+                    if candidate_id == requested_id
+                      assign v = candidate
+                      break
                     endif
-                  endif
+                  endfor
                 endif
 
                 if p == blank or v == blank
@@ -722,6 +748,14 @@
                   assign img = p.featured_image
                 endif
 
+                assign quantity_min = v.quantity_rule.min | default: 1
+                assign quantity_step = v.quantity_rule.increment | default: 1
+                assign qty = qty | floor | at_least: quantity_min
+                if v.quantity_rule.max != blank
+                  assign qty = qty | at_most: v.quantity_rule.max
+                endif
+                assign quantity_remainder = qty | minus: quantity_min | modulo: quantity_step
+                assign qty = qty | minus: quantity_remainder
                 assign is_available = v.available
                 assign price = v.price
                 assign compare = v.compare_at_price
@@ -731,16 +765,18 @@
                 {{ block.shopify_attributes }}
                 data-source="blocks"
                 data-variant-id="{{ v.id }}"
+                  data-requires-plan="{{ p.requires_selling_plan | default: false }}"
+                  data-min="{{ v.quantity_rule.min | default: 1 }}" data-max="{{ v.quantity_rule.max }}" data-step="{{ v.quantity_rule.increment | default: 1 }}"
                 data-qty="{{ qty }}"
                 data-optional="{{ optional }}"
                 data-available="{{ is_available }}"
                 data-price="{{ price }}"
                 data-compare="{{ compare }}"
               >
-                <a class="qtm-item-media" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
+                <a class="qtm-item-media" href="{{ v.url | default: p.url | escape }}" aria-label="{{ p.title | escape }}">
                   <span class="qtm-img">
                     {%- if img != blank -%}
-                      <img src="{{ img | image_url: width: 600 }}" alt="{{ img.alt | default: p.title | escape }}" loading="lazy">
+                      <img src="{{ img | image_url: width: 600 }}" alt="{{ img.alt | default: p.title | escape }}" loading="lazy" width="{{ img.width | default: 600 }}" height="{{ img.height | default: 600 }}">
                     {%- endif -%}
                   </span>
                 </a>
@@ -748,33 +784,33 @@
                 <div class="qtm-item-content">
                   <div class="qtm-item-top">
                     <div class="qtm-item-titles">
-                      <h3 class="qtm-item-title">{{ block.settings.title | default: p.title }}</h3>
-                      <p class="qtm-item-meta">
+                      <h3 class="qtm-item-title">{{ block.settings.title | default: p.title | escape }}</h3>
+                      <p class="qtm-item-meta">{% unless p.has_only_default_variant %}{{ v.title | escape }} · {% endunless %}
                         {%- if block.settings.meta_text != blank -%}
-                          {{ block.settings.meta_text }}
+                          {{ block.settings.meta_text | escape }}
                         {%- else -%}
-                          {%- if s.show_vendor and p.vendor != blank -%}{{ p.vendor }}{%- endif -%}
+                          {%- if s.show_vendor and p.vendor != blank -%}{{ p.vendor | escape }}{%- endif -%}
                           {%- if s.show_sku and v.sku != blank -%}
                             {%- if s.show_vendor and p.vendor != blank -%} · {%- endif -%}
-                            SKU: {{ v.sku }}
+                            SKU: {{ v.sku | escape }}
                           {%- endif -%}
                         {%- endif -%}
                       </p>
                     </div>
                     {%- if badge != blank -%}
-                      <span class="qtm-badge">{{ badge }}</span>
+                      <span class="qtm-badge">{{ badge | escape }}</span>
                     {%- endif -%}
                   </div>
 
                   <div class="qtm-price-row">
                     <span class="qtm-price" data-price-display>
                       {{ price | money }}
-                      {%- if currency_code_enabled -%} {{ shop.currency }}{%- endif -%}
+                      {%- if currency_code_enabled -%} {{ cart.currency.iso_code | escape }}{%- endif -%}
                     </span>
                     {%- if compare != blank and compare > price -%}
                       <span class="qtm-compare" data-compare-display>
                         {{ compare | money }}
-                        {%- if currency_code_enabled -%} {{ shop.currency }}{%- endif -%}
+                        {%- if currency_code_enabled -%} {{ cart.currency.iso_code | escape }}{%- endif -%}
                       </span>
                     {%- endif -%}
                   </div>
@@ -784,36 +820,37 @@
                       <input type="checkbox" class="qtm-include" {% if optional == false %}checked{% endif %} {% if optional == false %}disabled{% endif %}>
                       <span>
                         {%- if optional -%}
-                          {{ s.optional_label }}
+                          {{ s.optional_label | escape }}
                         {%- else -%}
-                          {{ s.included_label }}
+                          {{ s.included_label | escape }}
                         {%- endif -%}
                       </span>
                     </label>
 
                     {%- if s.allow_item_qty -%}
                       <div class="qtm-qty">
-                        <label for="QtmQty-{{ id }}-b-{{ forloop.index0 }}">{{ s.qty_label }}</label>
-                        <input id="QtmQty-{{ id }}-b-{{ forloop.index0 }}" class="qtm-item-qty" type="number" min="1" value="{{ qty }}">
+                        <label for="QtmQty-{{ id }}-b-{{ forloop.index0 }}">{{ s.qty_label | escape }}</label>
+                        <input id="QtmQty-{{ id }}-b-{{ forloop.index0 }}" class="qtm-item-qty" type="number" required min="{{ v.quantity_rule.min | default: 1 }}" step="{{ v.quantity_rule.increment | default: 1 }}" {% if v.quantity_rule.max != blank %}max="{{ v.quantity_rule.max }}"{% endif %} value="{{ qty }}">
                       </div>
                     {%- endif -%}
 
+                    {%- if p.requires_selling_plan -%}<a href="{{ v.url | default: p.url | escape }}">Choose subscription separately on product page</a>{%- endif -%}
                     {%- if s.show_view_link -%}
-                      <a class="qtm-view" href="{{ p.url }}" style="text-decoration:none;color:{{ s.view_link_color }};font-size:{{ s.view_link_size }}px;font-weight:{{ s.view_link_weight }};">
-                        {{ s.view_link_text }}
+                      <a class="qtm-view" href="{{ v.url | default: p.url | escape }}" style="text-decoration:none;color:{{ s.view_link_color }};font-size:{{ s.view_link_size }}px;font-weight:{{ s.view_link_weight }};">
+                        {{ s.view_link_text | escape }}
                       </a>
                     {%- endif -%}
                   </div>
 
                   {%- if block.settings.note != blank and s.show_item_note -%}
                     <div class="qtm-item-meta" style="margin-top:{{ s.note_mt }}px;color:{{ s.note_color }};font-size:{{ s.note_size }}px;">
-                      {{ block.settings.note }}
+                      {{ block.settings.note | escape }}
                     </div>
                   {%- endif -%}
 
                   {%- unless is_available -%}
                     <div class="qtm-item-meta" style="margin-top:{{ s.oos_mt }}px;color:{{ s.oos_color }};font-size:{{ s.oos_size }}px;font-weight:{{ s.oos_weight }};">
-                      {{ s.oos_text }}
+                      {{ s.oos_text | escape }}
                     </div>
                   {%- endunless -%}
                 </div>
@@ -833,6 +870,7 @@
               - require product type equals s.rule_type (optional)
             - For each product, pick first available variant.
           {%- endcomment -%}
+          {%- if merge_mode == 'replace' and items_rendered > 0 -%}{% assign allow_collection = false %}{%- endif -%}
           {%- if allow_collection and collection_bundle != blank -%}
             {%- if merge_mode == 'replace' and allow_meta == false and allow_blocks == false -%}
               {%- assign items_rendered = 0 -%}
@@ -891,6 +929,14 @@
 
                 assign optional = s.collection_items_optional
 
+                assign quantity_min = v.quantity_rule.min | default: 1
+                assign quantity_step = v.quantity_rule.increment | default: 1
+                assign qty = qty | floor | at_least: quantity_min
+                if v.quantity_rule.max != blank
+                  assign qty = qty | at_most: v.quantity_rule.max
+                endif
+                assign quantity_remainder = qty | minus: quantity_min | modulo: quantity_step
+                assign qty = qty | minus: quantity_remainder
                 assign is_available = v.available
                 assign price = v.price
                 assign compare = v.compare_at_price
@@ -900,16 +946,18 @@
               <article class="qtm-item"
                 data-source="collection"
                 data-variant-id="{{ v.id }}"
+                  data-requires-plan="{{ p.requires_selling_plan | default: false }}"
+                  data-min="{{ v.quantity_rule.min | default: 1 }}" data-max="{{ v.quantity_rule.max }}" data-step="{{ v.quantity_rule.increment | default: 1 }}"
                 data-qty="{{ qty }}"
                 data-optional="{{ optional }}"
                 data-available="{{ is_available }}"
                 data-price="{{ price }}"
                 data-compare="{{ compare }}"
               >
-                <a class="qtm-item-media" href="{{ p.url }}" aria-label="{{ p.title | escape }}">
+                <a class="qtm-item-media" href="{{ v.url | default: p.url | escape }}" aria-label="{{ p.title | escape }}">
                   <span class="qtm-img">
                     {%- if img != blank -%}
-                      <img src="{{ img | image_url: width: 600 }}" alt="{{ img.alt | default: p.title | escape }}" loading="lazy">
+                      <img src="{{ img | image_url: width: 600 }}" alt="{{ img.alt | default: p.title | escape }}" loading="lazy" width="{{ img.width | default: 600 }}" height="{{ img.height | default: 600 }}">
                     {%- endif -%}
                   </span>
                 </a>
@@ -917,29 +965,29 @@
                 <div class="qtm-item-content">
                   <div class="qtm-item-top">
                     <div class="qtm-item-titles">
-                      <h3 class="qtm-item-title">{{ p.title }}</h3>
-                      <p class="qtm-item-meta">
-                        {%- if s.show_vendor and p.vendor != blank -%}{{ p.vendor }}{%- endif -%}
+                      <h3 class="qtm-item-title">{{ p.title | escape }}</h3>
+                      <p class="qtm-item-meta">{% unless p.has_only_default_variant %}{{ v.title | escape }} · {% endunless %}
+                        {%- if s.show_vendor and p.vendor != blank -%}{{ p.vendor | escape }}{%- endif -%}
                         {%- if s.show_sku and v.sku != blank -%}
                           {%- if s.show_vendor and p.vendor != blank -%} · {%- endif -%}
-                          SKU: {{ v.sku }}
+                          SKU: {{ v.sku | escape }}
                         {%- endif -%}
                       </p>
                     </div>
                     {%- if s.collection_badge != blank -%}
-                      <span class="qtm-badge">{{ s.collection_badge }}</span>
+                      <span class="qtm-badge">{{ s.collection_badge | escape }}</span>
                     {%- endif -%}
                   </div>
 
                   <div class="qtm-price-row">
                     <span class="qtm-price" data-price-display>
                       {{ price | money }}
-                      {%- if currency_code_enabled -%} {{ shop.currency }}{%- endif -%}
+                      {%- if currency_code_enabled -%} {{ cart.currency.iso_code | escape }}{%- endif -%}
                     </span>
                     {%- if compare != blank and compare > price -%}
                       <span class="qtm-compare" data-compare-display>
                         {{ compare | money }}
-                        {%- if currency_code_enabled -%} {{ shop.currency }}{%- endif -%}
+                        {%- if currency_code_enabled -%} {{ cart.currency.iso_code | escape }}{%- endif -%}
                       </span>
                     {%- endif -%}
                   </div>
@@ -949,30 +997,31 @@
                       <input type="checkbox" class="qtm-include" {% if optional == false %}checked{% endif %} {% if optional == false %}disabled{% endif %}>
                       <span>
                         {%- if optional -%}
-                          {{ s.optional_label }}
+                          {{ s.optional_label | escape }}
                         {%- else -%}
-                          {{ s.included_label }}
+                          {{ s.included_label | escape }}
                         {%- endif -%}
                       </span>
                     </label>
 
                     {%- if s.allow_item_qty -%}
                       <div class="qtm-qty">
-                        <label for="QtmQty-{{ id }}-c-{{ forloop.index0 }}">{{ s.qty_label }}</label>
-                        <input id="QtmQty-{{ id }}-c-{{ forloop.index0 }}" class="qtm-item-qty" type="number" min="1" value="{{ qty }}">
+                        <label for="QtmQty-{{ id }}-c-{{ forloop.index0 }}">{{ s.qty_label | escape }}</label>
+                        <input id="QtmQty-{{ id }}-c-{{ forloop.index0 }}" class="qtm-item-qty" type="number" required min="{{ v.quantity_rule.min | default: 1 }}" step="{{ v.quantity_rule.increment | default: 1 }}" {% if v.quantity_rule.max != blank %}max="{{ v.quantity_rule.max }}"{% endif %} value="{{ qty }}">
                       </div>
                     {%- endif -%}
 
+                    {%- if p.requires_selling_plan -%}<a href="{{ v.url | default: p.url | escape }}">Choose subscription separately on product page</a>{%- endif -%}
                     {%- if s.show_view_link -%}
-                      <a class="qtm-view" href="{{ p.url }}" style="text-decoration:none;color:{{ s.view_link_color }};font-size:{{ s.view_link_size }}px;font-weight:{{ s.view_link_weight }};">
-                        {{ s.view_link_text }}
+                      <a class="qtm-view" href="{{ v.url | default: p.url | escape }}" style="text-decoration:none;color:{{ s.view_link_color }};font-size:{{ s.view_link_size }}px;font-weight:{{ s.view_link_weight }};">
+                        {{ s.view_link_text | escape }}
                       </a>
                     {%- endif -%}
                   </div>
 
                   {%- unless is_available -%}
                     <div class="qtm-item-meta" style="margin-top:{{ s.oos_mt }}px;color:{{ s.oos_color }};font-size:{{ s.oos_size }}px;font-weight:{{ s.oos_weight }};">
-                      {{ s.oos_text }}
+                      {{ s.oos_text | escape }}
                     </div>
                   {%- endunless -%}
                 </div>
@@ -985,8 +1034,8 @@
           {%- if items_rendered == 0 -%}
             <div class="qtm-item" style="grid-template-columns: 1fr;">
               <div class="qtm-item-content">
-                <h3 class="qtm-item-title" style="margin:0;">{{ s.empty_title }}</h3>
-                <p class="qtm-item-meta" style="margin:6px 0 0 0;">{{ s.empty_text }}</p>
+                <h3 class="qtm-item-title" style="margin:0;">{{ s.empty_title | escape }}</h3>
+                <p class="qtm-item-meta" style="margin:6px 0 0 0;">{{ s.empty_text | escape }}</p>
               </div>
             </div>
           {%- endif -%}
@@ -995,34 +1044,36 @@
 
       <aside class="qtm-right">
         <div class="qtm-summary {% if sticky_summary %}sticky{% endif %}" id="QtmBundleSummary-{{ id }}">
-          <h3 class="qtm-summary-title">{{ s.summary_title }}</h3>
+          <h3 class="qtm-summary-title">{{ s.summary_title | escape }}</h3>
 
-          <div class="qtm-summary-rows">
+          <noscript><p>Open each product to choose options and add it to your cart.</p></noscript>
+          <div class="qtm-summary-rows" data-bundle-summary hidden>
             <div class="qtm-row">
-              <span class="lbl">{{ s.summary_items_label }}</span>
+              <span class="lbl">{{ s.summary_items_label | escape }}</span>
               <span class="val" id="QtmBundleCount-{{ id }}">0</span>
             </div>
             <div class="qtm-row">
-              <span class="lbl">{{ s.summary_subtotal_label }}</span>
+              <span class="lbl">{{ s.summary_subtotal_label | escape }}</span>
               <span class="val" id="QtmBundleSubtotal-{{ id }}">{{ 0 | money }}</span>
             </div>
 
             {%- if s.show_compare_total -%}
               <div class="qtm-row">
-                <span class="lbl">{{ s.summary_compare_label }}</span>
+                <span class="lbl">{{ s.summary_compare_label | escape }}</span>
                 <span class="val" id="QtmBundleCompare-{{ id }}">{{ 0 | money }}</span>
               </div>
             {%- endif -%}
 
             {%- if s.show_savings -%}
-              <div class="qtm-savings" id="QtmBundleSavings-{{ id }}" aria-live="polite">{{ s.savings_default_text }}</div>
+              <div class="qtm-savings" id="QtmBundleSavings-{{ id }}" aria-live="polite">{{ s.savings_default_text | escape }}</div>
             {%- endif -%}
           </div>
 
+          <p class="qtm-item-meta">{% unless p.has_only_default_variant %}{{ v.title | escape }} · {% endunless %}Totals use current item prices. Savings compare regular prices; any checkout discounts are calculated in your cart.</p>
           <div class="qtm-divider"></div>
 
-          <button class="qtm-btn" id="QtmBundleAdd-{{ id }}" type="button">
-            {{ s.btn_text }}
+          <button class="qtm-btn" id="QtmBundleAdd-{{ id }}" type="button" hidden disabled>
+            {{ s.btn_text | escape }}
           </button>
 
           <div class="qtm-msg ok" id="QtmMsgOk-{{ id }}" role="status" aria-live="polite"></div>
@@ -1031,13 +1082,13 @@
           {%- if s.show_trust_row -%}
             <div style="margin-top:{{ s.trust_mt }}px;display:grid;gap:{{ s.trust_gap }}px;">
               {%- if s.trust_text_1 != blank -%}
-                <div style="color:{{ s.trust_color }};font-size:{{ s.trust_size }}px;font-weight:{{ s.trust_weight }};">{{ s.trust_text_1 }}</div>
+                <div style="color:{{ s.trust_color }};font-size:{{ s.trust_size }}px;font-weight:{{ s.trust_weight }};">{{ s.trust_text_1 | escape }}</div>
               {%- endif -%}
               {%- if s.trust_text_2 != blank -%}
-                <div style="color:{{ s.trust_color }};font-size:{{ s.trust_size }}px;font-weight:{{ s.trust_weight }};">{{ s.trust_text_2 }}</div>
+                <div style="color:{{ s.trust_color }};font-size:{{ s.trust_size }}px;font-weight:{{ s.trust_weight }};">{{ s.trust_text_2 | escape }}</div>
               {%- endif -%}
               {%- if s.trust_text_3 != blank -%}
-                <div style="color:{{ s.trust_color }};font-size:{{ s.trust_size }}px;font-weight:{{ s.trust_weight }};">{{ s.trust_text_3 }}</div>
+                <div style="color:{{ s.trust_color }};font-size:{{ s.trust_size }}px;font-weight:{{ s.trust_weight }};">{{ s.trust_text_3 | escape }}</div>
               {%- endif -%}
             </div>
           {%- endif -%}
@@ -1046,216 +1097,7 @@
     </div>
   </div>
 
-  <script>
-    (function(){
-      const root = document.getElementById('QtmBundles-{{ id }}');
-      if(!root) return;
-
-      const itemsWrap = root.querySelector('#QtmBundleItems-{{ id }}');
-      const btn = root.querySelector('#QtmBundleAdd-{{ id }}');
-      const msgOk = root.querySelector('#QtmMsgOk-{{ id }}');
-      const msgErr = root.querySelector('#QtmMsgErr-{{ id }}');
-
-      const elCount = root.querySelector('#QtmBundleCount-{{ id }}');
-      const elSubtotal = root.querySelector('#QtmBundleSubtotal-{{ id }}');
-      const elCompare = root.querySelector('#QtmBundleCompare-{{ id }}');
-      const elSavings = root.querySelector('#QtmBundleSavings-{{ id }}');
-
-      const moneyFormat = {{ shop.money_format | json }};
-      const showCompareTotal = {{ s.show_compare_total | json }};
-      const showSavings = {{ s.show_savings | json }};
-
-      const oosDisable = {{ s.disable_unavailable_items | json }};
-      const allowQty = {{ s.allow_item_qty | json }};
-
-      function formatMoney(cents){
-        // Lightweight money formatter for Shopify string templates
-        // Supports common {{amount}} variants in shop.money_format
-        const value = (cents / 100).toFixed(2);
-        const amount = value.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-        return moneyFormat
-          .replace("{{amount}}", amount)
-          .replace("{{amount_no_decimals}}", Math.round(cents/100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","))
-          .replace("{{amount_with_comma_separator}}", value.replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, "."))
-          .replace("{{amount_no_decimals_with_comma_separator}}", Math.round(cents/100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."));
-      }
-
-      function showMessage(kind, text){
-        if(msgOk) msgOk.style.display = 'none';
-        if(msgErr) msgErr.style.display = 'none';
-
-        const target = kind === 'ok' ? msgOk : msgErr;
-        if(!target) return;
-        target.textContent = text;
-        target.style.display = 'block';
-      }
-
-      function getItems(){
-        const cards = itemsWrap ? Array.from(itemsWrap.querySelectorAll('.qtm-item[data-variant-id]')) : [];
-        const items = [];
-
-        cards.forEach(card => {
-          const include = card.querySelector('.qtm-include');
-          const optional = card.getAttribute('data-optional') === 'true';
-          const available = card.getAttribute('data-available') === 'true';
-          const variantId = parseInt(card.getAttribute('data-variant-id'), 10);
-          const baseQty = parseInt(card.getAttribute('data-qty') || "1", 10) || 1;
-
-          let qty = baseQty;
-          if(allowQty){
-            const qtyInput = card.querySelector('.qtm-item-qty');
-            if(qtyInput){
-              const v = parseInt(qtyInput.value || "1", 10);
-              qty = (isNaN(v) || v < 1) ? 1 : v;
-            }
-          }
-
-          // Included logic:
-          // - If optional=false: always included (checkbox disabled)
-          // - If optional=true: included when checkbox checked
-          let isIncluded = true;
-          if(optional){
-            isIncluded = include ? !!include.checked : false;
-          }
-
-          // If unavailable and setting says disable, treat as not included
-          if(oosDisable && !available){
-            isIncluded = false;
-          }
-
-          const price = parseInt(card.getAttribute('data-price') || "0", 10) || 0;
-          const compare = parseInt(card.getAttribute('data-compare') || "0", 10) || 0;
-
-          items.push({
-            card,
-            variantId,
-            qty,
-            included: isIncluded,
-            available,
-            price,
-            compare
-          });
-        });
-
-        return items;
-      }
-
-      function updateSummary(){
-        const items = getItems();
-        let count = 0;
-        let subtotal = 0;
-        let compareTotal = 0;
-
-        items.forEach(it => {
-          if(!it.included) return;
-          count += it.qty;
-          subtotal += (it.price * it.qty);
-          if(it.compare && it.compare > it.price){
-            compareTotal += (it.compare * it.qty);
-          }else{
-            compareTotal += (it.price * it.qty);
-          }
-        });
-
-        if(elCount) elCount.textContent = String(count);
-        if(elSubtotal) elSubtotal.textContent = formatMoney(subtotal);
-        if(showCompareTotal && elCompare) elCompare.textContent = formatMoney(compareTotal);
-
-        if(showSavings && elSavings){
-          const savings = Math.max(0, compareTotal - subtotal);
-          if(savings > 0){
-            elSavings.textContent = {{ s.savings_prefix | json }} + formatMoney(savings);
-          }else{
-            elSavings.textContent = {{ s.savings_default_text | json }};
-          }
-        }
-
-        if(btn){
-          btn.disabled = (count === 0);
-        }
-      }
-
-      async function addToCart(items){
-        const lines = items
-          .filter(it => it.included)
-          .map(it => ({ id: it.variantId, quantity: it.qty }));
-
-        if(!lines.length) throw new Error({{ s.err_no_items | json }});
-
-        const res = await fetch('/cart/add.js', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify({ items: lines })
-        });
-
-        if(!res.ok){
-          let txt = '';
-          try { txt = await res.text(); } catch(e){}
-          throw new Error(txt || 'Cart add failed');
-        }
-
-        return await res.json();
-      }
-
-      function wire(){
-        if(!itemsWrap) return;
-
-        // Disable optional checkbox for required items is done in HTML.
-        // Additionally disable unavailables if setting enabled.
-        if(oosDisable){
-          const cards = Array.from(itemsWrap.querySelectorAll('.qtm-item[data-variant-id]'));
-          cards.forEach(card => {
-            const available = card.getAttribute('data-available') === 'true';
-            if(!available){
-              const cb = card.querySelector('.qtm-include');
-              if(cb){
-                cb.checked = false;
-                cb.disabled = true;
-              }
-              card.style.opacity = '0.65';
-            }
-          });
-        }
-
-        itemsWrap.addEventListener('change', (e) => {
-          const t = e.target;
-          if(!t) return;
-          if(t.classList.contains('qtm-include') || t.classList.contains('qtm-item-qty')){
-            updateSummary();
-          }
-        });
-
-        if(btn){
-          btn.addEventListener('click', async () => {
-            try{
-              showMessage('ok', '');
-              showMessage('err', '');
-              btn.disabled = true;
-
-              const items = getItems();
-              await addToCart(items);
-
-              showMessage('ok', {{ s.msg_added | json }});
-
-              if({{ s.redirect_to_cart | json }}){
-                window.location.href = '/cart';
-                return;
-              }
-              // Otherwise refresh summary (in case)
-              updateSummary();
-            }catch(err){
-              showMessage('err', err && err.message ? err.message : {{ s.msg_error | json }});
-              updateSummary();
-            }
-          });
-        }
-
-        updateSummary();
-      }
-
-      wire();
-    })();
-  </script>
+  <script src="{{ 'product-bundles.js' | asset_url }}" defer></script>
 </section>
 
 {% schema %}
@@ -1285,7 +1127,7 @@
       "default": "append",
       "options": [
         { "value": "append", "label": "Append (combine sources)" },
-        { "value": "replace", "label": "Replace Priority Order" }
+        { "value": "replace", "label": "Use first nonempty source (Metaobject, Blocks, Collection)" }
       ]
     },
     {

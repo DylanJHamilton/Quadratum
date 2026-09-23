@@ -1,77 +1,44 @@
 (() => {
-  const sections = document.querySelectorAll('[data-product-faq]');
-  if (!sections.length) return;
-
-  sections.forEach((section) => {
-    const layout = section.getAttribute('data-layout') || 'accordion_inline';
-    const buttons = Array.from(section.querySelectorAll('.q-pfaq__btn[data-faq-index]'));
-
-    if (!buttons.length) return;
-
-    // Map index -> panel by aria-controls (most reliable)
-    const panelByIndex = new Map();
-    buttons.forEach((btn) => {
-      const idx = btn.dataset.faqIndex;
-      const panelId = btn.getAttribute('aria-controls');
-      const panel = panelId ? section.querySelector(`#${CSS.escape(panelId)}`) : null;
-      if (idx != null && panel) panelByIndex.set(String(idx), panel);
-    });
-
-    const closeAll = () => {
-      buttons.forEach((b) => b.setAttribute('aria-expanded', 'false'));
-      panelByIndex.forEach((p) => p.setAttribute('hidden', 'hidden'));
-    };
-
-    const openOne = (idx) => {
-      const btn = buttons.find((b) => b.dataset.faqIndex === String(idx));
-      const panel = panelByIndex.get(String(idx));
-      if (!btn || !panel) return;
-      btn.setAttribute('aria-expanded', 'true');
-      panel.removeAttribute('hidden');
-    };
-
-    // --- Split stage support (optional) ---
-    const stageNodes = Array.from(section.querySelectorAll('[data-faq-stage-node]'));
-    const hasStage = layout === 'accordion_split' && stageNodes.length;
-
-    const hideAllStage = () => stageNodes.forEach((n) => n.setAttribute('hidden', 'hidden'));
-
-    const showStageFor = (idx) => {
-      if (!hasStage) return;
-
-      const node = stageNodes.find((n) => n.dataset.faqIndex === String(idx));
-      if (!node) return;
-
-      // If selected item has no media, keep current stage (no change)
-      if (node.getAttribute('data-has-media') === 'false') return;
-
-      hideAllStage();
-      node.removeAttribute('hidden');
-    };
-
-    // Click behavior
-    buttons.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const idx = btn.dataset.faqIndex;
-        const expanded = btn.getAttribute('aria-expanded') === 'true';
-
-        // Always behave like an accordion: only one open at a time
-        closeAll();
-
-        if (!expanded) {
-          openOne(idx);
-          showStageFor(idx);
-        } else {
-          // closed all; in split we keep last stage media visible (do nothing)
+  if(window.qtmProductFAQReady)return;window.qtmProductFAQReady=true;
+  const instances=new WeakMap(),selector='[data-product-faq]';
+  const each=(scope,fn)=>{if(scope.matches?.(selector))fn(scope);scope.querySelectorAll(selector).forEach(fn)};
+  function init(root){
+    if(instances.has(root))return;
+    const controller=new AbortController(),buttons=[...root.querySelectorAll('[data-faq-index].q-pfaq__btn')],stages=[...root.querySelectorAll('[data-faq-stage-node]')];
+    const panel=button=>root.querySelector(`[id="${button.getAttribute('aria-controls')}"]`);
+    function pause(scope){scope.querySelectorAll('video, model-viewer').forEach(media=>media.pause?.());scope.querySelectorAll('iframe[data-faq-player]').forEach(frame=>frame.remove());scope.querySelectorAll('[data-faq-external]').forEach(link=>link.hidden=false);}
+    function media(scope){
+      scope.querySelectorAll('[data-faq-external]').forEach(link=>{
+        if(link.hidden||link.closest('[hidden]'))return;
+        let url;try{url=new URL(link.href,location.href)}catch{return;}
+        if(!['https:','http:'].includes(url.protocol))return;
+        let id;
+        if(['youtube.com','www.youtube.com','m.youtube.com','youtu.be','www.youtube-nocookie.com'].includes(url.hostname)){
+          id=url.hostname==='youtu.be'?url.pathname.slice(1):url.searchParams.get('v')||url.pathname.split('/').pop();
+          if(!/^[\w-]+$/.test(id||''))return;
+          url=new URL('https://www.youtube-nocookie.com/embed/'+id);
+        }else if(['vimeo.com','www.vimeo.com','player.vimeo.com'].includes(url.hostname)){
+          id=url.pathname.split('/').filter(Boolean).pop();if(!/^\d+$/.test(id||''))return;url=new URL('https://player.vimeo.com/video/'+id);
         }
+        const frame=document.createElement('iframe');frame.dataset.faqPlayer='';frame.className='q-pfaq__iframe';frame.src=url.href;frame.title=link.dataset.title||'Product video';frame.loading='lazy';frame.allowFullscreen=true;frame.allow='fullscreen; picture-in-picture';link.after(frame);link.hidden=true;
       });
-    });
-
-    // Initial stage selection in split layout
-    if (hasStage) {
-      const firstMediaIndex = section.getAttribute('data-first-media-index');
-      const initIdx = firstMediaIndex && firstMediaIndex !== '-1' ? firstMediaIndex : '0';
-      showStageFor(initIdx);
     }
-  });
+    function open(button,toggle=true){
+      const expanded=button.getAttribute('aria-expanded')==='true';
+      buttons.forEach(other=>{other.setAttribute('aria-expanded','false');const target=panel(other);if(target){target.hidden=true;pause(target)}});
+      stages.forEach(stage=>{stage.hidden=true;pause(stage)});
+      if(expanded&&toggle)return;
+      button.setAttribute('aria-expanded','true');const target=panel(button);if(target){target.hidden=false;media(target)};
+      const stage=stages.find(node=>node.dataset.faqIndex===button.dataset.faqIndex&&node.dataset.hasMedia==='true');if(stage){stage.hidden=false;media(stage)}
+    }
+    buttons.forEach(button=>{button.setAttribute('aria-expanded','false');if(panel(button))panel(button).hidden=true;button.addEventListener('click',()=>open(button),{signal:controller.signal})});
+    stages.forEach(stage=>{stage.hidden=true;pause(stage)});
+    if(root.dataset.openFirst==='true'&&buttons[0])open(buttons[0],false);
+    root.addEventListener('shopify:block:select',event=>{const button=event.target.closest('.q-pfaq__item')?.querySelector('.q-pfaq__btn');if(button)open(button,false)},{signal:controller.signal});
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)pause(root)},{signal:controller.signal});
+    instances.set(root,()=>{controller.abort();pause(root)});
+  }
+  document.addEventListener('shopify:section:load',event=>each(event.target,init));
+  document.addEventListener('shopify:section:unload',event=>each(event.target,root=>{instances.get(root)?.();instances.delete(root)}));
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>each(document,init),{once:true});else each(document,init);
 })();

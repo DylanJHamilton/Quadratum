@@ -1,6 +1,9 @@
 {%- liquid
   assign s = section.settings
-  assign lazy = settings.images_lazyload
+  assign qtm_image_loading = 'lazy'
+  if settings.images_lazyload == false
+    assign qtm_image_loading = 'eager'
+  endif
   assign has_blocks = false
   if section.blocks.size > 0
     assign has_blocks = true
@@ -9,30 +12,124 @@
   assign has_any_links = false
 -%}
 
+        {%- capture links_markup -%}
+          <ul class="q-social-profile__links" role="list" aria-label="Social links">
+            {% if s.use_global_social_urls %}
+              {% assign networks = 'facebook,instagram,tiktok,youtube,twitter,pinterest' | split: ',' %}
+              {% for network in networks %}
+                {% liquid
+                  assign key = 'social_url_' | append: network
+                  assign url = settings[key] | strip
+                  assign prefix = url | slice: 0, 8 | downcase
+                  assign short_prefix = url | slice: 0, 7 | downcase
+                  assign label = network | capitalize
+                  if network == 'twitter'
+                    assign label = 'X'
+                  endif
+                  if network == 'youtube'
+                    assign label = 'YouTube'
+                  endif
+                  if network == 'tiktok'
+                    assign label = 'TikTok'
+                  endif
+                %}
+                {% if prefix == 'https://' or short_prefix == 'http://' %}
+                  {% assign has_any_links = true %}
+                  <li class="q-social-profile__link"><a class="q-social-profile__a" href="{{ url | escape }}" target="_blank" rel="noopener noreferrer">
+                    {% render 'q-social-profile-icon', network: network %}
+                    <span class="{% if s.show_labels %}q-social-profile__label{% else %}q-visually-hidden{% endif %}">{{ label | escape }}</span>
+                  </a></li>
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+
+            {%- if has_blocks -%}
+              {%- for block in section.blocks -%}
+                {%- if block.type == 'social_link' -%}
+                  {%- liquid
+                    assign b = block.settings
+                    assign url = b.url | strip
+                    assign prefix = url | slice: 0, 8 | downcase
+                    assign short_prefix = url | slice: 0, 7 | downcase
+                    assign first = url | slice: 0, 1
+                    assign valid_url = false
+                    if prefix == 'https://' or short_prefix == 'http://' or first == '/'
+                      assign valid_url = true
+                    endif
+                    assign net = b.network
+                    assign label = ''
+                    if net == 'custom'
+                      assign label = b.custom_label | default: 'Website'
+                    else
+                      assign label = net
+                    endif
+
+                    if valid_url
+                      assign has_any_links = true
+                    endif
+                  -%}
+
+                  {%- if valid_url -%}
+                    <li class="q-social-profile__link" {{ block.shopify_attributes }}>
+                      <a
+                        class="q-social-profile__a"
+                        href="{{ url | escape }}"
+                        {% if b.new_tab %} target="_blank"{% endif %}
+                        rel="{% if b.new_tab %}noopener noreferrer{% else %}noopener{% endif %}"
+                        aria-label="{{ b.aria_label | default: label | escape }}"
+                      >
+                        {%- render 'q-social-profile-icon', network: net -%}
+                        {%- if s.show_labels -%}
+                          <span class="q-social-profile__label">{{ label | escape }}</span>
+                        {%- else -%}
+                          <span class="q-visually-hidden">{{ label | escape }}</span>
+                        {%- endif -%}
+                      </a>
+                    </li>
+                  {% elsif request.design_mode %}
+                    {% assign has_any_links = true %}<li {{ block.shopify_attributes }}>Add an http(s) profile URL or a site path.</li>
+                  {%- endif -%}
+                {%- endif -%}
+              {%- endfor -%}
+            {%- endif -%}
+          </ul>
+        {%- endcapture -%}
+{% liquid
+ assign visible = false
+ if s.avatar != blank or s.name != blank or s.role != blank or s.bio != blank or has_any_links
+   assign visible = true
+ endif
+ if s.show_button and s.button_link != blank and s.button_label != blank
+   assign visible = true
+ endif
+ if request.design_mode
+   assign visible = true
+ endif
+%}
+{% if visible %}
 <section
+  id="social-media-profile-card-{{ section.id }}"
   class="q-section q-social-profile q-social-profile--align-{{ s.align }}"
   data-section-id="{{ section.id }}"
   style="--qsp-icon-size: {{ s.icon_size }}px; --qsp-icon-gap: {{ s.icon_gap }}px; --qsp-radius: {{ s.card_radius }}px; --qsp-py: {{ s.padding_y }}px; --qsp-px: {{ s.padding_x }}px; --qsp-pt: {{ s.section_padding_top }}px; --qsp-pb: {{ s.section_padding_bottom }}px;"
 >
   <div class="q-social-profile__container">
-    <div class="q-social-profile__card{% if s.use_contrast_surface %} q-social-profile__card--contrast{% endif %}">
+    <div class="q-social-profile__card{% if s.avatar != blank %} q-social-profile__card--avatar{% endif %}{% if s.use_contrast_surface %} q-social-profile__card--contrast{% endif %}">
       {%- if s.avatar != blank -%}
         <div class="q-social-profile__avatar">
-          {%- assign alt_text = s.name | default: 'Profile photo' -%}
-          {%- liquid
-            assign qtm_image_loading = lazy | default: 'lazy'
-          -%}
+          {%- assign alt_text = s.name | default: s.avatar.alt | default: 'Profile photo' -%}
+
           {{ s.avatar | image_url: width: 240 | image_tag: widths: '120, 180, 240', sizes: '96px', alt: alt_text, loading: qtm_image_loading }}
         </div>
       {%- endif -%}
 
       <div class="q-social-profile__content">
         {%- if s.name != blank -%}
-          <h2 class="q-social-profile__name">{{ s.name }}</h2>
+          <h2 class="q-social-profile__name">{{ s.name | escape }}</h2>
         {%- endif -%}
 
         {%- if s.role != blank -%}
-          <p class="q-social-profile__role">{{ s.role }}</p>
+          <p class="q-social-profile__role">{{ s.role | escape }}</p>
         {%- endif -%}
 
         {%- if s.bio != blank -%}
@@ -47,112 +144,7 @@
           Treat blank OR "none" as unset.
         {%- endcomment -%}
 
-        {%- capture links_markup -%}
-          <ul class="q-social-profile__links" role="list" aria-label="Social links">
-            {%- if s.use_global_social_urls -%}
-              {%- if settings.social_url_facebook != blank and settings.social_url_facebook != 'none' -%}
-                {%- assign has_any_links = true -%}
-                <li class="q-social-profile__link">
-                  <a class="q-social-profile__a" href="{{ settings.social_url_facebook }}" target="_blank" rel="noopener noreferrer" aria-label="Follow on Facebook">
-                    {%- render 'q-social-profile-icon', network: 'facebook' -%}
-                    {%- if s.show_labels -%}<span class="q-social-profile__label">Facebook</span>{%- else -%}<span class="q-visually-hidden">Facebook</span>{%- endif -%}
-                  </a>
-                </li>
-              {%- endif -%}
 
-              {%- if settings.social_url_instagram != blank and settings.social_url_instagram != 'none' -%}
-                {%- assign has_any_links = true -%}
-                <li class="q-social-profile__link">
-                  <a class="q-social-profile__a" href="{{ settings.social_url_instagram }}" target="_blank" rel="noopener noreferrer" aria-label="Follow on Instagram">
-                    {%- render 'q-social-profile-icon', network: 'instagram' -%}
-                    {%- if s.show_labels -%}<span class="q-social-profile__label">Instagram</span>{%- else -%}<span class="q-visually-hidden">Instagram</span>{%- endif -%}
-                  </a>
-                </li>
-              {%- endif -%}
-
-              {%- if settings.social_url_tiktok != blank and settings.social_url_tiktok != 'none' -%}
-                {%- assign has_any_links = true -%}
-                <li class="q-social-profile__link">
-                  <a class="q-social-profile__a" href="{{ settings.social_url_tiktok }}" target="_blank" rel="noopener noreferrer" aria-label="Follow on TikTok">
-                    {%- render 'q-social-profile-icon', network: 'tiktok' -%}
-                    {%- if s.show_labels -%}<span class="q-social-profile__label">TikTok</span>{%- else -%}<span class="q-visually-hidden">TikTok</span>{%- endif -%}
-                  </a>
-                </li>
-              {%- endif -%}
-
-              {%- if settings.social_url_youtube != blank and settings.social_url_youtube != 'none' -%}
-                {%- assign has_any_links = true -%}
-                <li class="q-social-profile__link">
-                  <a class="q-social-profile__a" href="{{ settings.social_url_youtube }}" target="_blank" rel="noopener noreferrer" aria-label="Visit YouTube channel">
-                    {%- render 'q-social-profile-icon', network: 'youtube' -%}
-                    {%- if s.show_labels -%}<span class="q-social-profile__label">YouTube</span>{%- else -%}<span class="q-visually-hidden">YouTube</span>{%- endif -%}
-                  </a>
-                </li>
-              {%- endif -%}
-
-              {%- if settings.social_url_twitter != blank and settings.social_url_twitter != 'none' -%}
-                {%- assign has_any_links = true -%}
-                <li class="q-social-profile__link">
-                  <a class="q-social-profile__a" href="{{ settings.social_url_twitter }}" target="_blank" rel="noopener noreferrer" aria-label="Follow on X">
-                    {%- render 'q-social-profile-icon', network: 'x' -%}
-                    {%- if s.show_labels -%}<span class="q-social-profile__label">X</span>{%- else -%}<span class="q-visually-hidden">X</span>{%- endif -%}
-                  </a>
-                </li>
-              {%- endif -%}
-
-              {%- if settings.social_url_pinterest != blank and settings.social_url_pinterest != 'none' -%}
-                {%- assign has_any_links = true -%}
-                <li class="q-social-profile__link">
-                  <a class="q-social-profile__a" href="{{ settings.social_url_pinterest }}" target="_blank" rel="noopener noreferrer" aria-label="Follow on Pinterest">
-                    {%- render 'q-social-profile-icon', network: 'pinterest' -%}
-                    {%- if s.show_labels -%}<span class="q-social-profile__label">Pinterest</span>{%- else -%}<span class="q-visually-hidden">Pinterest</span>{%- endif -%}
-                  </a>
-                </li>
-              {%- endif -%}
-            {%- endif -%}
-
-            {%- if has_blocks -%}
-              {%- for block in section.blocks -%}
-                {%- if block.type == 'social_link' -%}
-                  {%- liquid
-                    assign b = block.settings
-                    assign url = b.url
-                    assign net = b.network
-                    assign label = ''
-                    if net == 'custom'
-                      assign label = b.custom_label
-                    else
-                      assign label = net
-                    endif
-
-                    if url != blank
-                      assign has_any_links = true
-                    endif
-                  -%}
-
-                  {%- if url != blank -%}
-                    <li class="q-social-profile__link" {{ block.shopify_attributes }}>
-                      <a
-                        class="q-social-profile__a"
-                        href="{{ url }}"
-                        {% if b.new_tab %}target="_blank"{% endif %}
-                        rel="{% if b.new_tab %}noopener noreferrer{% else %}noopener{% endif %}"
-                        aria-label="{{ b.aria_label }}"
-                      >
-                        {%- render 'q-social-profile-icon', network: net -%}
-                        {%- if s.show_labels -%}
-                          <span class="q-social-profile__label">{{ label | escape }}</span>
-                        {%- else -%}
-                          <span class="q-visually-hidden">{{ label | escape }}</span>
-                        {%- endif -%}
-                      </a>
-                    </li>
-                  {%- endif -%}
-                {%- endif -%}
-              {%- endfor -%}
-            {%- endif -%}
-          </ul>
-        {%- endcapture -%}
 
         {%- if has_any_links -%}
           {{ links_markup }}
@@ -162,10 +154,10 @@
           </p>
         {%- endif -%}
 
-        {%- if s.show_button -%}
+        {%- if s.show_button and s.button_link != blank and s.button_label != blank -%}
           <div class="q-social-profile__cta">
-            <a class="q-social-profile__btn" href="{{ s.button_link }}">
-              {{ s.button_label }}
+            <a class="q-social-profile__btn" href="{{ s.button_link | escape }}">
+              {{ s.button_label | escape }}
             </a>
           </div>
         {%- endif -%}
@@ -173,36 +165,31 @@
     </div>
   </div>
 
-  {%- comment -%}
-    Inline icon renderer as a section-scoped snippet replacement.
-    We keep it self-contained by defining a minimal renderable snippet *inside the section*
-    using Shopify's "render" with an inline snippet pattern:
-    - This relies on a snippet file existing, so we provide it below as an inline fallback via <template>.
-    Quadratum rule: sections must be self-contained; therefore we emulate render with a <template> + JS-less clone.
-    However: Shopify Liquid cannot render inline templates without a snippet.
-    So we ship a real snippet requirement below as a CONTRACT and also provide a no-snippet fallback:
-    - If snippet 'q-social-profile-icon' does not exist, replace the renders with the inline case block.
-  {%- endcomment -%}
 
-  <style>
-    .q-social-profile { padding-top: var(--qsp-pt); padding-bottom: var(--qsp-pb); }
-    .q-social-profile__container { max-width: var(--q-container, 1152px); margin: 0 auto; padding: 0 16px; }
-    .q-social-profile__card {
+
+
+</section>
+{% endif %}
+<style>
+
+    #social-media-profile-card-{{ section.id }}.q-social-profile { padding-top: var(--qsp-pt); padding-bottom: var(--qsp-pb); }
+    #social-media-profile-card-{{ section.id }} .q-social-profile__container { max-width: var(--container-lg, 1152px); margin: 0 auto; padding: 0 16px; }
+    #social-media-profile-card-{{ section.id }} .q-social-profile__card {
       border-radius: var(--qsp-radius);
       padding: var(--qsp-py) var(--qsp-px);
       border: 1px solid rgba(0,0,0,.08);
       display: grid;
-      grid-template-columns: 96px 1fr;
+      grid-template-columns:minmax(0,1fr);
       gap: 16px;
       align-items: start;
     }
-    .q-social-profile__card--contrast { background: var(--q-bg-contrast, #f6f7f8); }
-    .q-social-profile--align-center .q-social-profile__card { text-align: center; grid-template-columns: 1fr; justify-items: center; }
-    .q-social-profile__avatar img { width: 96px; height: 96px; border-radius: 999px; object-fit: cover; display: block; }
-    .q-social-profile__name { margin: 0; font-size: 1.25rem; line-height: 1.2; }
-    .q-social-profile__role { margin: 6px 0 0; opacity: .75; }
-    .q-social-profile__bio { margin-top: 12px; }
-    .q-social-profile__links {
+    #social-media-profile-card-{{ section.id }} .q-social-profile__card--contrast { background: var(--c-surface, #f6f7f8); }
+    #social-media-profile-card-{{ section.id }}.q-social-profile--align-center .q-social-profile__card { text-align: center; grid-template-columns: 1fr; justify-items: center; }
+    #social-media-profile-card-{{ section.id }} .q-social-profile__avatar img { width: 96px; height: 96px; border-radius: 999px; object-fit: cover; display: block; }
+    #social-media-profile-card-{{ section.id }} .q-social-profile__name { margin: 0; font-size: 1.25rem; line-height: 1.2; }
+    #social-media-profile-card-{{ section.id }} .q-social-profile__role { margin: 6px 0 0; opacity: .75; }
+    #social-media-profile-card-{{ section.id }} .q-social-profile__bio { margin-top: 12px; }
+    #social-media-profile-card-{{ section.id }} .q-social-profile__links {
       margin: 14px 0 0;
       padding: 0;
       list-style: none;
@@ -212,8 +199,8 @@
       align-items: center;
       justify-content: flex-start;
     }
-    .q-social-profile--align-center .q-social-profile__links { justify-content: center; }
-    .q-social-profile__a {
+    #social-media-profile-card-{{ section.id }}.q-social-profile--align-center .q-social-profile__links { justify-content: center; }
+    #social-media-profile-card-{{ section.id }} .q-social-profile__a {
       display: inline-flex;
       gap: 10px;
       align-items: center;
@@ -221,13 +208,13 @@
       border-radius: 999px;
       padding: 8px 10px;
       border: 1px solid rgba(0,0,0,.10);
-      background: rgba(255,255,255,.6);
+      background:var(--c-bg,#fff);color:var(--c-text,#111);
     }
-    .q-social-profile__a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-    .q-social-profile__icon { width: var(--qsp-icon-size); height: var(--qsp-icon-size); display: block; }
-    .q-social-profile__label { font-size: .95rem; }
-    .q-social-profile__cta { margin-top: 16px; }
-    .q-social-profile__btn {
+    #social-media-profile-card-{{ section.id }} .q-social-profile__a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+    #social-media-profile-card-{{ section.id }} .q-social-profile__icon { width: var(--qsp-icon-size); height: var(--qsp-icon-size); display: block; }
+    #social-media-profile-card-{{ section.id }} .q-social-profile__label { font-size: .95rem; }
+    #social-media-profile-card-{{ section.id }} .q-social-profile__cta { margin-top: 16px; }
+    #social-media-profile-card-{{ section.id }} .q-social-profile__btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -235,10 +222,10 @@
       padding: 12px 18px;
       text-decoration: none;
       border: 1px solid rgba(0,0,0,.14);
-      background: rgba(0,0,0,.06);
+      background:var(--c-primary,#2563eb);color:var(--c-oncolor,#fff);
     }
-    .q-social-profile__empty { margin-top: 12px; opacity: .7; }
-    .q-visually-hidden {
+    #social-media-profile-card-{{ section.id }} .q-social-profile__empty { margin-top: 12px; opacity: .7; }
+    #social-media-profile-card-{{ section.id }} .q-visually-hidden {
       position: absolute !important;
       width: 1px !important;
       height: 1px !important;
@@ -249,23 +236,34 @@
       white-space: nowrap !important;
       border: 0 !important;
     }
-  </style>
-</section>
 
-{% comment %}
-SNIPPET REQUIRED (SMALL, DROP-IN):
-Create: snippets/q-social-profile-icon.liquid
-This keeps the section clean and avoids repeating SVG case logic.
+#social-media-profile-card-{{ section.id }}{color:var(--c-text,#111111);font-family:var(--font-body);overflow-wrap:anywhere;min-width:0;max-width:100%}
+#social-media-profile-card-{{ section.id }} *,#social-media-profile-card-{{ section.id }} *::before,#social-media-profile-card-{{ section.id }} *::after{box-sizing:border-box;min-width:0}
+#social-media-profile-card-{{ section.id }} :is(h2,h3){font-family:var(--font-head)}
+#social-media-profile-card-{{ section.id }} :is(a,button,[tabindex]):focus-visible{outline:2px solid currentColor;outline-offset:3px}
+#social-media-profile-card-{{ section.id }} :is(a,button){max-width:100%;overflow-wrap:anywhere}
+#social-media-profile-card-{{ section.id }} [hidden]{display:none!important}
+@media(prefers-reduced-motion:reduce){#social-media-profile-card-{{ section.id }} *,#social-media-profile-card-{{ section.id }} *::before,#social-media-profile-card-{{ section.id }} *::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 
-If you prefer truly single-file, tell me and I’ll inline the case block instead of render().
-{% endcomment %}
+#social-media-profile-card-{{ section.id }} .q-social-profile__card--avatar{grid-template-columns:96px minmax(0,1fr)}
+#social-media-profile-card-{{ section.id }}.q-social-profile--align-center .q-social-profile__card{grid-template-columns:minmax(0,1fr)}
+#social-media-profile-card-{{ section.id }} .q-social-profile__icon{flex-shrink:0;fill:currentColor}
+#social-media-profile-card-{{ section.id }} .q-social-profile__icon svg{width:100%;height:100%;display:block}
+#social-media-profile-card-{{ section.id }} .q-social-profile__link{max-width:100%}
+@media(max-width:600px){#social-media-profile-card-{{ section.id }} .q-social-profile__card--avatar{grid-template-columns:minmax(0,1fr)}#social-media-profile-card-{{ section.id }} .q-social-profile__card{padding-inline:min(var(--qsp-px),8vw)}}
+
+</style>
 
 {% schema %}
 {
   "name": "Social Media - Profile",
   "tag": "section",
-  "class": "q-section q-social-profile",
+  "class": "q-host-social-media-profile-card",
   "settings": [
+    {
+      "type": "paragraph",
+      "content": "Profile content and links are manual. Global URLs use Theme Settings → Integrations. No account connection, verification badge or automatic social data is supplied."
+    },
     {
       "type": "header",
       "content": "Content"
@@ -278,20 +276,17 @@ If you prefer truly single-file, tell me and I’ll inline the case block instea
     {
       "type": "text",
       "id": "name",
-      "label": "Name",
-      "default": "Your Name"
+      "label": "Name"
     },
     {
       "type": "text",
       "id": "role",
-      "label": "Role / title",
-      "default": "Founder"
+      "label": "Role / title"
     },
     {
       "type": "textarea",
       "id": "bio",
-      "label": "Short bio",
-      "default": "Write a short bio that tells shoppers who you are and what you stand for."
+      "label": "Short bio"
     },
     {
       "type": "checkbox",
@@ -339,7 +334,11 @@ If you prefer truly single-file, tell me and I’ll inline the case block instea
       "label": "Button label",
       "default": "Follow"
     },
-    { "type": "url", "id": "button_link", "label": "Button link" },
+    {
+      "type": "url",
+      "id": "button_link",
+      "label": "Button link"
+    },
     {
       "type": "header",
       "content": "Layout"
@@ -350,8 +349,14 @@ If you prefer truly single-file, tell me and I’ll inline the case block instea
       "label": "Alignment",
       "default": "center",
       "options": [
-        { "value": "left", "label": "Left" },
-        { "value": "center", "label": "Center" }
+        {
+          "value": "left",
+          "label": "Left"
+        },
+        {
+          "value": "center",
+          "label": "Center"
+        }
       ]
     },
     {
@@ -417,15 +422,42 @@ If you prefer truly single-file, tell me and I’ll inline the case block instea
           "label": "Network",
           "default": "instagram",
           "options": [
-            { "value": "facebook", "label": "Facebook" },
-            { "value": "instagram", "label": "Instagram" },
-            { "value": "tiktok", "label": "TikTok" },
-            { "value": "youtube", "label": "YouTube" },
-            { "value": "pinterest", "label": "Pinterest" },
-            { "value": "x", "label": "X" },
-            { "value": "bluesky", "label": "Bluesky" },
-            { "value": "linkedin", "label": "LinkedIn" },
-            { "value": "custom", "label": "Custom" }
+            {
+              "value": "facebook",
+              "label": "Facebook"
+            },
+            {
+              "value": "instagram",
+              "label": "Instagram"
+            },
+            {
+              "value": "tiktok",
+              "label": "TikTok"
+            },
+            {
+              "value": "youtube",
+              "label": "YouTube"
+            },
+            {
+              "value": "pinterest",
+              "label": "Pinterest"
+            },
+            {
+              "value": "x",
+              "label": "X"
+            },
+            {
+              "value": "bluesky",
+              "label": "Bluesky"
+            },
+            {
+              "value": "linkedin",
+              "label": "LinkedIn"
+            },
+            {
+              "value": "custom",
+              "label": "Custom"
+            }
           ]
         },
         {
@@ -438,13 +470,12 @@ If you prefer truly single-file, tell me and I’ll inline the case block instea
           "type": "text",
           "id": "url",
           "label": "Profile URL",
-          "default": "https://example.com"
+          "info": "Enter an http(s) URL or a site path beginning with /."
         },
         {
           "type": "text",
           "id": "aria_label",
-          "label": "Screen reader label",
-          "default": "Visit profile"
+          "label": "Screen reader label"
         },
         {
           "type": "checkbox",
@@ -464,4 +495,3 @@ If you prefer truly single-file, tell me and I’ll inline the case block instea
   ]
 }
 {% endschema %}
-

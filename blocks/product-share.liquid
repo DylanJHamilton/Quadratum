@@ -8,7 +8,15 @@
   assign alignment = block.settings.alignment | default: 'left'
   assign share_style = block.settings.share_style | default: 'buttons'
 
-  assign product_url = shop.url | append: product_context.url
+  assign product_url = product_context.url
+  assign product_url_prefix = product_url | slice: 0, 2
+  assign product_url_start = product_url | slice: 0, 1
+  if product_url_prefix == '//'
+    assign product_url = 'https:' | append: product_url
+  elsif product_url_start == '/'
+    assign share_origin = request.origin | default: shop.url
+    assign product_url = share_origin | append: product_url
+  endif
   assign product_title = product_context.title
   assign share_text = block.settings.share_text | default: product_title
 
@@ -21,6 +29,7 @@
   assign show_on_mobile = block.settings.show_on_mobile
 -%}
 
+{% if product_context != blank and product_url != blank %}
 <div
   id="{{ block_id }}"
   class="
@@ -28,10 +37,10 @@
     product-share--{{ share_style }}
     product-share--width-{{ width }}
     product-share--align-{{ alignment }}
-    {% unless show_on_desktop %} product-share--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-share--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-share--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-share--animate product-share--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-share--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-share--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-share--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-share--animate product-share--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-share-margin-top: {{ block.settings.margin_top }}px;
@@ -52,12 +61,19 @@
   data-product-id="{{ product_context.id }}"
   data-variant-id="{{ current_variant.id }}"
   data-product-share
-  data-share-url="{{ product_url }}"
+  data-unsupported-message="{{ block.settings.unsupported_message | default: 'Sharing is not available right now.' | escape }}"
+  data-copied-message="{{ block.settings.copied_message | default: 'Product link copied.' | escape }}"
+  data-copy-label="{{ block.settings.copy_label | default: 'Copy link' | escape }}"
+  data-copied-label="{{ block.settings.copied_label | default: 'Copied' | escape }}"
+  data-share-url="{{ product_url | escape }}"
+  data-share-text="{{ share_text | escape }}"
   data-share-title="{{ product_title | escape }}"
-  {{ block.shopify_attributes }}
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-share-margin-top);
       margin-bottom: var(--product-share-margin-bottom);
@@ -169,7 +185,6 @@
       transition: background 180ms ease, color 180ms ease, border-color 180ms ease, opacity 180ms ease, transform 180ms ease;
     }
 
-    #{{ block_id }}.product-share--buttons .product-share__item,
     #{{ block_id }}.product-share--icons .product-share__item {
       width: var(--product-share-button-size);
       height: var(--product-share-button-size);
@@ -222,7 +237,6 @@
       fill: currentColor;
     }
 
-    #{{ block_id }}.product-share--buttons .product-share__text,
     #{{ block_id }}.product-share--icons .product-share__text {
       position: absolute;
       width: 1px;
@@ -374,6 +388,17 @@
         transform: none;
       }
     }
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; min-width: 0; }
+    #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} a { color: var(--product-share-link-color, currentColor); }
+    #{{ block_id }} :is(a, button, input):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    @media (min-width: 990px) { .shopify-block:has(> #{{ block_id }}.product-share--hide-desktop) { display: none !important; } }
+    @media (min-width: 750px) and (max-width: 989px) { .shopify-block:has(> #{{ block_id }}.product-share--hide-tablet) { display: none !important; } }
+    @media (max-width: 749px) { .shopify-block:has(> #{{ block_id }}.product-share--hide-mobile) { display: none !important; } }
+    #{{ block_id }} .product-share__visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    #{{ block_id }} .product-share__fallback { display: grid; gap: 4px; }
+    #{{ block_id }} input { width: 100%; max-width: 100%; min-width: 0; color: var(--product-share-text-color); background: var(--product-share-background-color); border: var(--product-share-border-width) solid var(--product-share-border-color); border-radius: min(var(--product-share-border-radius), 12px); padding: 8px; }
+    #{{ block_id }} .product-share__item { max-width: 100%; overflow-wrap: anywhere; }
   </style>
 
   <div class="product-share__inner">
@@ -383,13 +408,13 @@
       </p>
     {% endif %}
 
-    <div class="product-share__items" aria-label="{{ block.settings.aria_label | escape }}">
+    <div class="product-share__items" role="group" aria-label="{{ block.settings.aria_label | default: 'Share this product' | escape }}">
       {% if block.settings.show_native_share %}
         <button
           type="button"
           class="product-share__item"
-          data-product-share-native
-          aria-label="{{ block.settings.native_share_label | escape }}"
+          data-product-share-native hidden
+          aria-label="{{ block.settings.native_share_label | default: 'Share' | escape }}"
         >
           <span class="product-share__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24">
@@ -397,7 +422,7 @@
             </svg>
           </span>
           <span class="product-share__text">
-            {{ block.settings.native_share_label | escape }}
+            {{ block.settings.native_share_label | default: 'Share' | escape }}
           </span>
         </button>
       {% endif %}
@@ -408,7 +433,7 @@
           href="https://www.facebook.com/sharer/sharer.php?u={{ encoded_url }}"
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="{{ block.settings.facebook_label | escape }}"
+          aria-label="{{ block.settings.facebook_label | default: 'Facebook' | escape }}"
         >
           <span class="product-share__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24">
@@ -416,7 +441,7 @@
             </svg>
           </span>
           <span class="product-share__text">
-            {{ block.settings.facebook_label | escape }}
+            {{ block.settings.facebook_label | default: 'Facebook' | escape }}
           </span>
         </a>
       {% endif %}
@@ -427,7 +452,7 @@
           href="https://twitter.com/intent/tweet?url={{ encoded_url }}&text={{ encoded_share_text }}"
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="{{ block.settings.x_label | escape }}"
+          aria-label="{{ block.settings.x_label | default: 'X' | escape }}"
         >
           <span class="product-share__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24">
@@ -435,7 +460,7 @@
             </svg>
           </span>
           <span class="product-share__text">
-            {{ block.settings.x_label | escape }}
+            {{ block.settings.x_label | default: 'X' | escape }}
           </span>
         </a>
       {% endif %}
@@ -446,7 +471,7 @@
           href="https://pinterest.com/pin/create/button/?url={{ encoded_url }}&description={{ encoded_title }}"
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="{{ block.settings.pinterest_label | escape }}"
+          aria-label="{{ block.settings.pinterest_label | default: 'Pinterest' | escape }}"
         >
           <span class="product-share__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24">
@@ -454,7 +479,7 @@
             </svg>
           </span>
           <span class="product-share__text">
-            {{ block.settings.pinterest_label | escape }}
+            {{ block.settings.pinterest_label | default: 'Pinterest' | escape }}
           </span>
         </a>
       {% endif %}
@@ -462,8 +487,8 @@
       {% if block.settings.show_email %}
         <a
           class="product-share__item"
-          href="mailto:?subject={{ encoded_title }}&body={{ encoded_url }}"
-          aria-label="{{ block.settings.email_label | escape }}"
+          href="mailto:?subject={{ encoded_title }}&body={{ encoded_share_text }}%0A%0A{{ encoded_url }}"
+          aria-label="{{ block.settings.email_label | default: 'Email' | escape }}"
         >
           <span class="product-share__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24">
@@ -471,7 +496,7 @@
             </svg>
           </span>
           <span class="product-share__text">
-            {{ block.settings.email_label | escape }}
+            {{ block.settings.email_label | default: 'Email' | escape }}
           </span>
         </a>
       {% endif %}
@@ -480,8 +505,8 @@
         <button
           type="button"
           class="product-share__item"
-          data-product-share-copy
-          aria-label="{{ block.settings.copy_label | escape }}"
+          data-product-share-copy hidden
+          aria-label="{{ block.settings.copy_label | default: 'Copy link' | escape }}"
         >
           <span class="product-share__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24">
@@ -489,117 +514,25 @@
             </svg>
           </span>
           <span class="product-share__text" data-product-share-copy-text>
-            {{ block.settings.copy_label | escape }}
+            {{ block.settings.copy_label | default: 'Copy link' | escape }}
           </span>
         </button>
       {% endif %}
     </div>
 
-    {% if block.settings.show_message %}
-      <div
-        class="product-share__message"
+    {% if block.settings.show_copy_link %}<label class="product-share__fallback">{{ block.settings.copy_label | default: 'Product link' | escape }}<input data-product-share-url type="url" readonly value="{{ product_url | escape }}"></label>{% elsif block.settings.show_native_share %}<a href="{{ product_url | escape }}">{{ product_url | escape }}</a>{% endif %}
+    <div
+        class="product-share__message {% unless block.settings.show_message %}product-share__visually-hidden{% endunless %}"
         data-product-share-message
         role="status"
         aria-live="polite"
       ></div>
-    {% endif %}
   </div>
 
-  <script>
-    (() => {
-      const root = document.getElementById({{ block_id | json }});
-
-      if (!root || root.dataset.productShareReady === 'true') return;
-
-      root.dataset.productShareReady = 'true';
-
-      const nativeButton = root.querySelector('[data-product-share-native]');
-      const copyButton = root.querySelector('[data-product-share-copy]');
-      const copyText = root.querySelector('[data-product-share-copy-text]');
-      const messageEl = root.querySelector('[data-product-share-message]');
-
-      const shareUrl = root.dataset.shareUrl || window.location.href;
-      const shareTitle = root.dataset.shareTitle || document.title;
-
-      const copiedLabel = {{ block.settings.copied_label | json }};
-      const copyLabel = {{ block.settings.copy_label | json }};
-      const copiedMessage = {{ block.settings.copied_message | json }};
-      const unsupportedMessage = {{ block.settings.unsupported_message | json }};
-
-      const setMessage = (message) => {
-        if (!messageEl) return;
-
-        messageEl.textContent = message || '';
-
-        if (message) {
-          window.clearTimeout(root.productShareMessageTimer);
-          root.productShareMessageTimer = window.setTimeout(() => {
-            messageEl.textContent = '';
-          }, 3000);
-        }
-      };
-
-      if (nativeButton) {
-        if (!navigator.share) {
-          nativeButton.hidden = true;
-        }
-
-        nativeButton.addEventListener('click', async () => {
-          if (!navigator.share) {
-            setMessage(unsupportedMessage);
-            return;
-          }
-
-          try {
-            await navigator.share({
-              title: shareTitle,
-              url: shareUrl
-            });
-          } catch (error) {
-            if (error && error.name !== 'AbortError') {
-              setMessage(unsupportedMessage);
-            }
-          }
-        });
-      }
-
-      if (copyButton) {
-        copyButton.addEventListener('click', async () => {
-          try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              await navigator.clipboard.writeText(shareUrl);
-            } else {
-              const tempInput = document.createElement('input');
-              tempInput.value = shareUrl;
-              tempInput.setAttribute('readonly', 'readonly');
-              tempInput.style.position = 'absolute';
-              tempInput.style.left = '-9999px';
-              document.body.appendChild(tempInput);
-              tempInput.select();
-              document.execCommand('copy');
-              document.body.removeChild(tempInput);
-            }
-
-            if (copyText) {
-              copyText.textContent = copiedLabel;
-            }
-
-            setMessage(copiedMessage);
-
-            window.setTimeout(() => {
-              if (copyText) {
-                copyText.textContent = copyLabel;
-              }
-            }, 2500);
-          } catch (error) {
-            setMessage(unsupportedMessage);
-          }
-        });
-      }
-    })();
-  </script>
 </div>
 
+
+{% elsif request.design_mode %}<p>This block shares the current product. Add it to a product context.</p>{% endif %}
 {% schema %}
 {
   "name": "Product share",
@@ -674,7 +607,6 @@
       "label": "Show status message",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Labels"
@@ -733,7 +665,6 @@
       "label": "Unsupported message",
       "default": "Sharing is not available right now."
     },
-
     {
       "type": "header",
       "content": "Style"
@@ -782,7 +713,6 @@
       "unit": "px",
       "default": 44
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -829,7 +759,6 @@
       "label": "Focus color",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -854,7 +783,6 @@
       "unit": "px",
       "default": 80
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -917,7 +845,6 @@
       "unit": "px",
       "default": 8
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -952,7 +879,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -975,7 +901,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"

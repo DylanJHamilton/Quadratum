@@ -1,0 +1,64 @@
+{%- liquid
+  assign bundle_variant = bundle_product.selected_or_first_available_variant
+  assign bundle_quantity = bundle_variant.quantity_rule.min | default: 1 | at_least: 1
+  assign bundle_allocation = bundle_variant.selected_selling_plan_allocation
+  assign bundle_available = bundle_variant.available
+  if bundle_variant == blank
+    assign bundle_available = false
+  endif
+  if bundle_product.requires_selling_plan and bundle_allocation == blank
+    assign bundle_available = false
+  endif
+  if bundle_variant.quantity_rule.max != blank and bundle_variant.quantity_rule.max < bundle_quantity
+    assign bundle_available = false
+  endif
+  assign bundle_price = bundle_variant.price
+  assign bundle_compare = bundle_variant.compare_at_price | default: bundle_price | at_least: bundle_price
+  if bundle_allocation != blank
+    assign bundle_price = bundle_allocation.price
+    assign bundle_compare = bundle_allocation.compare_at_price | default: bundle_price | at_least: bundle_price
+  endif
+  assign bundle_line = bundle_price | times: bundle_quantity
+  assign bundle_line_compare = bundle_compare | times: bundle_quantity
+-%}
+{%- case output -%}
+  {%- when 'available' -%}{{ bundle_available }}
+  {%- when 'line' -%}{% if bundle_available %}{{ bundle_line }}{% else %}0{% endif %}
+  {%- when 'compare' -%}{% if bundle_available %}{{ bundle_line_compare }}{% else %}0{% endif %}
+  {%- else -%}
+{%- liquid
+  assign bundle_image = bundle_variant.featured_image | default: bundle_product.featured_image
+  assign bundle_alt = bundle_image.alt | default: bundle_product.title
+  assign media_class = prefix | append: '__media'
+  assign content_class = prefix | append: '__content'
+  assign title_class = prefix | append: '__title'
+  if selectable == false
+    assign media_class = prefix | append: '__image-wrap'
+    assign content_class = prefix | append: '__item-content'
+    assign title_class = prefix | append: '__item-title'
+  endif
+-%}
+{% capture bundle_record %}{% if bundle_variant != blank %}{% render 'qtm-product-block-variant', product: bundle_product, variant: bundle_variant, image_width: 600 %}{% else %}null{% endif %}{% endcapture %}
+<article class="{{ prefix }}__item" data-bundle-item data-item-product-id="{{ bundle_product.id }}" data-item-record="{{ bundle_record | escape }}" data-requires-plan="{{ bundle_product.requires_selling_plan }}" data-initial-plan="{{ bundle_allocation.selling_plan.id }}" data-initial-plan-name="{{ bundle_allocation.selling_plan.name | escape }}" data-current-item="{{ is_current }}">
+  {% if selectable %}<label class="{{ prefix }}__check" data-bundle-select-label hidden><input class="{{ prefix }}__checkbox" data-bundle-select type="checkbox" {% if bundle_available %}checked{% else %}disabled{% endif %} aria-label="{{ block.settings.select_item_label | default: 'Select item' | escape }}: {{ bundle_product.title | escape }}"></label>{% endif %}
+  <a class="{{ media_class }}" href="{{ bundle_product.url | escape }}" aria-label="{{ bundle_product.title | escape }}">
+    {% if bundle_image %}{% assign image_class = prefix | append: '__image' %}{{ bundle_image | image_url: width: 600 | image_tag: class: image_class, loading: 'lazy', widths: '160, 240, 360, 480, 600', alt: bundle_alt }}{% else %}<span class="{{ prefix }}__placeholder" aria-hidden="true"></span>{% endif %}
+  </a>
+  <div class="{{ content_class }}">
+    {% if selectable and is_current and block.settings.current_product_badge != blank %}<span class="{{ prefix }}__badge">{{ block.settings.current_product_badge | escape }}</span>{% endif %}
+    {% if selectable and block.settings.show_vendor and bundle_product.vendor != blank %}<div class="{{ prefix }}__vendor">{{ bundle_product.vendor | escape }}</div>{% endif %}
+    <h3 class="{{ title_class }}"><a href="{{ bundle_product.url | escape }}">{{ bundle_product.title | escape }}</a></h3>
+    <span class="{{ prefix }}__variant" data-bundle-variant-title {% if bundle_variant.title == 'Default Title' or bundle_variant == blank %}hidden{% endif %}>{{ bundle_variant.title | escape }}</span>
+    <span data-bundle-plan-name {% if bundle_allocation == blank %}hidden{% endif %}>{{ bundle_allocation.selling_plan.name | escape }}</span>
+    <span data-bundle-quantity-label>{{ block.settings.quantity_label | escape }} <span data-bundle-quantity-value>{{ bundle_quantity }}</span></span>
+    {% if selectable == false or block.settings.show_price %}
+      <div class="{{ prefix }}__price-row" {% if bundle_variant == blank %}hidden{% endif %} data-bundle-price-row><span class="{{ prefix }}__price" data-bundle-price>{{ bundle_line | money }}</span>{% if selectable %}<s class="{{ prefix }}__compare" data-bundle-compare {% if bundle_line_compare <= bundle_line %}hidden{% endif %}>{{ bundle_line_compare | money }}</s>{% endif %}</div>
+    {% endif %}
+    <span class="{{ prefix }}__unavailable" data-bundle-unavailable {% if bundle_available %}hidden{% endif %}>{% if bundle_product.requires_selling_plan and bundle_allocation == blank %}{{ block.settings.options_required_label | escape }}{% else %}{{ block.settings.item_unavailable_label | escape }}{% endif %}</span>
+    <input type="hidden" name="items[{{ index }}][id]" data-bundle-id value="{{ bundle_variant.id }}" {% unless bundle_available %}disabled{% endunless %}>
+    <input type="hidden" name="items[{{ index }}][quantity]" data-bundle-quantity value="{{ bundle_quantity }}" {% unless bundle_available %}disabled{% endunless %}>
+    <input type="hidden" name="items[{{ index }}][selling_plan]" data-bundle-plan value="{{ bundle_allocation.selling_plan.id }}" {% if bundle_available == false or bundle_allocation == blank %}disabled{% endif %}>
+  </div>
+</article>
+
+{%- endcase -%}

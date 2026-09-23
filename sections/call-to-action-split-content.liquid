@@ -61,7 +61,7 @@
 %}
 
 <section id="section-{{ section.id }}"
-  class="q-cta-split-content"
+  class="q-cta-split-content" data-video-hero
   role="region"
   aria-label="{{ region_label | escape }}"
   style="
@@ -94,10 +94,10 @@
               class: 'q-img', alt: qtm_image_alt }}
           {% endif %}
         {% elsif s.media_type == 'video' %}
-          {% if s.video_hosted != nil %}
+          {% if s.video_hosted != blank %}
             <video class="q-video"
                    playsinline muted loop
-                   {% unless settings.reduce_motion_mode %}autoplay{% endunless %}
+
                    {% if s.video_poster != blank %}poster="{{ s.video_poster | image_url: width: 1536 }}"{% endif %}>
               {% for video_source in s.video_hosted.sources %}
                 <source src="{{ video_source.url | escape }}" type="{{ video_source.mime_type | escape }}">
@@ -108,7 +108,7 @@
           {% if s.video_external != blank %}
             <div class="q-embed">
               <iframe
-                src="{{ s.video_external | escape }}"
+                src="{% if s.video_external.type == 'youtube' %}https://www.youtube.com/embed/{{ s.video_external.id | escape }}?playsinline=1{% elsif s.video_external.type == 'vimeo' %}https://player.vimeo.com/video/{{ s.video_external.id | escape }}{% endif %}"
                 title="{{ s.heading | default: 'Video' | escape }}"
                 loading="lazy"
                 allow="autoplay; encrypted-media; picture-in-picture"
@@ -146,15 +146,17 @@
           {% endif %}
 
           <div class="q-ctas">
+            {% if s.primary_label != blank and s.primary_link != blank %}
             <a class="q-btn q-btn--primary{% if s.cta_style == 'outline' %} q-btn--outline{% elsif s.cta_style == 'link' %} q-btn--link{% endif %}"
-               href="{{ s.primary_link | default: '/collections/all' }}"
+               href="{{ s.primary_link | escape }}"
                data-cta="primary"
                aria-label="{{ s.primary_label | default: 'Shop the Collection' | escape }}">
               <span>{{ s.primary_label | default: 'Shop the Collection' }}</span>
             </a>
-            {% if s.secondary_link != blank or s.secondary_label != blank %}
+            {% endif %}
+            {% if s.secondary_link != blank and s.secondary_label != blank %}
               <a class="q-btn q-btn--secondary"
-                 href="{{ s.secondary_link | default: '/pages/about' }}"
+                 href="{{ s.secondary_link | escape }}"
                  data-cta="secondary"
                  aria-label="{{ s.secondary_label | default: 'Learn More' | escape }}">
                 <span>{{ s.secondary_label | default: 'Learn More' }}</span>
@@ -162,7 +164,7 @@
             {% endif %}
 
             {% if s.show_trust and s.trust_text != blank %}
-              <div class="q-trust" aria-live="polite">{{ s.trust_text }}</div>
+              <div class="q-trust" >{{ s.trust_text }}</div>
             {% endif %}
           </div>
         </div>
@@ -194,7 +196,7 @@
     #section-{{ section.id }} .q-grid{
       position: relative; z-index: 1;
       display: grid; gap: 0;
-      grid-template-columns: var(--q-col-left) var(--q-col-right);
+      grid-template-columns: minmax(0,var(--q-col-left)) minmax(0,var(--q-col-right));
       align-items: stretch;
       max-width: {{ settings.container_lg | default: 1152 }}px;
       margin-inline: auto;
@@ -222,10 +224,10 @@
     #section-{{ section.id }} .q-content{ display:flex; align-items:center; justify-content: var(--q-align); position: relative; }
     #section-{{ section.id }} .q-inner{
       padding: 1.25rem;
-      max-width: 58ch;
+      display:flex; flex-direction:column; max-width:58ch;
       width: 100%;
       opacity: 0; transform: translateY(8px);
-      animation: q-cta-fade-up .4s ease forwards;
+      animation: q-cta-fade-up-{{ section.id }} .4s ease forwards;
     }
     @media (min-width: 768px){
       #section-{{ section.id }} .q-inner{ padding: 2rem; }
@@ -233,7 +235,7 @@
     @media (prefers-reduced-motion: reduce){
       #section-{{ section.id }} .q-inner{ opacity:1; transform:none; animation:none; }
     }
-    @keyframes q-cta-fade-up{ to { opacity:1; transform:none; } }
+    @keyframes q-cta-fade-up-{{ section.id }}{ to { opacity:1; transform:none; } }
 
     /* Emphasis modes */
     {% if s.highlight_mode == 'bar' %}
@@ -246,14 +248,14 @@
     #section-{{ section.id }} .q-content::before{
       content:""; position:absolute; inset:0; pointer-events:none;
       background: linear-gradient(90deg,
-        {{ s.highlight_color | default: settings.color_primary | default: '#2563eb' }}1a 0%,
+        {{ s.highlight_color | default: settings.color_primary | default: '#2563eb' | color_modify: 'alpha', 0.1 }} 0%,
         transparent 42%);
     }
     {% endif %}
 
     /* Offer row */
     #section-{{ section.id }} .q-offer{
-      display:flex; align-items:center; gap:.5rem; margin: 0 0 .5rem 0;
+      display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; margin: 0 0 .5rem 0;
     }
     #section-{{ section.id }} .q-offer-badge{
       display:inline-flex; align-items:center; padding:.25rem .5rem;
@@ -328,8 +330,18 @@
     #section-{{ section.id }} .q-trust{
       margin-top:.5rem; font-size:.9rem; color: {{ settings.text_muted | default: '#6b7280' }};
     }
+
+    #section-{{ section.id }} * { box-sizing:border-box; min-width:0; overflow-wrap:anywhere; }
+    #section-{{ section.id }} .q-btn { min-height:44px; max-width:100%; }
+    #section-{{ section.id }} [data-video-hero-toggle] { position:relative; z-index:2; min-height:44px; max-width:100%; padding:8px 12px; background:#111; color:#fff; border:1px solid #fff; }
+    #section-{{ section.id }} [hidden] { display:none; }
+    @media (prefers-reduced-motion:reduce) {
+      #section-{{ section.id }} .q-btn, #section-{{ section.id }} .q-btn span::after { transition:none; transform:none; }
+    }
   </style>
+  {% if s.media_type == 'video' and s.video_hosted != blank %}<button type="button" data-video-hero-toggle hidden aria-pressed="false">Pause background video</button>{% endif %}
 </section>
+<script src="{{ 'video-hero-banner.js' | asset_url }}" defer="defer"></script>
 
 {% schema %}
 {
@@ -404,10 +416,10 @@
 
     { "type": "checkbox", "id": "show_offer", "label": "Show offer row", "default": false },
     { "type": "text", "id": "offer_badge", "label": "Offer badge", "default": "Limited Time" },
-    { "type": "text", "id": "offer_subtext", "label": "Offer subtext", "default": "Free shipping today only" },
+    { "type": "text", "id": "offer_subtext", "label": "Offer subtext", "default": "Add your offer details" },
 
     { "type": "checkbox", "id": "show_trust", "label": "Show trust note", "default": false },
-    { "type": "text", "id": "trust_text", "label": "Trust note", "default": "Over 5,000 happy customers" },
+    { "type": "text", "id": "trust_text", "label": "Trust note", "default": "Add a verified customer milestone" },
 
     { "type": "header", "content": "Accessibility" },
     { "type": "text", "id": "region_label", "label": "Region label", "default": "Promotional content" }
@@ -423,7 +435,7 @@
         "primary_label": "Shop the Collection",
         "primary_link": "/collections/all",
         "secondary_label": "Learn More",
-        "secondary_link": "/pages/about",
+
         "media_type": "image",
         "media_position": "left",
         "ratio": "50-50",
@@ -433,11 +445,11 @@
         "cta_style": "solid",
         "highlight_mode": "bar",
         "highlight_color": "#2563eb",
-        "show_offer": true,
+        "show_offer": false,
         "offer_badge": "Limited Time",
-        "offer_subtext": "Free shipping today only",
-        "show_trust": true,
-        "trust_text": "Over 5,000 happy customers"
+        "offer_subtext": "Add your offer details",
+        "show_trust": false,
+        "trust_text": "Add a verified customer milestone"
       }
     }
   ]

@@ -20,13 +20,11 @@
 {{ 'account-main-account-orders.css' | asset_url | stylesheet_tag }}
 <script src="{{ 'account-main-account-orders.js' | asset_url }}" defer="defer"></script>
 
+{%- capture account_card_fg -%}{%- render 'contrast-text', bg: section.settings.card_background, preferred: settings.text_base -%}{%- endcapture -%}
 {%- liquid
   assign layout_style = section.settings.layout_style
 
   assign tracking_url = section.settings.tracking_url
-  if tracking_url == blank
-    assign tracking_url = '/pages/order-tracking'
-  endif
 
   assign empty_button_url = section.settings.empty_button_url
   if empty_button_url == blank
@@ -44,6 +42,7 @@
     --qtm-account-heading-size: {{ section.settings.heading_font_size }}px;
     --qtm-account-body-size: {{ section.settings.body_font_size }}px;
     --qtm-account-meta-size: {{ section.settings.meta_font_size }}px;
+    --qtm-account-card-fg: {{ account_card_fg | strip }};
     --qtm-account-card-bg: {{ section.settings.card_background }};
     --qtm-account-card-border: {{ section.settings.card_border }};
     --qtm-account-radius: {{ section.settings.card_radius }}px;
@@ -61,19 +60,19 @@
       <header class="qtmAccountOrders__header">
         <div>
           <h1 class="qtmAccountOrders__heading">
-            {{ section.settings.heading }}
+            {{ section.settings.heading | escape }}
           </h1>
 
           {% if section.settings.subheading != blank %}
             <p class="qtmAccountOrders__subheading">
-              {{ section.settings.subheading }}
+              {{ section.settings.subheading | escape }}
             </p>
           {% endif %}
         </div>
       </header>
 
       {% if section.settings.show_account_nav %}
-        {% render 'account-main-account-nav',
+        {% render 'account-main-account-nav', section: section,
           active: 'orders',
           show_tracking: true,
           tracking_url: tracking_url,
@@ -85,7 +84,7 @@
       {% paginate customer.orders by section.settings.orders_per_page %}
         {% if customer.orders.size > 0 %}
           {% if section.settings.show_order_search or section.settings.show_status_filters or section.settings.show_sort %}
-            <div class="qtmAccountOrders__controls" aria-label="Order controls">
+            <div class="qtmAccountOrders__controls" hidden data-qtm-orders-controls aria-label="Order controls">
               {% if section.settings.show_order_search %}
                 <div class="qtmAccountOrders__controlGroup qtmAccountOrders__controlGroup--search">
                   <label for="QtmAccountOrdersSearch-{{ section.id }}" class="qtmAccountOrders__controlLabel">
@@ -96,7 +95,7 @@
                     id="QtmAccountOrdersSearch-{{ section.id }}"
                     class="qtmAccountOrders__search"
                     type="search"
-                    placeholder="{{ section.settings.search_placeholder }}"
+                    placeholder="{{ section.settings.search_placeholder | escape }}"
                     autocomplete="off"
                     data-qtm-account-orders-search
                   >
@@ -144,7 +143,7 @@
                     Unfulfilled
                   </button>
 
-                  <button type="button" class="qtmAccountOrders__filter" data-qtm-account-orders-filter="partially-fulfilled" aria-pressed="false">
+                  <button type="button" class="qtmAccountOrders__filter" data-qtm-account-orders-filter="partial" aria-pressed="false">
                     Partially fulfilled
                   </button>
 
@@ -159,7 +158,7 @@
           <p
             class="qtmAccountOrders__resultCount"
             aria-live="polite"
-            data-qtm-account-orders-count
+            data-qtm-account-orders-count hidden
           ></p>
 
           <div
@@ -167,10 +166,10 @@
             data-qtm-account-orders-list
             aria-label="Customer orders"
           >
-            <div class="qtmAccountOrders__tableWrap">
+            <div class="qtmAccountOrders__tableWrap" tabindex="0" role="region" aria-label="Orders on this page">
               <table class="qtmAccountOrders__table">
                 <caption class="qtmAccountOrders__visuallyHidden">
-                  Full customer order history
+                  Customer orders on this page
                 </caption>
 
                 <thead>
@@ -190,8 +189,11 @@
                 <tbody data-qtm-account-orders-table-body>
                   {% for order in customer.orders %}
                     {%- liquid
-                      assign financial_status = order.financial_status_label | downcase | handleize
-                      assign fulfillment_status = order.fulfillment_status_label | downcase | handleize
+                      assign financial_status = order.financial_status | replace: '_', '-'
+                      assign fulfillment_status = order.fulfillment_status | default: 'unfulfilled' | replace: '_', '-'
+                      if fulfillment_status == 'complete'
+                        assign fulfillment_status = 'fulfilled'
+                      endif
 
                       assign order_statuses = financial_status | append: ' ' | append: fulfillment_status
 
@@ -199,7 +201,8 @@
                         assign order_statuses = order_statuses | append: ' cancelled'
                       endif
 
-                      assign order_search = order.name | append: ' ' | append: order.created_at | append: ' ' | append: order.financial_status_label | append: ' ' | append: order.fulfillment_status_label | append: ' ' | append: order.total_price | strip_html | downcase
+                      assign displayed_date = order.created_at | date: format: 'abbreviated_date'
+                      assign order_search = order.name | append: ' ' | append: displayed_date | append: ' ' | append: order.financial_status_label | append: ' ' | append: order.fulfillment_status_label | append: ' ' | append: order.total_price | strip_html | downcase
 
                       assign item_count = order.item_count
                       if item_count == blank
@@ -212,12 +215,12 @@
                       data-qtm-account-orders-item
                       data-order-status="{{ order_statuses | escape }}"
                       data-order-date="{{ order.created_at | date: '%s' }}"
-                      data-order-total="{{ order.total_price }}"
+                      data-order-total="{{ order.total_price | escape }}"
                       data-order-search="{{ order_search | escape }}"
                     >
                       <td data-label="Order">
-                        <a href="{{ order.customer_url }}" class="qtmAccountOrders__orderLink">
-                          {{ order.name }}
+                        <a href="{{ order.customer_url | escape }}" class="qtmAccountOrders__orderLink">
+                          {{ order.name | escape }}
                         </a>
                       </td>
 
@@ -227,13 +230,13 @@
 
                       <td data-label="Payment">
                         <span class="qtmAccountOrders__badge qtmAccountOrders__badge--{{ financial_status }}">
-                          {{ order.financial_status_label }}
+                          {{ order.financial_status_label | escape }}
                         </span>
                       </td>
 
                       <td data-label="Fulfillment">
                         <span class="qtmAccountOrders__badge qtmAccountOrders__badge--{{ fulfillment_status }}">
-                          {{ order.fulfillment_status_label }}
+                          {{ order.fulfillment_status_label | escape }}
                         </span>
                       </td>
 
@@ -246,7 +249,7 @@
                       </td>
 
                       <td data-label="Action">
-                        <a href="{{ order.customer_url }}" class="qtmAccountOrders__viewLink">
+                        <a href="{{ order.customer_url | escape }}" class="qtmAccountOrders__viewLink">
                           View order
                         </a>
                       </td>
@@ -259,8 +262,11 @@
             <div class="qtmAccountOrders__cards" data-qtm-account-orders-card-list>
               {% for order in customer.orders %}
                 {%- liquid
-                  assign financial_status = order.financial_status_label | downcase | handleize
-                  assign fulfillment_status = order.fulfillment_status_label | downcase | handleize
+                  assign financial_status = order.financial_status | replace: '_', '-'
+                  assign fulfillment_status = order.fulfillment_status | default: 'unfulfilled' | replace: '_', '-'
+                      if fulfillment_status == 'complete'
+                        assign fulfillment_status = 'fulfilled'
+                      endif
 
                   assign order_statuses = financial_status | append: ' ' | append: fulfillment_status
 
@@ -268,7 +274,8 @@
                     assign order_statuses = order_statuses | append: ' cancelled'
                   endif
 
-                  assign order_search = order.name | append: ' ' | append: order.created_at | append: ' ' | append: order.financial_status_label | append: ' ' | append: order.fulfillment_status_label | append: ' ' | append: order.total_price | strip_html | downcase
+                  assign displayed_date = order.created_at | date: format: 'abbreviated_date'
+                      assign order_search = order.name | append: ' ' | append: displayed_date | append: ' ' | append: order.financial_status_label | append: ' ' | append: order.fulfillment_status_label | append: ' ' | append: order.total_price | strip_html | downcase
 
                   assign item_count = order.item_count
                   if item_count == blank
@@ -281,15 +288,15 @@
                   data-qtm-account-orders-item
                   data-order-status="{{ order_statuses | escape }}"
                   data-order-date="{{ order.created_at | date: '%s' }}"
-                  data-order-total="{{ order.total_price }}"
+                  data-order-total="{{ order.total_price | escape }}"
                   data-order-search="{{ order_search | escape }}"
-                  aria-label="Order {{ order.name }}"
+                  aria-label="Order {{ order.name | escape }}"
                 >
                   <div class="qtmAccountOrders__cardHeader">
                     <div>
                       <h2 class="qtmAccountOrders__cardTitle">
-                        <a href="{{ order.customer_url }}">
-                          {{ order.name }}
+                        <a href="{{ order.customer_url | escape }}">
+                          {{ order.name | escape }}
                         </a>
                       </h2>
 
@@ -298,7 +305,7 @@
                       </p>
                     </div>
 
-                    <a href="{{ order.customer_url }}" class="qtmAccountOrders__viewLink">
+                    <a href="{{ order.customer_url | escape }}" class="qtmAccountOrders__viewLink">
                       View order
                     </a>
                   </div>
@@ -308,7 +315,7 @@
                       <dt>Payment</dt>
                       <dd>
                         <span class="qtmAccountOrders__badge qtmAccountOrders__badge--{{ financial_status }}">
-                          {{ order.financial_status_label }}
+                          {{ order.financial_status_label | escape }}
                         </span>
                       </dd>
                     </div>
@@ -317,7 +324,7 @@
                       <dt>Fulfillment</dt>
                       <dd>
                         <span class="qtmAccountOrders__badge qtmAccountOrders__badge--{{ fulfillment_status }}">
-                          {{ order.fulfillment_status_label }}
+                          {{ order.fulfillment_status_label | escape }}
                         </span>
                       </dd>
                     </div>
@@ -353,18 +360,18 @@
           {% endif %}
         {% else %}
           <div class="qtmAccountOrders__empty">
-            <h2>{{ section.settings.empty_heading }}</h2>
+            <h2>{{ section.settings.empty_heading | escape }}</h2>
 
             {% if section.settings.empty_text != blank %}
-              <p>{{ section.settings.empty_text }}</p>
+              <p>{{ section.settings.empty_text | escape }}</p>
             {% endif %}
 
             {% if section.settings.empty_button_label != blank %}
               <a
-                href="{{ empty_button_url }}"
+                href="{{ empty_button_url | escape }}"
                 class="qtmAccountOrders__button qtmAccountOrders__button--{{ section.settings.button_style }}"
               >
-                {{ section.settings.empty_button_label }}
+                {{ section.settings.empty_button_label | escape }}
               </a>
             {% endif %}
           </div>
@@ -373,13 +380,13 @@
     {% else %}
       <div class="qtmAccountOrders__empty">
         <h1 class="qtmAccountOrders__heading">
-          {{ section.settings.heading }}
+          {{ section.settings.heading | escape }}
         </h1>
 
         <p>Please sign in to view your orders.</p>
 
         <a
-          href="{{ routes.account_login_url }}"
+          href="{{ routes.account_login_url | escape }}"
           class="qtmAccountOrders__button qtmAccountOrders__button--{{ section.settings.button_style }}"
         >
           Sign in
@@ -395,6 +402,10 @@
   "tag": "section",
   "class": "qtm-account-main-orders",
   "settings": [
+    {
+      "type": "paragraph",
+      "content": "Legacy customer-account theme surface. Shopify owns authentication, account data and native form processing; current customer accounts are managed outside the theme. Tracking links require merchant configuration or native fulfillment data."
+    },
     {
       "type": "select",
       "id": "layout_style",

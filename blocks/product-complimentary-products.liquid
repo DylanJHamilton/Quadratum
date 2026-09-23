@@ -17,11 +17,35 @@
   assign rendered_products = 0
   assign recommendations_url = ''
 
-  if product_context != blank
-    assign recommendations_url = routes.product_recommendations_url | append: '?section_id=' | append: section.id | append: '&product_id=' | append: product_context.id | append: '&limit=' | append: product_limit | append: '&intent=complementary'
+  assign recommendations_limit = product_limit | at_most: 10 | at_least: 1
+  if product_context != blank and section.id != blank
+    assign recommendations_url = routes.product_recommendations_url | append: '?section_id=' | append: section.id | append: '&product_id=' | append: product_context.id | append: '&limit=' | append: recommendations_limit | append: '&intent=complementary'
   endif
 -%}
 
+{% assign native_recommendations = false %}{% assign card_products = block.settings.products %}
+{% if block.settings.enable_shopify_recommendations and recommendations.performed and recommendations.intent == 'complementary' and recommendations.products_count > 0 %}{% assign card_products = recommendations.products %}{% assign native_recommendations = true %}{% endif %}
+{% capture product_cards %}
+  {% for card_product in card_products %}
+    {% if card_product == blank or card_product.id == product_context.id %}{% continue %}{% endif %}
+
+    {% render 'qtm-block-product-card', card_product: card_product, prefix: 'product-complementary-products', block: block %}
+    {% assign rendered_products = rendered_products | plus: 1 %}
+    {% if rendered_products >= product_limit %}{% break %}{% endif %}
+  {% endfor %}
+{% endcapture %}
+{% if rendered_products == 0 and native_recommendations %}{% assign native_recommendations = false %}{% assign card_products = block.settings.products %}
+{% capture product_cards %}
+  {% for card_product in card_products %}
+    {% if card_product == blank or card_product.id == product_context.id %}{% continue %}{% endif %}
+
+    {% render 'qtm-block-product-card', card_product: card_product, prefix: 'product-complementary-products', block: block %}
+    {% assign rendered_products = rendered_products | plus: 1 %}
+    {% if rendered_products >= product_limit %}{% break %}{% endif %}
+  {% endfor %}
+{% endcapture %}
+{% endif %}
+{% assign has_card_controls = false %}{% if layout_style == 'carousel' and block.settings.show_arrows %}{% assign has_card_controls = true %}{% endif %}
 <div
   id="{{ block_id }}"
   class="
@@ -29,10 +53,10 @@
     product-complementary-products--{{ layout_style }}
     product-complementary-products--width-{{ width }}
     product-complementary-products--align-{{ alignment }}
-    {% unless show_on_desktop %} product-complementary-products--hide-desktop{% endunless %}
-    {% unless show_on_tablet %} product-complementary-products--hide-tablet{% endunless %}
-    {% unless show_on_mobile %} product-complementary-products--hide-mobile{% endunless %}
-    {% if block.settings.animation_style != 'none' %} product-complementary-products--animate product-complementary-products--animate-{{ block.settings.animation_style }}{% endif %}
+    {% unless show_on_desktop or request.design_mode %} product-complementary-products--hide-desktop{% endunless %}
+    {% unless show_on_tablet or request.design_mode %} product-complementary-products--hide-tablet{% endunless %}
+    {% unless show_on_mobile or request.design_mode %} product-complementary-products--hide-mobile{% endunless %}
+    {% if block.settings.animation_style != 'none' and request.design_mode == false %} product-complementary-products--animate product-complementary-products--animate-{{ block.settings.animation_style }}{% endif %}
   "
   style="
     --product-complementary-margin-top: {{ block.settings.margin_top }}px;
@@ -65,12 +89,19 @@
     data-variant-id="{{ current_variant.id }}"
   {% endif %}
   data-product-complementary-products
-  data-recommendations-url="{{ recommendations_url }}"
+  data-recommendations-url="{{ recommendations_url | escape }}"
   data-dynamic-recommendations="{{ block.settings.enable_shopify_recommendations }}"
-  {{ block.shopify_attributes }}
+  data-recommendations-performed="{% if recommendations.performed and recommendations.intent == 'complementary' %}true{% else %}false{% endif %}"
+  data-native-recommendations="{{ native_recommendations }}"
+  data-qtm-product-cards
+  data-carousel="{% if layout_style == 'carousel' %}true{% else %}false{% endif %}"
+  {% if rendered_products == 0 and block.settings.show_empty_state == false and request.design_mode == false %}hidden{% endif %}
 >
   <style>
     #{{ block_id }} {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-wrap: anywhere;
       width: 100%;
       margin-top: var(--product-complementary-margin-top);
       margin-bottom: var(--product-complementary-margin-bottom);
@@ -219,13 +250,10 @@
       overflow-x: auto;
       scroll-snap-type: x mandatory;
       scroll-behavior: smooth;
-      scrollbar-width: none;
-      padding-bottom: 2px;
+      scrollbar-width: thin;
+      padding-bottom: 6px;
     }
 
-    #{{ block_id }}.product-complementary-products--carousel .product-complementary-products__items::-webkit-scrollbar {
-      display: none;
-    }
 
     #{{ block_id }}.product-complementary-products--carousel .product-complementary-products__item {
       flex: 0 0 calc((100% - (var(--product-complementary-gap) * (var(--product-complementary-columns-desktop) - 1))) / var(--product-complementary-columns-desktop));
@@ -409,13 +437,9 @@
       line-height: 1.45;
     }
 
-    #{{ block_id }}.product-complementary-products--is-loading .product-complementary-products__items {
-      opacity: 0.45;
-      pointer-events: none;
-    }
 
     #{{ block_id }}.product-complementary-products--animate {
-      opacity: 0;
+      opacity: 1;
       animation-duration: 700ms;
       animation-fill-mode: forwards;
       animation-timing-function: ease;
@@ -534,328 +558,34 @@
         transform: none;
       }
     }
+    #{{ block_id }}[hidden], #{{ block_id }} [hidden] { display: none !important; }
+    #{{ block_id }} *, #{{ block_id }} *::before, #{{ block_id }} *::after { box-sizing: border-box; }
+    #{{ block_id }} .product-complementary-products__item { min-width: 0; }
+    #{{ block_id }} .product-complementary-products__items:focus-visible { outline: 2px solid var(--product-complementary-focus-color); outline-offset: 2px; }
+    #{{ block_id }} .product-complementary-products__card a:focus-visible { outline-offset: -3px; }
+    #{{ block_id }} .product-complementary-products__button { max-width: 100%; }
+    #{{ block_id }} .product-complementary-products__arrow:dir(rtl) { transform: scaleX(-1); }
   </style>
 
   <div class="product-complementary-products__inner">
-    {% if block.settings.show_header %}
-      <div class="product-complementary-products__header-row">
-        <div class="product-complementary-products__header">
-          {% if block.settings.eyebrow != blank %}
-            <p class="product-complementary-products__eyebrow">
-              {{ block.settings.eyebrow | escape }}
-            </p>
-          {% endif %}
-
-          {% if block.settings.heading != blank %}
-            <h2 class="product-complementary-products__heading">
-              {{ block.settings.heading | escape }}
-            </h2>
-          {% endif %}
-
-          {% if block.settings.description != blank %}
-            <p class="product-complementary-products__description">
-              {{ block.settings.description | escape }}
-            </p>
-          {% endif %}
-        </div>
-
-        {% if layout_style == 'carousel' and block.settings.show_arrows %}
-          <div class="product-complementary-products__controls">
-            <button
-              type="button"
-              class="product-complementary-products__arrow"
-              data-product-complementary-products-prev
-              aria-label="{{ block.settings.previous_label | escape }}"
-            >
-              ‹
-            </button>
-
-            <button
-              type="button"
-              class="product-complementary-products__arrow"
-              data-product-complementary-products-next
-              aria-label="{{ block.settings.next_label | escape }}"
-            >
-              ›
-            </button>
-          </div>
-        {% endif %}
+    <div class="product-complementary-products__header-row" {% unless block.settings.show_header or has_card_controls %}hidden{% endunless %}>
+      {% if block.settings.show_header %}
+      <div class="product-complementary-products__header">
+        {% if block.settings.eyebrow != blank %}<p class="product-complementary-products__eyebrow">{{ block.settings.eyebrow | escape }}</p>{% endif %}
+        {% if block.settings.heading != blank %}<h2 class="product-complementary-products__heading">{{ block.settings.heading | escape }}</h2>{% endif %}
+        {% if block.settings.description != blank %}<p class="product-complementary-products__description">{{ block.settings.description | escape }}</p>{% endif %}
       </div>
-    {% endif %}
-
-    <div
-      class="product-complementary-products__items"
-      data-product-complementary-products-items
-      aria-label="{{ block.settings.complementary_products_label | escape }}"
-      {% if layout_style == 'carousel' %}tabindex="0"{% endif %}
-    >
-      {% if block.settings.enable_shopify_recommendations and recommendations.performed and recommendations.products_count > 0 %}
-        {% for complementary_product in recommendations.products limit: product_limit %}
-          {% unless product_context != blank and complementary_product.id == product_context.id %}
-            {%- liquid
-              assign rendered_products = rendered_products | plus: 1
-              assign complementary_variant = complementary_product.selected_or_first_available_variant
-              assign is_on_sale = false
-              assign image_alt = complementary_product.title
-
-              if complementary_product.featured_image.alt != blank
-                assign image_alt = complementary_product.featured_image.alt
-              endif
-
-              if complementary_variant.compare_at_price > complementary_variant.price
-                assign is_on_sale = true
-              endif
-            -%}
-
-            <article class="product-complementary-products__item" data-product-complementary-products-item>
-              <div class="product-complementary-products__card">
-                <a class="product-complementary-products__media" href="{{ complementary_product.url }}" aria-label="{{ complementary_product.title | escape }}">
-                  {% if complementary_product.featured_image %}
-                    {% if rendered_products == 1 %}
-                      {{ complementary_product.featured_image | image_url: width: 900 | image_tag: loading: 'eager', widths: '260, 360, 480, 640, 800, 900', alt: image_alt }}
-                    {% else %}
-                      {{ complementary_product.featured_image | image_url: width: 900 | image_tag: loading: 'lazy', widths: '260, 360, 480, 640, 800, 900', alt: image_alt }}
-                    {% endif %}
-                  {% else %}
-                    <span class="product-complementary-products__placeholder" aria-hidden="true"></span>
-                  {% endif %}
-
-                  {% if block.settings.show_sale_badge and is_on_sale %}
-                    <span class="product-complementary-products__badge">
-                      {{ block.settings.sale_badge_text | escape }}
-                    </span>
-                  {% endif %}
-                </a>
-
-                <div class="product-complementary-products__content">
-                  {% if block.settings.show_vendor and complementary_product.vendor != blank %}
-                    <div class="product-complementary-products__vendor">
-                      {{ complementary_product.vendor | escape }}
-                    </div>
-                  {% endif %}
-
-                  <h3 class="product-complementary-products__title">
-                    <a href="{{ complementary_product.url }}">
-                      {{ complementary_product.title | escape }}
-                    </a>
-                  </h3>
-
-                  {% if block.settings.show_price %}
-                    <div class="product-complementary-products__price-row">
-                      <span class="product-complementary-products__price">
-                        {{ complementary_variant.price | money }}
-                      </span>
-
-                      {% if is_on_sale %}
-                        <span class="product-complementary-products__compare">
-                          {{ complementary_variant.compare_at_price | money }}
-                        </span>
-                      {% endif %}
-                    </div>
-                  {% endif %}
-
-                  {% if block.settings.show_button %}
-                    <a class="product-complementary-products__button" href="{{ complementary_product.url }}">
-                      {{ block.settings.button_label | escape }}
-                    </a>
-                  {% endif %}
-                </div>
-              </div>
-            </article>
-          {% endunless %}
-        {% endfor %}
       {% endif %}
-
-      {% if rendered_products == 0 %}
-        {% for complementary_product in block.settings.products limit: product_limit %}
-          {% if complementary_product != blank %}
-            {% unless product_context != blank and complementary_product.id == product_context.id %}
-              {%- liquid
-                assign rendered_products = rendered_products | plus: 1
-                assign complementary_variant = complementary_product.selected_or_first_available_variant
-                assign is_on_sale = false
-                assign image_alt = complementary_product.title
-
-                if complementary_product.featured_image.alt != blank
-                  assign image_alt = complementary_product.featured_image.alt
-                endif
-
-                if complementary_variant.compare_at_price > complementary_variant.price
-                  assign is_on_sale = true
-                endif
-              -%}
-
-              <article class="product-complementary-products__item" data-product-complementary-products-item>
-                <div class="product-complementary-products__card">
-                  <a class="product-complementary-products__media" href="{{ complementary_product.url }}" aria-label="{{ complementary_product.title | escape }}">
-                    {% if complementary_product.featured_image %}
-                      {% if forloop.first %}
-                        {{ complementary_product.featured_image | image_url: width: 900 | image_tag: loading: 'eager', widths: '260, 360, 480, 640, 800, 900', alt: image_alt }}
-                      {% else %}
-                        {{ complementary_product.featured_image | image_url: width: 900 | image_tag: loading: 'lazy', widths: '260, 360, 480, 640, 800, 900', alt: image_alt }}
-                      {% endif %}
-                    {% else %}
-                      <span class="product-complementary-products__placeholder" aria-hidden="true"></span>
-                    {% endif %}
-
-                    {% if block.settings.show_sale_badge and is_on_sale %}
-                      <span class="product-complementary-products__badge">
-                        {{ block.settings.sale_badge_text | escape }}
-                      </span>
-                    {% endif %}
-                  </a>
-
-                  <div class="product-complementary-products__content">
-                    {% if block.settings.show_vendor and complementary_product.vendor != blank %}
-                      <div class="product-complementary-products__vendor">
-                        {{ complementary_product.vendor | escape }}
-                      </div>
-                    {% endif %}
-
-                    <h3 class="product-complementary-products__title">
-                      <a href="{{ complementary_product.url }}">
-                        {{ complementary_product.title | escape }}
-                      </a>
-                    </h3>
-
-                    {% if block.settings.show_price %}
-                      <div class="product-complementary-products__price-row">
-                        <span class="product-complementary-products__price">
-                          {{ complementary_variant.price | money }}
-                        </span>
-
-                        {% if is_on_sale %}
-                          <span class="product-complementary-products__compare">
-                            {{ complementary_variant.compare_at_price | money }}
-                          </span>
-                        {% endif %}
-                      </div>
-                    {% endif %}
-
-                    {% if block.settings.show_button %}
-                      <a class="product-complementary-products__button" href="{{ complementary_product.url }}">
-                        {{ block.settings.button_label | escape }}
-                      </a>
-                    {% endif %}
-                  </div>
-                </div>
-              </article>
-            {% endunless %}
-          {% endif %}
-        {% endfor %}
+      {% if has_card_controls %}
+      <div class="product-complementary-products__controls" data-card-controls hidden>
+        <button type="button" class="product-complementary-products__arrow" data-card-prev aria-controls="{{ block_id }}-items" aria-label="{{ block.settings.previous_label | default: 'Previous products' | escape }}">‹</button>
+        <button type="button" class="product-complementary-products__arrow" data-card-next aria-controls="{{ block_id }}-items" aria-label="{{ block.settings.next_label | default: 'Next products' | escape }}">›</button>
+      </div>
       {% endif %}
     </div>
-
-    {% if rendered_products == 0 and block.settings.show_empty_state %}
-      <div class="product-complementary-products__empty" data-product-complementary-products-empty>
-        {{ block.settings.empty_text | escape }}
-      </div>
-    {% endif %}
+    <div id="{{ block_id }}-items" class="product-complementary-products__items" data-card-items role="region" aria-label="{{ block.settings.complementary_products_label | default: 'Products' | escape }}" {% if layout_style == 'carousel' %}tabindex="0"{% endif %}>{{ product_cards }}</div>
+    {% if rendered_products == 0 %}{% if block.settings.show_empty_state or request.design_mode %}<div class="product-complementary-products__empty" data-card-empty>{{ block.settings.empty_text | escape }}</div>{% endif %}{% endif %}
   </div>
-
-  <script>
-    (() => {
-      const root = document.getElementById({{ block_id | json }});
-
-      if (!root || root.dataset.productComplementaryProductsReady === 'true') return;
-
-      root.dataset.productComplementaryProductsReady = 'true';
-
-      const items = root.querySelector('[data-product-complementary-products-items]');
-      const previousButton = root.querySelector('[data-product-complementary-products-prev]');
-      const nextButton = root.querySelector('[data-product-complementary-products-next]');
-      const emptyState = root.querySelector('[data-product-complementary-products-empty]');
-
-      if (!items) return;
-
-      const hydrateRecommendations = async () => {
-        const url = root.dataset.recommendationsUrl;
-
-        if (root.dataset.dynamicRecommendations !== 'true') return;
-        if (!url) return;
-        if (items.children.length > 0) return;
-
-        root.classList.add('product-complementary-products--is-loading');
-
-        try {
-          const response = await fetch(url);
-
-          if (!response.ok) return;
-
-          const html = await response.text();
-          const doc = new DOMParser().parseFromString(html, 'text/html');
-          const incomingRoot = doc.querySelector(`#${CSS.escape(root.id)}`);
-          const incomingItems = incomingRoot ? incomingRoot.querySelector('[data-product-complementary-products-items]') : null;
-
-          if (incomingItems && incomingItems.children.length > 0) {
-            items.innerHTML = incomingItems.innerHTML;
-
-            if (emptyState) {
-              emptyState.hidden = true;
-            }
-          }
-        } catch (error) {
-          return;
-        } finally {
-          root.classList.remove('product-complementary-products--is-loading');
-          updateControls();
-        }
-      };
-
-      const updateControls = () => {
-        if (!previousButton && !nextButton) return;
-
-        const maxScroll = items.scrollWidth - items.clientWidth - 2;
-
-        if (previousButton) {
-          previousButton.disabled = items.scrollLeft <= 2;
-        }
-
-        if (nextButton) {
-          nextButton.disabled = items.scrollLeft >= maxScroll;
-        }
-      };
-
-      const scrollCarousel = (direction) => {
-        const firstItem = items.querySelector('[data-product-complementary-products-item]');
-        const amount = firstItem ? firstItem.getBoundingClientRect().width + 20 : items.clientWidth * 0.8;
-
-        items.scrollBy({
-          left: amount * direction,
-          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
-        });
-      };
-
-      if (previousButton) {
-        previousButton.addEventListener('click', () => scrollCarousel(-1));
-      }
-
-      if (nextButton) {
-        nextButton.addEventListener('click', () => scrollCarousel(1));
-      }
-
-      items.addEventListener('scroll', () => {
-        window.requestAnimationFrame(updateControls);
-      }, { passive: true });
-
-      items.addEventListener('keydown', (event) => {
-        if (event.key === 'ArrowLeft') {
-          event.preventDefault();
-          scrollCarousel(-1);
-        }
-
-        if (event.key === 'ArrowRight') {
-          event.preventDefault();
-          scrollCarousel(1);
-        }
-      });
-
-      window.addEventListener('resize', updateControls, { passive: true });
-
-      hydrateRecommendations();
-      updateControls();
-    })();
-  </script>
 </div>
 
 {% schema %}
@@ -870,7 +600,8 @@
       "type": "checkbox",
       "id": "enable_shopify_recommendations",
       "label": "Use Shopify complementary products",
-      "default": true
+      "default": true,
+      "info": "Uses Shopify complementary recommendations first. Manual products remain available before loading and if recommendations are empty or unavailable."
     },
     {
       "type": "product_list",
@@ -885,9 +616,9 @@
       "min": 2,
       "max": 12,
       "step": 1,
-      "default": 4
+      "default": 4,
+      "info": "Shopify returns at most 10 native recommendations. Manual fallback products can use the full limit."
     },
-
     {
       "type": "header",
       "content": "Header"
@@ -913,8 +644,7 @@
     {
       "type": "text",
       "id": "description",
-      "label": "Description",
-      "default": "Recommend products that pair naturally with the current item."
+      "label": "Description"
     },
     {
       "type": "range",
@@ -946,7 +676,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -983,7 +712,6 @@
       "label": "Show arrows on mobile",
       "default": false
     },
-
     {
       "type": "header",
       "content": "Product cards"
@@ -1034,7 +762,6 @@
       "unit": "px",
       "default": 16
     },
-
     {
       "type": "header",
       "content": "Images"
@@ -1065,7 +792,6 @@
       "unit": "%",
       "default": 125
     },
-
     {
       "type": "header",
       "content": "Columns"
@@ -1097,7 +823,6 @@
       "step": 1,
       "default": 1
     },
-
     {
       "type": "header",
       "content": "Empty state"
@@ -1106,7 +831,7 @@
       "type": "checkbox",
       "id": "show_empty_state",
       "label": "Show empty state",
-      "default": true
+      "default": false
     },
     {
       "type": "text",
@@ -1114,7 +839,6 @@
       "label": "Empty state text",
       "default": "Complementary products will appear when recommendations or fallback products are available."
     },
-
     {
       "type": "header",
       "content": "Accessibility labels"
@@ -1137,7 +861,6 @@
       "label": "Next label",
       "default": "Next complementary products"
     },
-
     {
       "type": "header",
       "content": "Colors"
@@ -1220,7 +943,6 @@
       "label": "Focus color",
       "default": "#111111"
     },
-
     {
       "type": "header",
       "content": "Border"
@@ -1245,7 +967,6 @@
       "unit": "px",
       "default": 18
     },
-
     {
       "type": "header",
       "content": "Container"
@@ -1298,7 +1019,6 @@
         }
       ]
     },
-
     {
       "type": "header",
       "content": "Spacing"
@@ -1353,7 +1073,6 @@
       "unit": "px",
       "default": 0
     },
-
     {
       "type": "header",
       "content": "Visibility"
@@ -1376,7 +1095,6 @@
       "label": "Show on mobile",
       "default": true
     },
-
     {
       "type": "header",
       "content": "Animation"
@@ -1415,7 +1133,7 @@
         "show_header": true,
         "eyebrow": "Pairs well with",
         "heading": "Pairs well with",
-        "description": "Recommend products that pair naturally with the current item.",
+        "description": "",
         "heading_size": 36,
         "heading_size_mobile": 28,
         "description_size": 16,
@@ -1434,7 +1152,7 @@
         "columns_desktop": 4,
         "columns_tablet": 3,
         "columns_mobile": 1,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Complementary products will appear when recommendations or fallback products are available.",
         "complementary_products_label": "Complementary products",
         "previous_label": "Previous complementary products",
@@ -1475,7 +1193,7 @@
         "show_header": true,
         "eyebrow": "Complete your setup",
         "heading": "Complete your setup",
-        "description": "Show add-ons and accessories that improve the current product experience.",
+        "description": "",
         "heading_size": 36,
         "heading_size_mobile": 28,
         "description_size": 16,
@@ -1494,7 +1212,7 @@
         "columns_desktop": 4,
         "columns_tablet": 3,
         "columns_mobile": 1,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Complementary products will appear when recommendations or fallback products are available.",
         "complementary_products_label": "Complete your setup products",
         "previous_label": "Previous setup products",
@@ -1535,7 +1253,7 @@
         "show_header": true,
         "eyebrow": "Add-ons",
         "heading": "Recommended add-ons",
-        "description": "Use a focused grid to show high-value complementary products.",
+        "description": "",
         "heading_size": 34,
         "heading_size_mobile": 26,
         "description_size": 15,
@@ -1554,7 +1272,7 @@
         "columns_desktop": 3,
         "columns_tablet": 3,
         "columns_mobile": 1,
-        "show_empty_state": true,
+        "show_empty_state": false,
         "empty_text": "Complementary products will appear when recommendations or fallback products are available.",
         "complementary_products_label": "Recommended add-on products",
         "previous_label": "Previous add-on products",

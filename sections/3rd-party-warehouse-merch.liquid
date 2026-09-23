@@ -1,366 +1,428 @@
 {% comment %}
-  Quadratum — 3rd Party: Warehouse Merch Strip
-  File: sections/3rd-party-warehouse-merch.liquid
-
-  Theme-only warehouse-aware merchandising (no APIs):
-  - Resolve warehouse code from:
-      1) product.metafields.fulfillment.warehouse (metaobject reference) [optional]
-      2) product.metafields.fulfillment.warehouse_code (single-line text)
-      3) product tag fallback: warehouse:CODE
-
-  - Map warehouse_code -> curated collection via Theme Settings (slots 1..12):
-      fulfillment_wh_group_{n}_code / _label / _desc / _collection / _chip_color
-
-  - Render products from mapped / forced / fallback collection, excluding current product.
-  - Grid or scroll-snap carousel; token-driven styles via scoped CSS vars.
-
-  UX note:
-  - If hide_if_no_results is enabled and we have 0 items, storefront renders nothing.
-  - In Theme Editor (design mode), we show a debug panel instead of “nothing.”
+  Warehouse Merch: curated collections, no live warehouse inventory or shipping API.
+  Identity: metaobject with code > text metafield > first nonblank warehouse: tag.
+  Collection: metaobject > section mapping blocks > retained legacy settings slots.
+  Forced and fallback collections do not inherit a mapped-group chip.
 {% endcomment %}
-
-{%- assign s = section.settings -%}
-{%- assign g = settings -%}
-
-{%- if product == blank -%}
-  {%- if request.design_mode -%}
-    <div style="padding:16px;border:1px dashed rgba(0,0,0,.25);border-radius:16px;">
-      <strong>3rd Party - Warehouse Merch Strip</strong><br>
-      This section is PDP-only. Add it to a <em>product</em> template to render.
+{%- liquid
+  assign s = section.settings
+  assign wh_code = ''
+  assign wh_label = ''
+  assign wh_desc = ''
+  assign wh_collection = ''
+  assign wh_chip_color = ''
+  assign wh_source = 'none'
+  assign mapped = false
+  assign mapping_block = ''
+  assign wh_mo = product.metafields.fulfillment.warehouse.value
+  assign meta_code = wh_mo.code.value | default: '' | strip
+  if meta_code != blank
+    assign wh_code = meta_code
+    assign wh_label = wh_mo.label.value | default: wh_mo.name.value | default: wh_code | strip
+    assign wh_collection = wh_mo.collection.value
+    assign wh_chip_color = wh_mo.chip_color.value
+    assign wh_source = 'metaobject'
+    capture wh_desc
+      if wh_mo.description.type == 'rich_text_field'
+        echo wh_mo.description | metafield_tag
+      else
+        echo wh_mo.description.value | escape | newline_to_br
+      endif
+    endcapture
+  endif
+  if wh_code == blank
+    assign code_field = product.metafields.fulfillment.warehouse_code
+    if code_field.type != blank
+      assign wh_code = code_field.value | default: '' | strip
+    else
+      assign wh_code = code_field | default: '' | strip
+    endif
+    if wh_code != blank
+      assign wh_source = 'metafield'
+    endif
+  endif
+  if wh_code == blank
+    for tag in product.tags
+      assign clean_tag = tag | strip
+      assign tag_prefix = clean_tag | slice: 0, 10 | downcase
+      if tag_prefix == 'warehouse:'
+        assign wh_code = clean_tag | slice: 10, 200 | strip
+        if wh_code != blank
+          assign wh_source = 'tag'
+          break
+        endif
+      endif
+    endfor
+  endif
+  assign wh_code_norm = wh_code | upcase
+  if wh_collection != blank and wh_collection.products == nil
+    assign wh_collection = collections[wh_collection]
+  endif
+  if wh_collection == blank and wh_code_norm != blank
+    for block in section.blocks
+      assign block_code = block.settings.code | strip | upcase
+      if block.type == 'warehouse_mapping' and block_code == wh_code_norm
+        assign mapping_block = block
+        assign wh_label = block.settings.label | default: wh_label | default: wh_code
+        assign wh_desc = block.settings.description | default: wh_desc
+        assign wh_collection = block.settings.collection
+        assign wh_chip_color = block.settings.chip_color | default: wh_chip_color
+        assign mapped = true
+        break
+      endif
+    endfor
+    unless mapped
+      for i in (1..12)
+        capture code_key
+          echo 'fulfillment_wh_group_' | append: i | append: '_code'
+        endcapture
+        assign legacy_code = settings[code_key] | default: '' | strip | upcase
+        if legacy_code == wh_code_norm
+          assign key_prefix = 'fulfillment_wh_group_' | append: i
+          assign label_key = key_prefix | append: '_label'
+          assign desc_key = key_prefix | append: '_desc'
+          assign collection_key = key_prefix | append: '_collection'
+          assign chip_key = key_prefix | append: '_chip_color'
+          assign wh_label = settings[label_key] | default: wh_label | default: wh_code
+          if settings[desc_key] != blank
+            assign wh_desc = settings[desc_key] | escape | newline_to_br
+          endif
+          assign wh_collection = settings[collection_key]
+          assign wh_chip_color = settings[chip_key] | default: wh_chip_color
+          assign mapped = true
+          break
+        endif
+      endfor
+    endunless
+  endif
+  if wh_collection != blank and wh_collection.products == nil
+    assign wh_collection = collections[wh_collection]
+  endif
+  assign source_mode_used = 'none'
+  assign source_collection = ''
+  if s.source_mode == 'force_collection'
+    assign source_collection = s.force_collection
+    assign source_mode_used = 'force_collection'
+  elsif wh_collection != blank
+    assign source_collection = wh_collection
+    assign source_mode_used = 'warehouse_mapped'
+  else
+    assign source_collection = s.fallback_collection
+    assign source_mode_used = 'fallback_collection'
+  endif
+  if source_collection != blank and source_collection.products == nil
+    assign source_collection = collections[source_collection]
+  endif
+  unless source_mode_used == 'warehouse_mapped'
+    assign wh_desc = ''
+  endunless
+  assign show_chip = false
+  if s.show_warehouse_chip and source_mode_used == 'warehouse_mapped'
+    assign show_chip = true
+  endif
+  assign chip_bg = wh_chip_color
+  if s.use_custom_colors and s.chip_bg_color != blank
+    assign chip_bg = s.chip_bg_color
+  endif
+  assign max_products = s.max_products | at_least: 4 | at_most: 12
+  assign shown = 0
+  capture cards
+    for p in source_collection.products limit: 50
+      if p.id != product.id and p.url != blank
+        echo '<li class="q-ware-strip__item">'
+        render 'card-product', product: p, warehouse_label: wh_label, show_warehouse_chip: show_chip, warehouse_chip_position: s.chip_position
+        echo '</li>'
+        assign shown = shown | plus: 1
+        if shown >= max_products
+          break
+        endif
+      endif
+    endfor
+  endcapture
+  assign visible = true
+  if product == blank
+    assign visible = false
+  elsif shown == 0 and s.hide_if_no_results
+    assign visible = false
+  endif
+-%}
+{%- if visible -%}
+{{ 'card-product.css' | asset_url | stylesheet_tag }}
+<section id="q-ware-strip-{{ section.id }}" class="q-ware-strip q-ware-strip--{{ s.layout_variant }}" aria-label="{{ s.heading | strip_html | default: 'Related products' | escape }}" {{ mapping_block.shopify_attributes }} style="
+  --q-ware-strip-bg:{% if s.use_custom_colors and s.bg_color != blank %}{{ s.bg_color }}{% else %}var(--c-bg,#fff){% endif %};
+  --q-card-product-bg:{% if s.use_custom_colors and s.card_bg_color != blank %}{{ s.card_bg_color }}{% else %}var(--c-surface,#f5f5f5){% endif %};
+  --q-card-product-text:{% if s.use_custom_colors and s.text_color != blank %}{{ s.text_color }}{% else %}var(--c-text,#111827){% endif %};
+  --q-card-product-muted:{% if s.use_custom_colors and s.muted_text_color != blank %}{{ s.muted_text_color }}{% else %}var(--c-muted,#666){% endif %};
+  --q-card-product-accent:{% if s.use_custom_colors and s.accent_color != blank %}{{ s.accent_color }}{% else %}var(--c-primary,currentColor){% endif %};
+  --q-card-product-chip-bg:{% if chip_bg != blank %}{{ chip_bg }}{% else %}var(--c-surface,#f5f5f5){% endif %};
+  --q-card-product-chip-text:{% if s.use_custom_colors and s.chip_text_color != blank %}{{ s.chip_text_color }}{% elsif chip_bg != blank %}{% render 'contrast-text', background: chip_bg, preferred: settings.text_on_color %}{% else %}var(--c-text,#111827){% endif %};
+  --q-ware-columns:{{ s.columns_desktop }};">
+  <div class="q-ware-strip__inner">
+    {%- if s.kicker != blank or s.heading != blank or s.body_richtext != blank or wh_desc != blank -%}
+      <header class="q-ware-strip__head">
+        {%- if s.kicker != blank -%}<div class="q-ware-strip__kicker">{{ s.kicker }}</div>{%- endif -%}
+        {%- if s.heading != blank -%}<h2 class="q-ware-strip__title">{{ s.heading }}</h2>{%- endif -%}
+        {%- if s.body_richtext != blank -%}<div class="q-ware-strip__body rte">{{ s.body_richtext }}</div>
+        {%- elsif wh_desc != blank and source_mode_used == 'warehouse_mapped' -%}<div class="q-ware-strip__body rte">{{ wh_desc }}</div>{%- endif -%}
+      </header>
+    {%- endif -%}
+    {%- if shown > 0 -%}
+      <ul role="list" class="q-ware-strip__track q-ware-strip__track--{{ s.layout_variant }}"{% if s.layout_variant == 'carousel' %} tabindex="0" aria-label="Browse related products"{% endif %}>{{ cards }}</ul>
+    {%- elsif s.empty_message != blank -%}<div class="q-ware-strip__empty">{{ s.empty_message }}</div>{%- endif -%}
+  </div>
+  <style>
+    #q-ware-strip-{{ section.id }}{background:var(--q-ware-strip-bg);color:var(--q-card-product-text);font-family:var(--font-body,inherit);overflow-wrap:anywhere}
+    #q-ware-strip-{{ section.id }} .q-ware-strip__inner{box-sizing:border-box;max-width:var(--container-lg,1200px);margin-inline:auto;padding:48px 24px;min-width:0}
+    #q-ware-strip-{{ section.id }} .q-ware-strip__head{margin-bottom:24px}
+    #q-ware-strip-{{ section.id }} .q-ware-strip__kicker{font-size:.9rem;letter-spacing:.02em;text-transform:uppercase;color:var(--q-card-product-muted);margin-bottom:8px}
+    #q-ware-strip-{{ section.id }} .q-ware-strip__title{font-family:var(--font-head,inherit);font-size:1.75rem;line-height:1.15;margin:0 0 12px;color:inherit}
+    #q-ware-strip-{{ section.id }} .q-ware-strip__body{color:var(--q-card-product-muted);max-width:70ch}
+    #q-ware-strip-{{ section.id }} .q-ware-strip__track{list-style:none;margin:0;padding:0;gap:20px}
+    #q-ware-strip-{{ section.id }} .q-ware-strip__track--grid{display:grid;grid-template-columns:repeat(var(--q-ware-columns),minmax(0,1fr))}
+    #q-ware-strip-{{ section.id }} .q-ware-strip__track--carousel{display:flex;overflow-x:auto;padding:4px 4px 12px;scroll-snap-type:x proximity}
+    #q-ware-strip-{{ section.id }} .q-ware-strip__item{position:relative;min-width:0}
+    #q-ware-strip-{{ section.id }} .q-ware-strip__track--carousel>.q-ware-strip__item{flex:0 0 min(320px,85%);scroll-snap-align:start}
+    #q-ware-strip-{{ section.id }} .q-ware-strip__empty{padding:24px;border-radius:16px;background:var(--q-card-product-bg);color:var(--q-card-product-muted)}
+    #q-ware-strip-{{ section.id }} :focus-visible{outline:3px solid var(--q-card-product-accent);outline-offset:-3px}
+    @media(max-width:990px){#q-ware-strip-{{ section.id }} .q-ware-strip__track--grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:640px){#q-ware-strip-{{ section.id }} .q-ware-strip__track--grid{grid-template-columns:minmax(0,1fr)}}
+  </style>
+</section>
+{%- endif -%}
+{%- if request.design_mode -%}
+  {%- unless visible -%}
+    <div role="status" style="padding:16px;border:1px dashed currentColor;">
+      <strong>Warehouse Merch:</strong> {% if product == blank %}Add this section to a product template.{% else %}No related products in the first 50 collection entries after excluding this product. Warehouse code: {{ wh_code_norm | default: '(blank)' | escape }} ({{ wh_source }}); source: {{ source_mode_used }}. Choose a collection or add a matching Warehouse mapping block.{% endif %}
     </div>
-  {%- endif -%}
-{%- else -%}
-
-  {%- comment -%}-----------------------------------------------
-    1) Resolve warehouse (metaobject -> metafield -> tag)
-  ------------------------------------------------{%- endcomment -%}
-  {%- assign wh_code = '' -%}
-  {%- assign wh_label = '' -%}
-  {%- assign wh_desc = '' -%}
-  {%- assign wh_collection = blank -%}
-  {%- assign wh_chip_color = blank -%}
-  {%- assign wh_source = 'none' -%}
-
-  {%- assign wh_mo = product.metafields.fulfillment.warehouse.value -%}
-  {%- if wh_mo != blank -%}
-    {%- assign wh_code = wh_mo.code.value | default: wh_mo.code | default: '' | strip -%}
-    {%- assign wh_label = wh_mo.label.value | default: wh_mo.label | default: wh_mo.name.value | default: wh_mo.name | default: '' | strip -%}
-    {%- assign wh_desc = wh_mo.description.value | default: wh_mo.description | default: '' -%}
-    {%- assign wh_collection = wh_mo.collection.value | default: wh_mo.collection -%}
-    {%- assign wh_chip_color = wh_mo.chip_color.value | default: wh_mo.chip_color -%}
-    {%- if wh_code != blank -%}{%- assign wh_source = 'metaobject' -%}{%- endif -%}
-  {%- endif -%}
-
-  {%- if wh_code == blank -%}
-    {%- assign wh_code = product.metafields.fulfillment.warehouse_code.value | default: product.metafields.fulfillment.warehouse_code | default: '' | strip -%}
-    {%- if wh_code != blank -%}{%- assign wh_source = 'metafield' -%}{%- endif -%}
-  {%- endif -%}
-
-  {%- if wh_code == blank -%}
-    {%- for t in product.tags -%}
-      {%- assign td = t | downcase | strip -%}
-      {%- assign td_prefix = td | slice: 0, 10 -%}
-      {%- if td_prefix == 'warehouse:' -%}
-        {%- assign parts = t | split: ':' -%}
-        {%- assign wh_code = parts | last | strip -%}
-        {%- if wh_code != blank -%}{%- assign wh_source = 'tag' -%}{%- endif -%}
-        {%- break -%}
-      {%- endif -%}
-    {%- endfor -%}
-  {%- endif -%}
-
-  {%- assign wh_code_norm = wh_code | strip | upcase -%}
-
-  {%- comment -%}-----------------------------------------------
-    2) Map warehouse code via Theme Settings (only if no metaobject collection)
-  ------------------------------------------------{%- endcomment -%}
-  {%- assign mapped = false -%}
-  {%- if wh_collection == blank and wh_code_norm != blank -%}
-    {%- for i in (1..12) -%}
-      {%- capture code_key -%}fulfillment_wh_group_{{ i }}_code{%- endcapture -%}
-      {%- capture label_key -%}fulfillment_wh_group_{{ i }}_label{%- endcapture -%}
-      {%- capture desc_key -%}fulfillment_wh_group_{{ i }}_desc{%- endcapture -%}
-      {%- capture coll_key -%}fulfillment_wh_group_{{ i }}_collection{%- endcapture -%}
-      {%- capture chip_key -%}fulfillment_wh_group_{{ i }}_chip_color{%- endcapture -%}
-
-      {%- assign code_val = g[code_key] | default: '' | strip | upcase -%}
-      {%- if code_val != blank and code_val == wh_code_norm -%}
-        {%- assign wh_label = g[label_key] | default: wh_label | strip -%}
-        {%- assign wh_desc = g[desc_key] | default: wh_desc -%}
-        {%- assign wh_collection = g[coll_key] -%}
-        {%- assign wh_chip_color = g[chip_key] | default: wh_chip_color -%}
-        {%- assign mapped = true -%}
-        {%- break -%}
-      {%- endif -%}
-    {%- endfor -%}
-  {%- endif -%}
-
-  {%- comment -%}-----------------------------------------------
-    3) Resolve source collection (force > mapped(metaobject/settings) > fallback)
-  ------------------------------------------------{%- endcomment -%}
-  {%- assign source_collection = blank -%}
-  {%- assign source_mode_used = 'none' -%}
-
-  {%- if s.source_mode == 'force_collection' and s.force_collection != blank -%}
-    {%- assign source_collection = s.force_collection -%}
-    {%- assign source_mode_used = 'force_collection' -%}
-  {%- elsif wh_collection != blank -%}
-    {%- assign source_collection = wh_collection -%}
-    {%- assign source_mode_used = 'warehouse_mapped' -%}
-  {%- elsif s.fallback_collection != blank -%}
-    {%- assign source_collection = s.fallback_collection -%}
-    {%- assign source_mode_used = 'fallback_collection' -%}
-  {%- endif -%}
-
-  {%- comment -%}-----------------------------------------------
-    4) Build product cards (exclude current product, limit)
-  ------------------------------------------------{%- endcomment -%}
-  {%- assign shown = 0 -%}
-  {%- capture cards -%}
-    {%- if source_collection != blank -%}
-      {%- for p in source_collection.products -%}
-        {%- if p.id != product.id -%}
-          <div class="q-ware-strip__item">
-            {%- if s.show_warehouse_chip and wh_label != blank and s.chip_position != 'below_title' -%}
-              <div class="q-ware-strip__chip q-ware-strip__chip--{{ s.chip_position }}"
-                {%- if wh_chip_color != blank -%}
-                  style="--q-ware-chip-bg: {{ wh_chip_color }};"
-                {%- endif -%}
-              >
-                <span class="q-ware-strip__chip-text">{{ wh_label }}</span>
-              </div>
-            {%- endif -%}
-
-            <div class="q-ware-strip__card">
-              {% render 'card-product',
-                product: p,
-                warehouse_label: wh_label,
-                warehouse_code: wh_code_norm,
-                show_warehouse_chip: s.show_warehouse_chip,
-                warehouse_chip_position: s.chip_position
-              %}
-
-              {%- if s.show_warehouse_chip and wh_label != blank and s.chip_position == 'below_title' -%}
-                <div class="q-ware-strip__chip q-ware-strip__chip--below"
-                  {%- if wh_chip_color != blank -%}
-                    style="--q-ware-chip-bg: {{ wh_chip_color }};"
-                  {%- endif -%}
-                >
-                  <span class="q-ware-strip__chip-text">{{ wh_label }}</span>
-                </div>
-              {%- endif -%}
-            </div>
-          </div>
-
-          {%- assign shown = shown | plus: 1 -%}
-          {%- if shown >= s.max_products -%}{%- break -%}{%- endif -%}
-        {%- endif -%}
-      {%- endfor -%}
-    {%- endif -%}
-  {%- endcapture -%}
-
-  {%- if shown == 0 and s.hide_if_no_results -%}
-    {%- if request.design_mode -%}
-      <div style="padding:16px;border:1px dashed rgba(0,0,0,.25);border-radius:16px;">
-        <strong>3rd Party - Warehouse Merch Strip</strong><br>
-        <div style="margin-top:8px;">
-          <div><strong>Why you see nothing:</strong> hide_if_no_results is enabled and the section found 0 products to render.</div>
-          <div style="margin-top:8px;">
-            <div><strong>warehouse_code:</strong> {{ wh_code_norm | default: '(blank)' }} <em>({{ wh_source }})</em></div>
-            <div><strong>mapping matched:</strong> {{ mapped }}</div>
-            <div><strong>source used:</strong> {{ source_mode_used }}</div>
-            <div><strong>source collection:</strong> {% if source_collection != blank %}{{ source_collection.handle }}{% else %}(none){% endif %}</div>
-          </div>
-          <div style="margin-top:10px;">
-            <strong>Quick test:</strong> set <em>Source mode</em> to “Force collection”, pick a collection with lots of products, and temporarily disable “Hide if no results”.
-          </div>
-        </div>
-      </div>
-    {%- endif -%}
-  {%- else -%}
-    <section
-      class="q-ware-strip q-ware-strip--{{ s.layout_variant }}"
-      id="q-ware-strip-{{ section.id }}"
-      style="
-        --q-ware-strip-bg: {% if s.use_custom_colors and s.bg_color != blank %}{{ s.bg_color }}{% else %}var(--q-surface-1, var(--q-color-surface-1, transparent)){% endif %};
-        --q-ware-strip-card-bg: {% if s.use_custom_colors and s.card_bg_color != blank %}{{ s.card_bg_color }}{% else %}var(--q-surface-2, var(--q-color-surface-2, transparent)){% endif %};
-        --q-ware-strip-text: {% if s.use_custom_colors and s.text_color != blank %}{{ s.text_color }}{% else %}var(--q-text, var(--q-color-text, currentColor)){% endif %};
-        --q-ware-strip-muted: {% if s.use_custom_colors and s.muted_text_color != blank %}{{ s.muted_text_color }}{% else %}var(--q-text-muted, var(--q-color-text-muted, rgba(0,0,0,.65))){% endif %};
-        --q-ware-strip-chip-bg: {% if s.use_custom_colors and s.chip_bg_color != blank %}{{ s.chip_bg_color }}{% else %}var(--q-chip-bg, var(--q-surface-2, rgba(0,0,0,.06))){% endif %};
-        --q-ware-strip-chip-text: {% if s.use_custom_colors and s.chip_text_color != blank %}{{ s.chip_text_color }}{% else %}var(--q-chip-text, var(--q-text, currentColor)){% endif %};
-        --q-ware-columns: {{ s.columns_desktop }};
-      "
-    >
-      <div class="q-ware-strip__inner">
-        <header class="q-ware-strip__head">
-          {%- if s.kicker != blank -%}<div class="q-ware-strip__kicker">{{ s.kicker }}</div>{%- endif -%}
-          {%- if s.heading != blank -%}<h2 class="q-ware-strip__title">{{ s.heading }}</h2>{%- endif -%}
-
-          {%- if s.body_richtext != blank -%}
-            <div class="q-ware-strip__body rte">{{ s.body_richtext }}</div>
-          {%- elsif wh_desc != blank -%}
-            <div class="q-ware-strip__body q-ware-strip__body--muted">{{ wh_desc }}</div>
-          {%- endif -%}
-        </header>
-
-        {%- if shown > 0 -%}
-          <div class="q-ware-strip__track q-ware-strip__track--{{ s.layout_variant }}">
-            {{ cards }}
-          </div>
-        {%- else -%}
-          <div class="q-ware-strip__empty">{{ s.empty_message }}</div>
-        {%- endif -%}
-      </div>
-
-      <style>
-        #q-ware-strip-{{ section.id }}{ background:var(--q-ware-strip-bg); color:var(--q-ware-strip-text); }
-        #q-ware-strip-{{ section.id }} .q-ware-strip__inner{
-          max-width: var(--q-page-width, 1200px);
-          margin: 0 auto;
-          padding: var(--q-section-pad-y, var(--q-space-10, 48px)) var(--q-section-pad-x, var(--q-space-6, 24px));
-        }
-        #q-ware-strip-{{ section.id }} .q-ware-strip__head{ margin-bottom: var(--q-space-6, 24px); }
-        #q-ware-strip-{{ section.id }} .q-ware-strip__kicker{
-          font-size: var(--q-fs-sm, 0.9rem);
-          letter-spacing: var(--q-tracking-wide, .02em);
-          text-transform: uppercase;
-          color: var(--q-ware-strip-muted);
-          margin-bottom: var(--q-space-2, 8px);
-        }
-        #q-ware-strip-{{ section.id }} .q-ware-strip__title{
-          font-size: var(--q-heading-fs, 1.75rem);
-          line-height: var(--q-heading-lh, 1.15);
-          margin: 0 0 var(--q-space-3, 12px);
-        }
-        #q-ware-strip-{{ section.id }} .q-ware-strip__body{ color: var(--q-ware-strip-muted); max-width: var(--q-measure, 70ch); }
-
-        #q-ware-strip-{{ section.id }} .q-ware-strip__track--grid{
-          display:grid;
-          grid-template-columns: repeat(var(--q-ware-columns), minmax(0, 1fr));
-          gap: var(--q-space-5, 20px);
-        }
-        #q-ware-strip-{{ section.id }} .q-ware-strip__track--carousel{
-          display:flex;
-          gap: var(--q-space-5, 20px);
-          overflow-x:auto;
-          padding-bottom: var(--q-space-2, 8px);
-          scroll-snap-type:x mandatory;
-          -webkit-overflow-scrolling:touch;
-        }
-        #q-ware-strip-{{ section.id }} .q-ware-strip__item{ position:relative; }
-        #q-ware-strip-{{ section.id }} .q-ware-strip--carousel .q-ware-strip__item{ min-width:min(320px, 80vw); scroll-snap-align:start; }
-
-        #q-ware-strip-{{ section.id }} .q-ware-strip__card{
-          background: var(--q-ware-strip-card-bg);
-          border-radius: var(--q-radius-card, var(--q-radius-lg, 16px));
-          overflow:hidden;
-          position:relative;
-        }
-
-        #q-ware-strip-{{ section.id }} .q-ware-strip__chip{
-          --q-ware-chip-bg: var(--q-ware-strip-chip-bg);
-          position:absolute;
-          z-index:3;
-          display:inline-flex;
-          align-items:center;
-          padding:6px 10px;
-          border-radius:999px;
-          font-size:var(--q-fs-xs, .8rem);
-          line-height:1;
-          background: var(--q-ware-chip-bg);
-          color: var(--q-ware-strip-chip-text);
-          box-shadow: var(--q-shadow-soft, 0 8px 24px rgba(0,0,0,.08));
-          backdrop-filter: saturate(120%) blur(8px);
-          pointer-events:none;
-        }
-        #q-ware-strip-{{ section.id }} .q-ware-strip__chip--card_top_left{ top:12px; left:12px; }
-        #q-ware-strip-{{ section.id }} .q-ware-strip__chip--card_top_right{ top:12px; right:12px; }
-        #q-ware-strip-{{ section.id }} .q-ware-strip__chip--below{ position:static; margin: var(--q-space-3, 12px); width:fit-content; }
-
-        #q-ware-strip-{{ section.id }} .q-ware-strip__empty{
-          padding: var(--q-space-6, 24px);
-          border-radius: var(--q-radius-card, var(--q-radius-lg, 16px));
-          background: var(--q-ware-strip-card-bg);
-          color: var(--q-ware-strip-muted);
-        }
-
-        @media (max-width: 990px){
-          #q-ware-strip-{{ section.id }} .q-ware-strip__track--grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        }
-        @media (max-width: 640px){
-          #q-ware-strip-{{ section.id }} .q-ware-strip__track--grid{ grid-template-columns: 1fr; }
-        }
-      </style>
-    </section>
-  {%- endif -%}
-
+  {%- endunless -%}
+  {%- for block in section.blocks -%}
+    {%- if block.id != mapping_block.id or visible == false -%}<div {{ block.shopify_attributes }} style="padding:8px;border:1px dashed currentColor;">Warehouse mapping: {{ block.settings.code | default: '(set a code)' | escape }}. Preview a product with this warehouse code to see the mapped collection.</div>{%- endif -%}
+  {%- endfor -%}
 {%- endif -%}
 
 {% schema %}
 {
   "name": "3rd Party - Warehouse",
   "settings": [
-    { "type": "header", "content": "Content" },
-    { "type": "inline_richtext", "id": "kicker", "label": "Kicker", "default": "Ships from the same warehouse" },
-    { "type": "inline_richtext", "id": "heading", "label": "Heading", "default": "Bundle items that ship together to save time & freight." },
-    { "type": "richtext", "id": "body_richtext", "label": "Body", "default": "<p>These products typically ship together, which can reduce split shipments and delivery complexity.</p>" },
-
-    { "type": "header", "content": "Behavior" },
+    {
+      "type": "header",
+      "content": "Content"
+    },
+    {
+      "type": "paragraph",
+      "content": "Product template only. Curated merchandising; shipping and warehouse availability are managed outside this section. Add Warehouse mapping blocks to connect codes to collections. Up to the first 50 collection products are inspected."
+    },
+    {
+      "type": "inline_richtext",
+      "id": "kicker",
+      "label": "Kicker",
+      "default": "Selected for this product"
+    },
+    {
+      "type": "inline_richtext",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Explore related products"
+    },
+    {
+      "type": "richtext",
+      "id": "body_richtext",
+      "label": "Body",
+      "default": "<p>Browse this curated collection of related products.</p>"
+    },
+    {
+      "type": "header",
+      "content": "Behavior"
+    },
     {
       "type": "select",
       "id": "source_mode",
       "label": "Source mode",
       "default": "auto_from_warehouse_code",
       "options": [
-        { "value": "auto_from_warehouse_code", "label": "Auto from warehouse code" },
-        { "value": "force_collection", "label": "Force collection" }
-      ]
+        {
+          "value": "auto_from_warehouse_code",
+          "label": "Auto from warehouse code"
+        },
+        {
+          "value": "force_collection",
+          "label": "Force collection"
+        }
+      ],
+      "info": "Auto: product fulfillment.warehouse metaobject with code and collection, then Warehouse mapping blocks by fulfillment.warehouse_code or warehouse:CODE tag. First matching block wins."
     },
-    { "type": "collection", "id": "force_collection", "label": "Force collection (used when Source mode = Force collection)" },
-    { "type": "collection", "id": "fallback_collection", "label": "Fallback collection (used when no warehouse match found)" },
-    { "type": "checkbox", "id": "hide_if_no_results", "label": "Hide if no results", "default": true },
-    { "type": "inline_richtext", "id": "empty_message", "label": "Empty message (only shown if Hide if no results = false)", "default": "No warehouse-specific products available right now." },
-    { "type": "range", "id": "max_products", "label": "Max products", "min": 4, "max": 12, "step": 1, "default": 8 },
-
-    { "type": "header", "content": "Design" },
+    {
+      "type": "collection",
+      "id": "force_collection",
+      "label": "Force collection (used when Source mode = Force collection)"
+    },
+    {
+      "type": "collection",
+      "id": "fallback_collection",
+      "label": "Fallback collection (used when no warehouse match found)"
+    },
+    {
+      "type": "checkbox",
+      "id": "hide_if_no_results",
+      "label": "Hide if no results",
+      "default": true
+    },
+    {
+      "type": "inline_richtext",
+      "id": "empty_message",
+      "label": "Empty message (only shown if Hide if no results = false)",
+      "default": "No related products are available right now."
+    },
+    {
+      "type": "range",
+      "id": "max_products",
+      "label": "Max products",
+      "min": 4,
+      "max": 12,
+      "step": 1,
+      "default": 8
+    },
+    {
+      "type": "header",
+      "content": "Design"
+    },
     {
       "type": "select",
       "id": "layout_variant",
       "label": "Layout variant",
       "default": "carousel",
       "options": [
-        { "value": "carousel", "label": "Carousel (scroll-snap)" },
-        { "value": "grid", "label": "Grid" }
+        {
+          "value": "carousel",
+          "label": "Carousel (scroll-snap)"
+        },
+        {
+          "value": "grid",
+          "label": "Grid"
+        }
       ]
     },
-    { "type": "range", "id": "columns_desktop", "label": "Columns (desktop)", "min": 3, "max": 5, "step": 1, "default": 4 },
-    { "type": "checkbox", "id": "show_warehouse_chip", "label": "Show warehouse chip", "default": true },
+    {
+      "type": "range",
+      "id": "columns_desktop",
+      "label": "Columns (desktop)",
+      "min": 3,
+      "max": 5,
+      "step": 1,
+      "default": 4
+    },
+    {
+      "type": "checkbox",
+      "id": "show_warehouse_chip",
+      "label": "Show mapped group chip",
+      "default": true,
+      "info": "Labels the curated mapped collection. Forced and fallback collections have no group chip. This does not verify inventory or combined shipping."
+    },
     {
       "type": "select",
       "id": "chip_position",
       "label": "Chip position",
       "default": "card_top_left",
       "options": [
-        { "value": "card_top_left", "label": "Card top left" },
-        { "value": "card_top_right", "label": "Card top right" },
-        { "value": "below_title", "label": "Below title (card content)" }
+        {
+          "value": "card_top_left",
+          "label": "Card top left"
+        },
+        {
+          "value": "card_top_right",
+          "label": "Card top right"
+        },
+        {
+          "value": "below_title",
+          "label": "Below title (card content)"
+        }
       ]
     },
-
-    { "type": "header", "content": "Styling" },
-    { "type": "checkbox", "id": "use_custom_colors", "label": "Use custom colors", "default": false },
-    { "type": "color", "id": "bg_color", "label": "Background color" },
-    { "type": "color", "id": "card_bg_color", "label": "Card background color" },
-    { "type": "color", "id": "text_color", "label": "Text color" },
-    { "type": "color", "id": "muted_text_color", "label": "Muted text color" },
-    { "type": "color", "id": "accent_color", "label": "Accent color" },
-    { "type": "color", "id": "chip_bg_color", "label": "Chip background color" },
-    { "type": "color", "id": "chip_text_color", "label": "Chip text color" }
+    {
+      "type": "header",
+      "content": "Styling"
+    },
+    {
+      "type": "checkbox",
+      "id": "use_custom_colors",
+      "label": "Use custom colors",
+      "default": false
+    },
+    {
+      "type": "color",
+      "id": "bg_color",
+      "label": "Background color"
+    },
+    {
+      "type": "color",
+      "id": "card_bg_color",
+      "label": "Card background color"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color"
+    },
+    {
+      "type": "color",
+      "id": "muted_text_color",
+      "label": "Muted text color"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent color"
+    },
+    {
+      "type": "color",
+      "id": "chip_bg_color",
+      "label": "Chip background color"
+    },
+    {
+      "type": "color",
+      "id": "chip_text_color",
+      "label": "Chip text color"
+    }
   ],
   "presets": [
     {
       "name": "3rd Party - Warehouse Merch Strip - Use for Products",
       "category": "3rd Party Integrations"
+    }
+  ],
+  "max_blocks": 12,
+  "blocks": [
+    {
+      "type": "warehouse_mapping",
+      "name": "Warehouse mapping",
+      "settings": [
+        {
+          "type": "text",
+          "id": "code",
+          "label": "Warehouse code",
+          "info": "Matches the current product code, ignoring case and surrounding spaces."
+        },
+        {
+          "type": "text",
+          "id": "label",
+          "label": "Group label"
+        },
+        {
+          "type": "richtext",
+          "id": "description",
+          "label": "Description"
+        },
+        {
+          "type": "collection",
+          "id": "collection",
+          "label": "Curated collection"
+        },
+        {
+          "type": "color",
+          "id": "chip_color",
+          "label": "Group chip background"
+        }
+      ]
     }
   ]
 }
