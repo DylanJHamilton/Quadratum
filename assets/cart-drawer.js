@@ -9,7 +9,7 @@
   const revealQuantityControls = root => root?.querySelectorAll('[data-qty-decrease], [data-qty-increase]').forEach(button => { button.hidden = false; });
   const drawer = () => document.querySelector('[data-cart-drawer]');
   revealQuantityControls(drawer());
-  const cartUrl = () => drawer()?.dataset.cartUrl || '/cart';
+  const cartUrl = () => drawer()?.dataset.cartUrl || window.QuadratumSettings?.cart?.url || '/cart';
   const focusable = root => Array.from(root.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]')).filter(el => el.getClientRects().length && !el.closest('[hidden], [inert]'));
 
   function close(restore = true) {
@@ -114,7 +114,14 @@
 
   document.addEventListener('click', event => {
     const trigger = event.target.closest('[data-cart-drawer-open]');
-    if (trigger) { event.preventDefault(); open(trigger); return; }
+    if (trigger) {
+      const settings = window.QuadratumSettings?.cart;
+      if (!drawer() || settings?.ajaxDrawerEnabled === false || settings?.headerTriggerEnabled === false) {
+        if (trigger.tagName !== 'A') { event.preventDefault(); window.location.assign(cartUrl()); }
+        return;
+      }
+      event.preventDefault(); open(trigger); return;
+    }
     if (!event.target.closest('[data-cart-drawer]')) return;
     if (event.target.closest('[data-cart-drawer-close]')) { close(); return; }
     const control = event.target.closest('[data-qty-decrease], [data-qty-increase], [data-cart-remove]');
@@ -136,6 +143,9 @@
     const form = event.target;
     if (pending && form.closest('[data-cart-drawer]')) { event.preventDefault(); return; }
     if (!form.matches('form[data-cart-drawer-add]') || !window.QuadratumSettings?.cart?.ajaxDrawerEnabled) return;
+    const settings = window.QuadratumSettings.cart;
+    const enabled = form.matches('[data-addon-form]') ? settings.addonTriggerEnabled : form.dataset.cartDrawerContext === 'collection' ? settings.collectionTriggerEnabled : settings.productTriggerEnabled;
+    if (enabled === false) return;
     if (event.defaultPrevented || event.submitter?.closest('.shopify-payment-button')) return;
     if (!form.checkValidity()) { event.preventDefault(); form.reportValidity(); return; }
     event.preventDefault();

@@ -11,3 +11,11 @@ See `settings-inventory.json` for every setting, source path/line, alias, dynami
 ## Branding precedence
 
 Page sharing image > social_share_image > logo_primary. Header-local logo (where supported) > global desktop/mobile image > store name. Font, size, line-height and heading-case tokens supply shared defaults; custom component fonts/sizes/colors remain authoritative. Light/dark selection applies to shared tokens, not section-local palettes. `.btn--solid/outline/ghost` overrides the global default variant; chip_shape supplies the shared chip radius. `style_kit` supplies common container width (cozy 1088px, comfort container_lg, wide container_xl, full 100%); explicit section width modes remain local. Spacing is now pixels; typography numeric scaling remains documented in schema help.
+
+## Header/footer and commerce precedence
+
+Global header_layout/footer_layout choose one of five sections. Header One uses global announcement defaults and optional sticky inheritance. Header Two uses navigation blocks; Headers One/Three/Four/Five use their selected menu before the global desktop_menu fallback. Footer One uses global column/announcement/bottom-text controls; Footers Two–Five own local presentation. All five headers use the Phase 5 current-account component and native fallback.
+
+Global drawer enable → per-source trigger switch → native form/link when disabled. Explicit section-owned bundle add modes remain authoritative. Global drawer dimensions/colors/continue links apply to the layout-owned drawer only. Cart-page reward/add-on blocks are section-owned, not shared with layout. Shipping progress requires both its enable flag and a positive threshold, plus the drawer progress flag; display never grants a shipping rate or reward. No theme coupon, gift-wrap or metaobject integration is implied.
+
+Shared card hosts may explicitly override quick-add and badge defaults, including false. Canonical enable_ajax_cart_drawer wins over legacy cart_mode; legacy fallback is consulted only when canonical state is absent. Search controllers resolve global defaults before explicit form arguments; main-search is globally controlled. Predictive collection suggestions do not become full-page collection search.
