@@ -1,0 +1,26 @@
+const assert=require('node:assert/strict');
+const f=require('../phase4/support/forms.cjs');
+const settings=Object.assign({},...JSON.parse(f.read('config/settings_schema.json')).map(g=>f.defaults(g.settings)));
+const countries=[{iso_code:'US',name:'United States',currency:{iso_code:'USD'}},{iso_code:'CA',name:'Canada',currency:{iso_code:'CAD'}}];
+const languages=[{iso_code:'en',endonym_name:'English'},{iso_code:'fr',endonym_name:'Français'}];
+(async()=>{
+  const render=(name,overrides={},data={})=>f.engine.parseAndRender(f.read('snippets/'+name+'.liquid').replace(/{%\s*form[^%]*%}/g,'<form method="post" action="/localization">').replace(/{%\s*endform\s*%}/g,'</form>'),{settings:{...settings,...overrides},section_id:'one',...data});
+  let html=await render('theme-preconnect',{preconnect_hosts:'https://cdn.test, https://cdn.test/path, javascript:alert(1), https://user@evil.test, https://bad.test\" onload=\"x, https://fonts.test/fonts'});
+  let d=f.dom(html);assert.deepEqual([...d.window.document.querySelectorAll('link')].map(x=>x.getAttribute('href')),['https://cdn.test','https://fonts.test']);assert(!d.window.document.querySelector('[onload]'));d.window.close();
+  const localization={available_countries:countries,available_languages:languages,country:countries[1],language:languages[1]};
+  html=await render('global-localization',{currency_selector_enable:true,locale_selector_enable:true,language_switcher_style:'icon'},{localization});
+  d=f.dom(html);assert.equal(d.window.document.querySelector('[name="country_code"]').value,'CA');assert.equal(d.window.document.querySelector('[name="locale_code"]').value,'fr');assert(d.window.document.querySelector('button[type="submit"]'));assert(d.window.document.querySelector('svg[aria-hidden="true"]'));d.window.close();
+  assert.equal((await render('global-localization',{currency_selector_enable:false,locale_selector_enable:false},{localization})).trim(),'');
+  for(const [locale,dir]of [['ar','rtl'],['he','rtl'],['ar-Latn','ltr'],['ku','ltr'],['ku-Arab','rtl'],['en','ltr']])assert.equal((await render('theme-direction',{rtl_enable:true},{request:{locale:{iso_code:locale}}})).trim(),dir);
+  let section=f.unpack('main-404').liquid;
+  const context={section:{id:'x',blocks:[]},settings:{...settings,notfound_cta_link:'javascript:alert(1)',notfound_continue_shopping_link:'data:text/html,bad',search_src_products:false,search_src_articles:false,search_src_pages:false},routes:{root_url:'/fr/',collections_url:'/fr/collections',search_url:'/fr/search'}};
+  html=await f.engine.parseAndRender(section,context,{globals:context});d=f.dom(html);assert(!d.window.document.querySelector('a[href^="javascript:"],a[href^="data:"]'));assert.equal(d.window.document.querySelector('.qtm404__button--primary').getAttribute('href'),'/fr/');assert(!d.window.document.querySelector('form'));d.window.close();
+  const cardContext={settings:{...settings,images_lazyload:false,image_default_ratio:'portrait'},product:{...f.product,featured_image:{url:'/image.jpg',width:800,height:600,aspect_ratio:4/3}}};
+  html=await f.engine.parseAndRender(f.read('snippets/product-card.liquid'),cardContext,{globals:cardContext});
+  assert.match(html,/--q-card-media-ratio:125%/);assert.doesNotMatch(html,/loading="lazy"/);
+  html=await f.engine.parseAndRender(f.read('snippets/product-card.liquid'),{...cardContext,media_ratio:150},{globals:cardContext});assert.match(html,/--q-card-media-ratio:150%/);
+  f.engine.registerFilter('font_face',(font,option)=>'/* '+font+':'+option[1]+' */');
+  html=await render('theme-fonts',{font_heading:'same',font_body:'same',font_loading:'fallback'});assert.equal((html.match(/same:fallback/g)||[]).length,1);
+  html=await render('theme-fonts',{font_heading:'a',font_body:'b',font_loading:'async'});assert.match(html,/a:swap/);assert.match(html,/b:swap/);
+  console.log('PASS validated/deduplicated preconnects, native localization/current options and off switches, six RTL/script cases, safe localized 404 fallbacks and all-source-disabled search.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

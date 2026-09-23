@@ -19,3 +19,9 @@ Global header_layout/footer_layout choose one of five sections. Header One uses 
 Global drawer enable → per-source trigger switch → native form/link when disabled. Explicit section-owned bundle add modes remain authoritative. Global drawer dimensions/colors/continue links apply to the layout-owned drawer only. Cart-page reward/add-on blocks are section-owned, not shared with layout. Shipping progress requires both its enable flag and a positive threshold, plus the drawer progress flag; display never grants a shipping rate or reward. No theme coupon, gift-wrap or metaobject integration is implied.
 
 Shared card hosts may explicitly override quick-add and badge defaults, including false. Canonical enable_ajax_cart_drawer wins over legacy cart_mode; legacy fallback is consulted only when canonical state is absent. Search controllers resolve global defaults before explicit form arguments; main-search is globally controlled. Predictive collection suggestions do not become full-page collection search.
+
+## Media, localization and performance ownership
+
+Shared cards inherit global image loading and the shared product card inherits image_default_ratio only without a host ratio. Eager hero/primary images and explicitly configured section media retain their performance policy. Transparent/Transparent Sub Page/Web3 Sub Page backgrounds inherit autoplay/loop; accessible motion controllers can pause for reduced motion, inactive slides or visibility. Background audio and native controls are suppressed as these are decorative. Content-video sections remain local.
+
+Global country/language selectors are native Shopify localization forms in Footers One/Three/Four. Two/Five have local controls. Published languages and enabled markets come from Shopify, not theme schema. theme-direction resolves RTL in both layouts. theme-fonts owns swap/fallback loading and async compatibility; theme-preconnect owns validated connection hints.

@@ -14,7 +14,7 @@ const render=(id,overrides={},globals={},blocks=[block('a'),block('b')])=>engine
  const motion=new w.EventTarget();motion.matches=false;const desktop=new w.EventTarget();desktop.matches=true;w.matchMedia=q=>q.includes('reduced')?motion:desktop;
  w.HTMLMediaElement.prototype.play=function(){this.dataset.playing='true';return Promise.resolve()};w.HTMLMediaElement.prototype.pause=function(){this.dataset.playing='false'};
  const script=fs.readFileSync('assets/section-hero-classic.js','utf8');w.eval(script);w.document.dispatchEvent(new w.Event('DOMContentLoaded'));w.eval(script);
- assert.equal(timers.size,1);assert.equal(roots[0].querySelectorAll('video[autoplay]').length,0);assert.equal(roots[1].querySelectorAll('video[loop],video[muted]').length,0);
+ assert.equal(timers.size,1);assert.equal(roots[0].querySelectorAll('video[autoplay]').length,0);assert.equal(roots[1].querySelectorAll('video[loop]').length,0);assert.equal(roots[1].querySelectorAll('video[muted]').length,2,'Phase 6: decorative videos stay muted; legacy mute false no longer creates background audio');
  const videos=roots[0].querySelectorAll('video'),contents=roots[0].querySelectorAll('[data-classic-content]');
  assert.equal(videos[0].dataset.playing,'true');assert.equal(videos[1].dataset.playing,'false');assert(contents[1].inert);
  roots[0].querySelectorAll('[data-q-hero-dot]')[1].click();assert(contents[0].inert);assert.equal(videos[1].dataset.playing,'true');assert.equal(videos[0].dataset.playing,'false');
@@ -27,5 +27,5 @@ const render=(id,overrides={},globals={},blocks=[block('a'),block('b')])=>engine
  w.close();
  const image={width:1600,height:900};const staticDom=new JSDOM(await render('static',{mode:'static',image_bg:image,cta_1_label:'Missing destination',cta_1_link:null}));assert.equal(staticDom.window.document.querySelectorAll('a').length,0);assert.equal(staticDom.window.document.querySelector('img').getAttribute('width'),'1600');staticDom.window.close();
  const hosted=new JSDOM(await render('hosted',{mode:'static',bg_type:'video',video_bg:{id:'hosted-video'}}));assert(hosted.window.document.querySelector('video.qsbw3__video'));hosted.window.close();
- console.log('PASS Web3 Sub Banner: actual Liquid static/slideshow, false media flags, manual navigation with autoplay off, synchronized media/content/inertness, two instances, pause, reduced motion and editor unload/reload. Hosted video filter is a fixture adapter; live Shopify acceptance remains open.');
+ console.log('PASS Web3 Sub Banner: actual Liquid static/slideshow, false autoplay/loop flags and forced decorative mute, manual navigation with autoplay off, synchronized media/content/inertness, two instances, pause, reduced motion and editor unload/reload. Hosted video filter is a fixture adapter; live Shopify acceptance remains open.');
 })().catch(error=>{console.error(error);process.exitCode=1});
