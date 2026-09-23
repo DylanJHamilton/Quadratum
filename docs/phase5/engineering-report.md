@@ -1,6 +1,6 @@
 # Phase 5 — Account infrastructure
 
-Status: OPEN. No component is approved merely from Phase 4 evidence.
+Status: PHASE 5 ACCOUNT INFRASTRUCTURE ENGINEERING COMPLETE — READY FOR OWNER REVIEW. Owner live acceptance and account-model release decisions remain explicitly separate. No merge or Phase 6 work is included.
 
 Repository: DylanJHamilton/Quadratum
 Branch: release/v1-phase-5-account-infrastructure
@@ -8,15 +8,15 @@ Baseline: d8e2c951d223cd8eac9c9b0adda26977856c405a
 
 ## Publication contract
 
-Review, repair, test, commit, publish, verify the remote SHA for each checkpoint. Stop new engineering if publication fails. GitHub is the source of saved work. The command-line write credential is unavailable; checkpoints will use the connected GitHub Git Data API with non-forced fast-forward branch updates, followed by independent fetch verification.
+Review, repair, test, commit, publish, verify the remote SHA for each checkpoint. Stop new engineering if publication fails. GitHub is the source of saved work. Checkpoints use the connected GitHub Git Data API with non-forced fast-forward branch updates, followed by independent remote SHA and source-tree verification.
 
 ## Checkpoints
 
-- A: login / registration / recovery / reset / activation — engineering verified; checkpoint A publication.
-- B: dashboard / shared navigation — engineering verified; checkpoint B publication.
-- C: orders / order detail / tracking — engineering verified; checkpoint C publication.
-- D: addresses — engineering verified; checkpoint D publication.
-- E: cross-account assets / template mapping / final reconciliation — pending.
+- A: login / registration / recovery / reset / activation — published and remote verified at `2c8c90c5f488b1a1a1c41d9d4c91f57c090949c1`.
+- B: dashboard / shared navigation — published and remote verified at `7f2ccd2506b556c0aa109c6209fbb32a20e45680`.
+- C: orders / order detail / tracking — published and remote verified at `00d42554d305339dd9cd9410020724888b19b18d`.
+- D: addresses — published and remote verified at `1b9c206866aab2feed10dd7b0a18557022127328`.
+- E: cross-account assets / template mapping / final reconciliation — closure checkpoint containing this report; final remote SHA is returned in the owner handoff. Reviewed component blob SHAs are recorded in `validation/checkpoint-e/source-manifest.json`.
 
 ## Account model
 
@@ -95,3 +95,39 @@ Validation: 14 new address scenarios (native field/default/delete contracts, cou
 
 Native form contract: https://shopify.dev/docs/api/liquid/tags/form#form-customer_address
 Form status limitation: https://shopify.dev/docs/api/liquid/objects/form#form-posted_successfully
+
+
+## Checkpoint E — final reconciliation
+
+Checkpoint D remote verified: `1b9c206866aab2feed10dd7b0a18557022127328`. The final review resumed from the remotely published A–D checkpoints, preserving that work, and used an isolated checkout to avoid competing edits.
+
+All **38 account source components** have explicit dispositions: nine sections, 17 existing account assets, four snippets (two original plus contrast-text and account-safe-link), and eight customer templates (seven original plus the full-history alternate). There are no NOT REVIEWED components, unexplained account assets or missing direct references. See `component-register.csv` and `dependency-map.md` for the full ownership/route record. No customer template or asset was renamed or removed.
+
+Final repairs based on independent reconciliation:
+- Browser checks exposed nine dark-card contrast failures across three viewport/direction combinations. Activation decline, address deletion and active order filters now use stable readable surfaces; fallback order badges are also readable for less common financial/fulfillment states.
+- Remove the remaining unused old Orders navigation CSS, keep shared navigation as its sole presentation owner, and use logical padding for authentication error lists in RTL.
+- Order search now includes the customer-visible formatted price as well as native raw values. Its fallback item count sums quantities rather than counting distinct lines.
+- Remove undocumented `line_item.variant_title`. The native `line_item.title` retains the purchased product/variant title, even after a product is edited or deleted; consulting the current variant would misrepresent historical purchases.
+- Reconcile every account asset/snippet/section reference and every original/alternate template. Check schema and CSS-variable consumers. Preserve historical asset/snippet names with documented ownership rather than adding aliases or renames.
+
+### Validation and evidence
+
+All eleven relevant source/fixture suites pass: six Phase 5 suites (strict source, authentication, dashboard/nav, orders/tracking, addresses, final reconciliation), both reused Phase 4 account suites, and layout/head, delivery and five-header lifecycle regressions. This includes **425 account scenarios** from the two reused account suites and the four new flow suites. Counts are fixture assertions/scenarios, not live-store acceptance claims.
+
+Strict validation covers **38 files, 21 Shopify Liquid parses, 46 asset/snippet/section references and eight customer-template mappings**, plus CSS parsing, JS syntax, settings consumers and SHA evidence. Rendered source exercises native form types/field names, error and guest states, escaping, page-local sorting/filtering, URL rejection, duplicate boot, isolated instances, unloading/reloading, address metadata/reset/default/delete contracts and truthful tracking handoff.
+
+**63 local Chromium fixtures pass**: 54 enhanced cases spanning all nine account sections at 320/768/1440px, LTR/RTL, default/dark cards, long data and authentication errors; nine no-JS cases confirm native forms remain available and inert enhancement controls stay hidden. No runtime errors, document overflow or axe WCAG A/AA violations occurred in the tested fixtures. Keyboard entry/Escape/focus return was exercised in the browser. CSS came from the account assets plus actual global theme CSS/tokens; Shopify forms/data/pagination/date formatting were explicit local adapters. Representative mobile and desktop screenshots were visually inspected. These are source/browser checks, not a claim of Shopify endpoint or manual assistive-technology certification.
+
+Theme Check (Shopify CLI 4.8.0): **zero errors, 509 warnings**, versus zero errors and 509 warnings at the exact Phase 4 baseline. One excessive-settings warning was removed with the two unimplemented remember-me controls. One new OrphanedSnippet warning flags account-safe-link, despite two explicit order-section consumers; the same checker also flags the existing live recovery and shared-nav snippets. Direct reference tests and `dependency-map.md` reconcile these warnings. The other 508 warnings are inherited; no unrelated warning cleanup or suppression was performed. Full normalized diagnostics and a baseline delta are in `validation/checkpoint-e/`.
+
+`config/settings_data.json`, global Theme Settings, headers/footers and unrelated Phase 4 components remain unchanged. Main is verified against the supplied baseline before and after publication. The final fast-forward checkpoint publishes code, tests, component register and all validation evidence together.
+
+### Boundaries, deferred items and owner decisions
+
+No known source-level defect remains in the reviewed legacy account scope. Actual Shopify authentication/emails/CAPTCHA/tokens, server authorization and persistence, real pagination/alternate-template routing, merchant/provider configuration and manual screen-reader acceptance remain owner live-QA items, enumerated in `owner-review.md`.
+
+The architecture is native legacy Shopify forms and customer/order drops with progressive client enhancements. Tracking is a merchant-configured redirect plus native fulfillment/status links on order detail. No carrier API, authenticated tracking lookup, live status timeline or backend service was implemented or implied.
+
+Current Shopify Customer Accounts bypass these theme-controlled screens. Shopify deprecated legacy accounts in February 2026 and requires the `shopify-account` header component for Theme Store submissions as of July 30, 2026. This repository does not yet contain that component. **Owner decision: scope current-account header adoption before Theme Store submission, and choose whether any account extensions/migration are needed.** This closure certifies the requested legacy infrastructure engineering, not Theme Store submission readiness or customization of hosted accounts. Removing existing templates to force migration was deliberately excluded.
+
+The optional tracking provider/page is also an owner configuration decision. No integration provider is assumed. Global readability work, Phase 6 Theme Settings, demo stores, account migration and hosted-account extensions remain deferred. Nothing is merged or deployed to a store.

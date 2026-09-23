@@ -29,8 +29,8 @@ for (const file of files) {
   }
   else if (file.endsWith('.js')) cp.execFileSync(process.execPath, ['--check', file]);
 }
-const mapping = { account: 'dashboard', activate_account: 'activate', addresses: 'addresses', login: 'login', order: 'order', register: 'register', reset_password: 'reset-password' };
+const mapping = { account: 'dashboard', 'account.orders': 'orders', activate_account: 'activate', addresses: 'addresses', login: 'login', order: 'order', register: 'register', reset_password: 'reset-password' };
 for (const [template, section] of Object.entries(mapping)) {
   assert.match(fs.readFileSync('templates/customers/' + template + '.liquid', 'utf8'), new RegExp("section 'account-main-account-" + section + "'"));
 }
-console.log(`PASS ${files.length} account/direct-dependency files; ${parsed} strict Shopify Liquid parses; ${references} asset/snippet/section references; CSS/JS syntax; seven native customer template mappings.`);
+console.log(`PASS ${files.length} account/direct-dependency files; ${parsed} strict Shopify Liquid parses; ${references} asset/snippet/section references; CSS/JS syntax; ${Object.keys(mapping).length} native/alternate customer template mappings.`);
