@@ -38,7 +38,7 @@ function fixture(n,id){
  rq('button').click();ticks[0]();assert(!slides[0].classList.contains('is-hidden'));rq('section').dispatchEvent(new rotation.window.CustomEvent('shopify:section:unload',{bubbles:true}));assert(cleared.includes(1));rotation.window.close();
  console.log('PASS Header Four announcements: one timer, rotation, persistent pause/resume and unload cancellation.');
  const popupMarkup='<button id="opener" data-qtm-popup-open>Open</button><div id="QuadratumGlobalPopup" data-popup-enabled="true" data-popup-trigger="delay" data-popup-delay="0" data-popup-frequency="once_per_session" data-popup-desktop="true" data-popup-mobile="true" data-popup-editor-preview="false" hidden><div data-qtm-popup-dialog role="dialog" tabindex="-1"><button data-qtm-popup-close>Close</button></div></div>';
- const d=dom(popupMarkup);d.window.sessionStorage.setItem('qtm_global_popup_seen_session','true');
+ const d=dom(popupMarkup);d.window.Shopify={customerPrivacy:{preferencesProcessingAllowed:()=>true}};d.window.sessionStorage.setItem('qtm_global_popup_seen_session','true');
  d.window.eval(source('assets/global-popup.js'));d.window.document.dispatchEvent(new d.window.Event('DOMContentLoaded'));await pause(25);
  assert(d.window.document.querySelector('[data-popup-enabled]').hidden,'frequency survives page load even on preview URL');assert.equal(d.window.sessionStorage.getItem('qtm_global_popup_seen_session'),'true');
  d.window.QuadratumPopup.open();assert(!d.window.document.querySelector('[data-popup-enabled]').hidden);d.window.QuadratumPopup.close();d.window.QuadratumPopup.open();await pause(30);assert(!d.window.document.querySelector('[data-popup-enabled]').hidden,'stale close timer cannot hide reopened popup');

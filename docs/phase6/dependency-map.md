@@ -29,3 +29,9 @@ Global country/language selectors are native Shopify localization forms in Foote
 ## Integration boundary
 
 `form-captcha-key` resolves all nine hosts' public keys: local → retained provider-specific key → matching-provider global key. Native forms bypass third-party verification and retain Shopify markup. `forms_backend` only routes Bulk order's Global default choice. Form metadata and tags have no implicit marketing/consent effect. `integration-contracts.md` is authoritative for external ownership. Three legacy script locations share a real off switch; CSS hooks escape HTML delimiters. Social globals pass the retained safe-link helper before escaped output in footers, social blocks and profile rows.
+
+## Popup ownership and precedence
+
+The normal layout owns exactly one `global-popup` host. `popup_enable` controls storefront presence; `request.design_mode && popup_editor_preview` independently permits an editor host. `global-popup.js` reads DOM configuration before the retained JS fallback. Automatic trigger → enabled/device → page/frequency checks; manual open bypasses frequency only. Preview skips storefront eligibility and storage. Native form feedback reopens the eligible host to expose the response.
+
+Popup CSS variables carry merchant styles; fullscreen geometry, screen constraints, image stacking/minimal style and reduced motion are explicit overrides. `popup_type` is retained and deprecated because it never implemented content, age verification or a trigger. Newsletter display is independent of that label. Persistent frequency state requires Shopify preference permission; memory-only fallback does not impersonate consent. Provider-managed campaigns or age verification belong in an app with its own requirements.
