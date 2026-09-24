@@ -1,5 +1,7 @@
 # Phase 6 — Theme settings architecture
 
+Pre-launch follow-up (2026-09-24): owner-authorized cleanup H1 starts at `2d1d9b980c04e816e8c23309a3b3bc7a5ff37e27`, preserving the three Shopify commits after A–G closure. [The H1 audit](legacy-cleanup-audit.md) classifies all 37 deprecated controls before removal. The A–G counts and byte-preservation statements below describe that earlier closure; current owner state is captured separately in `validation/checkpoint-h1/owner-state.json`.
+
 Branch: `release/v1-phase-6-theme-settings`
 Baseline: `47664f217cc150b64d68158b3babd38bac2885d6`
 

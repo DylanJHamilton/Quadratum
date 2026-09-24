@@ -1,5 +1,7 @@
 # Phase 6 owner review
 
+Pre-launch follow-up (2026-09-24): the owner has now authorized removal of proven dead pre-V1 controls. [H1 audit](legacy-cleanup-audit.md) records the 37 individual decisions and the newer Shopify state. The earlier retention policy below is historical and is superseded only for the audited removal IDs; all current saved state remains protected.
+
 PHASE 6 THEME SETTINGS ENGINEERING COMPLETE — READY FOR OWNER REVIEW.
 
 Engineering and local validation are complete on `release/v1-phase-6-theme-settings`. No live store was changed or queried. This queue covers acceptance and distribution decisions; it does not represent unresolved source-level settings defects. Do not merge or begin Phase 7 as part of this handoff.
