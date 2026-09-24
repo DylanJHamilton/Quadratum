@@ -15,7 +15,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'docs/phase6'
-BASE = '47664f217cc150b64d68158b3babd38bac2885d6'
+BASE = '2d1d9b980c04e816e8c23309a3b3bc7a5ff37e27'
 LOCAL_PARAMETERS = {'form-background', 'form-core', 'form-dispatch', 'form-waitlist-fields', 'pb-bundle-card'}
 RESERVED = {'sections', 'blocks', 'content_for_index'}
 UNRESOLVED = {'REVIEW_REQUIRED', 'NO_SOURCE_CONSUMER', 'MISSING_SCHEMA', 'EXPORT_ONLY'}
@@ -156,11 +156,13 @@ def main():
         if not row.get('disposition'): final_errors.append('missing disposition: '+row['id'])
         if row['status'] == 'ACTIVE' and not any(not c['transport_only'] for c in row['consumers']):
             final_errors.append('active without implemented consumer: '+row['id'])
+        if row['status'] == 'RETIRED_PRE_V1' and (row['group'] or row['consumers']):
+            final_errors.append('retired global control still has a schema or source dependency: '+row['id'])
         if not row['group'] and not row['status'].startswith(('LEGACY_', 'RETIRED_')):
             final_errors.append('uncontracted legacy read: '+row['id'])
     for item in dynamic:
         if not item['resolved_ids']: final_errors.append('unresolved dynamic access: '+item['path']+':'+str(item['line']))
-    report = {'inventory_version':2, 'baseline':BASE, 'schema_groups':sum('settings' in g for g in schema), 'schema_settings':len(entries),
+    report = {'inventory_version':3, 'baseline':BASE, 'schema_groups':sum('settings' in g for g in schema), 'schema_settings':len(entries),
               'theme_metadata':next((g for g in schema if g['name']=='theme_info'), None),
               'source_files_scanned':len(source), 'settings_data_sha256':hashlib.sha256((ROOT/'config/settings_data.json').read_bytes()).hexdigest(),
               'reserved_saved_keys':sorted(RESERVED & current.keys()),
