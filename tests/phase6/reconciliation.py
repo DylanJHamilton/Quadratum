@@ -12,6 +12,7 @@ parser.add_argument('--checkpoint', default='checkpoint-h3')
 parser.add_argument('--final', action='store_true', help='Also require the recorded H2/H3 regression and browser gates')
 args = parser.parse_args()
 BASE = '2d1d9b980c04e816e8c23309a3b3bc7a5ff37e27'
+DOCUMENTATION_URL = 'https://github.com/DylanJHamilton/Quadratum/tree/main/docs/phase6'
 OUT = Path('docs/phase6/validation') / args.checkpoint
 before = lambda file: subprocess.check_output(['git', 'show', BASE + ':' + file])
 digest = lambda value: hashlib.sha256(value).hexdigest()
@@ -29,7 +30,9 @@ assert len(removed) == 37 and a.keys() - b.keys() == removed
 assert not b.keys() - a.keys(), 'No new controls in this cleanup'
 assert not inventory['schema_errors'] and not inventory['final_contract_errors']
 assert [g['name'] for g in old_groups] == [g['name'] for g in new_groups], 'Group order preserved'
-assert old_groups[0] == new_groups[0], 'Theme metadata preserved'
+# PR #24 owner review replaces the temporary release-branch documentation URL.
+assert new_groups[0] == {**old_groups[0], 'theme_documentation_url': DOCUMENTATION_URL}, 'Only the approved documentation URL may change'
+assert inventory['theme_metadata'] == new_groups[0], 'Inventory metadata must match the schema'
 for key in b:
     # Only these two reviewed merchant-facing descriptions change; all input contracts remain exact.
     allowed = {'label', 'info'} if key == 'checkout_note' else {'label'} if key == 'marketing_consent_mode' else set()
@@ -117,8 +120,13 @@ if args.final:
     theme = read_report('docs/phase6/validation/checkpoint-h2/theme-check.json')
     theme_counts = collections.Counter(o['severity'] for file in theme for o in file['offenses'])
     assert theme_counts['error'] == 0 and theme_counts['warning'] == 517
-    subprocess.run(['git', 'diff', '--exit-code', '66e61f8d6e4557831880b47ada3746e9653249f8', '--',
-                    'config', 'layout', 'sections', 'snippets', 'blocks', 'assets', 'templates'], check=True, stdout=subprocess.PIPE)
+    h2 = '66e61f8d6e4557831880b47ada3746e9653249f8'
+    validated_schema = json.loads(subprocess.check_output(['git', 'show', h2 + ':config/settings_schema.json']))
+    validated_schema[0]['theme_documentation_url'] = DOCUMENTATION_URL
+    assert new_groups == validated_schema, 'H2 schema preserved except the approved documentation URL'
+    subprocess.run(['git', 'diff', '--exit-code', h2, '--',
+                    'config', 'layout', 'sections', 'snippets', 'blocks', 'assets', 'templates',
+                    ':(exclude)config/settings_schema.json'], check=True, stdout=subprocess.PIPE)
     report['validation'] = {
         'phase3_phase4_suites_passed': len(regressions), 'phase5_phase6_suites_passed': len(targeted),
         'browser_fixtures_passed': popup['cases'] + len(headers['cases']) + len(accounts),
@@ -127,7 +135,9 @@ if args.final:
         'account_entry_source_scenarios': 66,
         'theme_check': {'cli_version': '4.8.0', 'error': 0, 'warning': 517, 'new_warnings': 0,
                         'report': 'docs/phase6/validation/checkpoint-h2/theme-check.json'},
-        'runtime_unchanged_since_validated_h2': True,
+        'runtime_unchanged_since_validated_h2': False,
+        'runtime_changes_since_validated_h2': ['config/settings_schema.json:theme_info.theme_documentation_url'],
+        'theme_documentation_url': DOCUMENTATION_URL,
         'fixture_change': 'Select the current Shopify merchant-state baseline independently of the unchanged Phase 5 account source baseline.',
         'live_shopify_certification': False
     }

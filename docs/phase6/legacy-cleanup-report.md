@@ -2,6 +2,8 @@
 
 Status: PHASE 6 PRE-LAUNCH LEGACY SETTINGS CLEANUP COMPLETE — READY FOR OWNER REVIEW.
 
+PR #24 owner-review follow-up: `theme_documentation_url` now targets `https://github.com/DylanJHamilton/Quadratum/tree/main/docs/phase6` so the metadata remains useful after the release branch is removed. The support URL remains `https://github.com/DylanJHamilton/Quadratum/issues`. The current inventory and reconciliation gate reflect this single approved metadata change; all merchant settings and Shopify saved state remain unchanged. H1–H3 evidence below describes the published cleanup checkpoints before this follow-up.
+
 Starting remote: `2d1d9b980c04e816e8c23309a3b3bc7a5ff37e27`. H1 audit published and verified at `03c2edb89ee80dc6b31d0c3ead60410c417bcd2f`; H2 removals published and verified at `66e61f8d6e4557831880b47ada3746e9653249f8`. H3 is the commit containing this completed report; its independently verified SHA is supplied in the final handoff and branch history. The three owner/Shopify commits after `f39eb7239f0ac6892fe5258e05a3683e2f9289fe` remain ancestors. No older owner state was restored.
 
 All 37 deprecated controls qualify for category A, remove before V1. Removed 37; retained active from this set 0; retained hidden/compatibility from this set 0; unresolved removal decisions 0. The schema now has 215 supported controls: 211 ACTIVE, three explicitly privileged code hooks and one form metadata transport. All 13 merchant groups remain useful. No new feature, setting, override or visibility workaround was added.
