@@ -1,6 +1,12 @@
 # Phase 6 — Theme settings architecture
 
-Pre-launch follow-up (2026-09-24): owner-authorized cleanup starts at `2d1d9b980c04e816e8c23309a3b3bc7a5ff37e27`, preserving the three Shopify commits after A–G closure. [The H1 audit](legacy-cleanup-audit.md) classifies all 37 deprecated controls; [H2 implementation](legacy-cleanup-report.md) removes them and preserves current owner state. The schema now has 215 controls. The A–G counts and byte-preservation statements below describe that earlier closure; H3 cleanup regressions and closure follow separately.
+**Current closure: PHASE 6 PRE-LAUNCH LEGACY SETTINGS CLEANUP COMPLETE — READY FOR OWNER REVIEW.**
+
+[H1–H3 cleanup report](legacy-cleanup-report.md) is authoritative for the current schema: 215 supported controls across 13 groups, 37 audited dead controls removed, none retained from that deprecated set. Current Shopify state from `2d1d9b980c04e816e8c23309a3b3bc7a5ff37e27` is byte-identical; all three later Shopify commits are preserved. All 125 suites and 176 browser fixtures pass. Theme Check remains 0 errors/517 warnings with no new warnings. [Owner review](owner-review.md) records live acceptance and the existing provider/distribution decisions.
+
+## Historical A–G closure
+
+The 252-setting counts and original retention policy below describe A–G before the owner-authorized pre-V1 cleanup. The historical hashes are not the current merchant-state baseline.
 
 Branch: `release/v1-phase-6-theme-settings`
 Baseline: `47664f217cc150b64d68158b3babd38bac2885d6`

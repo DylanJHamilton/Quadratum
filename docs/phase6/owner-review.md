@@ -1,10 +1,10 @@
 # Phase 6 owner review
 
-Pre-launch follow-up (2026-09-24): the owner has now authorized removal of proven dead pre-V1 controls. [H1 audit](legacy-cleanup-audit.md) records the 37 individual decisions and the newer Shopify state. The earlier retention policy below is historical and is superseded only for the audited removal IDs; all current saved state remains protected.
+PHASE 6 PRE-LAUNCH LEGACY SETTINGS CLEANUP COMPLETE — READY FOR OWNER REVIEW.
 
-PHASE 6 THEME SETTINGS ENGINEERING COMPLETE — READY FOR OWNER REVIEW.
+All 37 audited deprecated controls were removed under owner authorization; none remain active or hidden. The schema has 215 supported controls across 13 groups. [Cleanup report](legacy-cleanup-report.md) records exact IDs and validation; [H1 audit](legacy-cleanup-audit.md) preserves historical schemas and replacement ownership. No removal decisions remain. Confirm the streamlined editor presentation and preserved current styling/menu choices during owner acceptance.
 
-Engineering and local validation are complete on `release/v1-phase-6-theme-settings`. No live store was changed or queried. This queue covers acceptance and distribution decisions; it does not represent unresolved source-level settings defects. Do not merge or begin Phase 7 as part of this handoff.
+Engineering and local validation are complete on `release/v1-phase-6-theme-settings`. No live Shopify acceptance testing was performed in this cleanup. This queue covers acceptance and distribution decisions; it does not represent unresolved source-level settings defects. Do not merge or begin Phase 7 as part of this handoff.
 
 ## Decisions before deployment or distribution
 
@@ -12,15 +12,14 @@ Engineering and local validation are complete on `release/v1-phase-6-theme-setti
 | --- | --- |
 | Visible settings corrections | Review shared spacing now emitted as 12/16/24px and 48px instead of fractions of a rem; shared dark on-color default is white. Review the newly effective global color mode, card ratio, shared controls and popup geometry against the owner's intended design. Saved numbers and explicit local styles remain unchanged. |
 | Decorative video | Backgrounds are always muted and use accessible theme motion controls; content-video sections own sound/native controls. Confirm this intentional behavior correction. |
-| Deprecated controls | All 37 IDs/types/options and saved values remain. Do not delete or rename them without a migration decision. Global collection/PDP/blog controls do not override section-owned equivalents. `popup_type=age_gate` never verified age and remains deprecated; use a suitable app if actual age verification is required. |
-| Trusted code and tracking | Three raw HTML/JavaScript hooks remain privileged compatibility surfaces, now with a real master off switch. Default true preserves old behavior. Decide migration/distribution policy for app embeds and Shopify pixels. Inert GA4/Meta/TikTok IDs are deprecated; no tracking is silently installed. |
+| Trusted code and tracking | Three raw HTML/JavaScript hooks remain privileged compatibility surfaces, now with a real master off switch. Default true preserves old behavior. Decide migration/distribution policy for app embeds and Shopify pixels. Inert GA4/Meta/TikTok controls were removed; no tracking is silently installed. |
 | Provider loading and data handling | Approve Maps' automatic provider load when enabled, public key restrictions and the site's privacy configuration. Approve custom form endpoint operation, token verification, delivery and opt-in handling. Metadata is not consent or an installed CRM. |
 | Popup frequency | Persistent frequency uses Shopify preference permission; absent permission uses page memory. Confirm the resulting potential repeat display across pages. Newsletter confirmation does not set tracking consent. |
 | Product metadata and submission scope | Confirm Quadratum/DylanJHamilton, version 1.0.0, branch documentation and repository issues as the intended support channel. This is engineering metadata, not a product release. Any Theme Store submission needs its own full review, including header/footer section groups, resource/preset packaging and third-party integration policy. |
 
 ## Retained saved state
 
-`config/settings_data.json` is byte-identical to the Phase 5 baseline. Before/after SHA-256: `ffc244582d58f3e6e07713abd6ab1de2cdef7ba109fc00a60cef886235b6b499`. All section/block/platform state is preserved.
+`config/settings_data.json` is byte-identical to the current Shopify starting commit `2d1d9b980c04e816e8c23309a3b3bc7a5ff37e27`. Before/after SHA-256: `00683165515aa22401fd3793bfca9561df0a20f3f41d113690839b255d77f9b4`. All 63 saved globals, the eight inert values associated with removed controls, and all section/block/platform state are preserved. All three Shopify commits after A–G closure remain ancestors. The older compatibility state below also remains untouched.
 
 | Legacy key | Saved value | Disposition |
 | --- | --- | --- |
@@ -35,7 +34,7 @@ Engineering and local validation are complete on `release/v1-phase-6-theme-setti
 
 | Surface | Check on a development theme with representative merchant resources |
 | --- | --- |
-| Theme Editor and branding | Visit all 13 groups; verify labels/help, saved false/zero values, global defaults versus explicit local overrides, fonts, sharing images, dark/light colors, spacing and both normal/password layouts. |
+| Theme Editor and branding | Visit all 13 groups; confirm the 37 removed controls and four empty headings are absent, then verify labels/help, saved false/zero values, global defaults versus explicit local overrides, fonts, sharing images, dark/light colors, spacing and both normal/password layouts. |
 | Headers, footers and accounts | Exercise all five variants, mobile navigation, current Shopify account entry and native legacy fallback, logged-in/out destinations, and keyboard focus. Verify actual hosted account transport. |
 | Cart and product cards | Exercise native and Ajax routes, master and source trigger gates, card defaults, unavailable products, add failures, quantities, empty state and local bundle behavior. Verify threshold display in enabled currencies; it does not promise actual shipping eligibility or conversion. |
 | Search and 404 | Test every enabled search source, predictive-only collections, all-sources-off, popup/native routes, real resource results, 404 search, safe CTA fallback and configured imagery. |
@@ -45,4 +44,4 @@ Engineering and local validation are complete on `release/v1-phase-6-theme-setti
 | Popups | Test delay/scroll/exit/manual triggers, mobile/desktop gates, placements, animations, reduced motion, Escape/overlay/focus return, modal coexistence, native newsletter responses, preference-denied/allowed frequency, editor preview, section replacement and unload. |
 | Cross-browser accessibility | Check Safari/iOS and Firefox in addition to Chromium; keyboard-only use, screen readers, touch, zoom, long/localized content and owner-selected color contrast. Automated axe passes are bounded by the fixture content. |
 
-The 112 Phase 3/4 suites, 13 targeted Phase 5/6 suites and 176 browser fixtures are recorded in [engineering-report.md](engineering-report.md). Theme Check has zero errors and 517 disclosed warnings. Owner acceptance can proceed from these results; local fixtures are not live Shopify certification.
+The 112 Phase 3/4 suites, 13 targeted Phase 5/6 suites and 176 browser fixtures are recorded in [legacy-cleanup-report.md](legacy-cleanup-report.md). Theme Check has zero errors and 517 disclosed warnings. Owner acceptance can proceed from these results; local fixtures are not live Shopify certification.

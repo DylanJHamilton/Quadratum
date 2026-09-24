@@ -1,8 +1,8 @@
 # Phase 6 pre-launch legacy settings cleanup
 
-Status: H2 implemented and validated; H3 retained-component regressions and final closure follow.
+Status: PHASE 6 PRE-LAUNCH LEGACY SETTINGS CLEANUP COMPLETE — READY FOR OWNER REVIEW.
 
-Starting remote: `2d1d9b980c04e816e8c23309a3b3bc7a5ff37e27`. H1 audit published and verified at `03c2edb89ee80dc6b31d0c3ead60410c417bcd2f`. The three owner/Shopify commits after `f39eb7239f0ac6892fe5258e05a3683e2f9289fe` remain ancestors. No older owner state was restored.
+Starting remote: `2d1d9b980c04e816e8c23309a3b3bc7a5ff37e27`. H1 audit published and verified at `03c2edb89ee80dc6b31d0c3ead60410c417bcd2f`; H2 removals published and verified at `66e61f8d6e4557831880b47ada3746e9653249f8`. H3 is the commit containing this completed report; its independently verified SHA is supplied in the final handoff and branch history. The three owner/Shopify commits after `f39eb7239f0ac6892fe5258e05a3683e2f9289fe` remain ancestors. No older owner state was restored.
 
 All 37 deprecated controls qualify for category A, remove before V1. Removed 37; retained active from this set 0; retained hidden/compatibility from this set 0; unresolved removal decisions 0. The schema now has 215 supported controls: 211 ACTIVE, three explicitly privileged code hooks and one form metadata transport. All 13 merchant groups remain useful. No new feature, setting, override or visibility workaround was added.
 
@@ -35,4 +35,40 @@ All 63 saved global keys and all section/block/platform state are preserved, inc
 
 Inventory and reconciliation pass: zero unresolved global reads, zero dependencies on removed controls, valid schema/defaults and exact preservation of every surviving input contract. The Phase 6 source, branding, commerce, media, integrations and popup suites all pass. The popup suite now runs 43 real option permutations; the six removed popup_type options no longer inflate that count.
 
-Theme Check 4.8.0: zero errors, 517 warnings, unchanged from checkpoint G with no new or resolved diagnostic messages. `validation/checkpoint-h2` contains complete output and reconciliation. Existing helper-reference and complexity warning dispositions remain those documented at G. H3 will exercise retained Phase 4/5 consumers and browser fixtures against the cleaned schema before closure.
+Theme Check 4.8.0: zero errors, 517 warnings, unchanged from checkpoint G with no new or resolved diagnostic messages. `validation/checkpoint-h2` contains complete output and reconciliation. Existing helper-reference and complexity warning dispositions remain those documented at G. H3 verifies that runtime source is byte-identical to this validated H2 checkpoint, so this Theme Check result remains current.
+
+## Exact removed IDs
+
+| Group | Removed global setting IDs |
+| --- | --- |
+| User Interface | `article_measure`, `blog_list_style`, `blog_show_author`, `blog_show_date`, `blog_show_tags`, `reading_progress` |
+| Header | `header_show_store_name`, `mobile_drawer_position` |
+| Commerce Defaults | `cart_coupon_input_enable`, `cart_drawer_show_addons`, `cart_drawer_show_rewards_tiers`, `cart_gift_wrap_enable`, `collection_card_ratio`, `collection_cols_d`, `collection_cols_m`, `collection_cols_t`, `collection_show_filters`, `collection_show_sort`, `pcard_show_swatches`, `pdp_show_compare_at`, `pdp_show_unit_price`, `pdp_sticky_add_to_cart`, `pdp_tabs_mode`, `use_metaobject_cart_addons`, `use_metaobject_cart_rewards` |
+| Media Settings | `enable_lottie`, `video_controls`, `video_muted` |
+| Integrations | `ga4_id`, `gmap_default_lat`, `gmap_default_lng`, `marketing_consent_default_checked`, `marketing_consent_label`, `meta_pixel_id`, `recaptcha_v3_threshold`, `tiktok_pixel_id` |
+| Popups | `popup_type` |
+
+Retained deprecated IDs: none. There is no remaining removal decision. The eight inert saved values above are preserved owner state, not hidden or active schema controls.
+
+## H3 final validation
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Schema, defaults, reverse mapping and compatibility | Pass; 215 supported controls, 13 groups, no unresolved global reads or removed-ID dependencies. | `validation/checkpoint-h3/inventory-summary.json`, `reconciliation.json` |
+| Retained Phase 3/4 components | All 112 suites pass with the cleaned defaults. | `validation/checkpoint-h3/regressions/results.json` and individual logs |
+| Phase 5 accounts and headers | All seven source/behavior suites pass, including 66 account-entry scenarios. | `validation/checkpoint-h3/targeted-results.json`, `header-source/source.json` |
+| Phase 6 settings contracts | All six H2 suites pass; H3 verifies unchanged runtime source. Popup suite covers 43 supported option permutations. | `validation/checkpoint-h2/results.json` and individual logs |
+| Popup/cart/localization browser | 41 Chromium fixtures pass. | `validation/checkpoint-h3/popup-browser-results.json` |
+| Header browser | 72 fixtures plus 20 account axe audits, 15 keyboard checks and five lifecycle checks pass. | `validation/checkpoint-h3/header-browser/browser.json` |
+| Account browser | 63 fixtures pass, including nine without JavaScript. | `validation/checkpoint-h3/account-browser-results.json` |
+| Theme Check 4.8.0 | 0 errors, 517 warnings; no new diagnostics compared with G. | `validation/checkpoint-h2/theme-check-summary.json` and raw output |
+
+Total: 125 suites and 176 browser fixtures pass. Browser reports contain no runtime errors or axe violations; responsive overflow and focus gates pass. Strict Liquid parsing covers 46 changed files across Phase 6, with JavaScript syntax, JSON and CSS/token checks retained. H3 changes only tests and documentation; runtime remains exactly the H2 tree.
+
+One historical account-suite guard initially failed because it compared merchant state with its pre-Phase-5-header baseline. The harness now accepts an explicit `ACCOUNT_STATE_BASELINE`; H3 supplies the current Shopify starting SHA and still compares the entire file byte-for-byte. All protected account implementation files continue to use their original Phase 5 baseline. No account behavior assertion was weakened. Output destinations were parameterized so new evidence does not overwrite A–G/Phase 5 reports. The single affected suite was rerun successfully; already passing suites were not rerun unnecessarily.
+
+## Owner handoff
+
+The 37 removals are resolved and authorized; no feature was invented to justify an unused control. Check the 13 groups in the live Theme Editor for the intended streamlined presentation and confirm normal local controls, saved styling and account menus. Local Chromium fixtures do not replace live Shopify/editor, native form/provider or manual assistive-technology acceptance. The existing trusted-code, Maps, endpoint, privacy and distribution choices remain in [owner-review.md](owner-review.md); this cleanup introduces no new provider decision.
+
+Publication is non-force on `release/v1-phase-6-theme-settings`. All three Shopify commits remain ancestors. Main is untouched; no merge, store QA session, broad refactor or Phase 7 work is included.

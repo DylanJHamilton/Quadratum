@@ -9,6 +9,7 @@ import subprocess
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--checkpoint', default='checkpoint-h3')
+parser.add_argument('--final', action='store_true', help='Also require the recorded H2/H3 regression and browser gates')
 args = parser.parse_args()
 BASE = '2d1d9b980c04e816e8c23309a3b3bc7a5ff37e27'
 OUT = Path('docs/phase6/validation') / args.checkpoint
@@ -94,6 +95,43 @@ report = {
     'history': 'docs/phase6/legacy-cleanup-audit.json',
     'live_shopify_certification': False
 }
+if args.final:
+    read_report = lambda path: json.loads(Path(path).read_text())
+    regressions = read_report(OUT / 'regressions/results.json')
+    targeted = read_report(OUT / 'targeted-results.json')
+    assert len(regressions) == len({r['test'] for r in regressions}) == 112
+    assert len(targeted) == len({r['suite'] for r in targeted}) == 13
+    assert all(r['exit_code'] == 0 and Path(r['log']).stat().st_size for r in regressions + targeted)
+    popup = read_report(OUT / 'popup-browser-results.json')
+    headers = read_report(OUT / 'header-browser/browser.json')
+    accounts = read_report(OUT / 'account-browser-results.json')
+    assert popup['cases'] == len(popup['results']) == 41
+    assert len(headers['cases']) == 72 and not headers['errors']
+    assert len(headers['accessibility']) == 20 and all(not r['violations'] for r in headers['accessibility'])
+    assert len(headers['keyboard']) == 15 and len(headers['lifecycle']) == 5
+    assert len(accounts) == 63
+    assert all(not r['errors'] and not r['violations'] for r in popup['results'] + accounts)
+    account_entry = read_report(OUT / 'header-source/source.json')
+    assert account_entry['scenarios'] == 66 and account_entry['state_baseline'] == BASE
+    assert account_entry['baseline'] == '8e114764138cf5a5967ff56b75064808d6366bed'
+    theme = read_report('docs/phase6/validation/checkpoint-h2/theme-check.json')
+    theme_counts = collections.Counter(o['severity'] for file in theme for o in file['offenses'])
+    assert theme_counts['error'] == 0 and theme_counts['warning'] == 517
+    subprocess.run(['git', 'diff', '--exit-code', '66e61f8d6e4557831880b47ada3746e9653249f8', '--',
+                    'config', 'layout', 'sections', 'snippets', 'blocks', 'assets', 'templates'], check=True, stdout=subprocess.PIPE)
+    report['validation'] = {
+        'phase3_phase4_suites_passed': len(regressions), 'phase5_phase6_suites_passed': len(targeted),
+        'browser_fixtures_passed': popup['cases'] + len(headers['cases']) + len(accounts),
+        'browser_fixtures': {'popup_commerce_localization': 41, 'headers': 72, 'accounts': 63},
+        'header_additional_checks': {'accessibility': 20, 'keyboard': 15, 'lifecycle': 5},
+        'account_entry_source_scenarios': 66,
+        'theme_check': {'cli_version': '4.8.0', 'error': 0, 'warning': 517, 'new_warnings': 0,
+                        'report': 'docs/phase6/validation/checkpoint-h2/theme-check.json'},
+        'runtime_unchanged_since_validated_h2': True,
+        'fixture_change': 'Select the current Shopify merchant-state baseline independently of the unchanged Phase 5 account source baseline.',
+        'live_shopify_certification': False
+    }
 OUT.mkdir(parents=True, exist_ok=True)
 (OUT / 'reconciliation.json').write_text(json.dumps(report, indent=2) + '\n')
-print(json.dumps({'counts': report['counts'], 'settings_data_sha256': digest(data_after), 'runtime_scope': runtime, 'contract_errors': []}, indent=2))
+print(json.dumps({'counts': report['counts'], 'settings_data_sha256': digest(data_after), 'runtime_scope': runtime,
+                  'validation': report.get('validation'), 'contract_errors': []}, indent=2))

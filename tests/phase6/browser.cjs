@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require('playwright'),axe=require('axe-core'),f=require('./support.cjs');
 const out=process.env.PHASE6_BROWSER_OUTPUT || '/tmp/quadratum-phase6-browser';fs.mkdirSync(out,{recursive:true});
+const report=process.env.PHASE6_BROWSER_REPORT || 'docs/phase6/validation/checkpoint-f/browser-results.json';fs.mkdirSync(path.dirname(report),{recursive:true});
 async function fixture(settings={},kind='popup',direction='ltr'){
  const global={...f.defaults,...settings},context={settings:global,routes:{root_url:'/fr/',cart_url:'/fr/cart',all_products_collection_url:'/fr/collections/all'},cart:{items:[],item_count:0,total_price:0},section_id:'fixture',localization:{available_countries:[{iso_code:'US',name:'United States',currency:{iso_code:'USD'}},{iso_code:'CA',name:'Canada',currency:{iso_code:'CAD'}}],available_languages:[{iso_code:'en',endonym_name:'English'},{iso_code:'ar',endonym_name:'العربية'}],country:{iso_code:'US'},language:{iso_code:'en'}}};
  const tokens=await f.engine.renderFile('global-theme-vars',context,{globals:context});
@@ -58,6 +59,6 @@ async function load(page,html){
    await page.addScriptTag({content:axe.source});const violations=await page.evaluate(async()=>(await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}})).violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary}))})));
    results.push({name:'commerce-localization',width,direction,overflow,rect,errors,violations});if(width===320)await page.screenshot({path:path.join(out,'commerce-'+direction+'.png'),fullPage:true});await page.close();
   }
- }finally{await browser.close();fs.writeFileSync('docs/phase6/validation/checkpoint-f/browser-results.json',JSON.stringify({fixture_only:true,cases:results.length,results},null,2)+'\n');}
+ }finally{await browser.close();fs.writeFileSync(report,JSON.stringify({fixture_only:true,cases:results.length,results},null,2)+'\n');}
  const failed=results.filter(r=>r.errors.length||r.violations.length);if(failed.length){console.error(JSON.stringify(failed,null,2));process.exitCode=1;}else console.log('PASS '+results.length+' Chromium/axe fixtures: eight placements; all styles/image positions; 320/768/1024/1440px; reduced motion, RTL, exact colors/zero settings, keyboard/focus/reopen, native confirmation and commerce/localization. External requests intercepted; no Shopify certification.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
