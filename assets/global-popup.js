@@ -1,368 +1,192 @@
+/* One global promotion/newsletter dialog. This is not a privacy or age-verification gate. */
 (() => {
+  'use strict';
   if (window.qtmGlobalPopupBound) return;
   window.qtmGlobalPopupBound = true;
   const STORAGE_KEY = 'qtm_global_popup_seen';
   const SESSION_KEY = 'qtm_global_popup_seen_session';
-
-  let popup = null;
-  let dialog = null;
-  let config = {};
-  let openedThisPage = false;
-  let lastFocusedElement = null;
-  let eventsBound = false;
-  let closeTimer = null;
-  let bootedPopup = null;
-
-  function isThemeEditor() {
-    return Boolean(
-      (window.Shopify && window.Shopify.designMode) ||
-      document.documentElement.classList.contains('shopify-design-mode')
-    );
+  const FIRST_KEY = 'qtm_global_popup_first_visit';
+  const memory = { localStorage: new Map(), sessionStorage: new Map() };
+  let popup = null, dialog = null, config = {}, openedThisPage = false;
+  let lastFocusedElement = null, closeTimer = null, autoTimer = null, triggerAbort = null;
+  let background = [];
+  const editor = () => Boolean(window.Shopify?.designMode || document.documentElement.classList.contains('shopify-design-mode'));
+  const current = () => document.getElementById('QuadratumGlobalPopup') || document.querySelector('[data-qtm-popup]');
+  const boolean = value => value === true || value === 'true';
+  const number = (value, fallback, min, max) => {
+    const n = Number(value); return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
+  };
+  function storageAllowed() {
+    try { return !editor() && window.Shopify?.customerPrivacy?.preferencesProcessingAllowed() === true; }
+    catch { return false; }
   }
-
-  function storage(kind, method, ...args) {
-    try { return window[kind][method](...args); } catch { return null; }
+  function storage(kind, method, key, value) {
+    if (editor()) return null;
+    if (method === 'setItem') memory[kind].set(key, value);
+    if (method === 'removeItem') memory[kind].delete(key);
+    if (storageAllowed()) {
+      try {
+        const result = window[kind][method](key, value);
+        if (method !== 'getItem' || result !== null) return result;
+      } catch { /* Storage disabled: retain only this page's in-memory frequency. */ }
+    }
+    return method === 'getItem' ? memory[kind].get(key) ?? null : null;
   }
-
-  function getPopup() {
-    return document.getElementById('QuadratumGlobalPopup') || document.querySelector('[data-qtm-popup]');
-  }
-
-  function getBoolean(value) {
-    return value === true || value === 'true';
-  }
-
-  function getNumber(value, fallback) {
-    const number = Number(value);
-    return Number.isFinite(number) ? number : fallback;
-  }
-
-  function getConfig() {
-    const globalConfig =
-      window.QuadratumSettings && window.QuadratumSettings.popups
-        ? window.QuadratumSettings.popups
-        : {};
-
+  function readConfig() {
+    const global = window.QuadratumSettings?.popups || {}, d = popup.dataset;
     return {
-      enabled: getBoolean(popup?.dataset.popupEnabled ?? globalConfig.enabled),
-      type: popup?.dataset.popupType || globalConfig.type || 'newsletter',
-      trigger: popup?.dataset.popupTrigger || globalConfig.trigger || 'delay',
-      frequency: popup?.dataset.popupFrequency || globalConfig.frequency || 'always',
-      delaySeconds: getNumber(popup?.dataset.popupDelay || globalConfig.delaySeconds, 1),
-      scrollPercent: getNumber(popup?.dataset.popupScroll || globalConfig.scrollPercent, 45),
-      showOnMobile: getBoolean(popup?.dataset.popupMobile ?? globalConfig.showOnMobile),
-      showOnDesktop: getBoolean(popup?.dataset.popupDesktop ?? globalConfig.showOnDesktop),
-      overlayClickClose: getBoolean(popup?.dataset.popupOverlayClose ?? globalConfig.overlayClickClose),
-      editorPreview: getBoolean(popup?.dataset.popupEditorPreview ?? globalConfig.editorPreview)
+      enabled: boolean(d.popupEnabled ?? global.enabled),
+      trigger: d.popupTrigger || global.trigger || 'delay',
+      frequency: d.popupFrequency || global.frequency || 'once_per_session',
+      delay: number(d.popupDelay ?? global.delaySeconds, 8, 0, 60),
+      scroll: number(d.popupScroll ?? global.scrollPercent, 45, 10, 100),
+      mobile: boolean(d.popupMobile ?? global.showOnMobile),
+      desktop: boolean(d.popupDesktop ?? global.showOnDesktop),
+      overlay: boolean(d.popupOverlayClose ?? global.overlayClickClose),
+      preview: boolean(d.popupEditorPreview ?? global.editorPreview)
     };
   }
-
-  function isMobile() {
-    return window.matchMedia('(max-width: 749px)').matches;
+  const isMobile = () => window.matchMedia('(max-width: 749px)').matches;
+  const permitted = () => (editor() && config.preview) || (config.enabled && (isMobile() ? config.mobile : config.desktop));
+  const visible = () => popup && popup.classList.contains('is-visible');
+  function frequencyAllows() {
+    if (openedThisPage) return false;
+    if (config.trigger === 'first_visit' && (storage('localStorage', 'getItem', FIRST_KEY) || storage('localStorage', 'getItem', STORAGE_KEY))) return false;
+    if (config.frequency === 'once_per_session') return storage('sessionStorage', 'getItem', SESSION_KEY) !== 'true';
+    const interval = { once_per_day: 86400000, once_per_week: 604800000 }[config.frequency];
+    if (!interval) return true;
+    const seen = Number(storage('localStorage', 'getItem', STORAGE_KEY) || 0);
+    return !seen || Date.now() - seen >= interval;
   }
-
-  function shouldShowForDevice() {
-    if (isThemeEditor() && config.editorPreview) return true;
-    return isMobile() ? config.showOnMobile : config.showOnDesktop;
-  }
-
-  function shouldShowByFrequency() {
-    if (isThemeEditor() && config.editorPreview) return true;
-
-    if (config.frequency === 'always') {
-      storage('localStorage', 'removeItem', STORAGE_KEY);
-      storage('sessionStorage', 'removeItem', SESSION_KEY);
-      return true;
-    }
-
-    if (config.frequency === 'once_per_session') {
-      return storage('sessionStorage', 'getItem', SESSION_KEY) !== 'true';
-    }
-
-    const lastSeen = Number(storage('localStorage', 'getItem', STORAGE_KEY) || 0);
-
-    if (!lastSeen) return true;
-
-    const now = Date.now();
-    const oneDay = 24 * 60 * 60 * 1000;
-    const oneWeek = 7 * oneDay;
-
-    if (config.frequency === 'once_per_day') return now - lastSeen > oneDay;
-    if (config.frequency === 'once_per_week') return now - lastSeen > oneWeek;
-
-    return true;
-  }
-
   function markSeen() {
-    if (isThemeEditor() && config.editorPreview) return;
-    if (config.frequency === 'always') return;
-
-    if (config.frequency === 'once_per_session') {
-      storage('sessionStorage', 'setItem', SESSION_KEY, 'true');
-      return;
+    if (editor()) return;
+    storage('localStorage', 'setItem', FIRST_KEY, 'true');
+    if (config.frequency === 'once_per_session') storage('sessionStorage', 'setItem', SESSION_KEY, 'true');
+    else if (['once_per_day', 'once_per_week'].includes(config.frequency)) storage('localStorage', 'setItem', STORAGE_KEY, String(Date.now()));
+  }
+  function focusables() {
+    return [...(dialog?.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])') || [])]
+      .filter(el => !el.closest('[hidden], [inert], [aria-hidden="true"]') && Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+  }
+  function focusInside() {
+    const feedback = dialog?.querySelector('[data-popup-feedback]');
+    (feedback || focusables()[0] || dialog)?.focus({ preventScroll: true });
+  }
+  function containFocus(event) {
+    if (visible() && !dialog.contains(event.target)) focusInside();
+  }
+  function keydown(event) {
+    if (!visible()) return;
+    if (event.key === 'Escape') { event.preventDefault(); close(); return; }
+    if (event.key !== 'Tab') return;
+    const nodes = focusables(), first = nodes[0], last = nodes[nodes.length - 1];
+    if (!nodes.length) { event.preventDefault(); dialog?.focus(); }
+    else if (event.shiftKey && (document.activeElement === first || !nodes.includes(document.activeElement))) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && (document.activeElement === last || !nodes.includes(document.activeElement))) { event.preventDefault(); first.focus(); }
+  }
+  function isolate() {
+    background = [];
+    for (let branch = popup; branch && branch.parentElement && branch !== document.body; branch = branch.parentElement) {
+      for (const sibling of branch.parentElement.children) {
+        if (sibling === branch || ['SCRIPT', 'STYLE', 'LINK'].includes(sibling.tagName)) continue;
+        background.push([sibling, sibling.inert]); sibling.inert = true;
+      }
     }
-
-    storage('localStorage', 'setItem', STORAGE_KEY, String(Date.now()));
-  }
-
-  function getFocusableElements() {
-    if (!dialog) return [];
-
-    return Array.from(
-      dialog.querySelectorAll(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      )
-    ).filter((element) => {
-      return Boolean(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
-    });
-  }
-
-  function lockScroll() {
     document.documentElement.classList.add('qtm-popup-open');
     document.body.classList.add('qtm-popup-open');
   }
-
-  function unlockScroll() {
+  function restore() {
+    for (const [node, inert] of background) node.inert = inert;
+    background = [];
     document.documentElement.classList.remove('qtm-popup-open');
     document.body.classList.remove('qtm-popup-open');
+    document.removeEventListener('focusin', containFocus);
+    document.removeEventListener('keydown', keydown);
   }
-
-  function physicallyShowPopup() {
-    if (!popup) return false;
-
+  function open(manual = false) {
+    if (popup !== current()) boot();
+    if (!popup || !dialog || !permitted()) return false;
+    if (visible()) return true;
+    if (!manual && !frequencyAllows()) return false;
+    // An automatic promotion must not interrupt another open modal.
+    if (!manual && [...document.querySelectorAll('[aria-modal="true"]')].some(el => el !== dialog && !el.closest('[hidden], [aria-hidden="true"]') && el.getClientRects().length)) return false;
     window.clearTimeout(closeTimer);
-    popup.hidden = false;
-    popup.removeAttribute('hidden');
-    popup.setAttribute('aria-hidden', 'false');
-    popup.classList.add('is-visible');
-
-    popup.style.position = 'fixed';
-    popup.style.inset = '0';
-    popup.style.zIndex = '999999';
-    popup.style.display = 'flex';
-    popup.style.alignItems = 'center';
-    popup.style.justifyContent = 'center';
-    popup.style.width = '100vw';
-    popup.style.height = '100dvh';
-    popup.style.margin = '0';
-    popup.style.opacity = '1';
-    popup.style.visibility = 'visible';
-    popup.style.pointerEvents = 'auto';
-
-    lockScroll();
-
-    window.requestAnimationFrame(() => {
-      if (popup.hidden || !popup.classList.contains('is-visible')) return;
-      const focusable = getFocusableElements();
-
-      if (focusable.length) {
-        focusable[0].focus();
-      } else if (dialog) {
-        dialog.focus();
-      }
-    });
-
-    return true;
-  }
-
-  function physicallyHidePopup() {
-    if (!popup) return false;
-
-    popup.classList.remove('is-visible');
-    popup.setAttribute('aria-hidden', 'true');
-
-    unlockScroll();
-
-    closeTimer = window.setTimeout(() => {
-      popup.hidden = true;
-      popup.setAttribute('hidden', '');
-      popup.removeAttribute('style');
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220);
-
-    if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-      lastFocusedElement.focus();
-    }
-
-    return true;
-  }
-
-  function openPopup(force = false) {
-    if (!popup) {
-      popup = getPopup();
-
-      if (!popup) return false;
-
-      dialog = popup.querySelector('[data-qtm-popup-dialog]') || popup.querySelector('[role="dialog"]');
-      config = getConfig();
-    }
-
-    if (!force) {
-      if (openedThisPage && config.frequency !== 'always' && !(isThemeEditor() && config.editorPreview)) return false;
-      if (!config.enabled && !(isThemeEditor() && config.editorPreview)) return false;
-      if (!shouldShowForDevice()) return false;
-      if (!shouldShowByFrequency()) return false;
-    }
-
-    openedThisPage = true;
     lastFocusedElement = document.activeElement;
-
-    physicallyShowPopup();
-    markSeen();
-
-    document.addEventListener('keydown', handleKeydown);
-
+    popup.hidden = false; popup.inert = false;
+    popup.removeAttribute('inert'); popup.setAttribute('aria-hidden', 'false');
+    void popup.offsetWidth;
+    popup.classList.add('is-visible');
+    isolate(); openedThisPage = true; markSeen();
+    document.addEventListener('keydown', keydown);
+    document.addEventListener('focusin', containFocus);
+    window.requestAnimationFrame(() => { if (visible()) focusInside(); });
     return true;
   }
-
-  function closePopup() {
-    document.removeEventListener('keydown', handleKeydown);
-    return physicallyHidePopup();
+  function close() {
+    if (!popup) return false;
+    if (!visible()) return false;
+    const closing = popup;
+    popup.classList.remove('is-visible'); popup.setAttribute('aria-hidden', 'true'); popup.inert = true;
+    restore();
+    if (lastFocusedElement?.isConnected) lastFocusedElement.focus?.({ preventScroll: true });
+    const instant = window.matchMedia('(prefers-reduced-motion: reduce)').matches || popup.classList.contains('qtm-popup--none');
+    closeTimer = window.setTimeout(() => { closing.hidden = true; }, instant ? 0 : 220);
+    return true;
   }
-
-  function resetPopup() {
-    storage('localStorage', 'removeItem', STORAGE_KEY);
-    storage('sessionStorage', 'removeItem', SESSION_KEY);
-    openedThisPage = false;
+  function clearTriggers() { window.clearTimeout(autoTimer); triggerAbort?.abort(); triggerAbort = null; }
+  function dispose() {
+    clearTriggers(); window.clearTimeout(closeTimer);
+    if (visible()) close();
+    window.clearTimeout(closeTimer); restore();
+    if (popup) { popup.hidden = true; popup.inert = true; popup.classList.remove('is-visible'); popup.setAttribute('aria-hidden', 'true'); }
+    popup = null; dialog = null;
   }
-
-  function handleKeydown(event) {
-    if (event.key === 'Escape') {
-      closePopup();
-      return;
-    }
-
-    if (event.key !== 'Tab') return;
-
-    const focusable = getFocusableElements();
-
-    if (!focusable.length) return;
-
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  }
-
-  function setupEvents() {
-    if (!popup || eventsBound) return;
-
-    eventsBound = true;
-
-    popup.querySelectorAll('[data-qtm-popup-close]').forEach((button) => {
-      button.addEventListener('click', closePopup);
-    });
-
-    const overlay = popup.querySelector('[data-qtm-popup-overlay]');
-
-    if (overlay) {
-      overlay.addEventListener('click', () => {
-        if (config.overlayClickClose || isThemeEditor()) {
-          closePopup();
-        }
-      });
-    }
-
-    document.addEventListener('click', (event) => {
-      const opener = event.target.closest('[data-qtm-popup-open]');
-
-      if (!opener) return;
-
-      event.preventDefault();
-      openPopup(true);
-    });
-  }
-
-  function setupAutoTrigger() {
-    if (!popup) return;
-
-    if (isThemeEditor() && config.editorPreview) {
-      window.setTimeout(() => openPopup(true), 100);
-      window.setTimeout(() => openPopup(true), 600);
-      window.setTimeout(() => openPopup(true), 1300);
-      return;
-    }
-
-    if (!config.enabled) return;
-    if (!shouldShowForDevice()) return;
+  function triggers() {
+    clearTriggers();
+    if (editor()) { if (config.preview) autoTimer = window.setTimeout(() => open(true), 100); return; }
+    if (!permitted()) return;
+    if (dialog.querySelector('[data-popup-feedback]')) { open(true); return; }
     if (config.trigger === 'manual') return;
-
+    triggerAbort = new AbortController();
+    const options = { signal: triggerAbort.signal };
     if (config.trigger === 'scroll') {
-      const onScroll = () => {
-        const doc = document.documentElement;
-        const scrollTop = window.scrollY || doc.scrollTop;
-        const scrollHeight = Math.max(doc.scrollHeight - window.innerHeight, 1);
-        const progress = (scrollTop / scrollHeight) * 100;
-
-        if (progress >= config.scrollPercent) {
-          window.removeEventListener('scroll', onScroll);
-          openPopup(false);
-        }
+      const check = () => {
+        const doc = document.documentElement, distance = doc.scrollHeight - window.innerHeight;
+        const progress = distance > 0 ? ((window.scrollY || doc.scrollTop) / distance) * 100 : 100;
+        if (progress >= config.scroll) { clearTriggers(); open(); }
       };
-
-      window.addEventListener('scroll', onScroll, { passive: true });
-      onScroll();
-      return;
-    }
-
-    if (config.trigger === 'exit_intent') {
+      window.addEventListener('scroll', check, { ...options, passive: true }); check();
+    } else if (config.trigger === 'exit_intent') {
       if (isMobile()) return;
-
-      const onMouseOut = (event) => {
-        if (event.clientY > 8) return;
-
-        document.removeEventListener('mouseout', onMouseOut);
-        openPopup(false);
-      };
-
-      document.addEventListener('mouseout', onMouseOut);
-      return;
-    }
-
-    if (config.trigger === 'first_visit') {
-      if (!storage('localStorage', 'getItem', STORAGE_KEY)) {
-        window.setTimeout(() => openPopup(false), config.delaySeconds * 1000);
-      }
-
-      return;
-    }
-
-    window.setTimeout(() => openPopup(false), config.delaySeconds * 1000);
+      document.addEventListener('mouseout', event => {
+        if (event.relatedTarget || event.clientY > 8) return;
+        clearTriggers(); open();
+      }, options);
+    } else { autoTimer = window.setTimeout(() => open(), config.delay * 1000); }
   }
-
   function boot() {
-    const nextPopup = getPopup();
-    if (nextPopup && nextPopup === bootedPopup) return;
-    popup = nextPopup;
-    bootedPopup = popup;
-
-    window.QuadratumPopup = {
-      open: () => openPopup(true),
-      close: closePopup,
-      reset: resetPopup
-    };
-
+    const next = current(); if (next === popup) return;
+    dispose(); popup = next;
     if (!popup) return;
-
-    dialog = popup.querySelector('[data-qtm-popup-dialog]') || popup.querySelector('[role="dialog"]');
-    config = getConfig();
-
-    setupEvents();
-    setupAutoTrigger();
+    dialog = popup.querySelector('[data-qtm-popup-dialog], [role="dialog"]');
+    config = readConfig(); openedThisPage = false;
+    if (dialog) triggers();
   }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
-  } else {
-    boot();
-  }
-
+  window.QuadratumPopup = {
+    open: () => open(true), close,
+    reset: () => { for (const key of [STORAGE_KEY, FIRST_KEY]) storage('localStorage', 'removeItem', key); storage('sessionStorage', 'removeItem', SESSION_KEY); openedThisPage = false; }
+  };
+  document.addEventListener('click', event => {
+    const target = event.target.closest?.('[data-qtm-popup-open], [data-qtm-popup-close], [data-qtm-popup-overlay]');
+    if (!target) return;
+    if (target.hasAttribute('data-qtm-popup-open')) { if (open(true)) event.preventDefault(); }
+    else if (popup?.contains(target) && (target.hasAttribute('data-qtm-popup-close') || config.overlay || editor())) close();
+  });
   document.addEventListener('shopify:section:load', boot);
-  document.addEventListener('shopify:section:select', boot);
-  document.addEventListener('shopify:block:select', boot);
+  document.addEventListener('shopify:section:unload', event => { if (popup && (event.target === popup || event.target.contains(popup))) dispose(); });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
+  // Request the platform API without asserting or changing visitor consent.
+  if (!window.Shopify?.customerPrivacy && typeof window.Shopify?.loadFeatures === 'function') {
+    window.Shopify.loadFeatures([{ name: 'consent-tracking-api', version: '0.1' }], () => {});
+  }
 })();

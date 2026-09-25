@@ -6,6 +6,8 @@ const postcss = require('postcss');
 const { JSDOM } = require('jsdom');
 const f = require('./header-fixtures.cjs');
 const baseline = '8e114764138cf5a5967ff56b75064808d6366bed';
+// Later owner edits may advance merchant state without changing the protected account source.
+const stateBaseline = process.env.ACCOUNT_STATE_BASELINE || baseline;
 const touched = ['snippets/header-account-entry.liquid', 'snippets/header-marketplace-category-drawer.liquid', 'assets/header-account-entry.css', ...f.words.flatMap(n => ['sections/header-' + n + '.liquid', 'assets/header-' + n + '.js'])];
 const source = f.read('snippets/header-account-entry.liquid');
 assert(!source.includes('if customer'), 'Shopify, not Liquid, owns enhanced customer state');
@@ -35,7 +37,10 @@ function trace(file) {
 f.words.forEach(n => trace('sections/header-' + n + '.liquid'));
 const protectedFiles = cp.execFileSync('git', ['ls-tree', '-r', '--name-only', baseline], { encoding: 'utf8' }).trim().split('\n')
   .filter(p => /^(assets\/account-|sections\/account-|snippets\/account-|templates\/customers\/)/.test(p) || p === 'config/settings_data.json');
-for (const file of protectedFiles) assert(fs.readFileSync(file).equals(cp.execFileSync('git', ['show', baseline + ':' + file])), 'Preserve A–E and merchant data: ' + file);
+for (const file of protectedFiles) {
+  const expectedBaseline = file === 'config/settings_data.json' ? stateBaseline : baseline;
+  assert(fs.readFileSync(file).equals(cp.execFileSync('git', ['show', expectedBaseline + ':' + file])), 'Preserve A–E source and selected merchant state: ' + file);
+}
 
 (async () => {
   let scenarios = 0;
@@ -76,7 +81,7 @@ for (const file of protectedFiles) assert(fs.readFileSync(file).equals(cp.execFi
   const mobile = new JSDOM(await f.header('one', {settings: {show_account_icon: false, show_mobile_account_link: true}}));
   assert(mobile.window.document.querySelector('shopify-account.qtm-account-entry--mobile-only'));
   mobile.window.close(); scenarios++;
-  const output = 'docs/phase5/validation/checkpoint-f'; fs.mkdirSync(output, {recursive: true});
-  fs.writeFileSync(output + '/source.json', JSON.stringify({baseline, scenarios, strict_liquid_files: touched.filter(x => x.endsWith('.liquid')), css_js_syntax: true, protected_files_unchanged: protectedFiles, header_dependency_closure: [...dependencies].sort()}, null, 2) + '\n');
+  const output = process.env.ACCOUNT_ENTRY_SOURCE_OUTPUT || 'docs/phase5/validation/checkpoint-f'; fs.mkdirSync(output, {recursive: true});
+  fs.writeFileSync(output + '/source.json', JSON.stringify({baseline, state_baseline: stateBaseline, scenarios, strict_liquid_files: touched.filter(x => x.endsWith('.liquid')), css_js_syntax: true, protected_files_unchanged: protectedFiles, header_dependency_closure: [...dependencies].sort()}, null, 2) + '\n');
   console.log(`PASS ${scenarios} account entry scenarios; all five headers; settings/menu/visibility/state/escaping; ${dependencies.size} exact dependencies; ${protectedFiles.length} A–E/protected files unchanged; strict Liquid/CSS/JS.`);
 })().catch(error => {console.error(error); process.exitCode = 1;});

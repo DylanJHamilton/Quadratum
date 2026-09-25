@@ -1,3 +1,4 @@
+{%- assign qtm_global_image_loading = 'lazy' -%}{%- if settings.images_lazyload == false -%}{%- assign qtm_global_image_loading = 'eager' -%}{%- endif -%}
 {% comment %}
   Quadratum — Product Card (shared)
   File: snippets/product-card.liquid
@@ -21,7 +22,20 @@
   assign media_mode = media_mode | default: 'single'
   assign scroll_gallery_limit = scroll_gallery_limit | default: 6 | at_least: 1 | at_most: 12
   assign media_fit = media_fit | default: 'cover'
-  assign media_ratio = media_ratio | default: 100 | at_least: 25 | at_most: 200
+  assign default_media_ratio = 100
+  case settings.image_default_ratio
+    when 'portrait'
+      assign default_media_ratio = 125
+    when 'landscape'
+      assign default_media_ratio = 66.67
+    when 'widescreen'
+      assign default_media_ratio = 56.25
+    when 'adapt'
+      if p.featured_image.aspect_ratio > 0
+        assign default_media_ratio = 100.0 | divided_by: p.featured_image.aspect_ratio
+      endif
+  endcase
+  assign media_ratio = media_ratio | default: default_media_ratio | at_least: 25 | at_most: 200
   assign image_zoom = image_zoom
 
   assign hover_treatment = hover_treatment | default: 'overlay_actions'
@@ -29,7 +43,7 @@
   assign hover_actions_visibility = hover_actions_visibility | default: 'desktop_only'
   assign actions_layout = actions_layout | default: 'stack'
 
-  assign enable_quick_add = enable_quick_add
+  assign enable_quick_add = enable_quick_add | default: settings.pcard_quick_add, allow_false: true
   assign enable_quick_view = enable_quick_view
   if purchase_details_required
     assign enable_quick_view = false
@@ -39,7 +53,7 @@
 
   assign price_mode = price_mode | default: 'simple'
 
-  assign show_badges = show_badges
+  assign show_badges = show_badges | default: settings.pcard_show_badges, allow_false: true
   assign badge_sale = badge_sale
 
   assign text_align = text_align | default: 'left'
@@ -240,7 +254,7 @@
               class="q-product-card__img q-product-card__img--primary"
               src="{{ featured_img | image_url: width: 900 }}"
               alt="{{ featured_img.alt | default: p.title | escape }}"
-              loading="lazy"
+              loading="{{ qtm_global_image_loading }}"
               width="{{ featured_img.width | default: 900 }}"
               height="{{ featured_img.height | default: 900 }}"
             />
@@ -250,7 +264,7 @@
                 class="q-product-card__img q-product-card__img--secondary"
                 src="{{ second_img | image_url: width: 900 }}"
                 alt="{{ second_img.alt | default: p.title | escape }}"
-                loading="lazy"
+                loading="{{ qtm_global_image_loading }}"
                 width="{{ second_img.width | default: 900 }}"
                 height="{{ second_img.height | default: 900 }}"
               />
@@ -264,7 +278,7 @@
                       class="q-product-card__scroll-img"
                       src="{{ m.preview_image | image_url: width: 700 }}"
                       alt=""
-                      loading="lazy"
+                      loading="{{ qtm_global_image_loading }}"
                       width="{{ m.preview_image.width | default: 700 }}"
                       height="{{ m.preview_image.height | default: 700 }}"
                     />
@@ -306,7 +320,7 @@
                     {%- endfor -%}
 
                     {%- if target_variant -%}
-                      <form method="post" action="{{ routes.cart_add_url }}" class="q-product-card__sizeform" {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}>
+                      <form method="post" action="{{ routes.cart_add_url }}" class="q-product-card__sizeform" {% if settings.enable_ajax_cart_drawer or settings.enable_ajax_cart_drawer == nil and settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add data-cart-drawer-context="collection"{% endif %}>
                         <input type="hidden" name="id" value="{{ target_variant.id }}">
                         <input type="hidden" name="quantity" value="1">
                         <button
@@ -321,7 +335,7 @@
                   {%- endfor -%}
                 </div>
               {%- elsif use_dropdown_ui -%}
-                <form method="post" action="{{ routes.cart_add_url }}" class="q-product-card__dropdownform" {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}>
+                <form method="post" action="{{ routes.cart_add_url }}" class="q-product-card__dropdownform" {% if settings.enable_ajax_cart_drawer or settings.enable_ajax_cart_drawer == nil and settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add data-cart-drawer-context="collection"{% endif %}>
                   {%- assign dropdown_variant = v_first -%}
                   {%- if dropdown_variant.available == false and p.available -%}
                     {%- for candidate in p.variants -%}{%- if candidate.available -%}{%- assign dropdown_variant = candidate -%}{%- break -%}{%- endif -%}{%- endfor -%}
@@ -339,7 +353,7 @@
                 </form>
               {%- else -%}
                 {%- if can_direct_add and v_first -%}
-                  <form method="post" action="{{ routes.cart_add_url }}" class="q-product-card__addform" {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}>
+                  <form method="post" action="{{ routes.cart_add_url }}" class="q-product-card__addform" {% if settings.enable_ajax_cart_drawer or settings.enable_ajax_cart_drawer == nil and settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add data-cart-drawer-context="collection"{% endif %}>
                     <input type="hidden" name="id" value="{{ v_first.id }}">
                     <input type="hidden" name="quantity" value="1">
                     <button
@@ -412,7 +426,7 @@
   {%- if show_action_row -%}
     <div class="q-product-card__actions-row" data-pc-actions-row>
       {%- if can_direct_add and v_first -%}
-        <form method="post" action="{{ routes.cart_add_url }}" class="q-product-card__rowform" {% if settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add{% endif %}>
+        <form method="post" action="{{ routes.cart_add_url }}" class="q-product-card__rowform" {% if settings.enable_ajax_cart_drawer or settings.enable_ajax_cart_drawer == nil and settings.cart_mode == 'ajax_drawer' %}data-cart-drawer-add data-cart-drawer-context="collection"{% endif %}>
           <input type="hidden" name="id" value="{{ v_first.id }}">
           <input type="hidden" name="quantity" value="1">
           <button

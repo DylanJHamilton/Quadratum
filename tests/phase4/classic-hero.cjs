@@ -7,7 +7,7 @@ const read = path => fs.readFileSync(path, 'utf8');
  const defaults = fields => Object.fromEntries(fields.filter(x => x.id).map(x => [x.id, x.default ?? null]));
  const engine = new Liquid({root: ['snippets'], extname: '.liquid'});
  engine.registerFilter('image_url', image => { assert(image, 'blank image never passed to image_url'); return '/fixture.jpg'; });
- const settings = Object.assign({}, ...JSON.parse(read('config/settings_schema.json')).map(group => defaults(group.settings)));
+ const settings = Object.assign({}, ...JSON.parse(read('config/settings_schema.json')).map(group => defaults(group.settings || [])));
  const render = (id, overrides, blocks = []) => engine.parseAndRender(source.slice(0, start), {section: {id, settings: {...defaults(schema.settings), ...overrides}, blocks}, settings});
  const blocks = ['a','b'].map(id => ({id, settings: {...defaults(schema.blocks[0].settings), video_url: '/'+id+'.mp4'}}));
  const html = await render('first', {use_slideshow:true}, blocks) + await render('second', {use_slideshow:true}, blocks);

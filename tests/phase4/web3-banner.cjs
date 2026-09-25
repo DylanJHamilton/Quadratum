@@ -3,7 +3,7 @@ const {Liquid}=require('liquidjs'),{JSDOM}=require('jsdom');
 const source=fs.readFileSync('sections/web3-hero-banner.liquid','utf8'),start=source.lastIndexOf('{% schema %}');
 const schema=JSON.parse(source.slice(start+12).split('{% endschema %}')[0]);
 const defaults=fields=>Object.fromEntries(fields.filter(x=>x.id).map(x=>[x.id,x.default??null]));
-const globals=Object.assign({},...JSON.parse(fs.readFileSync('config/settings_schema.json')).map(x=>defaults(x.settings)));
+const globals=Object.assign({},...JSON.parse(fs.readFileSync('config/settings_schema.json')).map(x=>defaults(x.settings || [])));
 const engine=new Liquid({root:'snippets',extname:'.liquid'});engine.registerFilter('t',x=>x);engine.registerFilter('image_url',image=>{assert(image);return '/image.jpg'});
 const slideSchema=schema.blocks.find(x=>x.type==='slide');
 const blocks=[0,1].map(i=>({id:`slide${i}`,type:'slide',settings:{...defaults(slideSchema.settings),heading:'Slide '+i,background_image_url:null,background_image:null}}));

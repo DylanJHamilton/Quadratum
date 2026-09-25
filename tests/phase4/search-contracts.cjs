@@ -5,7 +5,7 @@ const { JSDOM } = require('jsdom');
 const read = path => fs.readFileSync(path, 'utf8');
 const engine = new Liquid({root: 'snippets', extname: '.liquid'});
 engine.registerFilter('json', JSON.stringify);
-const defaults = Object.assign({}, ...JSON.parse(read('config/settings_schema.json')).map(group => Object.fromEntries(group.settings.filter(s => s.id).map(s => [s.id, s.default ?? null]))));
+const defaults = Object.assign({}, ...JSON.parse(read('config/settings_schema.json')).map(group => Object.fromEntries((group.settings || []).filter(s => s.id).map(s => [s.id, s.default ?? null]))));
 const globals = settings => ({settings: {...defaults, ...settings}, search: {terms: 'red & <blue>'}, routes: {search_url: '/fr/search', root_url: '/fr/', collections_url: '/fr/collections'}, shop: {currency: 'EUR'}, cart: {currency: {iso_code: 'EUR'}}});
 const render = (name, settings = {}, params = {}) => engine.parseAndRender(read('snippets/'+name+'.liquid'), {input_id:'input',panel_id:'panel', ...params}, {globals: globals(settings)});
 const payload = {resources:{results:{products:[

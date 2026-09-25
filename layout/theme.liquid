@@ -1,29 +1,17 @@
+{%- capture qtm_document_dir -%}{%- render 'theme-direction' -%}{%- endcapture -%}
 {%- liquid
-  assign qtm_locale_code = request.locale.iso_code | downcase
-  assign qtm_locale_root = qtm_locale_code | split: '-' | first
-  assign qtm_rtl_locales = ',ar,arc,ckb,dv,fa,ha,he,khw,ks,ku,ps,sd,ur,yi,'
-  assign qtm_locale_token = ',' | append: qtm_locale_root | append: ','
-  assign qtm_document_dir = 'ltr'
-
-  if settings.rtl_enable and qtm_rtl_locales contains qtm_locale_token
-    assign qtm_document_dir = 'rtl'
-  endif
-
   assign qtm_page_title = page_title | default: shop.name
   assign qtm_meta_description = page_description | default: shop.description | default: settings.site_tagline
   assign qtm_canonical_url = canonical_url | default: request.origin
 
-  assign qtm_font_display = settings.font_loading | default: 'swap'
-  if qtm_font_display == 'async'
-    assign qtm_font_display = 'swap'
-  endif
 -%}
 
 <!doctype html>
-<html lang="{{ request.locale.iso_code }}" dir="{{ qtm_document_dir }}" class="no-js" data-theme="{{ settings.color_scheme | default: 'default' }}">
+<html lang="{{ request.locale.iso_code }}" dir="{{ qtm_document_dir }}" class="no-js" data-theme="{% if settings.enable_dark_mode and settings.color_scheme == 'dark' %}dark{% else %}default{% endif %}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  {% render 'social-meta-tags' %}
 
   <title>
     {{ qtm_page_title | escape }}
@@ -42,25 +30,8 @@
     <link rel="icon" type="image/png" href="{{ settings.favicon | image_url: width: 32, height: 32 }}">
   {%- endif -%}
 
-  {%- if settings.preconnect_hosts != blank and settings.preconnect_hosts != 'none' -%}
-    {%- assign qtm_preconnect_hosts = settings.preconnect_hosts | split: ',' -%}
-    {%- for qtm_host in qtm_preconnect_hosts -%}
-      {%- assign qtm_host_clean = qtm_host | strip -%}
-      {%- if qtm_host_clean != blank -%}
-        <link rel="preconnect" href="{{ qtm_host_clean }}" crossorigin>
-      {%- endif -%}
-    {%- endfor -%}
-  {%- endif -%}
-
-  <style>
-    {%- if settings.font_heading != blank -%}
-      {{ settings.font_heading | font_face: font_display: qtm_font_display }}
-    {%- endif -%}
-
-    {%- if settings.font_body != blank -%}
-      {{ settings.font_body | font_face: font_display: qtm_font_display }}
-    {%- endif -%}
-  </style>
+  {% render 'theme-preconnect' %}
+  {% render 'theme-fonts' %}
 
   {{ 'theme.css' | asset_url | stylesheet_tag }}
 
@@ -95,17 +66,13 @@
     };
 
     window.QuadratumSettings.cart = {
+      url: {{ routes.cart_url | json }},
       ajaxDrawerEnabled: {{ settings.enable_ajax_cart_drawer | json }},
       openAfterAdd: {{ settings.open_ajax_cart_after_add | json }},
-      freeShippingEnabled: {{ settings.cart_free_ship_threshold_enable | json }},
-      freeShippingThreshold: {{ settings.cart_free_ship_threshold_amount | json }},
-      giftWrapEnabled: {{ settings.cart_gift_wrap_enable | json }},
-      couponInputEnabled: {{ settings.cart_coupon_input_enable | json }},
-      drawerWidth: {{ settings.cart_drawer_width | json }},
-      showContinueShopping: {{ settings.cart_drawer_show_continue_shopping | json }},
-      showRewardsProgressBar: {{ settings.cart_drawer_show_rewards_progress_bar | json }},
-      showRewardsTiers: {{ settings.cart_drawer_show_rewards_tiers | json }},
-      showAddons: {{ settings.cart_drawer_show_addons | json }}
+      headerTriggerEnabled: {{ settings.cart_drawer_enable_header_trigger | json }},
+      productTriggerEnabled: {{ settings.cart_drawer_enable_pdp_trigger | json }},
+      collectionTriggerEnabled: {{ settings.cart_drawer_enable_collection_trigger | json }},
+      addonTriggerEnabled: {{ settings.cart_drawer_enable_addon_trigger | json }}
     };
 
     window.QuadratumSettings.search = {
@@ -142,45 +109,8 @@
       }
     };
 
-    window.QuadratumSettings.media = {
-      imagesLazyload: {{ settings.images_lazyload | json }},
-      defaultRatio: {{ settings.image_default_ratio | json }},
-      videoAutoplay: {{ settings.video_autoplay | json }},
-      videoLoop: {{ settings.video_loop | json }},
-      videoMuted: {{ settings.video_muted | json }},
-      videoControls: {{ settings.video_controls | json }},
-      lottieEnabled: {{ settings.enable_lottie | json }}
-    };
-
-    window.QuadratumSettings.performance = {
-      fontLoading: {{ settings.font_loading | json }},
-      deferNonCriticalJs: {{ settings.defer_non_critical_js | json }},
-      reduceMotionMode: {{ settings.reduce_motion_mode | json }}
-    };
-
-    window.QuadratumSettings.localization = {
-      currencySelectorEnabled: {{ settings.currency_selector_enable | json }},
-      localeSelectorEnabled: {{ settings.locale_selector_enable | json }},
-      rtlEnabled: {{ settings.rtl_enable | json }},
-      direction: {{ qtm_document_dir | json }},
-      languageSwitcherStyle: {{ settings.language_switcher_style | json }},
-      breakpoints: {
-        sm: {{ settings.bp_sm | json }},
-        md: {{ settings.bp_md | json }},
-        lg: {{ settings.bp_lg | json }},
-        xl: {{ settings.bp_xl | json }}
-      }
-    };
-
-    window.QuadratumSettings.customer = {
-      accountLayout: {{ settings.account_layout | json }},
-      ordersShowReorder: {{ settings.orders_show_reorder | json }},
-      helpText: {{ settings.customer_help_text | json }}
-    };
-
     window.QuadratumSettings.popups = {
       enabled: {{ settings.popup_enable | json }},
-      type: {{ settings.popup_type | json }},
       trigger: {{ settings.popup_trigger | json }},
       delaySeconds: {{ settings.popup_delay_seconds | json }},
       scrollPercent: {{ settings.popup_scroll_percent | json }},
@@ -188,9 +118,7 @@
       showOnMobile: {{ settings.popup_show_on_mobile | json }},
       showOnDesktop: {{ settings.popup_show_on_desktop | json }},
       overlayClickClose: {{ settings.popup_overlay_click_close | json }},
-      editorPreview: {{ settings.popup_editor_preview | json }},
-      placement: {{ settings.popup_placement | json }},
-      animation: {{ settings.popup_animation | json }}
+      editorPreview: {{ settings.popup_editor_preview | json }}
     };
   </script>
 
@@ -198,14 +126,16 @@
   <script src="{{ 'predictive-search.js' | asset_url }}" defer></script>
   <script src="{{ 'global-popup.js' | asset_url }}" defer></script>
 
-  {%- if settings.script_head != blank and settings.script_head != 'none' -%}
+  {%- assign qtm_custom_code = settings.script_head | strip -%}
+  {%- if settings.custom_scripts_enabled != false and qtm_custom_code != blank and qtm_custom_code != 'none' -%}
     {{ settings.script_head }}
   {%- endif -%}
 </head>
 
 <body class="q-typography qtm-dir-{{ qtm_document_dir }}">
 
-  {%- if settings.script_body_open != blank and settings.script_body_open != 'none' -%}
+  {%- assign qtm_custom_code = settings.script_body_open | strip -%}
+  {%- if settings.custom_scripts_enabled != false and qtm_custom_code != blank and qtm_custom_code != 'none' -%}
     {{ settings.script_body_open }}
   {%- endif -%}
 
@@ -256,7 +186,8 @@
 
   <script src="{{ 'q-quick-view.js' | asset_url }}" defer></script>
 
-  {%- if settings.script_body_close != blank and settings.script_body_close != 'none' -%}
+  {%- assign qtm_custom_code = settings.script_body_close | strip -%}
+  {%- if settings.custom_scripts_enabled != false and qtm_custom_code != blank and qtm_custom_code != 'none' -%}
     {{ settings.script_body_close }}
   {%- endif -%}
 

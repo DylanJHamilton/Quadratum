@@ -3,7 +3,7 @@ const {Liquid} = require('liquidjs'), {JSDOM} = require('jsdom');
 const source = fs.readFileSync('sections/sub-banner-split.liquid', 'utf8'), start = source.lastIndexOf('{% schema %}');
 const schema = JSON.parse(source.slice(start + 12).split('{% endschema %}')[0]);
 const defaults = fields => Object.fromEntries(fields.filter(f => f.id).map(f => [f.id, f.default ?? null]));
-const globals = Object.assign({}, ...JSON.parse(fs.readFileSync('config/settings_schema.json')).map(g => defaults(g.settings)));
+const globals = Object.assign({}, ...JSON.parse(fs.readFileSync('config/settings_schema.json')).map(g => defaults(g.settings || [])));
 const engine = new Liquid(); engine.registerFilter('image_url', image => {assert(image); return '/image.jpg';}); engine.registerFilter('image_tag', url => `<img src="${url}">`);
 const button = (id, settings = {}) => ({id, type: 'button', settings: {...defaults(schema.blocks[0].settings), ...settings}});
 const render = (id, settings = {}, blocks = [button('first'), button('second')]) => engine.parseAndRender(source.slice(0, start), {section: {id, settings: {...defaults(schema.settings), ...schema.presets[0].settings, ...settings}, blocks}, settings: globals});
