@@ -36,3 +36,14 @@ Reference adaptation notes:
 - Native schema limits, rich-text formatting, and allowed section contexts differ in a few places from the supplied maps and have been corrected.
 
 Validation: Theme Check reported zero errors. Desktop rendering inspected for all nine page types; mobile home/header composition inspected in Shopify's editor. Checkout, external integrations and every individual block interaction are not acceptance-tested in this pass.
+
+
+## Visual refinement — 2026-10-07
+
+Refined the ARC FORM draft in response to the page-by-page review: dark-section contrast, full-width moment tiles, centered frame viewer, uniform UGC grid, shaped journal cards, branded forms/search/lightbox, Workday alignment, Studio material cards and metrics, footer typography and navigation. Theme/support/studio icon text fields now accept explicit `lucide-` sprite keys while preserving existing emoji/text input. Fixed double quoting of Shopify font family values. Added the drawer's View cart link.
+
+The demo-only CSS is retained in `current.script_head`; `refinement.css` mirrors this refinement for review. The second mega-menu promo is disabled. Theme page copy announces forthcoming ready-to-use demos included with purchase as they launch.
+
+Store data: enabled continue-selling for Vector One Graphite and Alloy for demo cart testing. Added one Graphite through the actual product button and verified its drawer and full cart line at $279. No order placed. Other demo products retain their existing availability.
+
+Validation: Shopify Theme Check reported zero errors; desktop home, gallery, search, cart, Studio materials, support icons and commerce showcase checked. Mobile home hero and two-column moment cards reviewed in the draft editor.
