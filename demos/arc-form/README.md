@@ -19,3 +19,20 @@ Cart goals are visual thresholds only: they do not configure shipping rates, dis
 Validation: Shopify Theme Check zero errors; existing Liquid and shared-UI tests passed; arc-expansions.cjs covers frame keyboard state, compare limit/table/focus/clear, and product-level wishlist persistence/counts. Live browser verified home and campaign rendering, frame arrows, compare table, wishlist mouse and keyboard activation plus persistence, page links, style controls, and empty cart drawer. Mobile hero inspected in Shopify editor. Native checkout, nonempty cart and configured gift-wrap transactions are not live-verified.
 
 The section-map control and style playground are demo-only content in footer custom Liquid / page code blocks. Core feature defaults remain off or unchanged unless configured by this demo.
+
+
+## Claude HTML reference pass — 7 October 2026
+
+Expanded the draft from the nine supplied HTML build maps: Home, Collection, Product, Workday, Studio, Support, Journal, Features and Block Library. Native section settings, nested blocks, product resources and existing image assets power the layouts. Header Two and Footer Five replace the earlier demo navigation. Demo-specific visual overrides and section anchors are contained in this draft's script settings.
+
+The header's one-row layout now reclaims the reserved inline-search column when search uses an icon or popup. The active Header Two section also exposes the existing local wishlist.
+
+Reference adaptation notes:
+- All catalog products remain sold out. No orders or checkout transactions were submitted.
+- Reviews and brand stories are illustrative, with the demo disclosure retained in the footer and review headings. No external review app was installed.
+- Product-specific examples from the Block Library reference cannot be embedded directly in a Shopify page template; native product context remains on the PDP. Block family examples use populated native content blocks and editable layout rows/columns.
+- The design-system panel retains the interactive demo playground. Existing three journal articles are linked instead of the mock HTML article paths.
+- Eyewear-specific supplemental PDP/collection sections are visually scoped to Vector One and Smart Eyewear in the demo settings.
+- Native schema limits, rich-text formatting, and allowed section contexts differ in a few places from the supplied maps and have been corrected.
+
+Validation: Theme Check reported zero errors. Desktop rendering inspected for all nine page types; mobile home/header composition inspected in Shopify's editor. Checkout, external integrations and every individual block interaction are not acceptance-tested in this pass.
