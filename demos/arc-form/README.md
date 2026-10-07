@@ -47,3 +47,14 @@ The demo-only CSS is retained in `current.script_head`; `refinement.css` mirrors
 Store data: enabled continue-selling for Vector One Graphite and Alloy for demo cart testing. Added one Graphite through the actual product button and verified its drawer and full cart line at $279. No order placed. Other demo products retain their existing availability.
 
 Validation: Shopify Theme Check reported zero errors; desktop home, gallery, search, cart, Studio materials, support icons and commerce showcase checked. Mobile home hero and two-column moment cards reviewed in the draft editor.
+
+
+## Screenshot-led finishing pass — 7 October 2026
+
+Kept all edits on the ARC FORM demo draft and demo branch. Removed the home hero badge, tightened the header, restored a full-width square-edged footer, corrected stats contrast, and added staggered IntersectionObserver reveals with reduced-motion and theme-editor safeguards.
+
+Fixed bundled icon paths in the icon-list renderer (previously normalized to missing assets and silently replaced by a worm). Fixed slideshow picture sizing as well as demo slide heights, including the mobile gray-band regression found during browser review.
+
+Refined Workday setup spacing, finish CTA, set-card contrast, countdown, and centered image-backed next-step cards. Restyled Studio principle toggles, removed default badges and subtitles, neutralized pink material hover, branded LinkedIn buttons, and improved the image-backed proof section. Consolidated the Journal newsletter surface and removed the extra form margin. Support uses a white bordered card over imagery; newline-delimited topics now render separately and advance to step two. The theme portfolio now contains nine illustrated cards, and the final banner uses white text throughout.
+
+Validation: desktop browser review of reported sections; mobile home stats, Workday slideshow and countdown; Studio toggle and support step progression. Shopify Theme Check returned zero errors. No theme publication or main-branch changes.
