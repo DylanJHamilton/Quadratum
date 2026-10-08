@@ -69,6 +69,18 @@
       assign media_count = media_count | plus: 1
     endif
   endfor
+  assign frame_count = 0
+  for block in media_blocks
+    if block.settings.use_as_frame and block.settings.image != blank
+      assign frame_count = frame_count | plus: 1
+    endif
+  endfor
+  assign use_frames = false
+  if s.viewer_mode == 'frames' and frame_count > 0
+    assign use_frames = true
+  elsif has_glb == false and frame_count >= 3
+    assign use_frames = true
+  endif
   assign has_media = false
   if media_count > 0
     assign has_media = true
@@ -121,6 +133,15 @@
   "
 >
   <style>
+    #q-3d-model-{{ sid }} q-frame-spin{display:block;}
+    #q-3d-model-{{ sid }} .q-frame-spin__viewport{aspect-ratio:4/3;display:grid;touch-action:pan-y;cursor:grab;outline-offset:4px;}
+    #q-3d-model-{{ sid }} .q-frame-spin__viewport:active{cursor:grabbing;}
+    #q-3d-model-{{ sid }} .q-frame-spin__frame{grid-area:1/1;margin:0;min-width:0;}
+    #q-3d-model-{{ sid }} .q-frame-spin__frame img{display:block;width:100%;height:100%;object-fit:contain;user-select:none;}
+    #q-3d-model-{{ sid }} .q-frame-spin__controls{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding-top:1rem;}
+    #q-3d-model-{{ sid }} .q-frame-spin__controls button{min-width:44px;min-height:44px;background:transparent;color:inherit;border:1px solid currentColor;border-radius:50%;}
+    #q-3d-model-{{ sid }} q-frame-spin :focus-visible{outline:2px solid currentColor;outline-offset:4px;}
+
     #q-3d-model-{{ sid }}{
       background: var(--q-3dmv-section-bg, transparent);
       width: 100%;
@@ -345,7 +366,27 @@
     </header>{% endif %}
 
     <div class="q-3dmv__layout">
-      {% if has_glb or has_poster %}<div class="q-3dmv__surface q-3dmv__viewer">
+      {% if use_frames %}
+        <q-frame-spin class="q-3dmv__surface" data-auto-advance="{{ s.frame_auto_advance }}">
+          <div class="q-frame-spin__viewport" data-frame-viewport role="slider" tabindex="0" aria-label="{{ title | default: 'Product views' | escape }}" aria-valuemin="1" aria-valuemax="{{ frame_count }}" aria-valuenow="1" aria-valuetext="View 1 of {{ frame_count }}">
+            {% assign frame_index = 0 %}
+            {% for block in media_blocks %}
+              {% if block.settings.use_as_frame and block.settings.image != blank %}
+                {% assign frame_index = frame_index | plus: 1 %}
+                <figure class="q-frame-spin__frame" data-frame data-frame-title="{{ block.settings.title | escape }}" {% if frame_index > 1 %}hidden{% endif %} {{ block.shopify_attributes }}>
+                  {{ block.settings.image | image_url: width: 1600 | image_tag: loading: 'lazy', draggable: 'false', alt: block.settings.title }}
+                </figure>
+              {% endif %}
+            {% endfor %}
+          </div>
+          <div class="q-frame-spin__controls" data-frame-controls hidden>
+            <button type="button" data-frame-prev aria-label="Previous product view">←</button>
+            <span data-frame-caption>Drag or use arrow keys to explore</span>
+            <button type="button" data-frame-next aria-label="Next product view">→</button>
+          </div>
+          {% if s.frame_auto_advance %}<button type="button" data-frame-pause hidden>Pause rotation</button>{% endif %}
+        </q-frame-spin>
+      {% elsif has_glb or has_poster %}<div class="q-3dmv__surface q-3dmv__viewer">
         <div class="q-3dmv__aspect">
           {%- if has_poster -%}
             <img
@@ -394,6 +435,9 @@
           <div class="q-3dmv__strip" role="list" aria-label="Supporting media" tabindex="0">
             {%- for block in media_blocks -%}
               {%- liquid
+                if use_frames and block.settings.use_as_frame
+                  continue
+                endif
                 assign b = block.settings
                 assign img = b.image
                 if img == blank
@@ -475,7 +519,7 @@
     </div>
   </div>
 
-  {% if has_glb %}<script src="{{ 'interactive-content-showcase.js' | asset_url }}" defer></script>{% endif %}
+  {% if use_frames %}<script src="{{ 'q-frame-spin.js' | asset_url }}" defer></script>{% elsif has_glb %}<script src="{{ 'interactive-content-showcase.js' | asset_url }}" defer></script>{% endif %}
 </section>
 {%- else -%}
   {% render 'section-empty-state', section: section %}
@@ -485,28 +529,68 @@
 {
   "name": "3D Tour - Media Showcase",
   "settings": [
-    { "type": "header", "content": "Layout" },
+    {
+      "type": "select",
+      "id": "viewer_mode",
+      "label": "Viewer mode",
+      "default": "model",
+      "options": [
+        {
+          "value": "model",
+          "label": "3D model"
+        },
+        {
+          "value": "frames",
+          "label": "Image rotation"
+        }
+      ]
+    },
+    {
+      "type": "checkbox",
+      "id": "frame_auto_advance",
+      "label": "Auto-advance image rotation",
+      "default": false
+    },
+    {
+      "type": "header",
+      "content": "Layout"
+    },
     {
       "type": "select",
       "id": "layout",
       "label": "Layout",
       "default": "viewer_primary_gallery_below",
       "options": [
-        { "value": "viewer_primary_gallery_below", "label": "3D viewer primary + gallery below" },
-        { "value": "split_viewer_and_content", "label": "Split viewer and content" }
+        {
+          "value": "viewer_primary_gallery_below",
+          "label": "3D viewer primary + gallery below"
+        },
+        {
+          "value": "split_viewer_and_content",
+          "label": "Split viewer and content"
+        }
       ]
     },
-
-    { "type": "header", "content": "Header" },
-    { "type": "text", "id": "title", "label": "Title", "default": "Explore the space" },
+    {
+      "type": "header",
+      "content": "Header"
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title",
+      "default": "Explore the space"
+    },
     {
       "type": "richtext",
       "id": "subtitle",
       "label": "Subtitle",
-      "default": "<p>Inspect the space in 3D—with an interactive model and supporting images.</p>"
+      "default": "<p>Inspect the space in 3D\u2014with an interactive model and supporting images.</p>"
     },
-
-    { "type": "header", "content": "3D model (self-hosted)" },
+    {
+      "type": "header",
+      "content": "3D model (self-hosted)"
+    },
     {
       "type": "text",
       "id": "model_glb_url",
@@ -530,48 +614,137 @@
       "label": "Viewer aspect ratio",
       "default": "16:9",
       "options": [
-        { "value": "16:9", "label": "16:9" },
-        { "value": "4:3", "label": "4:3" },
-        { "value": "1:1", "label": "1:1" },
-        { "value": "custom", "label": "Custom height" }
+        {
+          "value": "16:9",
+          "label": "16:9"
+        },
+        {
+          "value": "4:3",
+          "label": "4:3"
+        },
+        {
+          "value": "1:1",
+          "label": "1:1"
+        },
+        {
+          "value": "custom",
+          "label": "Custom height"
+        }
       ]
     },
-
-    { "type": "range", "id": "custom_aspect_height", "label": "Custom viewer height (% of width)", "min": 10, "max": 200, "step": 2, "default": 56 },
-    { "type": "paragraph", "content": "The viewer loads a pinned local Google model-viewer module when needed. Keep a poster image for browser or network fallback." },
-    { "type": "header", "content": "Viewer behavior" },
-    { "type": "checkbox", "id": "camera_controls", "label": "Enable camera controls", "default": true },
-    { "type": "checkbox", "id": "auto_rotate", "label": "Auto rotate", "default": false },
-    { "type": "checkbox", "id": "enable_ar", "label": "Enable AR (requires USDZ)", "default": false },
-    { "type": "checkbox", "id": "show_loading_ui", "label": "Show loading bar", "default": true },
+    {
+      "type": "range",
+      "id": "custom_aspect_height",
+      "label": "Custom viewer height (% of width)",
+      "min": 10,
+      "max": 200,
+      "step": 2,
+      "default": 56
+    },
+    {
+      "type": "paragraph",
+      "content": "The viewer loads a pinned local Google model-viewer module when needed. Keep a poster image for browser or network fallback."
+    },
+    {
+      "type": "header",
+      "content": "Viewer behavior"
+    },
+    {
+      "type": "checkbox",
+      "id": "camera_controls",
+      "label": "Enable camera controls",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "auto_rotate",
+      "label": "Auto rotate",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_ar",
+      "label": "Enable AR (requires USDZ)",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "show_loading_ui",
+      "label": "Show loading bar",
+      "default": true
+    },
     {
       "type": "select",
       "id": "poster_fit",
       "label": "Poster image fit",
       "default": "cover",
       "options": [
-        { "value": "cover", "label": "Cover" },
-        { "value": "contain", "label": "Contain" }
+        {
+          "value": "cover",
+          "label": "Cover"
+        },
+        {
+          "value": "contain",
+          "label": "Contain"
+        }
       ]
     },
-
-    { "type": "header", "content": "Fallback messaging" },
-    { "type": "checkbox", "id": "show_fallback_message", "label": "Show message while 3D is unavailable", "default": true },
-    { "type": "text", "id": "fallback_message", "label": "Fallback message", "default": "Interactive 3D unavailable. Please view the images below." },
-
-    { "type": "header", "content": "Styling (scoped variables)" },
-    { "type": "color", "id": "section_bg", "label": "Section background", "default": "#FFFFFF" },
-    { "type": "color", "id": "surface_bg", "label": "Surface background", "default": "#F7F7F7" },
-    { "type": "color", "id": "surface_border_color", "label": "Surface border color", "default": "#E2E2E2" },
+    {
+      "type": "header",
+      "content": "Fallback messaging"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_fallback_message",
+      "label": "Show message while 3D is unavailable",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "fallback_message",
+      "label": "Fallback message",
+      "default": "Interactive 3D unavailable. Please view the images below."
+    },
+    {
+      "type": "header",
+      "content": "Styling (scoped variables)"
+    },
+    {
+      "type": "color",
+      "id": "section_bg",
+      "label": "Section background",
+      "default": "#FFFFFF"
+    },
+    {
+      "type": "color",
+      "id": "surface_bg",
+      "label": "Surface background",
+      "default": "#F7F7F7"
+    },
+    {
+      "type": "color",
+      "id": "surface_border_color",
+      "label": "Surface border color",
+      "default": "#E2E2E2"
+    },
     {
       "type": "select",
       "id": "surface_radius",
       "label": "Surface radius",
       "default": "18px",
       "options": [
-        { "value": "12px", "label": "Small" },
-        { "value": "18px", "label": "Medium" },
-        { "value": "24px", "label": "Large" }
+        {
+          "value": "12px",
+          "label": "Small"
+        },
+        {
+          "value": "18px",
+          "label": "Medium"
+        },
+        {
+          "value": "24px",
+          "label": "Large"
+        }
       ]
     },
     {
@@ -580,10 +753,22 @@
       "label": "Surface shadow strength",
       "default": "0 10px 30px rgba(0,0,0,0.08)",
       "options": [
-        { "value": "none", "label": "None" },
-        { "value": "0 6px 18px rgba(0,0,0,0.06)", "label": "Soft" },
-        { "value": "0 10px 30px rgba(0,0,0,0.08)", "label": "Medium" },
-        { "value": "0 14px 44px rgba(0,0,0,0.10)", "label": "Strong" }
+        {
+          "value": "none",
+          "label": "None"
+        },
+        {
+          "value": "0 6px 18px rgba(0,0,0,0.06)",
+          "label": "Soft"
+        },
+        {
+          "value": "0 10px 30px rgba(0,0,0,0.08)",
+          "label": "Medium"
+        },
+        {
+          "value": "0 14px 44px rgba(0,0,0,0.10)",
+          "label": "Strong"
+        }
       ]
     },
     {
@@ -592,9 +777,18 @@
       "label": "Viewer max width",
       "default": "1200px",
       "options": [
-        { "value": "960px", "label": "Narrow" },
-        { "value": "1200px", "label": "Standard" },
-        { "value": "1440px", "label": "Wide" }
+        {
+          "value": "960px",
+          "label": "Narrow"
+        },
+        {
+          "value": "1200px",
+          "label": "Standard"
+        },
+        {
+          "value": "1440px",
+          "label": "Wide"
+        }
       ]
     },
     {
@@ -603,9 +797,18 @@
       "label": "Gallery gap",
       "default": "12px",
       "options": [
-        { "value": "10px", "label": "Tight" },
-        { "value": "12px", "label": "Standard" },
-        { "value": "16px", "label": "Spacious" }
+        {
+          "value": "10px",
+          "label": "Tight"
+        },
+        {
+          "value": "12px",
+          "label": "Standard"
+        },
+        {
+          "value": "16px",
+          "label": "Spacious"
+        }
       ]
     },
     {
@@ -614,9 +817,18 @@
       "label": "Thumbnail radius",
       "default": "14px",
       "options": [
-        { "value": "10px", "label": "Small" },
-        { "value": "14px", "label": "Medium" },
-        { "value": "18px", "label": "Large" }
+        {
+          "value": "10px",
+          "label": "Small"
+        },
+        {
+          "value": "14px",
+          "label": "Medium"
+        },
+        {
+          "value": "18px",
+          "label": "Large"
+        }
       ]
     },
     {
@@ -625,9 +837,18 @@
       "label": "Thumbnail aspect ratio",
       "default": "1 / 1",
       "options": [
-        { "value": "1 / 1", "label": "1:1" },
-        { "value": "4 / 3", "label": "4:3" },
-        { "value": "16 / 9", "label": "16:9" }
+        {
+          "value": "1 / 1",
+          "label": "1:1"
+        },
+        {
+          "value": "4 / 3",
+          "label": "4:3"
+        },
+        {
+          "value": "16 / 9",
+          "label": "16:9"
+        }
       ]
     },
     {
@@ -636,9 +857,18 @@
       "label": "Title font size",
       "default": "32px",
       "options": [
-        { "value": "26px", "label": "Small" },
-        { "value": "32px", "label": "Medium" },
-        { "value": "38px", "label": "Large" }
+        {
+          "value": "26px",
+          "label": "Small"
+        },
+        {
+          "value": "32px",
+          "label": "Medium"
+        },
+        {
+          "value": "38px",
+          "label": "Large"
+        }
       ]
     },
     {
@@ -647,9 +877,18 @@
       "label": "Subtitle font size",
       "default": "16px",
       "options": [
-        { "value": "14px", "label": "Small" },
-        { "value": "16px", "label": "Medium" },
-        { "value": "18px", "label": "Large" }
+        {
+          "value": "14px",
+          "label": "Small"
+        },
+        {
+          "value": "16px",
+          "label": "Medium"
+        },
+        {
+          "value": "18px",
+          "label": "Large"
+        }
       ]
     },
     {
@@ -658,10 +897,22 @@
       "label": "Subtitle opacity",
       "default": "0.85",
       "options": [
-        { "value": "1", "label": "100%" },
-        { "value": "0.9", "label": "90%" },
-        { "value": "0.85", "label": "85%" },
-        { "value": "0.75", "label": "75%" }
+        {
+          "value": "1",
+          "label": "100%"
+        },
+        {
+          "value": "0.9",
+          "label": "90%"
+        },
+        {
+          "value": "0.85",
+          "label": "85%"
+        },
+        {
+          "value": "0.75",
+          "label": "75%"
+        }
       ]
     },
     {
@@ -670,34 +921,81 @@
       "label": "Loading bar height",
       "default": "8px",
       "options": [
-        { "value": "6px", "label": "Thin" },
-        { "value": "8px", "label": "Medium" },
-        { "value": "10px", "label": "Thick" }
+        {
+          "value": "6px",
+          "label": "Thin"
+        },
+        {
+          "value": "8px",
+          "label": "Medium"
+        },
+        {
+          "value": "10px",
+          "label": "Thick"
+        }
       ]
     },
-    { "type": "color", "id": "loading_fill_color", "label": "Loading fill color", "default": "#111111" },
-    { "type": "color", "id": "loading_track_color", "label": "Loading track color", "default": "#CFCFCF" }
+    {
+      "type": "color",
+      "id": "loading_fill_color",
+      "label": "Loading fill color",
+      "default": "#111111"
+    },
+    {
+      "type": "color",
+      "id": "loading_track_color",
+      "label": "Loading track color",
+      "default": "#CFCFCF"
+    }
   ],
   "blocks": [
     {
       "type": "supporting_media",
       "name": "Supporting media",
       "settings": [
-        { "type": "image_picker", "id": "image", "label": "Image (required)" },
-        { "type": "text", "id": "title", "label": "Title (optional)" },
-        { "type": "text", "id": "description", "label": "Description (optional)" },
-        { "type": "url", "id": "link_url", "label": "Link URL (optional)" }
+        {
+          "type": "image_picker",
+          "id": "image",
+          "label": "Image (required)"
+        },
+        {
+          "type": "text",
+          "id": "title",
+          "label": "Title (optional)"
+        },
+        {
+          "type": "text",
+          "id": "description",
+          "label": "Description (optional)"
+        },
+        {
+          "type": "url",
+          "id": "link_url",
+          "label": "Link URL (optional)"
+        },
+        {
+          "type": "checkbox",
+          "id": "use_as_frame",
+          "label": "Use as rotation frame",
+          "default": false
+        }
       ]
     }
   ],
   "presets": [
     {
-      "name": "Interactive · 3D Tour & Media Showcase",
+      "name": "Interactive \u00b7 3D Tour & Media Showcase",
       "category": "Interactive Content Helpers",
       "blocks": [
-        { "type": "supporting_media" },
-        { "type": "supporting_media" },
-        { "type": "supporting_media" }
+        {
+          "type": "supporting_media"
+        },
+        {
+          "type": "supporting_media"
+        },
+        {
+          "type": "supporting_media"
+        }
       ]
     }
   ]

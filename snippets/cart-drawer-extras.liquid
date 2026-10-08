@@ -1,0 +1,41 @@
+{% comment %}Optional drawer add-on and gift-wrap controls.{% endcomment %}
+{% liquid
+  assign addon = settings.cart_drawer_addon_product
+  assign addon_present = false
+  for item in cart.items
+    if item.product_id == addon.id
+      assign addon_present = true
+    endif
+  endfor
+  assign addon_variant = addon.selected_or_first_available_variant
+  assign wrap = settings.cart_gift_wrap_product
+  assign wrap_variant = wrap.selected_or_first_available_variant
+  assign wrap_line = blank
+  for item in cart.items
+    if item.variant_id == wrap_variant.id and item.properties._qtm_gift_wrap == 'true'
+      assign wrap_line = item
+      break
+    endif
+  endfor
+%}
+{% if addon != blank and addon_present == false and addon_variant.available %}
+<article class="qtm-cart-addon-card">
+  <a class="qtm-cart-addon-card__media" href="{{ addon.url }}">{% if addon.featured_image %}{{ addon.featured_image | image_url: width: 240 | image_tag: loading: 'lazy', alt: addon.title }}{% endif %}</a>
+  <div class="qtm-cart-addon-card__content">
+    <h3 class="qtm-cart-addon-card__title"><a href="{{ addon.url }}">{{ addon.title | escape }}</a></h3><p>{{ addon_variant.price | money }}</p>
+    {% if addon.variants.size == 1 and addon.requires_selling_plan != true %}
+    <form action="{{ routes.cart_add_url }}" method="post" data-addon-form data-cart-drawer-add>
+      <input type="hidden" name="id" value="{{ addon_variant.id }}"><input type="hidden" name="quantity" value="{{ addon_variant.quantity_rule.min | default: 1 }}">
+      <button type="submit" class="qtm-cart-addon-card__button">Add to cart</button>
+    </form>
+    {% else %}<a href="{{ addon.url }}">Choose options</a>{% endif %}
+  </div>
+</article>
+{% endif %}
+{% if settings.cart_gift_wrap_enable and wrap != blank and wrap.variants.size == 1 and wrap.requires_selling_plan != true %}
+  {% if wrap_variant.quantity_rule.min <= 1 and wrap_variant.quantity_rule.increment <= 1 %}
+    {% if wrap_variant.available or wrap_line != blank %}
+    <label class="qtm-cart-gift-wrap"><input type="checkbox" data-cart-gift-wrap data-variant-id="{{ wrap_variant.id }}" data-line-key="{{ wrap_line.key | escape }}" {% if wrap_line != blank %}checked{% endif %}> Gift wrap — {{ wrap_variant.price | money }}</label>
+    {% endif %}
+  {% endif %}
+{% endif %}
