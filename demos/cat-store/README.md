@@ -1,32 +1,25 @@
-# Morrow Cat Co. — Quadratum sample store
+# Morrow Cat Co. / Quadratum sample store
 
-**Vertical:** Cat furniture, enrichment & care  
 **Branch:** `demo/sample-cat-store-20261007`  
-**Preview:** [Open the storefront source](./index.html)
+**Shopify implementation:** `templates/index.json` and the `sections/morrow-cat-*.liquid` sections.  
+**Status:** Shopify Online Store 2.0 theme source for a non-purchasable design demo.
 
-Calm home editorial; sage, clay, and cream; friendly product illustrations; practical buying guides and a cat-profile quiz.
+The active homepage is built with Quadratum's Shopify theme layout, header, footer, theme editor settings, and native Liquid sections. The earlier standalone HTML concept remains in `index.html` as a visual reference; it is not the Shopify storefront implementation.
 
-## Storefront included
+## Homepage
 
-The responsive concept page contains branded navigation, hero, shop filters, six sample products, collection story, newsletter sign-up, and a small sample-bag interaction. The page is a design prototype, not an installed Shopify theme or live commerce store. Buttons and signup are preview interactions; no transaction or email is sent.
+The Shopify homepage includes a responsive campaign hero, four collection paths, 24 fictional product concepts, category and search controls, a playful collection picker, editorial cards, and a persistent demo disclosure. Sections are editable in Shopify's theme editor. Campaign artwork and font assets are included in the theme; image picker settings can replace the defaults.
 
-## Collections and pages
+## Demo catalog
 
-Collections: Play, Rest, Feeding, Care. Pages: Our Approach, Cat Setup Guides, Materials & Cleaning, Shipping & Returns, Contact. Add dimensions, material, assembly, care, and compatibility.
+The catalog is intentionally rendered as product concepts rather than Shopify product records. The supplied handoff contains creative concepts and suggested prices, but no supplier verification. The theme does not present purchase buttons, live inventory, or claims about safety, construction, materials, sizing, capacity, care, or performance. Review each concept's notes before turning any idea into a real product listing.
 
-## Asset checklist
+Collections shown: Play, Rest, Feeding, and Care. The concept details and verification notes are sourced from the Morrow handoff catalog. Prices are illustrative only.
 
-Hero showing cat and furniture in a lived-in home; each SKU needs scale-in-room, detail, dimensions, washable/assembly view; real cats only with owner release.
+## Preview
 
-## Product seed
+Preview the theme branch with Shopify's normal theme development or unpublished theme workflow. This repository change does not connect to Shopify Admin, create product records, publish a theme, or activate checkout. Replace fictional artwork, catalog copy, and sample pricing with approved commercial assets and verified supplier data before any live use.
 
-[`catalog-seed.csv`](./catalog-seed.csv) lists the sample products shown in the page. Its columns are a planning/import-mapping aid, not Shopify's native product-import format. Prices and product claims are placeholders.
+## Included brand assets
 
-## Before a Shopify draft launch
-
-1. Replace the sample copy, art, and prices with approved brand assets and verified product data.
-2. Import real products and collections, then map the demo sections to Quadratum sections and theme settings.
-3. Add the pages and policies listed above; configure navigation, inventory, taxes, shipping, payment provider, and contact details.
-4. Review accessibility, mobile layouts, product details, and every purchase/lead form in the Shopify draft.
-
-**Data to confirm:** Verify all pet-safe and material claims with suppliers. Product photography, inventory, cleaning instructions, and subscription terms required.
+Generated campaign/product concept images, SVG identity files, Bricolage Grotesque and Manrope fonts, and their OFL license files are stored in `assets/`. Use product images as concept art, not as evidence of real inventory.
