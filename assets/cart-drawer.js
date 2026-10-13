@@ -34,6 +34,7 @@
     const version = ++refreshVersion;
     const active = document.activeElement;
     const ownedFocus = drawer()?.contains(active);
+    const giftFocus = active?.matches('[data-cart-gift-wrap]');
     const focusKey = active?.closest('[data-cart-item]')?.dataset.key;
     const focusSelector = active?.matches('[data-qty-increase]') ? '[data-qty-increase]' : active?.matches('[data-qty-decrease]') ? '[data-qty-decrease]' : active?.matches('[data-cart-remove]') ? '[data-cart-remove]' : '.qtm-cart-line-item__qty-input';
     refreshRequest?.abort(); refreshRequest = new AbortController();
@@ -50,7 +51,7 @@
     if (count != null) document.querySelectorAll('[data-cart-count]').forEach(el => { el.textContent = count; });
     if (ownedFocus && !drawer()?.hidden && !active.isConnected) {
       const item = [...target.querySelectorAll('[data-cart-item]')].find(el => el.dataset.key === focusKey);
-      (item?.querySelector(focusSelector) || drawer().querySelector('button[data-cart-drawer-close], [data-cart-drawer-panel]'))?.focus();
+      ((giftFocus ? target.querySelector('[data-cart-gift-wrap]') : null) || item?.querySelector(focusSelector) || drawer().querySelector('button[data-cart-drawer-close], [data-cart-drawer-panel]'))?.focus();
     }
   }
 
@@ -135,7 +136,27 @@
     if (quantity < min) quantity = 0;
     updateItem(item.dataset.key, quantity, input);
   });
+  async function toggleGiftWrap(input) {
+    if (pending) { input.checked = !input.checked; return; }
+    const root = drawer(), adding = input.checked, status = root.querySelector('[data-cart-drawer-status]');
+    pending = true; input.disabled = true; root.setAttribute('aria-busy', 'true');
+    let changed = false;
+    try {
+      const response = await fetch(adding ? root.dataset.addUrl : root.dataset.changeUrl, {
+        method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json',Accept:'application/json'},
+        body:JSON.stringify(adding ? {items:[{id:input.dataset.variantId,quantity:1,properties:{_qtm_gift_wrap:'true'}}]} : {id:input.dataset.lineKey,quantity:0})
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.description || 'Unable to update gift wrap.');
+      changed = true; await refresh();
+      if (status) status.textContent = adding ? 'Gift wrap added.' : 'Gift wrap removed.';
+    } catch (error) {
+      if (!changed) input.checked = !adding;
+      if (status) status.textContent = changed ? 'Gift wrap updated. Reopen the cart to refresh the display.' : error.message;
+    } finally { pending = false; input.disabled = false; root.removeAttribute('aria-busy'); }
+  }
   document.addEventListener('change', event => {
+    if (event.target.matches('[data-cart-gift-wrap]')) { toggleGiftWrap(event.target); return; }
     if (event.target.matches('[data-cart-drawer] .qtm-cart-line-item__qty-input')) updateItem(event.target.dataset.key, event.target.valueAsNumber, event.target);
   });
   const submittingForms = new WeakSet();
