@@ -41,6 +41,11 @@
   }
   window.qtmWishlistStore = makeStore;
   window.addEventListener('storage', event => { if (event.key === null) stores.forEach(store => store.dispatchUpdated()); else stores.get(event.key)?.dispatchUpdated(); });
+  const updateCounts = () => document.querySelectorAll('[data-wishlist-count]').forEach(node => { const count = makeStore().getState().items.length; node.textContent = String(count); node.hidden = count === 0; });
+  window.addEventListener('q:wishlist:updated', updateCounts);
+  document.addEventListener('DOMContentLoaded', updateCounts, { once:true });
+  document.addEventListener('shopify:section:load', updateCounts);
+  updateCounts();
   const selector = '[data-wishlist-button]';
   function each(scope, fn) { if (scope.matches?.(selector)) fn(scope); scope.querySelectorAll(selector).forEach(fn); }
   function init(button) {
@@ -86,5 +91,9 @@
   }
   document.addEventListener('shopify:section:load', event => each(event.target, init));
   document.addEventListener('shopify:section:unload', event => each(event.target, button => { buttons.get(button)?.(); buttons.delete(button); }));
+  new MutationObserver(records => records.forEach(record => {
+    record.addedNodes.forEach(node => { if (node.nodeType === 1) each(node, init); });
+    record.removedNodes.forEach(node => { if (node.nodeType === 1 && !node.isConnected) each(node, button => { buttons.get(button)?.(); buttons.delete(button); }); });
+  })).observe(document.documentElement, { childList:true, subtree:true });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => each(document, init), { once: true }); else each(document, init);
 })();
