@@ -40,7 +40,7 @@
     if (hash <= 0) return;
     var url = href.slice(0, hash);
     var id = href.slice(hash + 1);
-    if (!/\.svg(\?|$)/.test(url) || !id) return;
+    if (!/\.svg(\?|$)/.test(url) || !id || !/^(https?:)?\/\//.test(url) && url.indexOf('/') !== 0) return;
     use.setAttribute('data-qtm-sprite', url);
     loadSprite(url).then(function (txt) {
       if (!txt) return;
@@ -58,7 +58,7 @@
   }
 
   function scan(root) {
-    var list = (root || document).querySelectorAll('svg use[href*=".svg#"], svg use[*|href*=".svg#"]');
+    var list = (root || document).querySelectorAll('svg use[href*=".svg"], svg use[*|href*=".svg"]');
     for (var i = 0; i < list.length; i++) {
       if (!list[i].hasAttribute('data-qtm-sprite')) localize(list[i]);
     }
