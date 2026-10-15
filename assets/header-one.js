@@ -10,6 +10,15 @@
         target.addEventListener(type, handler, Object.assign({}, options, {signal:lifecycle.signal}));
       }
 
+      if (root.hasAttribute('data-home-overlay')) {
+        const updateOverlay = () => {
+          root.style.setProperty('--qh1-overlay-height', root.offsetHeight + 'px');
+          root.classList.toggle('is-scrolled', window.scrollY > 40);
+        };
+        on(window, 'scroll', updateOverlay, {passive:true});
+        on(window, 'resize', updateOverlay);
+        updateOverlay();
+      }
       var toggle = root.querySelector('[data-qh1-mobile-toggle]');
       var panel = root.querySelector('[data-qh1-mobile-panel]');
       var overlay = root.querySelector('[data-qh1-mobile-close]');
@@ -148,7 +157,7 @@
       });
 
       on(window, 'resize', function() {
-        if (window.innerWidth > 989) {
+        if (window.innerWidth > Number(root.dataset.navBreakpoint || 989)) {
           setOpen(false);
         }
       });
