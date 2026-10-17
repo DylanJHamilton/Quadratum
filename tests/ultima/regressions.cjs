@@ -137,6 +137,18 @@ async function markup(name, settings = {}, blocks) {
     await page.addScriptTag({content:fs.readFileSync('assets/header-two.js','utf8')});
     assert(await page.locator('[data-qh2b-header]').evaluate(el=>el.classList.contains('is-compact')),'Header Two long labels');
     results.push({check:'Header Two content-aware navigation',pass:true});
+    const northstar = JSON.parse(fs.readFileSync('tests/ultima/northstar-table.json','utf8'));
+    const tableBlocks = northstar.block_order.map(id=>({id,...northstar.blocks[id]}));
+    for(const width of [390,774,1440]) {
+      await show(await markup(northstar.type,northstar.settings,tableBlocks),width);
+      const geometry=await page.locator('.q-table-scroll').evaluate(el=>({scroll:el.scrollWidth,client:el.clientWidth,page:document.documentElement.scrollWidth,viewport:innerWidth,cells:[...el.querySelectorAll('th')].map(c=>c.getBoundingClientRect().width)}));
+      assert(geometry.page<=geometry.viewport+1,'comparison table must not overflow the page');
+      assert(geometry.cells.every(w=>w>=170),'comparison columns remain readable');
+      if(width<1000) assert(geometry.scroll>geometry.client,'comparison scrolls within its region');
+      await page.locator('.q-table-scroll').focus();
+      assert(await page.locator('.q-table-scroll').evaluate(el=>el===document.activeElement),'keyboard focus enters table');
+      results.push({check:'Northstar actual six-column comparison',width,pass:true});
+    }
     fs.mkdirSync('docs/ultima',{recursive:true});
     fs.writeFileSync('docs/ultima/regressions.json',JSON.stringify({scope:'Local Chromium with Shopify adapters',results},null,2)+'\n');
     console.log('PASS '+results.length+' ULTIMA browser/render regressions');

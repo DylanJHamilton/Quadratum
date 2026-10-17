@@ -38,3 +38,11 @@ Additional work includes content-aware header collapse, viewport-clamped dropdow
 Final local validation: 19 suites passed, 32 browser/render checks passed, range-validator fixtures passed, zero invalid saved ranges, and Theme Check zero errors / 559 warnings. Of the icon-related warnings, 103 are OrphanedSnippet reports despite explicit render references and 21 are generated-bank complexity warnings. These remain visible for review; no suppression was added. Reports: `reconciliation-suites.json`, `regressions.json`, `theme-check-reconciled.json`.
 
 All 37 entries have a disposition, not live-store closure. Remaining work includes Shopify preview/editor acceptance, Northstar comparison-table wrapping with actual content, warning triage and the full launch-compliance review. Main and stores remain unchanged.
+
+## Bug-fix closeout — 2026-10-17
+
+Northstar's actual homepage comparison data now passes at 390/774/1440px with readable columns, internal horizontal scrolling, keyboard focus and no page overflow. The full browser runner passes 35 checks; the protected-content-hosts suite and saved-range validator also pass.
+
+Removed the undefined content_for_footer output and replaced three deprecated helvetica_n4 selections with inter_n4, already the schema's font default. Shopify requires deprecated preset fonts to be replaced: https://shopify.dev/changelog/posts/changes-to-our-font-library . Preview acceptance must include the resulting text reflow.
+
+Every remaining Theme Check diagnostic has a disposition in warning-triage.json. These are retained release follow-ups, not silently suppressed or claimed resolved. The latest full scan is theme-check-closeout.json. The original 37-entry reconciliation and demo-fix consolidation code phase is complete. Live Shopify acceptance remains open: read-only theme inventory confirmed no ULTIMA draft exists; creating an isolated unpublished ULTIMA QA theme was requested for owner approval. No existing store theme was changed.
