@@ -2,7 +2,7 @@
 
 The root theme package keeps five native presets: Quadratum, Morrow, Northstar, Kinvar, and Vantier. This index keeps all ten brand demonstrations navigable outside the Theme Store ZIP.
 
-The links below open each demo branch in GitHub. They are source references; storefront preview URLs can be added when the demo stores are ready for external review.
+Open [the navigable gallery](gallery.html) for historical storefront previews and pinned page, product, collection, blog and article template sources. Historical demo themes have not been upgraded to ULTIMA. The links below remain source references.
 
 | Brand | Theme Store preset | Demo branch |
 | --- | --- | --- |

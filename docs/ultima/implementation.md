@@ -52,3 +52,14 @@ Every remaining Theme Check diagnostic has a disposition in warning-triage.json.
 Owner approved creation of ULTIMA QA, ID 146655674452. All 661 runtime files uploaded successfully in 17 small batches after two full uploads were throttled. Native Shopify homepage, mobile menu, modern product lightbox/variant, collection sort, support/article rendering and editor settings received targeted smoke verification; details and exact limits are in qa-verification.json. This does not certify the full 37-entry/five-preset acceptance matrix.
 
 Live QA caught and corrected the ARC homepage's redundant custom newsletter consent field. The required native marketing confirmation remains and was verified once in the DOM. Only the new unpublished QA theme was updated. Preview and editor remain open for owner review. Main, live store theme and existing demos were not modified.
+
+
+## Release preparation — 2026-10-17
+
+Native header/footer section groups now replace static layout switches. Original settings were migrated; Kinvar was subsequently reconciled to the newer installed demo settings and homepage from a read-only pull of theme 146590367828. Five preset homepages passed desktop/mobile geometry smoke checks (1280/1265 and 390/375 viewport/document widths). See preset-smoke.json for scope and the initial Kinvar mismatch. QA 146655674452 was restored to the root Quadratum configuration. Main and existing demo themes were not changed.
+
+Correction to earlier upload conclusion: exit status zero did not establish that all 661 files were accepted. The preserved batch logs contain rejections for the column-builder duplicate anchor_id and dependent page.features template. Duplicate removed, schema validator extended, upload script now inspects per-file errors. Subsequent preset uploads accepted those files. No claim of full 37-entry live closure.
+
+Final Theme Check: zero errors, 555 warnings. Schema/range validation and duplicate-ID regression fixtures pass. Header Two lifecycle suite passes after isolated dependency setup. Prior 35 local browser results are retained; this pass adds native Shopify homepage checks, not a full repeated browser suite.
+
+Review release-readiness.html for the 22-area launch matrix and demos/gallery.html for ten brands and pinned template sources. Remaining gates include clean package preparation, full template/preset interaction coverage, performance benchmarks, additional browsers/accessibility, dedicated demo parity, licenses and public merchant docs/support.

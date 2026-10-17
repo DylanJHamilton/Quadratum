@@ -12,6 +12,18 @@ def schema(p):
 sections={p.stem:schema(p) for p in (ROOT/'sections').glob('*.liquid')}
 blocks={p.stem:schema(p) for p in (ROOT/'blocks').glob('*.liquid')}
 global_schema={'settings':[s for group in read(ROOT/'config/settings_schema.json') for s in group.get('settings',[])]}
+
+def unique_ids(sc,where):
+ seen=set()
+ for setting in sc.get('settings',[]):
+  key=setting.get('id')
+  if key is None:continue
+  if key in seen:errors.append({'path':where,'error':'Duplicate setting ID','setting':key})
+  seen.add(key)
+ for block in sc.get('blocks',[]):unique_ids(block,where+'/blocks/'+block.get('type','unknown'))
+for key,sc in sections.items():unique_ids(sc,'sections/'+key+'.liquid')
+for key,sc in blocks.items():unique_ids(sc,'blocks/'+key+'.liquid')
+unique_ids(global_schema,'config/settings_schema.json')
 def check(values,sc,where):
  for setting in sc.get('settings',[]):
   key=setting.get('id');v=values.get(key)
@@ -35,6 +47,6 @@ for key,values in [('current',data.get('current',{})),*data.get('presets',{}).it
  if isinstance(values,dict):check(values,global_schema,'config/settings_data.json/'+key);template(values,'config/settings_data.json/'+key)
 if '--json' in sys.argv:print(json.dumps(errors,indent=2))
 else:
- for e in errors: print(f"{e['path']}: {e['setting']}={e['value']} must be {e['min']}..{e['max']} step {e['step']}")
- print(f'{len(errors)} invalid saved range values')
+ for e in errors: print(json.dumps(e))
+ print(f'{len(errors)} schema/settings validation errors')
 sys.exit(bool(errors))

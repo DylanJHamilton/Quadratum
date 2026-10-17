@@ -10,4 +10,10 @@ with tempfile.TemporaryDirectory(dir=script.parent.parent/'tests/ultima') as tmp
   (root/'templates/index.json').write_text(json.dumps({'sections':{'main':{'type':'example','settings':{'gap':value}}}}))
   result=subprocess.run([sys.executable,str(script),'--root',str(root)],capture_output=True)
   assert result.returncode==expected,(value,result.stdout,result.stderr)
+ (root/'templates/index.json').write_text('{"sections":{}}')
+ for settings,expected in [([{'id':'anchor_id','type':'text'},{'id':'anchor_id','type':'text'}],1),([{'id':'anchor_id','type':'text'}],0)]:
+  (root/'sections/example.liquid').write_text('{% schema %}'+json.dumps({'settings':settings})+'{% endschema %}')
+  result=subprocess.run([sys.executable,str(script),'--root',str(root)],capture_output=True)
+  assert result.returncode==expected,(settings,result.stdout,result.stderr)
 print('PASS range validator accepts decimal step and rejects wrong step, bounds and type')
+print('PASS duplicate schema setting IDs rejected; unique IDs accepted')

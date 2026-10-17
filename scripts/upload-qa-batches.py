@@ -13,7 +13,13 @@ for start in range(0,len(files),40):
     for name in batch: args+=['--only',name]
     for attempt in range(3):
         r=subprocess.run(args,capture_output=True,text=True,encoding='utf-8',errors='replace')
-        if r.returncode==0: break
+        payloads=[]
+        for line in r.stdout.splitlines():
+            try: payloads.append(json.loads(line))
+            except ValueError: pass
+        rejected=any(x.get('error') or x.get('theme',{}).get('errors') for x in payloads)
+        if r.returncode==0 and not rejected: break
+        if rejected and r.returncode==0: r.returncode=1
         if 'Throttled' not in r.stdout+r.stderr:
             print((r.stdout+r.stderr)[-5000:],flush=True);raise SystemExit(r.returncode)
         time.sleep(8*(attempt+1))
