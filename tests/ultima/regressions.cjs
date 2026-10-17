@@ -24,6 +24,7 @@ async function markup(name, settings = {}, blocks) {
       return route.fulfill({body:'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#777"/></svg>',contentType:'image/svg+xml'});
     });
     async function show(html,width=390) {
+      await page.goto('about:blank');
       await page.setViewportSize({width,height:844});
       await page.setContent('<base href="https://fixture.test/"><style>*{box-sizing:border-box}body{margin:0}:root{--fs-h2:3.25rem}</style>'+html);
       await page.evaluate(()=>document.fonts.ready);
@@ -94,6 +95,48 @@ async function markup(name, settings = {}, blocks) {
     const colors=await page.locator('.q-feed__carousel-btn').first().evaluate(el=>({text:getComputedStyle(el).color,bg:getComputedStyle(el).backgroundColor}));
     assert.equal(colors.text,'rgb(17, 17, 17)');assert.equal(colors.bg,'rgb(255, 255, 255)');
     results.push({check:'carousel button explicit contrast',pass:true});
+    // Exercise the newly reconciled issues against rendered source.
+    for (const icon of ['heart','arrow-right','shopping-cart']) {
+      const html = await f.engine.parseAndRender("{% render 'q-icon', name: icon %}",{icon});
+      assert(html.includes('<path') || html.includes('<circle') || html.includes('<rect'));
+      assert(!html.includes('<use') && html.length < 5000);
+      results.push({check:'inline icon without external sprite',icon,pass:true});
+    }
+    for (const width of [390,774,1024]) {
+      await show(await markup('split-banner',{image:photo,heading:'A long heading',subheading:longCopy,mobile_presentation:'stack',use_theme_spacing:true,container_mode:'full'}),width);
+      const boxes=await page.evaluate(()=>{
+        const r=s=>{const b=document.querySelector('[data-split-banner] '+s).getBoundingClientRect();return {top:b.top,bottom:b.bottom,left:b.left,right:b.right}};
+        return {image:r('.q-img'),copy:r('.q-content-side'),inner:r('.q-inner'),scroll:document.documentElement.scrollWidth,width:document.documentElement.clientWidth};
+      });
+      assert(boxes.scroll<=boxes.width+1,'split banner overflow');
+      if(width<990) assert(boxes.copy.top>=boxes.image.bottom-1,'split banner stacking');
+      assert(boxes.inner.bottom<=boxes.copy.bottom+1,'split banner copy clipping');
+      results.push({check:'split banner long content',width,pass:true});
+    }
+    for(const edge of ['left','right']) {
+      await show('<style>'+fs.readFileSync('assets/header-three.css','utf8')+'</style><header data-qtm-header-three><div style="position:absolute;'+edge+':0;top:50px"><button data-qtm-h3-dropdown-toggle aria-controls="edge-menu" aria-expanded="false">Shop</button><div id="edge-menu" hidden class="qtmHeaderThree__dropdown"><a href="#">A long category name</a></div></div></header>',1135);
+      await page.addScriptTag({content:fs.readFileSync('assets/header-three.js','utf8')});
+      await page.locator('[data-qtm-h3-dropdown-toggle]').click();
+      const box=await page.locator('#edge-menu').boundingBox();
+      assert(box.x>=15 && box.x+box.width<=1120,'Header Three viewport collision');
+      await page.keyboard.press('Escape');
+      assert(await page.locator('#edge-menu').isHidden());
+      results.push({check:'Header Three dropdown boundary and Escape',edge,pass:true});
+    }
+    const longMenu={links:Array.from({length:6},(_,i)=>({title:'Long translated category '+i,url:'/collections/test',links:[]}))};
+    await show(await markup('header-one',{menu:longMenu,logo:{...photo,width:1600,height:100},search_display:'icon'}),1050);
+    await page.addScriptTag({content:fs.readFileSync('assets/header-one.js','utf8')});
+    assert(await page.locator('[data-qtm-header-one]').evaluate(el=>el.classList.contains('is-compact')),'long labels must trigger compact navigation');
+    results.push({check:'Header One content-aware navigation',pass:true});
+    await page.setViewportSize({width:320,height:844});
+    const logo=await page.locator('.qh1__logo').first().boundingBox();
+    const actions=await page.locator('.qh1__actions').first().boundingBox();
+    assert(logo.x+logo.width<=actions.x+1,'mobile logo overlaps actions');
+    results.push({check:'Header One wide logo at 320px',pass:true});
+    await show('<div id="shopify-section-one">'+await f.render('header-two',{id:'one',settings:{nav_placement:'one_row'},blocks:Array.from({length:8},(_,i)=>({type:'nav_link',settings:{label:'Long category label '+i,url:'/collections/test'}})),data:{settings:{logo_primary:{...photo,width:1600,height:100}},shop:{name:'Fixture'}}})+'</div>',1050);
+    await page.addScriptTag({content:fs.readFileSync('assets/header-two.js','utf8')});
+    assert(await page.locator('[data-qh2b-header]').evaluate(el=>el.classList.contains('is-compact')),'Header Two long labels');
+    results.push({check:'Header Two content-aware navigation',pass:true});
     fs.mkdirSync('docs/ultima',{recursive:true});
     fs.writeFileSync('docs/ultima/regressions.json',JSON.stringify({scope:'Local Chromium with Shopify adapters',results},null,2)+'\n');
     console.log('PASS '+results.length+' ULTIMA browser/render regressions');

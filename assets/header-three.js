@@ -41,6 +41,22 @@
       });
     }
 
+    function positionDropdown(panel) {
+      panel.style.setProperty('--qtm-h3-dropdown-shift', '0px');
+      const box = panel.getBoundingClientRect();
+      const edge = 16;
+      const width = document.documentElement.clientWidth;
+      const shift = box.left < edge ? edge - box.left : box.right > width - edge ? width - edge - box.right : 0;
+      panel.style.setProperty('--qtm-h3-dropdown-shift', shift + 'px');
+    }
+
+    on(window, 'resize', function () {
+      dropdownButtons.forEach(function (button) {
+        const panel = document.getElementById(button.getAttribute('aria-controls'));
+        if (panel && !panel.hidden) positionDropdown(panel);
+      });
+    });
+
     function toggleDropdown(button) {
       var panelId = button.getAttribute('aria-controls');
       var panel = panelId ? document.getElementById(panelId) : null;
@@ -52,6 +68,7 @@
 
       if (panel) {
         panel.hidden = isOpen;
+        if (!isOpen) positionDropdown(panel);
       }
     }
 

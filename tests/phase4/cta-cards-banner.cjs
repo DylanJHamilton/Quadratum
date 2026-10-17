@@ -27,7 +27,7 @@ function fixture(name){
  }
  for(const engine of ['grid','flex'])for(const mode of ['stacked','columns'])for(const variant of ['solid','outline','ghost']){
   const d=new JSDOM(await cards.render('cards',{layout_engine:engine,display_mode:mode,background_video:'https://youtu.be/video?x=1',button_radius:0,button_border_width:0},[cards.block('card_item','valid',{cta_link:'/collections/all'}),cards.block('card_item','empty',{cta_link:null})],{button_variant_default:variant}));
-  assert(d.window.document.querySelector(`.q-grid.is-${engine}`));assert.equal(d.window.document.querySelectorAll('.q-card-cta a').length,1);assert(d.window.document.querySelector(`.q-btn--${variant}`));const iframe=d.window.document.querySelector('iframe');assert(!iframe.hasAttribute('src'));assert(iframe.dataset.videoHeroSrc.includes('/video?'));assert(d.window.document.querySelector('svg use'));d.window.close();
+  assert(d.window.document.querySelector(`.q-grid.is-${engine}`));assert.equal(d.window.document.querySelectorAll('.q-card-cta a').length,1);assert(d.window.document.querySelector(`.q-btn--${variant}`));const iframe=d.window.document.querySelector('iframe');assert(!iframe.hasAttribute('src'));assert(iframe.dataset.videoHeroSrc.includes('/video?'));assert(d.window.document.querySelector('svg[data-q-icon] g'));d.window.close();
  }
  for(const ratio of ['40-60','50-50','60-40'])for(const side of ['left','right'])for(const type of ['youtube','vimeo']){
   const d=new JSDOM(await split.render('split',{ratio,media_position:side,media_type:'video_url',video_external:{id:'fixture',type},primary_link:null,secondary_link:null,highlight_mode:'gradient'}));

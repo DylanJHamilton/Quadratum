@@ -54,7 +54,7 @@ async function settingsMatrix(name, base, selector) {
     const d = f.dom(html); assert.deepEqual([...d.window.document.querySelectorAll('.q-sd')].map(x => x.id), ['section-divider-first', 'section-divider-second']); close(d);
   }
   let d = await host(divider, { anchor_id: ' My Chapter ', variant: 'section_chapter', label: 'Chapter <safe>', subtitle: '<p>Native <strong>subtitle</strong></p>', show_icon: true, use_alt_background: true });
-  let doc = d.window.document; assert.equal(doc.querySelector('.q-sd').id, 'my-chapter'); assert.equal(doc.querySelector('h2').textContent.trim(), 'Chapter <safe>'); assert.ok(doc.querySelector('.q-sd__wrap--alt')); assert.ok(doc.querySelector('.q-sd__chapter-subtitle strong')); assert.equal(doc.querySelector('use').getAttribute('href'), '/assets/icons.svg#lucide-sparkle'); assert.equal(doc.querySelector('svg').getAttribute('focusable'), 'false'); close(d);
+  let doc = d.window.document; assert.equal(doc.querySelector('.q-sd').id, 'my-chapter'); assert.equal(doc.querySelector('h2').textContent.trim(), 'Chapter <safe>'); assert.ok(doc.querySelector('.q-sd__wrap--alt')); assert.ok(doc.querySelector('.q-sd__chapter-subtitle strong')); assert.ok(doc.querySelector('svg[data-q-icon="lucide-sparkle"] path')); assert.equal(doc.querySelector('svg').getAttribute('focusable'), 'false'); close(d);
   d = await host(divider, { variant: 'section_chapter', label: '', show_icon: true }); assert.ok(d.window.document.querySelector('.q-sd--divider_only')); assert.equal(d.window.document.querySelector('svg, h2, .q-sd__label'), null); close(d);
   d = await host(divider, { space_above: 'large', space_below: 'small', line_thickness: 'strong', max_width: 'full', pad_x: 'roomy' });
   const style = d.window.document.querySelector('.q-sd').style;
@@ -65,11 +65,11 @@ async function settingsMatrix(name, base, selector) {
     const html = await f.engine.parseAndRender(f.read('snippets/q-icon.liquid'), { name });
     d = f.dom(html);
     if (name === 'none') assert.equal(d.window.document.querySelector('svg'), null);
-    else { assert.ok(sprite.includes('id="lucide-' + name + '"')); assert.equal(d.window.document.querySelector('use').getAttribute('href'), '/assets/icons.svg#lucide-' + name); }
+    else { assert.ok(sprite.includes('id="lucide-' + name + '"')); assert.equal(d.window.document.querySelector('svg[data-q-icon]').getAttribute('data-q-icon'), 'lucide-' + name); assert.ok(d.window.document.querySelector('svg[data-q-icon] g')); }
     close(d);
   }
   assert.equal((await f.engine.parseAndRender(f.read('snippets/q-icon.liquid'), { name: '' })).trim(), '');
-  d = await host('basic-content-helper-grid-builder', {}, { blocks: [{ type: 'item', settings: { icon: 'check' } }] }); assert.ok(d.window.document.querySelector('.q-grid-item__icon use')); close(d); // Icon contract only; complete Grid host review is separate.
+  d = await host('basic-content-helper-grid-builder', {}, { blocks: [{ type: 'item', settings: { icon: 'check' } }] }); assert.ok(d.window.document.querySelector('.q-grid-item__icon svg path')); close(d); // Icon contract only; complete Grid host review is separate.
   await settingsMatrix(text, {}, '.q-ct');
   for (const custom of [false, true]) {
     d = await host(text, { use_custom_colors: custom, surface: 'contrast', kicker: 'Kicker <safe>', title: 'Title <safe>', body: '<p><a href="/info">Native rich text</a></p>', element_gap: 0, pad_y: 0 }); doc = d.window.document;

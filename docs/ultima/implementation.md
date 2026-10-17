@@ -28,3 +28,13 @@ Local browser checks use Shopify adapters and do not replace real store acceptan
 Verify the fixes in Shopify preview and the theme editor, including dynamic section reloads, real product/collection data, keyboard interaction and mobile behavior. Triage the 434 Theme Check warnings. Complete the official Theme Store compliance matrix, including section-group architecture, and reconcile the original tracker before claiming every historical entry closed. Enhancements and platform issues must remain separate from verified code defects.
 
 The gallery currently links demo source branches; public storefront previews remain to be supplied. Keep shared engineering on ULTIMA, review before merging to main, and apply the approved shared baseline to demo branches separately. No store publishing or demo-branch updates are part of this checkpoint.
+
+## Original tracker reconciliation — 2026-10-17
+
+The supplied 37-entry tracker is now mapped entry by entry in `reconciliation.json` and the readable `reconciliation.html`. Original wording is preserved in `original-37-tracker.txt`; demo reports and ten source SHAs are retained as evidence. This supersedes the earlier note that the original tracker was missing.
+
+Additional work includes content-aware header collapse, viewport-clamped dropdowns, split banner sizing, lightbox controls, input contrast, collection card spacing, blog gutters/tags, native section color options and reusable anchors. Bundled icons now render inline without downloading the sprite. ARC custom injection was preserved under demos before removal from shared settings. Range validation runs in CI and through the optional push wrapper.
+
+Final local validation: 19 suites passed, 32 browser/render checks passed, range-validator fixtures passed, zero invalid saved ranges, and Theme Check zero errors / 559 warnings. Of the icon-related warnings, 103 are OrphanedSnippet reports despite explicit render references and 21 are generated-bank complexity warnings. These remain visible for review; no suppression was added. Reports: `reconciliation-suites.json`, `regressions.json`, `theme-check-reconciled.json`.
+
+All 37 entries have a disposition, not live-store closure. Remaining work includes Shopify preview/editor acceptance, Northstar comparison-table wrapping with actual content, warning triage and the full launch-compliance review. Main and stores remain unchanged.

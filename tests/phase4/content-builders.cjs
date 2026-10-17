@@ -52,7 +52,7 @@ function scopedStyles(doc, scope) {
     inspect(await host(name, {}, [], 'empty', true), doc => assert.ok(doc.querySelector('[role=status]')));
   }
   inspect(await host(column, { text_align: 'center', surface: 'var(--q-surface)', columns_desktop: 6, columns_tablet: 4, columns_mobile: 3 }), doc => {
-    assert.equal(doc.querySelector('.q-title').textContent, 'Tile <safe>'); assert.equal(doc.querySelector('.q-cta-btn').textContent.trim(), 'Read <safe>'); assert.ok(doc.querySelector('use').getAttribute('href').endsWith('#lucide-truck')); assert.ok(doc.querySelector('.q-body a')); assert.equal(doc.querySelector('img').alt, 'Photo <safe>');
+    assert.equal(doc.querySelector('.q-title').textContent, 'Tile <safe>'); assert.equal(doc.querySelector('.q-cta-btn').textContent.trim(), 'Read <safe>'); assert.ok(doc.querySelector('svg[data-q-icon="lucide-truck"] path')); assert.equal(doc.querySelector('use'), null); assert.ok(doc.querySelector('.q-body a')); assert.equal(doc.querySelector('img').alt, 'Photo <safe>');
     const root = doc.querySelector('.q-column-builder'); assert.equal(root.style.getPropertyValue('--q-column-surface').trim(), 'var(--q-surface)'); assert.equal(root.style.getPropertyValue('--q-cols-mobile').trim(), '3');
     const css = doc.querySelector('style').textContent; assert.match(css, /text-align: var\(--q-align/); assert.match(css, /align-self:center/); assert.match(css, /--q-surface: var\(--c-bg, #fff\)/);
     // Every existing token-valued choice now has a local definition; self-reference cannot consume the surface/icon setting.
