@@ -25,7 +25,6 @@
   assign view_all_url = section.settings.view_all_url
 
   assign hero_index = section.settings.hero_index | default: 1
-  assign hero_index0 = hero_index | minus: 1
 
   assign card_preset = section.settings.card_preset | default: 'catalog'
   assign density = section.settings.card_density | default: 'compact'
@@ -133,6 +132,9 @@
     assign items = manual_products
   elsif source_mode == 'collection' and feed_collection != blank and feed_collection.products_count > 0
     assign items = feed_collection.products
+  elsif source_mode == 'collection' or source_mode == 'manual'
+    assign items = blank
+    assign using_placeholders = true
   else
     assign all_col = collections['all']
     assign front_col = collections['frontpage']
@@ -149,16 +151,17 @@
     endif
   endif
 
-  assign items_limited = items | slice: 0, max_items
-
+  assign items_limited = items
   assign hero = blank
-  if items_limited != blank and items_limited.size > 0
-    if hero_index0 < items_limited.size
-      assign hero = items_limited[hero_index0]
-    else
-      assign hero = items_limited[0]
+  for item in items limit: max_items
+    if forloop.first
+      assign hero = item
     endif
-  endif
+    if forloop.index == hero_index
+      assign hero = item
+      break
+    endif
+  endfor
 
   assign placeholder_count = max_items
   if placeholder_count < 3
@@ -288,7 +291,7 @@
 
       {%- if layout_variant == 'grid' -%}
         <div class="q-spotlight__grid">
-          {%- for product in items_limited -%}
+          {%- for product in items_limited limit: max_items -%}
             <div class="q-spotlight__cell">
               {%- render 'product-card',
                 product: product,
@@ -363,7 +366,7 @@
 
           <div class="q-spotlight__support">
             <div class="q-spotlight__support-inner" data-supporting-wrap tabindex="0" aria-label="Supporting products">
-              {%- for product in items_limited -%}
+              {%- for product in items_limited limit: max_items -%}
                 {%- if product.id == hero.id -%}{%- continue -%}{%- endif -%}
                 <div class="q-spotlight__support-item" data-supporting-item>
                   {%- render 'product-card',

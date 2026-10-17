@@ -1,6 +1,6 @@
 // Explicit Shopify adapters; these fixtures do not certify platform/browser behavior.
 const fs=require('node:fs'),{Liquid}=require('liquidjs'),{JSDOM}=require('jsdom');
-const read=p=>fs.readFileSync(p,'utf8'),engine=new Liquid({root:'snippets',extname:'.liquid'});
+const read=p=>fs.readFileSync(p,'utf8').replace(/\r\n/g,'\n'),engine=new Liquid({root:'snippets',extname:'.liquid'});
 const escape=x=>String(x??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 for(const [name,fn]of Object.entries({json:x=>JSON.stringify(x??null),money:x=>'$'+(Number(x||0)/100).toFixed(2),money_with_currency:x=>'$'+(Number(x||0)/100).toFixed(2)+' USD',asset_url:x=>'/assets/'+x,shopify_asset_url:x=>'/shopify/'+x,stylesheet_tag:x=>`<link href="${x}" rel="stylesheet">`,image_url:(x,args)=>(x?.preview_image?.url||x?.url||x?.src||'/media.jpg')+'?width='+(args?.[1]||800),image_tag:(x,...args)=>'<img src="'+escape(x)+'" width="800" height="600" alt="">',structured_data:()=>'{"@type":"Product"}',media_tag:x=>x.media_type==='video'?'<video controls></video>':x.media_type==='external_video'?'<iframe title="Video" src="https://www.youtube.com/embed/test"></iframe>':'<model-viewer></model-viewer>',metafield_tag:x=>'<span>'+escape(x?.value||'')+'</span>',color_contrast:()=>21,t:x=>x,payment_button:()=>'<button type="button" class="shopify-payment-button">Buy now</button>',placeholder_svg_tag:()=>'<svg></svg>'}))engine.registerFilter(name,fn);
 const defaults=f=>Object.fromEntries((f||[]).filter(x=>x.id).map(x=>[x.id,x.default??null]));
