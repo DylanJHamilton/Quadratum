@@ -27,6 +27,9 @@ unique_ids(global_schema,'config/settings_schema.json')
 def check(values,sc,where):
  for setting in sc.get('settings',[]):
   key=setting.get('id');v=values.get(key)
+  if setting.get('type') in ['select','radio'] and v is not None and not (isinstance(v,str) and '{{' in v):
+   allowed=[option['value'] for option in setting.get('options',[])]
+   if v not in allowed:errors.append({'path':where,'setting':key,'value':v,'error':'Invalid option','allowed':allowed})
   if setting.get('type')!='range' or v is None or (isinstance(v,str) and '{{' in v):continue
   try:
    n=Decimal(str(v));lo=Decimal(str(setting['min']));hi=Decimal(str(setting['max']));step=Decimal(str(setting.get('step',1)))

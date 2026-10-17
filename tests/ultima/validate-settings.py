@@ -15,5 +15,13 @@ with tempfile.TemporaryDirectory(dir=script.parent.parent/'tests/ultima') as tmp
   (root/'sections/example.liquid').write_text('{% schema %}'+json.dumps({'settings':settings})+'{% endschema %}')
   result=subprocess.run([sys.executable,str(script),'--root',str(root)],capture_output=True)
   assert result.returncode==expected,(settings,result.stdout,result.stderr)
+ for kind in ['select','radio']:
+  (root/'sections/example.liquid').write_text('{% schema %}'+json.dumps({'settings':[{'id':'mode','type':kind,'options':[{'value':'full','label':'Full'}]}]})+'{% endschema %}')
+  for value,expected in [('full',0),('1600',1)]:
+   (root/'templates/index.json').write_text(json.dumps({'sections':{'main':{'type':'example','settings':{'mode':value}}}}))
+   result=subprocess.run([sys.executable,str(script),'--root',str(root)],capture_output=True)
+   assert result.returncode==expected,(kind,value,result.stdout,result.stderr)
 print('PASS range validator accepts decimal step and rejects wrong step, bounds and type')
 print('PASS duplicate schema setting IDs rejected; unique IDs accepted')
+
+print('PASS select and radio accept declared values and reject invalid values')

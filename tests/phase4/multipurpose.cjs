@@ -58,3 +58,6 @@ const defaults = fields => Object.fromEntries((fields || []).filter(field=>field
   }
   console.log('PASS Multipurpose media: static/slideshow initialization, duplicate execution, inactive videos/iframes, reduced motion, hidden document, root unload/reload and timer cleanup.');
 })().catch(error=>{console.error(error);process.exitCode=1});
+
+// The snippet style is emitted after the asset and must preserve panel contrast.
+{ const content = require('fs').readFileSync('snippets/multipurpose-banner-content.liquid', 'utf8'); require('assert').match(content, /\.q-multipurpose-banner \.q-btn--outline\s*\{[^}]*color:\s*var\(--q-mpb-button-color,\s*#fff\)/); }
