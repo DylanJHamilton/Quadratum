@@ -46,3 +46,9 @@ Northstar's actual homepage comparison data now passes at 390/774/1440px with re
 Removed the undefined content_for_footer output and replaced three deprecated helvetica_n4 selections with inter_n4, already the schema's font default. Shopify requires deprecated preset fonts to be replaced: https://shopify.dev/changelog/posts/changes-to-our-font-library . Preview acceptance must include the resulting text reflow.
 
 Every remaining Theme Check diagnostic has a disposition in warning-triage.json. These are retained release follow-ups, not silently suppressed or claimed resolved. The latest full scan is theme-check-closeout.json. The original 37-entry reconciliation and demo-fix consolidation code phase is complete. Live Shopify acceptance remains open: read-only theme inventory confirmed no ULTIMA draft exists; creating an isolated unpublished ULTIMA QA theme was requested for owner approval. No existing store theme was changed.
+
+## Unpublished Shopify QA — 2026-10-17
+
+Owner approved creation of ULTIMA QA, ID 146655674452. All 661 runtime files uploaded successfully in 17 small batches after two full uploads were throttled. Native Shopify homepage, mobile menu, modern product lightbox/variant, collection sort, support/article rendering and editor settings received targeted smoke verification; details and exact limits are in qa-verification.json. This does not certify the full 37-entry/five-preset acceptance matrix.
+
+Live QA caught and corrected the ARC homepage's redundant custom newsletter consent field. The required native marketing confirmation remains and was verified once in the DOM. Only the new unpublished QA theme was updated. Preview and editor remain open for owner review. Main, live store theme and existing demos were not modified.
