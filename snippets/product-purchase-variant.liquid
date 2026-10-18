@@ -1,0 +1,31 @@
+  {%- capture sale_label -%}Sale{% if variant.compare_at_price > variant.price %}{% assign savings = variant.compare_at_price | minus: variant.price %}{% if sale_badge_style == 'percent' %} −{{ savings | times: 100 | divided_by: variant.compare_at_price }}%{% elsif sale_badge_style == 'amount' %} −{{ savings | money }}{% endif %}{% endif %}{%- endcapture -%}
+  {
+    "id":{{ variant.id | json }},
+    "options":[{% for value in variant.options %}{{ value | append: '' | json }}{% unless forloop.last %},{% endunless %}{% endfor %}],
+    {% if include_media %}"mediaId":{% if variant.featured_media.id != blank %}{{ variant.featured_media.id | json }}{% else %}null{% endif %},"variantImage":{% if variant.featured_image != blank %}true{% else %}false{% endif %},{% endif %}
+    "available":{{ variant.available | json }},
+    {% capture unit_price %}{% if variant.unit_price_measurement %}{{ variant.unit_price | money }} / {% if variant.unit_price_measurement.reference_value != 1 %}{{ variant.unit_price_measurement.reference_value }}{% endif %}{{ variant.unit_price_measurement.reference_unit }}{% endif %}{% endcapture %}
+    "unitPrice":{{ unit_price | strip | json }},
+    "price":{{ variant.price | money | json }},
+    "compare":{{ variant.compare_at_price | money | json }},
+    "onSale":{% if variant.compare_at_price > variant.price %}true{% else %}false{% endif %},
+    "saleLabel":{{ sale_label | json }},
+    "sku":{{ variant.sku | default: '' | json }},
+    "quantityRule":{"min":{{ variant.quantity_rule.min | default: 1 | json }},"max":{% if variant.quantity_rule.max != blank %}{{ variant.quantity_rule.max | json }}{% else %}null{% endif %},"increment":{{ variant.quantity_rule.increment | default: 1 | json }}},
+    "allocations":[{% for allocation in variant.selling_plan_allocations %}
+      {%- assign plan_price = allocation.price | default: variant.price -%}
+      {%- assign plan_compare = allocation.compare_at_price | default: variant.price -%}
+      {%- capture plan_sale_label -%}Sale{% if plan_compare > plan_price %}{% assign plan_savings = plan_compare | minus: plan_price %}{% if sale_badge_style == 'percent' %} −{{ plan_savings | times: 100 | divided_by: plan_compare }}%{% elsif sale_badge_style == 'amount' %} −{{ plan_savings | money }}{% endif %}{% endif %}{%- endcapture -%}
+      {"id":{{ allocation.selling_plan.id | json }},"price":{{ plan_price | money | json }},"compare":{{ plan_compare | money | json }},"onSale":{% if plan_compare > plan_price %}true{% else %}false{% endif %},"saleLabel":{{ plan_sale_label | json }}}{% unless forloop.last %},{% endunless %}
+    {% endfor %}]
+    {%- if include_image -%}
+      {%- assign image = variant.featured_image | default: product.featured_image -%}
+      {%- assign image_widths = '400,800,1200,1600' | split: ',' -%}
+      {%- assign image_max_width = image.width | default: 2000 | at_most: 2000 -%},
+      "image":{% if image != blank %}{
+        "src":{{ image | image_url: width: 2000 | json }},
+        {% capture image_srcset %}{% for width in image_widths %}{% assign image_width = width | plus: 0 %}{% if image_width < image_max_width %}{{ image | image_url: width: image_width }} {{ image_width }}w, {% endif %}{% endfor %}{{ image | image_url: width: image_max_width }} {{ image_max_width }}w{% endcapture %}
+        "srcset":{{ image_srcset | json }},"width":{{ image.width | default: 2000 | json }},"height":{{ image.height | default: 2000 | json }},"alt":{{ image.alt | default: product.title | json }}
+      }{% else %}null{% endif %}
+    {%- endif -%}
+  }

@@ -10,7 +10,7 @@ const defaults=fields=>Object.fromEntries(fields.filter(field=>field.id).map(fie
  const variants=[{id:10,title:'Small',price:1000,available:false},{id:20,title:'Large',price:2000,available:true}];
  const product={id:1,title:'Fixture product',variants,selected_or_first_available_variant:variants[1],has_only_default_variant:false,selling_plan_groups:[]};
  let html='';
- for(const id of ['first','second'])html+=await engine.parseAndRender(source.slice(0,start),{section:{id,settings:{...defaults(schema.settings),product,product_block_mode:'single',reveal_enable:false}},settings:{},routes:{cart_add_url:'/fr/cart/add'}});
+ for(const id of ['first','second'])html+=await engine.parseAndRender(require('./support/commerce.cjs').platform(source.slice(0,start)),{section:{id,settings:{...defaults(schema.settings),product,product_block_mode:'single',reveal_enable:false}},settings:{},routes:{cart_add_url:'/fr/cart/add'}});
  const d=new JSDOM(html,{runScripts:'outside-only',pretendToBeVisual:true}),w=d.window;
  w.matchMedia=()=>({matches:false,addEventListener(){}});
  const forms=[...w.document.querySelectorAll('.fp-atc-form')];assert.equal(forms.length,2);
@@ -21,11 +21,11 @@ const defaults=fields=>Object.fromEntries(fields.filter(field=>field.id).map(fie
  forms[0].querySelector('select').value='10';forms[0].querySelector('select').dispatchEvent(new w.Event('change',{bubbles:true}));assert(forms[0].querySelector('[type=submit]').disabled);assert.equal(forms[0].dispatchEvent(new w.Event('submit',{cancelable:true})),false);assert(!forms[1].querySelector('[type=submit]').disabled);
  forms[0].querySelector('select').value='20';forms[0].querySelector('select').dispatchEvent(new w.Event('change',{bubbles:true}));assert(forms[0].querySelector('[data-fp-price]').textContent.includes('$20.00'));
  const root=forms[0].closest('section');root.dispatchEvent(new w.Event('shopify:section:unload',{bubbles:true}));root.dispatchEvent(new w.Event('shopify:section:load',{bubbles:true}));assert(!forms[0].querySelector('[type=submit]').disabled);w.close();
- const collectionHtml=await engine.parseAndRender(source.slice(0,start),{section:{id:'collection',settings:{...defaults(schema.settings),product_block_mode:'collection',row_collection:{id:2,products:[{id:3,title:'Listed product',url:'/products/listed',price:1000}]}}},settings:{},routes:{cart_add_url:'/cart/add'}});
+ const collectionHtml=await engine.parseAndRender(require('./support/commerce.cjs').platform(source.slice(0,start)),{section:{id:'collection',settings:{...defaults(schema.settings),product_block_mode:'collection',row_collection:{id:2,products:[{id:3,title:'Listed product',url:'/products/listed',price:1000}]}}},settings:{},routes:{cart_add_url:'/cart/add'}});
  assert(collectionHtml.includes('/products/listed'),'collection picker object renders its products without a handle map');
  for(const single of [true,false]){
   const sold={...product,has_only_default_variant:single,variants:variants.map(v=>({...v,available:false})),selected_or_first_available_variant:{...variants[0],available:false}};
-  const output=await engine.parseAndRender(source.slice(0,start),{section:{id:'sold',settings:{...defaults(schema.settings),product:sold,product_block_mode:'single'}},settings:{},routes:{cart_add_url:'/cart/add'}});
+  const output=await engine.parseAndRender(require('./support/commerce.cjs').platform(source.slice(0,start)),{section:{id:'sold',settings:{...defaults(schema.settings),product:sold,product_block_mode:'single'}},settings:{},routes:{cart_add_url:'/cart/add'}});
   const check=new JSDOM(output);assert(check.window.document.querySelector('[type=submit]').disabled,'sold-out product starts disabled');check.window.close();
  }
  console.log('PASS Featured Product Hero: actual two-instance Liquid, exact selected ID, localized action, variant price/availability, invalid submit, single/multiple sold-out variants and collection picker objects.');

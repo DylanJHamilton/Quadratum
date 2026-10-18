@@ -5,7 +5,7 @@ function choose(w,root,a,b){root.querySelectorAll('[data-qtm-option]').forEach((
   const {schema}=f.unpack('main-product-modern-variant');
   const values=s=>s.options?.map(o=>o.value)||(s.type==='checkbox'?[false,true]:s.type==='range'?[s.min,s.max]:[]);
   for(const setting of schema.settings)for(const value of values(setting))await f.render('main-product-modern-variant',{settings:{[setting.id]:value}});
-  for(const block of schema.blocks)for(const setting of block.settings)for(const value of values(setting))await f.render('main-product-modern-variant',{blocks:[{type:block.type,settings:{[setting.id]:value}}]});
+  for(const block of schema.blocks)for(const setting of (block.settings||[]))for(const value of values(setting))await f.render('main-product-modern-variant',{blocks:[{type:block.type,settings:{[setting.id]:value}}]});
   for(const combo of [false,true])for(const picker of ['buttons','dropdown']){
     const blocks=[{type:'title'},{type:'price'},{type:'sku_status'},{type:'variant_picker',settings:{picker}},{type:'quantity'},{type:'buy_buttons',settings:{show_dynamic_checkout:true}},{type:'wishlist',settings:{wishlist_mode:'variant',label_add:'Save it',label_remove:'Unsave it',icon_active:'+',icon_inactive:'-'}}];if(combo)blocks.push({type:'qty_buy_combo',settings:{show_dynamic_checkout:true}});
     const d=f.dom(await f.render('main-product-modern-variant',{blocks,settings:{gallery_layout:'thumbnails'}})),w=d.window,root=w.document.querySelector('[data-modern-product]');

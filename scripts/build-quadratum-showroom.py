@@ -68,3 +68,7 @@ for s in explore['sections'].values():
  for b in s.get('blocks',{}).values():
   st=b['settings'];st['description']=st['description'].replace('eyewear collection','demo collection').replace('Everyday objects, brought together.','Products from the shared demonstration catalog.').replace('Help choosing, setting up and caring for your objects.','Explore guidance for choosing and composing a store.').replace('Keep the everyday in good shape.','Keep storefront content and experiences current.')
 save('templates/page.explore.json',explore)
+
+# Apply the concrete commerce and builder-reference layer after the brand base.
+import runpy
+runpy.run_path(str(Path(__file__).with_name('refine-quadratum-showroom.py')))

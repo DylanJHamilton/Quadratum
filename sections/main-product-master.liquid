@@ -6,13 +6,20 @@
 {%- liquid
   assign s = section.settings
   assign p = product
+  assign q_high_variants = false
+  if p.variants_count > 250
+    assign q_high_variants = true
+  endif
 -%}
 
 {%- if p == blank -%}
   {%- if request.design_mode -%}<p>Select a product template to preview Main Product Master.</p>{%- endif -%}
 {%- else -%}
   {%- liquid
-    assign current_variant = p.selected_or_first_available_variant | default: p.variants.first
+    assign current_variant = p.selected_or_first_available_variant
+    if current_variant == blank and q_high_variants == false
+      assign current_variant = p.variants.first
+    endif
     assign allocation = current_variant.selected_selling_plan_allocation
     if p.requires_selling_plan and allocation == blank
       assign allocation = current_variant.selling_plan_allocations.first
@@ -292,7 +299,12 @@
             <s class="q-pdp-phase0__compare" data-purchase-compare {% unless purchase_compare > purchase_price %}hidden{% endunless %}>{{ purchase_compare | money }}</s>
           </div>
 
-          {%- form 'product', p, id: form_id, data-cart-drawer-add: true -%}
+          {% for block in section.blocks %}
+{% if block.type == 'custom_liquid' %}<div {{ block.shopify_attributes }}>{{ block.settings.liquid }}</div>{% endif %}
+{% endfor %}
+{%- form 'product', p, id: form_id, data-cart-drawer-add: true -%}
+{% if p.gift_card? %}{% render 'gift-card-recipient', product: p, form: form, id: section.id %}{% endif %}
+
             {% render 'product-selling-plans', product: p, id: section.id %}
             <div class="q-pdp-phase0__form">
               {%- comment -%}
@@ -302,7 +314,8 @@
                 hide the UI, but keep the select for safe submission.
               {%- endcomment -%}
 
-              <div class="q-pdp-phase0__variant-wrap{% unless show_variant_ui %} is-hidden{% endunless %}">
+              {% if q_high_variants %}{% render 'product-option-navigation', product: p %}{% else %}
+<div class="q-pdp-phase0__variant-wrap{% unless show_variant_ui %} is-hidden{% endunless %}">
                 <label class="q-pdp-phase0__label" for="q-variant-{{ section.id }}">Variant</label>
                 <select id="q-variant-{{ section.id }}" name="id" class="q-pdp-phase0__select">
                   {%- for v in p.variants -%}
@@ -315,7 +328,8 @@
                 </select>
               </div>
 
-              <label class="q-pdp-phase0__label" for="q-qty-{{ section.id }}">Quantity</label>
+              {% endif %}
+<label class="q-pdp-phase0__label" for="q-qty-{{ section.id }}">Quantity</label>
               <input id="q-qty-{{ section.id }}" class="q-pdp-phase0__qty" type="number" name="quantity" required min="{{ current_variant.quantity_rule.min | default: 1 }}" step="{{ current_variant.quantity_rule.increment | default: 1 }}" {% if current_variant.quantity_rule.max %}max="{{ current_variant.quantity_rule.max }}"{% endif %} value="{{ current_variant.quantity_rule.min | default: 1 }}" inputmode="numeric">
 
               <button type="submit" name="add" class="q-pdp-phase0__btn" {% unless can_purchase %}disabled{% endunless %}>
@@ -330,6 +344,8 @@
             </div>
             <p data-purchase-status role="status" aria-live="polite"></p>
             <noscript><p>Choose a variant to refresh price and purchase options:</p>{% for v in p.variants %}<a href="{{ v.url | escape }}">{{ v.title | escape }}</a> {% endfor %}</noscript>
+          {% unless p.gift_card? %}<div class="q-dynamic-checkout" {% unless can_purchase %}hidden{% endunless %}>{{ form | payment_button }}</div>{% endunless %}
+          {% render 'product-services', product: p, form: form, id: section.id %}
           {%- endform -%}
 
           {%- comment -%}
@@ -1291,6 +1307,7 @@
     { "type": "range", "id": "button_size", "label": "Button font size (px)", "min": 12, "max": 20, "step": 1, "default": 15 }
   ],
   "blocks": [
+{"type": "custom_liquid", "name": "Custom Liquid", "settings": [{"type": "liquid", "id": "liquid", "label": "Custom Liquid"}]},
     {
       "type": "metafield",
       "name": "Metafield block",

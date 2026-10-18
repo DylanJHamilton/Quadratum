@@ -1,9 +1,13 @@
 {%- liquid
   assign p = product
+  assign q_high_variants = false
+  if p.variants_count > 250
+    assign q_high_variants = true
+  endif
 
   assign s = section.settings
   assign v = p.selected_or_first_available_variant
-  if v == blank
+  if v == blank and q_high_variants == false
     assign v = p.variants.first
   endif
 
@@ -56,28 +60,36 @@
         alt="{{ featured_image.alt | default: p.title | escape }}"
         loading="eager" fetchpriority="high">
       <div data-purchase-image-placeholder class="qtm-compact__placeholder" {% if featured_image != blank %}hidden{% endif %}></div>
+      {% if p.media.size > 0 %}
+        <details class="qtm-compact__all-media">
+          <summary>{{ 'products.services.all_media' | t }} ({{ p.media.size }})</summary>
+          <div>{% for media in p.media %}<figure>{{ media | media_tag: image_size: '1200x', controls: true, loading: 'lazy' }}{% if media.alt != blank %}<figcaption>{{ media.alt | escape }}</figcaption>{% endif %}</figure>{% endfor %}</div>
+        </details>
+      {% endif %}
+
     </div>
 
     <!-- DETAILS -->
     <div class="qtm-compact__details">
 
-      <form
-        method="post"
-        action="{{ routes.cart_add_url | escape }}"
-        enctype="multipart/form-data"
-        id="ProductForm-{{ section.id }}"
-        class="qtm-compact__form"
-        data-cart-drawer-add
-      >
+      {% assign compact_form_id = 'ProductForm-' | append: section.id %}
+      {% for block in section.blocks %}
+{% if block.type == '@app' %}{% render block %}{% endif %}
+{% if block.type == 'custom_liquid' %}<div {{ block.shopify_attributes }}>{{ block.settings.liquid }}</div>{% endif %}
+{% endfor %}
+{% form 'product', p, id: compact_form_id, class: 'qtm-compact__form', data-cart-drawer-add: true %}
+{% if p.gift_card? %}{% render 'gift-card-recipient', product: p, form: form, id: section.id %}{% endif %}
 
-        <div data-purchase-fallback {% if p.has_only_default_variant %}hidden{% endif %}>
+
+        {% if q_high_variants %}{% render 'product-option-navigation', product: p %}{% else %}
+<div data-purchase-fallback {% if p.has_only_default_variant %}hidden{% endif %}>
           <label for="CompactVariant-{{ section.id }}">{{ p.options | join: ' / ' | escape }}</label>
           <select name="id" id="CompactVariant-{{ section.id }}">
             {% for variant in p.variants %}
               <option value="{{ variant.id }}" {% if variant.id == v.id %}selected{% endif %}>{{ variant.title | escape }} — {{ variant.price | money }}{% unless variant.available %} — Sold out{% endunless %}</option>
             {% endfor %}
           </select>
-          {% unless p.has_only_default_variant %}
+          {% unless p.has_only_default_variant or q_high_variants %}
             <noscript>
               <style>#MainProductCompact-{{ section.id }} [data-purchase-fallback] > :is(label, select) { display: none; }</style>
               <p>Choose a variant to refresh its price and purchase options:</p>
@@ -85,7 +97,8 @@
             </noscript>
           {% endunless %}
         </div>
-        {% render 'product-selling-plans', product: p, id: section.id %}
+        {% endif %}
+{% render 'product-selling-plans', product: p, id: section.id %}
 
         {% if quantity_blocks.size == 0 %}<input type="hidden" name="quantity" value="{{ v.quantity_rule.min | default: 1 }}">{% endif %}
         <p data-purchase-status role="status" aria-live="polite"></p>
@@ -109,7 +122,7 @@
               </div>
 
             {% when 'variant_picker' %}
-              {% unless p.has_only_default_variant %}
+              {% unless p.has_only_default_variant or q_high_variants %}
                 <div class="qtm-compact__variants" data-purchase-options hidden {{ block.shopify_attributes }}>
                   {% for option in p.options_with_values %}
                     <div class="option">
@@ -148,7 +161,7 @@
                   type="submit"
                   name="add"
                   class="qtm-compact__atc"
-                  {% if v.available == false %}disabled{% elsif p.requires_selling_plan and allocation == blank %}disabled{% endif %}
+                  {% if v == blank or v.available == false %}disabled{% elsif p.requires_selling_plan and allocation == blank %}disabled{% endif %}
                 >
                   {% if v.available %}
                     Add to cart
@@ -157,6 +170,8 @@
                   {% endif %}
                 </button>
               </div>
+
+                {% unless p.gift_card? %}<div class="q-dynamic-checkout">{{ form | payment_button }}</div>{% endunless %}
 
             {% when 'description' %}
               {% if p.description != blank %}
@@ -179,7 +194,8 @@
           {% endcase %}
         {% endfor %}
 
-      </form>
+        {% render 'product-services', product: p, form: form, id: section.id %}
+      {% endform %}
     </div>
 
   </div>
@@ -222,6 +238,11 @@
   border-radius: 12px;
 }
 
+.qtm-compact__all-media summary { min-height: 44px; padding: 12px 0; cursor: pointer; }
+.qtm-compact__all-media figure { margin: 16px 0; }
+.qtm-compact__all-media :is(img, video, iframe, model-viewer) { display: block; width: 100%; max-width: 100%; height: auto; }
+.qtm-compact__all-media :is(iframe, model-viewer) { aspect-ratio: 1; }
+.qtm-compact__all-media figcaption { font-size: 14px; padding: 8px 0; }
 .qtm-compact__placeholder {
   aspect-ratio: 1 / 1;
   background: #f3f3f3;
@@ -311,6 +332,8 @@
     }
   ],
   "blocks": [
+{"type": "@app"},
+{"type": "custom_liquid", "name": "Custom Liquid", "settings": [{"type": "liquid", "id": "liquid", "label": "Custom Liquid"}]},
     { "type": "title", "limit": 1, "name": "Title" },
     { "type": "price", "name": "Price" },
     { "type": "variant_picker", "limit": 1, "name": "Variant picker" },

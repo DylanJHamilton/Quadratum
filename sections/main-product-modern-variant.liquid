@@ -4,11 +4,15 @@
 {%- endcomment -%}
 {%- liquid
   assign p = product
+  assign q_high_variants = false
+  if p.variants_count > 250
+    assign q_high_variants = true
+  endif
 
   assign s = section.settings
 
   assign current_variant = p.selected_or_first_available_variant
-  if current_variant == blank
+  if current_variant == blank and q_high_variants == false
     assign current_variant = p.variants.first
   endif
 
@@ -804,9 +808,16 @@
         {%- endfor -%}
 
         {%- comment -%} Single product form wrapper; FORM blocks render inside {%- endcomment -%}
-        {%- form 'product', p, id: product_form_id, class: 'qtm-modern__form', data-cart-drawer-add: true -%}
+        {% for block in section.blocks %}
+{% if block.type == '@app' %}{% render block %}{% endif %}
+{% if block.type == 'custom_liquid' %}<div {{ block.shopify_attributes }}>{{ block.settings.liquid }}</div>{% endif %}
+{% endfor %}
+{%- form 'product', p, id: product_form_id, class: 'qtm-modern__form', data-cart-drawer-add: true -%}
+{% if p.gift_card? %}{% render 'gift-card-recipient', product: p, form: form, id: section.id %}{% endif %}
+
             {% render 'product-selling-plans', product: p, id: section.id %}
-          <div data-simple-fallback>
+          {% if q_high_variants %}{% render 'product-option-navigation', product: p %}{% else %}
+<div data-simple-fallback>
             <label for="QtmVariantId-{{ section.id }}">Variant</label>
             <select name="id" id="QtmVariantId-{{ section.id }}">
               {% for v in p.variants %}<option value="{{ v.id }}" {% if v.id == current_variant.id %}selected{% endif %}>{{ v.title | escape }}{% unless v.available %} — Sold out{% endunless %}</option>{% endfor %}
@@ -814,12 +825,13 @@
             <noscript><p>Select a variant to refresh price and purchase options:</p>{% for v in p.variants %}<a href="{{ v.url | escape }}">{{ v.title | escape }}</a> {% endfor %}</noscript>
           </div>
 
-          {%- unless has_quantity -%}<input type="hidden" name="quantity" id="QtmQtyHidden-{{ section.id }}" value="{{ current_variant.quantity_rule.min | default: 1 }}">{%- endunless -%}
+          {% endif %}
+{%- unless has_quantity -%}<input type="hidden" name="quantity" id="QtmQtyHidden-{{ section.id }}" value="{{ current_variant.quantity_rule.min | default: 1 }}">{%- endunless -%}
           {%- for block in section.blocks -%}
             {%- case block.type -%}
 
               {%- when 'variant_picker' -%}
-                {%- unless p.has_only_default_variant -%}
+                {%- unless p.has_only_default_variant or q_high_variants -%}
                   <div
                     class="qtm-block-style"
                     style="
@@ -853,7 +865,7 @@
                                 value="{{ value | escape }}"
                                 {% if value.selected or option.selected_value == value %}checked{% endif %}
                               >
-                              <label for="{{ input_id }}">{{ value | escape }}</label>
+                              <label for="{{ input_id }}">{% render 'product-option-swatch', value: value %}{{ value | escape }}</label>
                             {%- endfor -%}
                           </div>
                         {%- endif -%}
@@ -893,7 +905,7 @@
                     </button>
                   </div>
 
-                  {%- if block.settings.show_dynamic_checkout -%}
+                  {%- if block.settings.show_dynamic_checkout and p.gift_card? == false -%}
                     <div class="q-dynamic-checkout" {% unless can_purchase %}hidden{% endunless %} style="margin-top: .75rem;">
                       {{ form | payment_button }}
                     </div>
@@ -944,7 +956,7 @@
                       {% if can_purchase %}Add to cart{% elsif current_variant.available %}Unavailable{% else %}Sold out{% endif %}
                     </button>
 
-                    {%- if block.settings.show_dynamic_checkout -%}
+                    {%- if block.settings.show_dynamic_checkout and p.gift_card? == false -%}
                       <div class="q-dynamic-checkout" {% unless can_purchase %}hidden{% endunless %} style="margin-top: .75rem;">
                         {{ form | payment_button }}
                       </div>
@@ -987,7 +999,8 @@
             {%- endcase -%}
           {%- endfor -%}
           <p data-purchase-status role="status" aria-live="polite"></p>
-        {%- endform -%}
+        {% render 'product-services', product: p, form: form, id: section.id %}
+          {%- endform -%}
 
         {%- comment -%} Accordion blocks area {%- endcomment -%}
         {%- assign has_accordion = false -%}
@@ -1290,6 +1303,8 @@
     }
   ],
   "blocks": [
+{"type": "@app"},
+{"type": "custom_liquid", "name": "Custom Liquid", "settings": [{"type": "liquid", "id": "liquid", "label": "Custom Liquid"}]},
     {
       "type": "title",
       "name": "Title",
@@ -1415,7 +1430,7 @@
       "name": "Buy buttons",
       "limit": 1,
       "settings": [
-        { "type": "checkbox", "id": "show_dynamic_checkout", "default": false, "label": "Show dynamic checkout button" },
+        { "type": "checkbox", "id": "show_dynamic_checkout", "default": true, "label": "Show dynamic checkout button" },
         {
           "type": "select",
           "id": "button_size",
@@ -1452,7 +1467,7 @@
       "name": "Quantity + Buy Buttons",
       "limit": 1,
       "settings": [
-        { "type": "checkbox", "id": "show_dynamic_checkout", "default": false, "label": "Show dynamic checkout" },
+        { "type": "checkbox", "id": "show_dynamic_checkout", "default": true, "label": "Show dynamic checkout" },
         {
           "type": "select",
           "id": "button_size",

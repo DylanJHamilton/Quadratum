@@ -69,6 +69,7 @@
       const variant = state.variant;
       const price = state.allocation || variant || { price: 'Unavailable', compare: '', onSale: false };
       if (variant && canEnhance) options.forEach((option, index) => { option.value = variant.options[index]; });
+      root.querySelectorAll('[data-purchase-unit]').forEach(node => { node.textContent = variant?.unitPrice || ''; node.hidden = !variant?.unitPrice; });
       root.querySelectorAll('[data-purchase-current]').forEach(node => { node.textContent = price.price; });
       root.querySelectorAll('[data-purchase-compare]').forEach(node => { node.textContent = price.compare || ''; node.hidden = !price.onSale; });
       root.querySelectorAll('[data-purchase-sale]').forEach(node => { node.hidden = !price.onSale; node.textContent = price.saleLabel || 'Sale'; });

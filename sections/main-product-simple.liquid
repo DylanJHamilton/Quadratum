@@ -4,11 +4,15 @@
 {%- endcomment -%}
 {%- liquid
   assign p = product
+  assign q_high_variants = false
+  if p.variants_count > 250
+    assign q_high_variants = true
+  endif
 
   assign s = section.settings
 
   assign current_variant = p.selected_or_first_available_variant
-  if current_variant == blank
+  if current_variant == blank and q_high_variants == false
     assign current_variant = p.variants.first
   endif
 
@@ -604,9 +608,11 @@
 
       {%- comment -%} ================= INFO ================= {%- endcomment -%}
       <div class="qtm-modern__info{% if s.enable_sticky_info %} qtm-modern__info--sticky{% endif %}">
-        <h1 class="qtm-modern__title">{{ p.title | escape }}</h1>
-
-        <div class="qtm-modern__price" id="QtmPriceWrap-{{ section.id }}">
+        {%- capture product_content_title -%}
+<h1 class="qtm-modern__title">{{ p.title | escape }}</h1>
+{%- endcapture -%}
+{%- capture product_content_price -%}
+<div class="qtm-modern__price" id="QtmPriceWrap-{{ section.id }}">
           <span
             class="qtm-modern__compare"
             id="QtmCompare-{{ section.id }}"
@@ -618,8 +624,9 @@
             {{ purchase_price | money }}
           </span>
         </div>
-
-        <div class="qtm-modern__meta">
+{%- endcapture -%}
+{%- capture product_content_status -%}
+<div class="qtm-modern__meta">
           <span id="QtmSkuWrap-{{ section.id }}" data-purchase-sku-wrap {% if current_variant.sku == blank %}hidden{% endif %}>
             <strong>SKU:</strong> <span id="QtmSku-{{ section.id }}" data-purchase-sku>{{ current_variant.sku | escape }}</span>
           </span>
@@ -630,12 +637,16 @@
             </span>
           </span>
         </div>
+{%- endcapture -%}
+{%- capture product_content_buying -%}
+{%- assign product_form_id = 'product-form-' | append: section.id -%}
 
-        {%- assign product_form_id = 'product-form-' | append: section.id -%}
+{%- form 'product', p, id: product_form_id, class: 'qtm-modern__form', data-cart-drawer-add: true -%}
+{% if p.gift_card? %}{% render 'gift-card-recipient', product: p, form: form, id: section.id %}{% endif %}
 
-           {%- form 'product', p, id: product_form_id, class: 'qtm-modern__form', data-cart-drawer-add: true -%}
             {% render 'product-selling-plans', product: p, id: section.id %}
-          <div data-simple-fallback>
+          {% if q_high_variants %}{% render 'product-option-navigation', product: p %}{% else %}
+<div data-simple-fallback>
             <label for="QtmVariantId-{{ section.id }}">Variant</label>
             <select name="id" id="QtmVariantId-{{ section.id }}">
               {% for v in p.variants %}<option value="{{ v.id }}" {% if v.id == current_variant.id %}selected{% endif %}>{{ v.title | escape }}{% unless v.available %} — Sold out{% endunless %}</option>{% endfor %}
@@ -667,7 +678,7 @@
                         value="{{ value | escape }}"
                         {% if value.selected or option.selected_value == value %}checked{% endif %}
                       >
-                      <label for="{{ input_id }}">{{ value | escape }}</label>
+                      <label for="{{ input_id }}">{% render 'product-option-swatch', value: value %}{{ value | escape }}</label>
                     {%- endfor -%}
                   </div>
                 {%- endif -%}
@@ -675,7 +686,8 @@
             {%- endfor -%}
           {%- endunless -%}
 
-          <div class="qtm-modern__qty">
+          {% endif %}
+<div class="qtm-modern__qty">
             <label for="QtmQty-{{ section.id }}">Quantity</label>
             <input
               id="QtmQty-{{ section.id }}"
@@ -696,11 +708,37 @@
             {% if can_purchase %}Add to cart{% elsif current_variant.available %}Unavailable{% else %}Sold out{% endif %}
           </button>
 
-          {%- if s.show_dynamic_checkout -%}
+          {%- if s.show_dynamic_checkout and p.gift_card? == false -%}
             <div class="q-dynamic-checkout" {% unless can_purchase %}hidden{% endunless %}>{{ form | payment_button }}</div>
           {%- endif -%}
           <p data-purchase-status role="status" aria-live="polite"></p>
-        {%- endform -%}
+        {% render 'product-services', product: p, form: form, id: section.id %}
+          {%- endform -%}
+{%- endcapture -%}
+{%- if s.content_layout == 'blocks' -%}
+  {%- for block in section.blocks -%}
+    {%- case block.type -%}
+      {%- when 'product_title' -%}
+        <div data-product-content="title" {{ block.shopify_attributes }}>{{ product_content_title }}</div>
+      {%- when 'product_price' -%}
+        <div data-product-content="price" {{ block.shopify_attributes }}>{{ product_content_price }}</div>
+      {%- when 'product_status' -%}
+        <div data-product-content="status" {{ block.shopify_attributes }}>{{ product_content_status }}</div>
+      {%- when 'product_buying' -%}
+        <div data-product-content="buying" {{ block.shopify_attributes }}>{{ product_content_buying }}</div>
+      {%- when 'custom_liquid' -%}
+<div {{ block.shopify_attributes }}>{{ block.settings.liquid }}</div>
+      {%- when '@app' -%}
+{% render block %}
+    {%- endcase -%}
+  {%- endfor -%}
+{%- else -%}
+{{ product_content_title }}
+{{ product_content_price }}
+{{ product_content_status }}
+{{ product_content_buying }}
+{% for block in section.blocks %}{% if block.type == 'custom_liquid' %}<div {{ block.shopify_attributes }}>{{ block.settings.liquid }}</div>{% endif %}{% if block.type == '@app' %}{% render block %}{% endif %}{% endfor %}
+{%- endif -%}
 
         {%- comment -%} ===== Below-ATC content (none / short / full) ===== {%- endcomment -%}
         {%- if s.below_atc_content != 'none' -%}
@@ -853,6 +891,7 @@
   "tag": "section",
   "class": "section",
   "settings": [
+    {"type": "select", "id": "content_layout", "label": "Product content layout", "default": "blocks", "options": [{"value": "blocks", "label": "Reorderable blocks"}, {"value": "legacy", "label": "Legacy fixed layout"}], "info": "Use blocks to add, remove, and reorder product information."},
     {
       "type": "text",
       "id": "section_aria_label",
@@ -970,7 +1009,7 @@
     {
       "type": "checkbox",
       "id": "show_dynamic_checkout",
-      "default": false,
+      "default": true,
       "label": "Show dynamic checkout button"
     },
 
@@ -1023,6 +1062,12 @@
     }
   ],
   "blocks": [
+    {"type": "product_title", "name": "Product title", "limit": 1},
+    {"type": "product_price", "name": "Price", "limit": 1},
+    {"type": "product_status", "name": "Inventory and SKU", "limit": 1},
+    {"type": "product_buying", "name": "Purchase controls", "limit": 1},
+{"type": "@app"},
+{"type": "custom_liquid", "name": "Custom Liquid", "settings": [{"type": "liquid", "id": "liquid", "label": "Custom Liquid"}]},
     {
       "type": "accordion_description",
       "name": "Accordion — Description",
@@ -1084,6 +1129,10 @@
     {
       "name": "Main Product — Simple",
       "blocks": [
+        {"type": "product_title"},
+        {"type": "product_price"},
+        {"type": "product_status"},
+        {"type": "product_buying"},
         { "type": "accordion_description" },
         { "type": "accordion_reviews" },
         { "type": "accordion_metafield" }

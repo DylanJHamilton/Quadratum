@@ -41,7 +41,7 @@ function harness(markup, { reduced = false, io = true, design = false } = {}) {
   return { d, w, frames, observers, listeners, tick(ts) { const callbacks = [...frames.values()]; frames.clear(); callbacks.forEach(fn => fn(ts)); }, reveal() { for (const o of observers) o.callback([...o.nodes].map(target => ({ target, isIntersecting: true }))); }, motion(value) { motion.matches = value; for (const fn of listeners) fn(); }, hide() { hidden = true; w.document.dispatchEvent(new w.Event('visibilitychange')); } };
 }
 (async () => {
-  for (const value of ['px-0', 'px-32', 'py-2', 'py-32', 'md:px-0', 'md:px-32', 'md:py-0', 'md:py-32']) assert.ok(f.read('assets/theme.css').includes('.' + value.replace(':', '\\:') + '{'), 'existing free-text spacing utility retained: ' + value);
+  for (const value of ['px-0', 'px-32', 'py-2', 'py-32', 'md:px-0', 'md:px-32', 'md:py-0', 'md:py-32']) assert.ok(f.read('assets/theme.css').replace(/\s*\{/g, '{').includes('.' + value.replace(':', '\\:') + '{'), 'existing free-text spacing utility retained: ' + value);
   await matrix(steps); await matrix(services); await matrix(stats);
   for (const name of [steps, services, stats]) { inspect(await host(name, {}, [], 'empty', false), doc => assert.equal(doc.querySelector('section'), null)); inspect(await host(name, {}, [], 'empty', true), doc => assert.ok(doc.querySelector('[role=status]'))); }
   for (const [index, current] of [[-1, 0], [0, 0], [1, 1], [2.9, 2], [99, 3]]) inspect(await host(steps, { current_step_index: index, enable_progress_bar: true, show_progress_meta: false }), doc => {
