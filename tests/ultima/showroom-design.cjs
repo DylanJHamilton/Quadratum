@@ -1,0 +1,53 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const f = require('../phase4/support/commerce.cjs');
+(async () => {
+  const base = { ...f.product, price: 4900, price_varies: false };
+  const available = f.dom(await f.render('showroom-campaign', {settings:{heading:'Everyday <safe>',spotlight:base,link:'/collections/all'},blocks:[{type:'product',settings:{product:base,category:'Technology'}},{type:'product',settings:{product:null}}]}));
+  assert.equal(available.window.document.querySelectorAll('h1').length,1);
+  assert.equal(available.window.document.querySelectorAll('.q-campaign__product').length,1);
+  assert.equal(available.window.document.querySelector('h1').textContent,'Everyday <safe>');
+  assert.match(available.window.document.querySelector('.q-campaign__product-meta').textContent,/Explore & choose options/);
+  assert.equal(available.window.document.querySelector('.q-campaign__spotlight').getAttribute('href'),base.url);
+  available.window.close();
+  const sold = f.dom(await f.render('showroom-campaign',{blocks:[{type:'product',settings:{product:{...base,available:false}}}]}));
+  assert.match(sold.window.document.querySelector('.q-campaign__product-meta').textContent,/Sold out/);
+  sold.window.close();
+  const dir = f.dom(await f.render('store-directory',{blocks:[{type:'destination',settings:{title:'A <brand>',url:'/demo',label:'Open demo',image:f.photo()}},{type:'destination',settings:{title:'Paused',status:'Imagery review',url:''}}]}));
+  assert.equal(dir.window.document.querySelectorAll('.store-directory__card')[0].querySelectorAll('a').length,3);
+  assert.equal(dir.window.document.querySelectorAll('.store-directory__card')[1].querySelectorAll('a').length,0);
+  assert.match(dir.window.document.querySelector('.store-directory__status').textContent,/Imagery review/);
+  dir.window.close();
+  const css=f.read('assets/store-directory.css');
+  assert(!/padding:\s*26px 0/.test(css));
+  assert.match(css,/text-decoration:\s*underline/);
+  const home=JSON.parse(f.read('templates/index.json'));
+  assert.equal(home.sections.campaign.type,'showroom-campaign');
+  assert(!JSON.stringify(home).includes('golden-library'));
+  const brands=JSON.parse(f.read('templates/page.brands.json'));
+  const paused=Object.values(brands.sections.directory.blocks).find(b=>b.settings.title==='EVERREAL');
+  assert.equal(paused.settings.url,''); assert.equal(paused.settings.image,'');
+  // Explicit browser API fixtures: progressive motion, duplicate loads and editor disposal.
+  for (const reduced of [false,true]) {
+    const d=f.dom('<section id="s"><p class="q-reveal">Visible without JS</p></section>');
+    let callbacks=[],observed=[],unobserved=[];
+    d.window.matchMedia=()=>({matches:reduced,addEventListener(){}});
+    d.window.IntersectionObserver=class {constructor(cb){callbacks.push(cb);} observe(n){observed.push(n);} unobserve(n){unobserved.push(n);} disconnect(){}};
+    f.boot(d.window,['showroom-motion.js']);
+    assert.equal(callbacks.length,reduced?0:1);
+    if(!reduced){ callbacks[0]([{isIntersecting:true,target:observed[0]}]); assert(observed[0].classList.contains('q-reveal--arrive')); d.window.document.getElementById('s').dispatchEvent(new d.window.CustomEvent('shopify:section:unload',{bubbles:true})); assert(unobserved.length>=2); }
+    d.window.close();
+  }
+  const preview = f.dom('<script data-showroom-theme="146655674452"></script><a id="local" href="/products/test?view=classic#details">Product</a><a id="brand" href="/?preview_theme_id=123">Brand</a><a id="external" href="https://example.test">Outside</a><a id="download" download href="/assets/index.json">Download</a><a id="fragment" href="#here">Jump</a>');
+  Object.defineProperty(preview.window.document,'currentScript',{value:preview.window.document.querySelector('script')});
+  f.boot(preview.window,['showroom-preview.js']);
+  const localUrl=new URL(preview.window.document.getElementById('local').href);
+  assert.equal(localUrl.searchParams.get('preview_theme_id'),'146655674452');
+  assert.equal(localUrl.searchParams.get('view'),'classic'); assert.equal(localUrl.hash,'#details');
+  assert.equal(preview.window.document.getElementById('brand').getAttribute('href'),'/?preview_theme_id=123');
+  assert.equal(preview.window.document.getElementById('external').getAttribute('href'),'https://example.test');
+  assert.equal(preview.window.document.getElementById('download').getAttribute('href'),'/assets/index.json');
+  assert.equal(preview.window.document.getElementById('fragment').getAttribute('href'),'#here');
+  preview.window.close();
+  console.log('PASS showroom: native catalog links, empty/sold-out states, heading/copy escaping, linked demo media/titles/CTA, paused demo, padding/underline regression, progressive/reduced-motion and editor lifecycle.');
+})().catch(e=>{console.error(e);process.exitCode=1});

@@ -14,9 +14,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PRESETS = ['Quadratum', 'Morrow', 'Northstar', 'Kinvar', 'Vantier']
-SHOWROOM_SECTIONS = {'editorial-story.liquid', 'commerce-showcase.liquid', 'builder-reference.liquid'}
+SHOWROOM_SECTIONS = {'showroom-campaign.liquid', 'editorial-story.liquid', 'commerce-showcase.liquid', 'builder-reference.liquid'}
 DEVELOPMENT_SECTIONS = {'main-product-master.liquid'}  # Legacy laboratory host; no merchant template uses it.
-SHOWROOM_ASSETS = {'editorial-story.css', 'commerce-showcase.css', 'quadratum-builder-manifest.json', 'quadratum-obsidian.png', 'quadratum-porcelain.png', 'quadratum-logo-ink.png', 'quadratum-logo-white.png'}
+SHOWROOM_ASSETS = {'showroom-preview.js', 'quadratum-builder-index.json', 'showroom-campaign.css', 'showroom-motion.js', 'editorial-story.css', 'commerce-showcase.css', 'quadratum-builder-manifest.json', 'quadratum-obsidian.png', 'quadratum-porcelain.png', 'quadratum-logo-ink.png', 'quadratum-logo-white.png'}
 EXCLUDED_TEMPLATES = {'page.features.json', 'page.brands.json', 'page.explore.json', 'page.section-library.json', 'page.block-library.json', 'page.dynamic-section-test.json', 'page.playground.liquid', 'product.product-section-test.json', 'page.agencies.json', 'page.ecosystem.json', 'page.products.json', 'page.collections.json', 'page.editorial.json', 'page.documentation.json', 'page.release-status.json', 'page.builder-reference.json', 'page.lookbook.json', 'page.journal.json', 'page.proportion.json', 'page.finishing-details.json'}
 
 parser = argparse.ArgumentParser()
