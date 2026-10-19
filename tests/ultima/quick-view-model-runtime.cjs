@@ -1,0 +1,82 @@
+const assert = require('node:assert/strict');
+const { dom, boot, drain, read } = require('../phase4/support/commerce.cjs');
+const rootHTML = '<div data-product-media-root data-model-error="3D unavailable"><div><model-viewer></model-viewer></div></div>';
+(async () => {
+  const d = dom('<div id="first">' + rootHTML + '</div><div id="second">' + rootHTML + '</div>');
+  const w = d.window, doc = w.document;
+  const requests = []; let viewers = 0, destroyed = 0;
+  w.Shopify = { loadFeatures(features) { requests.push(...features); } };
+  boot(w, ['product-media-runtime.js']);
+  const first = doc.getElementById('first'), second = doc.getElementById('second');
+  const a = w.qtmProductMedia.boot(first), b = w.qtmProductMedia.boot(second);
+  assert.equal(requests.length, 1, 'concurrent dialogs share one native feature request');
+  assert.equal(requests[0].name, 'model-viewer-ui');
+  requests[0].onLoad(['network error']);
+  await Promise.all([a, b]);
+  assert.equal(doc.querySelectorAll('[data-model-load-error]').length, 2);
+  assert.equal(doc.querySelector('[role=status]').textContent, '3D unavailable');
+  const retry = w.qtmProductMedia.boot(first);
+  assert.equal(requests.length, 2, 'failed native feature can retry');
+  let paused = 0;
+  w.customElements.define('model-viewer', class extends w.HTMLElement { pause() { paused++; } });
+  w.Shopify.ModelViewerUI = class { constructor() { viewers++; } destroy() { destroyed++; } };
+  requests[1].onLoad();
+  await retry;
+  assert(!first.querySelector('[data-model-load-error]'));
+  await w.qtmProductMedia.boot(second);
+  assert(!second.querySelector('[data-model-load-error]'));
+  assert.equal(requests.length, 2, 'ready native component is reused');
+  await w.qtmProductMedia.boot(first);
+  assert.equal(viewers, 2, 'repeated boot does not duplicate controls');
+  assert.equal(doc.querySelectorAll('link[data-qtm-model-style]').length, 1);
+  first.insertAdjacentHTML('beforeend', '<video controls></video><iframe src="https://player.test/"></iframe>');
+  first.querySelector('video').pause = () => paused++;
+  w.qtmProductMedia.stop(first);
+  assert.equal(paused, 2, 'both video and model animation stop');
+  assert.equal(destroyed, 1);
+  assert.equal(first.querySelector('iframe').getAttribute('src'), null);
+  w.close();
+
+  const gone = dom(rootHTML), gw = gone.window;
+  let failedLoad;
+  gw.Shopify = { loadFeatures(features) { failedLoad = features[0].onLoad; } };
+  boot(gw, ['product-media-runtime.js']);
+  const detached = gw.document.querySelector('[data-product-media-root]');
+  const pending = gw.qtmProductMedia.boot(detached);
+  detached.remove();
+  failedLoad(['network error']);
+  await pending;
+  assert(!detached.querySelector('[data-model-load-error]'), 'closed dialogs do not receive stale messages');
+  gw.close();
+
+  // Execute both controllers with a fragment containing a model, rather than only matching source.
+  const host = '<div id="q-qv" hidden><div class="q-qv__panel" tabindex="-1"><button data-qv-close>Close</button><div data-qv-content></div></div></div>';
+  const global = dom(host + '<button data-quick-view data-product-handle="model">Open model</button>');
+  let globalBoot = 0;
+  global.window.qtmProductMedia = { stop() {}, boot(scope) { assert(scope.querySelector('model-viewer')); globalBoot++; } };
+  global.window.fetch = async () => ({ ok:true, text:async () => '<template data-global-qv-product><div data-product-purchase-sync>' + rootHTML + '</div></template>' });
+  boot(global.window, ['q-quick-view.js']);
+  global.window.document.querySelector('[data-quick-view]').click();
+  await drain();
+  assert.equal(globalBoot, 1);
+  global.window.close();
+
+  const legacy = dom('<section id="legacy" class="q-collection-modern" data-qcm-qv-enabled="true"><div data-qcmc data-product-url="/products/model"><button data-qcm-quick-view>Open</button></div><div data-qcm-qv hidden><button data-qcm-qv-close>Close</button><div data-qcm-qv-inner></div></div></section>');
+  let legacyBoot = 0, legacyStop = 0;
+  legacy.window.qtmProductMedia = { boot(scope) { assert(scope.querySelector('model-viewer')); legacyBoot++; }, stop(scope) { if(scope.querySelector('model-viewer')) legacyStop++; } };
+  legacy.window.fetch = async () => ({ ok:true, text:async () => '<div data-qcm-qv-fragment>' + rootHTML + '</div>' });
+  boot(legacy.window, ['section-collection-modern.js']);
+  legacy.window.document.dispatchEvent(new legacy.window.Event('DOMContentLoaded'));
+  legacy.window.document.querySelector('[data-qcm-quick-view]').click();
+  await drain();
+  assert.equal(legacyBoot, 1);
+  legacy.window.document.querySelector('[data-qcm-qv-close]').click();
+  assert.equal(legacyStop, 1);
+  legacy.window.close();
+  assert(read('layout/theme.liquid').includes("'product-media-runtime.js' | asset_url"));
+  for (const file of ['snippets/q-quick-view-product.liquid','sections/collection-modern-quick-view.liquid']) {
+    assert(read(file).includes('data-product-media-root'));
+    assert(read(file).includes('products.services.model_error'));
+  }
+  console.log('PASS Quick View model runtime: native feature loading, shared request, retry, accessible failure, stale-close handling, media/UI cleanup, and both controller integrations.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

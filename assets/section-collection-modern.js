@@ -19,12 +19,12 @@
     function close(restore = true) {
       version++; request?.abort();
       if (host) { host.hidden = true; host.setAttribute('aria-hidden','true'); }
-      if (inner) inner.replaceChildren();
+      if (inner) { window.qtmProductMedia?.stop(inner); inner.replaceChildren(); }
       if (restore && opener?.isConnected) opener.focus();
       opener = null;
     }
     on(window, 'qtm:collection-modal-open', event => { if (event.detail !== host) close(false); });
-    function focusables() { return [...host.querySelectorAll('button:not(:disabled),a[href],select:not(:disabled),input:not([type=hidden]):not(:disabled)')].filter(el => !el.closest('[hidden]')); }
+    function focusables() { return [...host.querySelectorAll('button:not(:disabled),a[href],select:not(:disabled),input:not([type=hidden]):not(:disabled),video[controls],audio[controls],iframe,model-viewer,[tabindex]:not([tabindex="-1"])')].filter(el => !el.closest('[hidden]')); }
     if (host && inner) { host.setAttribute('role','dialog'); host.setAttribute('aria-modal','true'); host.setAttribute('aria-label','Product quick view'); host.tabIndex = -1; }
     async function quickView(button) {
       if (!host || !inner || root.dataset.qcmQvEnabled !== 'true') return;
@@ -46,6 +46,7 @@
         if (!fragment) throw new Error('Missing product');
         fragment.dataset.qcmQvMode = root.dataset.qcmQvGalleryMode === 'hover' ? 'hover' : 'slider';
         inner.replaceChildren(fragment);
+        window.qtmProductMedia?.boot(inner);
       } catch (error) { if (!disposed && current === version && error.name !== 'AbortError') inner.textContent = 'Unable to load this product. Close quick view and use the product link.'; }
     }
     on(document,'keydown',event => {

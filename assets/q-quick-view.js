@@ -8,8 +8,11 @@
   const content = host.querySelector('[data-qv-content]');
   let request, opener, previousOverflow = '';
   const clear = () => {
-    content.querySelectorAll('video, audio').forEach(media => media.pause());
-    content.querySelectorAll('iframe').forEach(frame => frame.removeAttribute('src'));
+    if (window.qtmProductMedia) window.qtmProductMedia.stop(content);
+    else {
+      content.querySelectorAll('video, audio').forEach(media => media.pause());
+      content.querySelectorAll('iframe').forEach(frame => frame.removeAttribute('src'));
+    }
     window.qtmProductPurchaseSync?.dispose?.(content);
     window.qtmSellingPlans?.dispose?.(content);
     content.replaceChildren();
@@ -24,7 +27,7 @@
     document.documentElement.style.overflow = previousOverflow;
     if (opener?.isConnected) opener.focus();
   }
-  const controls = () => [...panel.querySelectorAll('a[href], button:not([disabled]), select:not([disabled]), input:not([disabled]), textarea:not([disabled]), video[controls], audio[controls], iframe, [tabindex]:not([tabindex="-1"])')].filter(node => !node.closest('[hidden], [inert]') && node.type !== 'hidden');
+  const controls = () => [...panel.querySelectorAll('a[href], button:not([disabled]), select:not([disabled]), input:not([disabled]), textarea:not([disabled]), video[controls], audio[controls], iframe, model-viewer, [tabindex]:not([tabindex="-1"])')].filter(node => !node.closest('[hidden], [inert]') && node.type !== 'hidden');
   document.addEventListener('click', async event => {
     if (event.target.closest('#q-qv [data-qv-close]')) { close(); return; }
     const trigger = event.target.closest('[data-quick-view]');
@@ -53,6 +56,7 @@
       const template = doc.querySelector('template[data-global-qv-product]');
       if (!template?.content.querySelector('[data-product-purchase-sync]')) throw new Error('Product unavailable');
       content.replaceChildren(document.importNode(template.content, true));
+      window.qtmProductMedia?.boot(content);
       window.qtmSellingPlans?.boot?.(content);
       window.qtmProductPurchaseSync?.boot?.(content);
     } catch (error) {
