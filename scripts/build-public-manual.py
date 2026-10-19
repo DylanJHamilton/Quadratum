@@ -88,7 +88,9 @@ for kind, title in [('settings', 'Theme Settings'), ('section', 'Sections'), ('b
 
 Email [dylan@bestwebsitebuildergroup.com](mailto:dylan@bestwebsitebuildergroup.com) for pre-purchase questions, setup help, and reproducible theme errors.
 
-The [Shopify support form](https://quadratum-theme.myshopify.com/pages/features?view=customer-care&preview_theme_id=146655674452) is currently in the password-protected showcase preview. Public form access and delivery verification are still being completed before submission.
+Use the [public Quadratum support form](https://docs.google.com/forms/d/e/1FAIpQLSdVYnnNyXSKScx3Ub8_Yq5X7s0z6OXdlQ6-7acODRUi0iAPHw/viewform). You do not need a Shopify preview password or Google sign-in to submit a request.
+
+TinkerRune responds within two business days. Form responses are used to handle your support request; do not include confidential store or customer data.
 
 ## Include the details needed to help
 
