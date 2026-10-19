@@ -11,7 +11,7 @@ Content and merchandising.
 3. Connect your own content and media before adjusting layout, typography, color, and spacing. Section overrides take priority where the section offers them.
 4. Preview desktop and mobile, test any links or controls, and save. Publish only after reviewing the complete customer journey.
 
-Location cards, contact links and directions work without JavaScript. Search matches the configured text; it does not geocode a ZIP or calculate distance. Google Maps requires an enabled, restricted public API key and provider billing/configuration. A failed or unavailable API keeps the native location list.
+Location cards, contact links and directions work without an API key. Search matches your configured location text. Directions open Google Maps in a new tab; no geocoding or distance calculation is performed by the theme.
 
 ## Content
 
@@ -52,18 +52,6 @@ Setting: `subheading`. Type: `richtext`.
 </details>
 
 ## Map + list layout
-
-### Enable map (requires theme settings → Google maps)
-
-Turn on “Enable map (requires theme settings → Google maps)” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
-
-Default: `True`.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `enable_map`. Type: `checkbox`.
-
-</details>
 
 ### Show editor location preview
 
@@ -185,40 +173,6 @@ Setting: `filter_all_label`. Type: `text`.
 
 ## Map defaults
 
-### Default center latitude
-
-Enter the default center latitude. Replace sample wording with your own content; leave optional fields empty when you do not need them.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `default_lat`. Type: `text`.
-
-</details>
-
-### Default center longitude
-
-Enter the default center longitude. Replace sample wording with your own content; leave optional fields empty when you do not need them.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `default_lng`. Type: `text`.
-
-</details>
-
-### Default zoom
-
-Drag the control to adjust default zoom. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
-
-Default: `12`.
-
-Range: 1 to 20 ; step 1.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `default_zoom`. Type: `range`.
-
-</details>
-
 ## Card + pin labels
 
 ### Card primary button label
@@ -242,18 +196,6 @@ Default: `Directions`.
 <details><summary>Reference for connected builders</summary>
 
 Setting: `card_directions_label`. Type: `text`.
-
-</details>
-
-### Pin link label
-
-Enter the pin link label. Replace sample wording with your own content; leave optional fields empty when you do not need them.
-
-Default: `Open details`.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `pin_primary_label`. Type: `text`.
 
 </details>
 

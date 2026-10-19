@@ -7,7 +7,7 @@ function dom(html){const d=new JSDOM(html,{url:'https://shop.test/?preview_theme
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 function fixture(n,id){
  const word=['','one','two','three','four','five'][n];
- if(n===1)return `<section id="${id}"><header data-qtm-header-one class="q-header-one--mobile-drawer_like"><button data-qh1-mobile-toggle aria-expanded="false">Open</button><div data-qh1-mobile-panel hidden tabindex="-1"><button data-qh1-mobile-close>Close</button><a href="/">Last</a></div></header></section>`;
+ if(n===1)return `<section id="${id}"><header data-qtm-header-one class="q-header-one--mobile-drawer_like"><button data-qh1-mobile-toggle aria-expanded="false">Open</button><button data-qh1-mobile-close>Overlay</button><div data-qh1-mobile-panel hidden tabindex="-1"><button data-qh1-panel-close>Close menu</button><a href="/">Last</a></div></header></section>`;
  if(n===2)return `<section id="${id}"><header data-qh2b-header><button data-qh2b-mobile-open>Open</button><div data-qh2b-mobile-drawer hidden tabindex="-1"><button data-qh2b-mobile-close>Close</button><a href="/">Last</a></div></header></section>`;
  return `<section id="${id}"><header data-qtm-header-${word}><button data-qtm-h${n}-mobile-open aria-expanded="false">Open</button><div data-qtm-h${n}-mobile-panel hidden><div role="dialog" tabindex="-1"><button data-qtm-h${n}-mobile-close>Close</button><a href="/">Last</a></div></div></header></section>`;
 }

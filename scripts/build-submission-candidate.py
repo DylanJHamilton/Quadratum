@@ -12,11 +12,12 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from submission_portability import sanitize
+from submission_native_services import apply as native_services, EXCLUDED as PROVIDER_SECTIONS
 
 ROOT = Path(__file__).resolve().parents[1]
 PRESETS = ['Quadratum', 'Morrow', 'Northstar', 'Kinvar', 'Vantier']
 SHOWROOM_SECTIONS = {'showroom-campaign.liquid', 'editorial-story.liquid', 'commerce-showcase.liquid', 'builder-reference.liquid', 'documentation-hub.liquid', 'theme-support.liquid'}
-DEVELOPMENT_SECTIONS = {'main-product-master.liquid'}  # Legacy laboratory host; no merchant template uses it.
+DEVELOPMENT_SECTIONS = {'main-product-master.liquid'} | PROVIDER_SECTIONS
 # Historical alternatives have no callers in the merchant runtime. Keep their
 # source history, but do not ship unused implementations to merchants.
 UNUSED_SNIPPETS = set('boxed-content-media cart-progress-bar collection-modern-empty-state collection-modern-pagination collection-modern-product-card collection-modern-quick-filters collection-modern-sort collection-modern-toolbar collection-simple-grid fp-hero-content-proxy fp-hero-media-proxy header-two-account header-two-actions header-two-cart header-two-logo header-two-mega-menu header-two-mobile-menu header-two-search icon-sprite pb-bundle-card q-banner-base q-disclosure q-nav q-social-pinterest-thumb q-spacing qtm-content-block-wrapper-end search-controller section-collection-modern-facets section-collection-modern-sort utility-404'.split())
@@ -108,6 +109,7 @@ for template in (output / 'templates').glob('*.json'):
     for section in data.get('sections', {}).values():
         assert (output / 'sections' / (section['type'] + '.liquid')).is_file(), (template.name, section['type'])
 
+native_service_changes = native_services(output)
 portability_changes = sanitize(output)
 manifest = {'status': 'CANDIDATE — NOT CLEARED FOR SUBMISSION', 'preset': args.preset, 'source_head': args.source_commit or subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(), 'includes_working_tree': not bool(args.source_commit), 'merchant_template_source': 'aa7a4e7e (configuration only; current runtime retained)', 'output': str(output), 'excluded': excluded, 'portability_changes': portability_changes, 'files': {str(path.relative_to(output)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(output.rglob('*')) if path.is_file()}}
 report = ROOT / 'docs/ultima' / ('submission-stage-' + args.preset.lower() + '.json')

@@ -93,56 +93,6 @@ Setting: `marketing_consent_mode`. Type: `select`.
 
 ## Forms
 
-### Bulk-order default destination
-
-Choose one of the supported options below for bulk-order default destination. Only the selected option applies; other settings can further customize its appearance. This is an optional external integration. Configure the corresponding service first; the setting does not provision a service or guarantee delivery. Public site keys must be restricted to the intended domain. Native Shopify forms remain available without this integration.
-
-Only used by Bulk order when its destination is Global default. Both legacy custom choices post to the configured endpoint; they do not render HTML or Liquid. Other forms own their destination.
-
-Default: `shopify`.
-
-Options: Shopify (built-in), Custom endpoint (legacy html), Custom endpoint (legacy liquid).
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `forms_backend`. Type: `select`.
-
-`shopify`, `custom_html`, `custom_liquid`
-
-</details>
-
-### Custom form CAPTCHA default
-
-Choose one of the supported options below for custom form captcha default. Only the selected option applies; other settings can further customize its appearance. This is an optional external integration. Configure the corresponding service first; the setting does not provision a service or guarantee delivery. Public site keys must be restricted to the intended domain. Native Shopify forms remain available without this integration.
-
-Used only when a custom-endpoint form inherits this choice. Explicit section choices, including None, win. Shopify protects its native forms separately. Your server must verify custom tokens.
-
-Default: `none`.
-
-Options: None, Cloudflare turnstile, reCAPTCHA v3.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `forms_captcha_provider`. Type: `select`.
-
-`none`, `turnstile`, `recaptcha_v3`
-
-</details>
-
-### Public CAPTCHA site key
-
-Advanced: enter the existing metafield key or content field key described below. Match the spelling exactly and use the data type expected by this section. Use manual content first if no matching definition exists. This is an optional external integration. Configure the corresponding service first; the setting does not provision a service or guarantee delivery. Public site keys must be restricted to the intended domain. Native Shopify forms remain available without this integration.
-
-For the selected global provider. Section keys and retained provider-specific legacy keys take priority. Enter a public browser site key only; keep verification secrets on your server. Blank or none disables the key.
-
-Default: `none`.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `captcha_site_key`. Type: `text`.
-
-</details>
-
 ### Default hidden tags
 
 Enter the default hidden tags. Replace sample wording with your own content; leave optional fields empty when you do not need them.
@@ -154,66 +104,6 @@ Default: `form, web`.
 <details><summary>Reference for connected builders</summary>
 
 Setting: `forms_default_tags`. Type: `text`.
-
-</details>
-
-### Default custom endpoint (optional)
-
-Enter the default custom endpoint (optional). Replace sample wording with your own content; leave optional fields empty when you do not need them. This is an optional external integration. Configure the corresponding service first; the setting does not provision a service or guarantee delivery. Public site keys must be restricted to the intended domain. Native Shopify forms remain available without this integration.
-
-HTTPS or store-relative POST endpoint for custom forms. Local destinations take priority. Configure validation, token verification, consent and delivery on your server. Never include secrets in this URL.
-
-Default: `none`.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `forms_global_endpoint`. Type: `text`.
-
-</details>
-
-## Google maps
-
-### Enable optional Google maps loader
-
-Turn on “Enable optional Google maps loader” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it. This is an optional external integration. Configure the corresponding service first; the setting does not provision a service or guarantee delivery. Public site keys must be restricted to the intended domain. Native Shopify forms remain available without this integration.
-
-Locator sections also require their local map switch and a public key. Enabling loads Google automatically. This is not visitor consent. Review provider privacy requirements; native location cards work without Google.
-
-Default: `False`.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `gmap_enable`. Type: `checkbox`.
-
-</details>
-
-### Google maps API key (public)
-
-Advanced: enter the existing metafield key or content field key described below. Match the spelling exactly and use the data type expected by this section. Use manual content first if no matching definition exists. This is an optional external integration. Configure the corresponding service first; the setting does not provision a service or guarantee delivery. Public site keys must be restricted to the intended domain. Native Shopify forms remain available without this integration.
-
-Public browser key for enabled locator sections. Restrict it to your storefront and required APIs with Google. Never enter a server secret.
-
-Default: `none`.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `gmap_api_key`. Type: `text`.
-
-</details>
-
-### Map banner fallback zoom
-
-Drag the control to adjust map banner fallback zoom. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
-
-Fallback for the Service area map banner when its local zoom is missing. Locator sections use their own zoom.
-
-Default: `12`.
-
-Range: 1 to 20 ; step 1.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `gmap_default_zoom`. Type: `range`.
 
 </details>
 

@@ -70,7 +70,7 @@ def prepare():
             action = f'<a class="quadratum-demo-bar__buy" href="{html.escape(purchase, quote=True)}" target="_blank" rel="noopener" aria-label="{label} (opens in a new tab)">{label}</a>'
         else:
             action = f'<button class="quadratum-demo-bar__buy" type="button" disabled aria-describedby="QuadratumPurchaseStatus">{label}</button><small id="QuadratumPurchaseStatus">Available after launch</small>'
-        snippet = (SOURCE / 'quadratum-demo-bar.liquid').read_text(encoding='utf-8').replace('__THEME_ID__', row['id']).replace('__DEMO_NAME__', html.escape(row['brand'])).replace('__PURCHASE_ACTION__', action)
+        snippet = (SOURCE / 'quadratum-demo-bar.liquid').read_text(encoding='utf-8').replace('__SHOWROOM_THEME_ID__', config['showroom_theme_id']).replace('__THEME_ID__', row['id']).replace('__DEMO_NAME__', html.escape(row['brand'])).replace('__PURCHASE_ACTION__', action)
         (patched / 'snippets/quadratum-demo-bar.liquid').write_text(snippet, encoding='utf-8', newline='\n')
         for suffix in ['css', 'js']: shutil.copy2(SOURCE / ('quadratum-demo-bar.' + suffix), patched / 'assets')
         result = dict(row, original=str(original), staged=str(patched), original_layout_sha256=digest(layout), files={name:digest(patched/name) for name in FILES}, deployed=False)
@@ -95,7 +95,11 @@ def deploy(theme_id, include_live=False):
         args = ['push', '--theme', row['id'], '--path', str(stage), '--nodelete', '--json']
         for name in FILES: args += ['--only', name]
         if row['role'] == 'live': args += ['--allow-live']
-        result = json.loads(cli(args))
+        output = cli(args)
+        try:
+            result = json.loads(output)
+        except json.JSONDecodeError:
+            result = next(json.loads(line) for line in reversed(output.splitlines()) if line.startswith('{"theme":'))
         assert not result.get('theme', {}).get('errors'), result
         row['deployed'] = True
         row['upload'] = result

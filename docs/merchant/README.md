@@ -52,19 +52,15 @@ Start with the relevant component guide below. Its setting reference lists the e
 
 ## Sections
 
-151 guides.
+147 guides.
 
 - [3D tour - media showcase](guides/section-interactive-content-helper-3d-tour-media-showcase.md)
 - [3P - affiliate program](guides/section-3rd-party-affiliate-program-cta.md)
-- [3P - bulk order](guides/section-3rd-party-bulk-ordering.md)
 - [3P - fulfillment timeline](guides/section-3rd-party-shipping-explainer.md)
 - [3P - marketing funnel](guides/section-3rd-party-marketing-funnel-cta-strip.md)
 - [3P - metaobjects](guides/section-3rd-party-metaobject-supplier.md)
 - [3P - order tracking](guides/section-3rd-party-order-tracking.md)
 - [3P - partner strip](guides/section-3rd-party-partner-fulfillment-strip.md)
-- [3rd party - booking embed](guides/section-3rd-party-scheduling-booking-embed.md)
-- [3rd party - CRM embed](guides/section-3rd-party-crm-form-funnel-embed.md)
-- [3rd party - CRM lead form](guides/section-3rd-party-crm-lead-capture-form.md)
 - [3rd party - partner logos](guides/section-3rd-party-dropshipping-logo-carousel.md)
 - [3rd party - powered by](guides/section-3rd-party-powered-by.md)
 - [3rd party - regions](guides/section-3rd-party-region-availability.md)
@@ -122,9 +118,9 @@ Start with the relevant component guide below. Its setting reference lists the e
 - [Feeds - blog list / grid](guides/section-feeds-blogs.md)
 - [Feeds - products](guides/section-feeds-product-grid.md)
 - [Form – newsletter](guides/section-form-newsletter.md)
+- [Form – product news](guides/section-form-waitlist.md)
 - [Form – site search](guides/section-form-search.md)
 - [Form – support request](guides/section-form-support-request.md)
-- [Form – waitlist](guides/section-form-waitlist.md)
 - [Forms – compact](guides/section-form-compact.md)
 - [Forms – quote (full)](guides/section-form-quote-full.md)
 - [Hero banner - classic](guides/section-hero-banner.md)

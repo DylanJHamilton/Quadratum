@@ -335,25 +335,17 @@ Setting: `error_text`. Type: `text`.
 
 Choose one of the supported options below for destination. Only the selected option applies; other settings can further customize its appearance.
 
+Shopify handles delivery and spam protection. Contact sends inquiries; marketing signup records consent according to store settings.
+
 Default: `shopify_contact`.
 
-Options: Shopify contact, Custom endpoint (POST).
+Options: Shopify contact.
 
 <details><summary>Reference for connected builders</summary>
 
 Setting: `destination`. Type: `select`.
 
-`shopify_contact`, `custom_endpoint`
-
-</details>
-
-### Custom endpoint URL (HTTPS)
-
-Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `endpoint_url`. Type: `url`.
+`shopify_contact`
 
 </details>
 
@@ -370,34 +362,6 @@ Setting: `hidden_tags`. Type: `text`.
 </details>
 
 ## CAPTCHA
-
-### Captcha provider (overrides theme → integrations)
-
-Choose one of the supported options below for captcha provider (overrides theme → integrations). Only the selected option applies; other settings can further customize its appearance.
-
-Custom endpoints only. Native Shopify forms use Shopify captcha. Your endpoint must verify provider tokens on the server.
-
-Default: `inherit`.
-
-Options: Inherit (theme → integrations), None, Cloudflare turnstile, reCAPTCHA v3.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `captcha_mode`. Type: `select`.
-
-`inherit`, `none`, `turnstile`, `recaptcha_v3`
-
-</details>
-
-### Captcha site key (override)
-
-Advanced: enter the existing metafield key or content field key described below. Match the spelling exactly and use the data type expected by this section. Use manual content first if no matching definition exists. This is an optional external integration. Configure the corresponding service first; the setting does not provision a service or guarantee delivery. Public site keys must be restricted to the intended domain. Native Shopify forms remain available without this integration.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `captcha_site_key`. Type: `text`.
-
-</details>
 
 ## Button
 

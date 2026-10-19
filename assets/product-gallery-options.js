@@ -18,6 +18,14 @@
     const buttons = [...root.querySelectorAll('[data-qtm-image]')];
     const photos = buttons.map(button => ({ id: button.dataset.mediaId, src: button.dataset.qtmImage, srcset: button.dataset.imageSrcset, alt: button.dataset.imageAlt, width: button.dataset.imageWidth, height: button.dataset.imageHeight }));
     const main = root.querySelector('[id^="QtmMainImage-"]'), modal = root.querySelector('dialog'), modalImage = modal?.querySelector('img');
+    const zoomButton = modal?.querySelector('[data-qtm-zoom]'), fullscreenButton = modal?.querySelector('[data-qtm-fullscreen]');
+    const canvas = modal?.querySelector('.qtm-lightbox__canvas');
+    if (fullscreenButton) fullscreenButton.hidden = !modal.requestFullscreen;
+    function resetZoom() {
+      if (modal) modal.dataset.zoomed = 'false';
+      zoomButton?.setAttribute('aria-pressed', 'false');
+      if (canvas) { canvas.scrollTop = 0; canvas.scrollLeft = 0; }
+    }
     let active = photos.find(photo => photo.id === root.dataset.featuredMedia) || photos[0], opener;
     let variantPhoto;
     function image(node, photo) {
@@ -30,6 +38,12 @@
     function display(photo) {
       if (!photo) return;
       active = photo; image(main, photo); image(modalImage, photo);
+      resetZoom();
+      const count = modal?.querySelector('[data-qtm-image-count]'), caption = modal?.querySelector('[data-qtm-image-caption]');
+      const gallery = variantPhoto && !photos.some(item => item.id === variantPhoto.id) ? [...photos, variantPhoto] : photos;
+      if (count) count.textContent = `${Math.max(0, gallery.findIndex(item => item.id === photo.id)) + 1} / ${gallery.length}`;
+      if (caption) caption.textContent = photo.alt || '';
+      if (modalImage) { modalImage.classList.remove('qtm-lightbox__enter'); }
       buttons.forEach(button => button.setAttribute('aria-current', String(button.dataset.mediaId === photo.id)));
     }
     function pauseMedia(unload = false, except) {
@@ -51,7 +65,23 @@
     }));
     root.querySelectorAll('[data-qtm-open-main],[data-qtm-open-modal]').forEach(button => on(button, 'click', () => open(button)));
     on(root.querySelector('[data-qtm-close-modal]'), 'click', () => modal?.close());
-    on(modal, 'close', () => { if (opener?.isConnected) opener.focus(); });
+    on(modal, 'close', () => { resetZoom(); if (document.fullscreenElement === modal) document.exitFullscreen?.().catch(() => {}); if (opener?.isConnected) opener.focus(); });
+    on(modalImage, 'load', () => modalImage.classList.add('qtm-lightbox__enter'));
+    on(zoomButton, 'click', () => {
+      const zoomed = modal.dataset.zoomed !== 'true'; modal.dataset.zoomed = String(zoomed); zoomButton.setAttribute('aria-pressed', String(zoomed));
+      if (zoomed) canvas?.focus();
+    });
+    on(fullscreenButton, 'click', async () => {
+      try { if (document.fullscreenElement === modal) await document.exitFullscreen(); else await modal.requestFullscreen(); } catch { /* Browser permissions may disallow fullscreen; the native dialog remains usable. */ }
+    });
+    let touchStart;
+    on(modalImage, 'pointerdown', event => { if (event.pointerType === 'touch' && modal.dataset.zoomed !== 'true') touchStart = { x: event.clientX, y: event.clientY }; });
+    on(modalImage, 'pointerup', event => {
+      if (!touchStart) return;
+      const dx = event.clientX - touchStart.x, dy = event.clientY - touchStart.y; touchStart = null;
+      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
+    });
+    on(modalImage, 'pointercancel', () => { touchStart = null; });
     on(modal, 'click', event => { if (event.target === modal) modal.close(); });
     function step(delta) {
       const list = variantPhoto && !photos.some(photo => photo.id === variantPhoto.id) ? [...photos, variantPhoto] : photos;
@@ -60,7 +90,7 @@
     on(root.querySelector('[data-qtm-prev]'), 'click', () => step(-1));
     on(root.querySelector('[data-qtm-next]'), 'click', () => step(1));
     on(modal, 'keydown', event => {
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); step(event.key === 'ArrowLeft' ? -1 : 1); }
+      if (modal.dataset.zoomed !== 'true' && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) { event.preventDefault(); step(event.key === 'ArrowLeft' ? -1 : 1); }
       if (event.key === 'Escape') modal.close();
     });
     const rail = root.querySelector('[data-qtm-thumb-rail]');

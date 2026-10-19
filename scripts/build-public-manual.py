@@ -42,7 +42,28 @@ def fields(items, level=2):
 for path in sorted((ROOT / 'assets').glob('q-doc-*.json')):
     data = json.loads(path.read_text(encoding='utf-8'))
     if data['kind'] != 'settings' and not (stage / data['file']).exists():
+        old_guide = OUT / 'guides' / (data['slug'] + '.md')
+        if old_guide.exists():
+            old_guide.write_text('# ' + data['name'] + '\n\nThis historical component is not included in the Theme Store package. Use the [current manual](../README.md) for the supported sections and settings.\n', encoding='utf-8')
         continue
+    # Document the actual compiled merchant controls, including policy changes.
+    if data['kind'] != 'settings':
+        source = (stage / data['file']).read_text(encoding='utf-8-sig')
+        match = re.search(r'{%-?\s*schema\s*-?%}(.*?){%-?\s*endschema\s*-?%}', source, re.S)
+        if match:
+            shipped = json.loads(match[1])
+            original_name = data['name']
+            data['name'] = shipped.get('name', data['name'])
+            data['steps'] = [step.replace(original_name, data['name']) for step in data['steps']]
+            how = {f.get('id'):f.get('how','') for f in data.get('settings',[])}
+            data['settings'] = [{**f, 'how':how.get(f.get('id'),'Choose the value described below and preview the result.')} for f in shipped.get('settings',[])]
+            old_blocks = {b['type']: b for b in data.get('blocks', [])}
+            data['blocks'] = [{**b, 'settings': [{**f, 'how': next((old.get('how', '') for old in old_blocks.get(b['type'], {}).get('settings', []) if old.get('id') == f.get('id')), '')} for f in b.get('settings', [])]} for b in shipped.get('blocks', [])]
+    else:
+        shipped_groups = json.loads((stage/'config/settings_schema.json').read_text(encoding='utf-8'))
+        allowed = {f['id'] for g in shipped_groups for f in g.get('settings',[]) if 'id' in f}
+        data['settings'] = [f for f in data.get('settings',[]) if 'id' not in f or f['id'] in allowed]
+        data['settings'] = [f for i, f in enumerate(data['settings']) if f['type'] != 'header' or any('id' in following for following in data['settings'][i + 1:next((j for j in range(i + 1, len(data['settings'])) if data['settings'][j]['type'] == 'header'), len(data['settings']))])]
     guides.append(data)
     lines = ['# ' + data['name'], '', '[All documentation](../README.md) · [Support](../SUPPORT.md)', '', data['category'] + '.', '', '## Add and configure', '']
     lines += [f'{i}. {step}' for i, step in enumerate(data['steps'], 1)] + ['']

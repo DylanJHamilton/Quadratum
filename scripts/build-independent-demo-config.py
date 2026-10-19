@@ -39,9 +39,9 @@ ARTICLE_ALIASES = {'news/another-blog': 'news/a-calmer-connected-desk', 'news/an
 def build(name):
     brand = name.lower()
     candidate = Path(read(ROOT/f'docs/ultima/submission-stage-{brand}.json')['output'])
-    target = OUT/brand
-    # Re-running overlays only known candidate files; no recursive deletion.
-    shutil.copytree(candidate, target, dirs_exist_ok=True)
+    # Each pass gets a fresh directory so excluded files cannot linger.
+    target = OUT/(brand+'-'+candidate.name.rsplit('-',1)[-1])
+    shutil.copytree(candidate, target)
     rows = list(csv.DictReader((ROOT/f'.cache/demo-catalogs/{brand}-original.csv').open(encoding='utf-8-sig')))
     products = {row['Handle'] for row in rows}
     changes, unresolved = [], []

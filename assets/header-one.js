@@ -130,6 +130,9 @@
           setOpen(false);
         });
       }
+      root.querySelectorAll('[data-qh1-panel-close]').forEach(function(button) {
+        on(button, 'click', function() { setOpen(false); });
+      });
 
       on(document, 'keydown', function(event) {
         if (event.key === 'Escape') {

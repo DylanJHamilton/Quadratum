@@ -39,6 +39,9 @@ for device in ['mobile', 'desktop']:
                 if not temporary.is_file():
                     raise RuntimeError(f'Lighthouse did not produce {device}/{page}/{run}; exit {proc.returncode}')
                 data = json.loads(temporary.read_text(encoding='utf-8'))
+                final_path = urlsplit(data.get('finalDisplayedUrl') or data.get('finalUrl') or '').path
+                if final_path.rstrip('/') != paths[page].rstrip('/'):
+                    raise RuntimeError(f'Benchmark navigation did not reach {page}; refresh the authorized preview link. No score is accepted.')
                 scores = {k: round(v['score'] * 100, 1) if v.get('score') is not None else None for k, v in data.get('categories', {}).items()}
                 assert set(scores) == {'performance', 'accessibility'}, 'Missing Lighthouse categories'
                 errors = {k: a.get('errorMessage') for k, a in data['audits'].items() if a.get('scoreDisplayMode') == 'error'}

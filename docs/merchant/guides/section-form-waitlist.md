@@ -1,4 +1,4 @@
-# Form – waitlist
+# Form – product news
 
 [All documentation](../README.md) · [Support](../SUPPORT.md)
 
@@ -6,7 +6,7 @@ Forms and support.
 
 ## Add and configure
 
-1. Open Online Store > Themes > Customize for an unpublished copy. Choose the page template, select Add section, and choose Form – waitlist.
+1. Open Online Store > Themes > Customize for an unpublished copy. Choose the page template, select Add section, and choose Form – product news.
 2. Connect your own content and media before adjusting layout, typography, color, and spacing. Section overrides take priority where the section offers them.
 3. Preview desktop and mobile, test any links or controls, and save. Publish only after reviewing the complete customer journey.
 
@@ -14,7 +14,7 @@ Forms and support.
 
 Enter the aria label. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
-Default: `Product waitlist form`.
+Default: `Product news signup`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -102,7 +102,7 @@ Setting: `kicker`. Type: `text`.
 
 Enter the heading. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
-Default: `Get notified when it’s back`.
+Default: `Product news, in your inbox`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -130,7 +130,7 @@ Setting: `heading_level`. Type: `select`.
 
 Write the subheading. Keep paragraphs short and preview long text on mobile.
 
-Default: `We’ll email you as soon as this variant is restocked.`.
+Default: `Sign up for product updates and store news.`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -210,7 +210,7 @@ Setting: `variant_placeholder`. Type: `text`.
 
 Enter the variant help text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
-Default: `Choose size/color to join the waitlist.`.
+Default: `Choose the product option you are interested in.`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -260,29 +260,17 @@ Setting: `privacy_text`. Type: `text`.
 
 Choose one of the supported options below for destination. Only the selected option applies; other settings can further customize its appearance.
 
-Shopify Customer is an email marketing signup. Automated restock delivery requires a configured notification integration or a custom endpoint that processes inventory events. Match storefront copy to the service actually enabled.
+Records product-interest tags and marketing consent in Shopify. This is a product news signup; it does not send automated inventory alerts.
 
 Default: `shopify_customer`.
 
-Options: Shopify customer (tags + marketing consent), Custom endpoint (POST).
+Options: Shopify customer (tags + marketing consent).
 
 <details><summary>Reference for connected builders</summary>
 
 Setting: `destination`. Type: `select`.
 
-`shopify_customer`, `custom_endpoint`
-
-</details>
-
-### Custom endpoint URL (HTTPS)
-
-Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
-
-The endpoint must process the POST, consent, captcha and notification service. Variant ID is submitted natively; label and enriched tags require JavaScript.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `endpoint_url`. Type: `url`.
+`shopify_customer`
 
 </details>
 
@@ -299,34 +287,6 @@ Setting: `hidden_tags`. Type: `text`.
 </details>
 
 ## Captcha
-
-### Captcha
-
-Choose one of the supported options below for captcha. Only the selected option applies; other settings can further customize its appearance.
-
-Custom endpoints only, with server verification. Native Customer signup uses Shopify spam protection.
-
-Default: `none`.
-
-Options: None, Cloudflare turnstile, reCAPTCHA v3.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `captcha_mode`. Type: `select`.
-
-`none`, `turnstile`, `recaptcha_v3`
-
-</details>
-
-### Captcha site key
-
-Advanced: enter the existing metafield key or content field key described below. Match the spelling exactly and use the data type expected by this section. Use manual content first if no matching definition exists. This is an optional external integration. Configure the corresponding service first; the setting does not provision a service or guarantee delivery. Public site keys must be restricted to the intended domain. Native Shopify forms remain available without this integration.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `captcha_site_key`. Type: `text`.
-
-</details>
 
 ## Button and inputs
 
@@ -632,9 +592,9 @@ Setting: `hide_on_desktop`. Type: `checkbox`.
 
 Enter the success message. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
-Shown only after a successful native Shopify response. Do not promise automatic alerts unless an integration actually sends them; custom endpoints own their response.
+Shopify handles the submission and spam protection. Marketing confirmation follows the store’s consent and double opt-in settings.
 
-Default: `All set — we’ll email you the moment it’s available.`.
+Default: `Thank you for signing up for product news.`.
 
 <details><summary>Reference for connected builders</summary>
 

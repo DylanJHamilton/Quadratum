@@ -12,8 +12,6 @@ Theme Settings.
 4. Set shared defaults here. A section with its own override may retain that override; select the section to adjust it.
 5. Preview a home, product, collection, and cart page before saving shared changes.
 
-## Footer layout choice
-
 Choose and arrange footer designs in the Footer section group in the editor sidebar.
 
 ## Footer one — content

@@ -283,27 +283,17 @@ Setting: `error_text`. Type: `text`.
 
 Choose one of the supported options below for submission destination. Only the selected option applies; other settings can further customize its appearance.
 
-Contact sends inquiries. Customer mode subscribes email to marketing and does not deliver all quote fields. Custom endpoints must process their own submissions.
+Shopify handles delivery and spam protection. Contact sends inquiries; marketing signup records consent according to store settings.
 
 Default: `shopify_contact`.
 
-Options: Shopify contact, Shopify marketing signup, Custom endpoint.
+Options: Shopify contact, Shopify marketing signup.
 
 <details><summary>Reference for connected builders</summary>
 
 Setting: `destination`. Type: `select`.
 
-`shopify_contact`, `shopify_customer`, `custom_endpoint`
-
-</details>
-
-### Custom endpoint URL (overrides global)
-
-Enter the custom endpoint url (overrides global). Replace sample wording with your own content; leave optional fields empty when you do not need them.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `endpoint_url`. Type: `text`.
+`shopify_contact`, `shopify_customer`
 
 </details>
 
@@ -320,34 +310,6 @@ Setting: `hidden_tags`. Type: `text`.
 </details>
 
 ## Captcha
-
-### Captcha mode (overrides global)
-
-Choose one of the supported options below for captcha mode (overrides global). Only the selected option applies; other settings can further customize its appearance.
-
-Custom endpoints only. Native Shopify forms use Shopify captcha. Your endpoint must verify provider tokens on the server.
-
-Default: `inherit`.
-
-Options: Inherit from theme → integrations, None, Cloudflare turnstile, reCAPTCHA v3.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `captcha_mode`. Type: `select`.
-
-`inherit`, `none`, `turnstile`, `recaptcha_v3`
-
-</details>
-
-### Captcha site key (override)
-
-Advanced: enter the existing metafield key or content field key described below. Match the spelling exactly and use the data type expected by this section. Use manual content first if no matching definition exists. This is an optional external integration. Configure the corresponding service first; the setting does not provision a service or guarantee delivery. Public site keys must be restricted to the intended domain. Native Shopify forms remain available without this integration.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `captcha_site_key`. Type: `text`.
-
-</details>
 
 ## Button and inputs
 
