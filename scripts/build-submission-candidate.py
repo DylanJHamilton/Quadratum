@@ -25,7 +25,10 @@ EXCLUDED_TEMPLATES = {'page.features.json', 'page.brands.json', 'page.explore.js
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--preset', choices=PRESETS, default='Quadratum')
+parser.add_argument('--source-commit', help='Commit exported by package-submission.py into an isolated source tree')
 args = parser.parse_args()
+if args.source_commit:
+    assert re.fullmatch(r'[0-9a-f]{40}', args.source_commit)
 stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
 output = ROOT / '.cache' / 'ultima-submission' / (args.preset.lower() + '-' + stamp)
 output.mkdir(parents=True, exist_ok=False)
@@ -106,7 +109,7 @@ for template in (output / 'templates').glob('*.json'):
         assert (output / 'sections' / (section['type'] + '.liquid')).is_file(), (template.name, section['type'])
 
 portability_changes = sanitize(output)
-manifest = {'status': 'CANDIDATE — NOT CLEARED FOR SUBMISSION', 'preset': args.preset, 'source_head': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(), 'includes_working_tree': True, 'merchant_template_source': 'aa7a4e7e (configuration only; current runtime retained)', 'output': str(output), 'excluded': excluded, 'portability_changes': portability_changes, 'files': {str(path.relative_to(output)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(output.rglob('*')) if path.is_file()}}
+manifest = {'status': 'CANDIDATE — NOT CLEARED FOR SUBMISSION', 'preset': args.preset, 'source_head': args.source_commit or subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(), 'includes_working_tree': not bool(args.source_commit), 'merchant_template_source': 'aa7a4e7e (configuration only; current runtime retained)', 'output': str(output), 'excluded': excluded, 'portability_changes': portability_changes, 'files': {str(path.relative_to(output)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(output.rglob('*')) if path.is_file()}}
 report = ROOT / 'docs/ultima' / ('submission-stage-' + args.preset.lower() + '.json')
 report.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
 print(output)

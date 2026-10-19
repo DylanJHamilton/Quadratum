@@ -19,15 +19,16 @@ def git(*args):
 assert git('branch', '--show-current').decode().strip() == 'main', 'Package from Main only.'
 commit = git('rev-parse', 'HEAD').decode().strip()
 assert not git('status', '--porcelain', '--', *FOLDERS, 'scripts'), 'Commit source changes first.'
-cache = ROOT / '.cache' / 'main-release'
-cache.mkdir(parents=True, exist_ok=True)
-source = Path(tempfile.mkdtemp(prefix=commit[:12]+'-', dir=cache))
+# A short system-temp root avoids Windows MAX_PATH in nested listing stages.
+source = Path(tempfile.mkdtemp(prefix='qtm-'+commit[:8]+'-'))
 archive = git('archive', '--format=zip', commit, *FOLDERS, 'scripts')
 with zipfile.ZipFile(io.BytesIO(archive)) as zipped:
     assert all(not Path(n).is_absolute() and '..' not in Path(n).parts for n in zipped.namelist())
     zipped.extractall(source)
 (source / 'docs/ultima').mkdir(parents=True)
-build = subprocess.run([sys.executable, str(source/'scripts/build-submission-candidate.py')], cwd=source, capture_output=True, text=True, check=True)
+build = subprocess.run([sys.executable, str(source/'scripts/build-submission-candidate.py'), '--source-commit', commit], cwd=source, capture_output=True, text=True)
+if build.returncode:
+    raise RuntimeError(build.stdout + build.stderr)
 stage = Path(build.stdout.strip())
 cli = shutil.which('shopify')
 assert cli, 'Shopify CLI required.'
