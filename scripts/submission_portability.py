@@ -9,6 +9,7 @@ from pathlib import Path
 
 RESOURCES = {'image_picker', 'video', 'video_url', 'product', 'product_list', 'collection', 'collection_list', 'blog', 'article', 'page', 'metaobject', 'metaobject_list'}
 SAFE_URLS = {'/', '/collections', '/collections/all', '/search', '/cart'}
+STORE_PATH = re.compile(r'/(?:products|collections|pages|blogs)/[^\s\"\'<>|)]+', re.I)
 DEMO_COPY = re.compile(r'Quadratum|ChatGPT|Claude|brand worlds|theme demo|concept(?:ual)? store|fictional|no inventory|checkout is disabled|nothing is (?:offered|sold|charged)|not offered for (?:purchase|sale)', re.I)
 
 def read(path):
@@ -29,6 +30,24 @@ def sanitize(root):
         if value in SAFE_URLS: return value
         if value.startswith('/products/') or value.startswith('/collections/'): return '/collections/all'
         return ''
+
+    def clean_text_links(value):
+        # Header navigation accepts Label | URL | Badge in a textarea. It is
+        # still navigation, although Shopify does not type it as a URL field.
+        lines, seen = [], set()
+        for line in value.splitlines():
+            parts = [part.strip() for part in line.split('|')]
+            if len(parts) >= 2 and parts[1].startswith(('/', 'http:', 'https:')):
+                url = clean_url(parts[1])
+                if not url or url in seen:
+                    continue
+                seen.add(url)
+                # A specific product label must not promise a product that
+                # does not exist on the merchant's installation.
+                lines.append('Shop all products | '+url if url != parts[1] else line)
+            else:
+                lines.append(STORE_PATH.sub(lambda m: clean_url(m[0]), line))
+        return '\n'.join(lines)
 
     def settings(values, definition, where):
         allowed = {s['id']:s for s in definition.get('settings', []) if 'id' in s}
@@ -57,6 +76,8 @@ def sanitize(root):
                         return '<a href="'+url+'">'+m[2]+'</a>' if url else m[2]
                     new = re.sub(r'<a\b[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', anchor, old, flags=re.I|re.S)
                     new = re.sub(r'<img\b[^>]*>', '', new, flags=re.I)
+                elif kind in ['text', 'textarea']:
+                    new = clean_text_links(old)
                 if re.search(r'(?:mailto:|@[^\s]+\.[a-z]{2,}|quadratum-theme\.myshopify\.com)', new, re.I):
                     new = ''
                 if DEMO_COPY.search(new):

@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 FORBIDDEN=re.compile(r'Quadratum|ChatGPT|Claude|brand worlds|theme demo|concept(?:ual)? store|fictional|no inventory|checkout is disabled|nothing is (?:offered|sold|charged)|not offered for (?:purchase|sale)|preview_theme_id|shopify://',re.I)
 rows=[]
+STORE_PATH=re.compile(r'/(?:products|pages|blogs)/[^\s\"\'<>|)]+|/collections/(?!all(?:[\s\"\'<>|)]|$))[^\s\"\'<>|)]+',re.I)
 
 def check_values(value,where):
     if isinstance(value,dict):
@@ -13,6 +14,7 @@ def check_values(value,where):
         for index,child in enumerate(value):check_values(child,where+'/'+str(index))
     elif isinstance(value,str):
         assert not FORBIDDEN.search(value),(where,value)
+        assert not STORE_PATH.search(value),(where,value)
 
 def nodes(value,where):
     if isinstance(value,dict):
