@@ -69,6 +69,10 @@
       const variant = state.variant;
       const price = state.allocation || variant || { price: 'Unavailable', compare: '', onSale: false };
       if (variant && canEnhance) options.forEach((option, index) => { option.value = variant.options[index]; });
+      root.querySelectorAll('[data-purchase-swatch]').forEach(button => {
+        const option = options.find(item => item.id === button.dataset.optionTarget);
+        button.setAttribute('aria-pressed', String(option?.value === button.dataset.optionValue));
+      });
       root.querySelectorAll('[data-purchase-unit]').forEach(node => { node.textContent = variant?.unitPrice || ''; node.hidden = !variant?.unitPrice; });
       root.querySelectorAll('[data-purchase-current]').forEach(node => { node.textContent = price.price; });
       root.querySelectorAll('[data-purchase-compare]').forEach(node => { node.textContent = price.compare || ''; node.hidden = !price.onSale; });
@@ -127,6 +131,12 @@
     }
     if (canEnhance) {
       options.forEach(option => listen(option, 'change', resolveOptions));
+      root.querySelectorAll('[data-purchase-swatch]').forEach(button => listen(button, 'click', () => {
+        const option = options.find(item => item.id === button.dataset.optionTarget);
+        if (!option) return;
+        option.value = button.dataset.optionValue;
+        option.dispatchEvent(new Event('change', { bubbles: true }));
+      }));
       const fallback = form.querySelector('[data-purchase-fallback]');
       if (fallback) fallback.hidden = true;
       form.querySelectorAll('[data-purchase-options]').forEach(group => { group.hidden = false; });

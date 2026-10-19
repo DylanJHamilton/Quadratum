@@ -26,9 +26,10 @@ def story(heading, body, **settings):
 
 brands_page = read('templates/page.brands.json')
 directory = next(s for s in brands_page['sections'].values() if s['type'] == 'store-directory')
-directory['settings'].update(intro='<p>Explore the storefront behind each image. Nine demos are available; EVERREAL is paused for a costume imagery review. Demos open in a new tab; return to this tab to keep exploring.</p>')
+directory['settings'].update(intro='<p>These are hosted theme previews inside the shared Quadratum showcase store, each with its own design and catalog direction. They are not separate businesses or independent Theme Store demo stores. Nine previews are available; EVERREAL is paused for an imagery review. Each opens in a new tab.</p>')
 for block in directory['blocks'].values():
     st = block['settings']
+    if st.get('url'): st['label'] = 'Open hosted preview'
     if st['title'] == 'EVERREAL':
         st.update(url='', image='', description='Costume imagery is being reviewed before this demo returns.', label='Demo temporarily paused', status='Demo temporarily paused')
     if st['title'] == 'FAIRWAY MOTOR CO.':
@@ -92,3 +93,7 @@ for view in ['documentation', 'customer-care', 'agencies', 'about', 'features', 
         for sec in data['sections'].values():
             sec['settings']['body'] = sec['settings'].get('body', '').replace('ten historical brand demos are available', 'nine historical brand demos are available; EVERREAL is paused for costume imagery review. The available demos can be opened')
     save(path, data)
+
+# Documentation is generated last so the generic showroom pass cannot replace it.
+import runpy
+runpy.run_path(str(Path(__file__).with_name('build-merchant-documentation.py')))

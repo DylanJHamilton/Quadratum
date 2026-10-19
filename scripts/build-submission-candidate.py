@@ -11,12 +11,13 @@ import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
+from submission_portability import sanitize
 
 ROOT = Path(__file__).resolve().parents[1]
 PRESETS = ['Quadratum', 'Morrow', 'Northstar', 'Kinvar', 'Vantier']
-SHOWROOM_SECTIONS = {'showroom-campaign.liquid', 'editorial-story.liquid', 'commerce-showcase.liquid', 'builder-reference.liquid'}
+SHOWROOM_SECTIONS = {'showroom-campaign.liquid', 'editorial-story.liquid', 'commerce-showcase.liquid', 'builder-reference.liquid', 'documentation-hub.liquid', 'theme-support.liquid'}
 DEVELOPMENT_SECTIONS = {'main-product-master.liquid'}  # Legacy laboratory host; no merchant template uses it.
-SHOWROOM_ASSETS = {'showroom-preview.js', 'quadratum-builder-index.json', 'showroom-campaign.css', 'showroom-motion.js', 'editorial-story.css', 'commerce-showcase.css', 'quadratum-builder-manifest.json', 'quadratum-obsidian.png', 'quadratum-porcelain.png', 'quadratum-logo-ink.png', 'quadratum-logo-white.png'}
+SHOWROOM_ASSETS = {'documentation-hub.css', 'documentation-hub.js', 'showroom-preview.js', 'quadratum-builder-index.json', 'showroom-campaign.css', 'showroom-motion.js', 'editorial-story.css', 'commerce-showcase.css', 'quadratum-builder-manifest.json', 'quadratum-obsidian.png', 'quadratum-porcelain.png', 'quadratum-logo-ink.png', 'quadratum-logo-white.png'}
 EXCLUDED_TEMPLATES = {'page.features.json', 'page.brands.json', 'page.explore.json', 'page.section-library.json', 'page.block-library.json', 'page.dynamic-section-test.json', 'page.playground.liquid', 'product.product-section-test.json', 'page.agencies.json', 'page.ecosystem.json', 'page.products.json', 'page.collections.json', 'page.editorial.json', 'page.documentation.json', 'page.release-status.json', 'page.builder-reference.json', 'page.lookbook.json', 'page.journal.json', 'page.proportion.json', 'page.finishing-details.json'}
 
 parser = argparse.ArgumentParser()
@@ -32,7 +33,7 @@ def copy_folder(folder, target):
         if not path.is_file():
             continue
         rel = path.relative_to(ROOT / folder)
-        if path.name == '.gitkeep' or (folder == 'assets' and (path.name in SHOWROOM_ASSETS or path.name == 'icons.svg' or 'icons' in rel.parts)) or (folder == 'sections' and path.name in SHOWROOM_SECTIONS | DEVELOPMENT_SECTIONS) or (folder == 'templates' and (path.name in EXCLUDED_TEMPLATES or path.name.startswith('collection.quadratum-'))) or (folder == 'config' and path.name == 'markets.json'):
+        if path.name == '.gitkeep' or (folder == 'snippets' and path.name == 'documentation-index.liquid') or (folder == 'assets' and (path.name in SHOWROOM_ASSETS or path.name.startswith('q-doc-') or path.name == 'icons.svg' or 'icons' in rel.parts)) or (folder == 'sections' and path.name in SHOWROOM_SECTIONS | DEVELOPMENT_SECTIONS) or (folder == 'templates' and (path.name in EXCLUDED_TEMPLATES or path.name.startswith('collection.quadratum-'))) or (folder == 'config' and path.name == 'markets.json'):
             excluded.append(str(path.relative_to(ROOT)))
             continue
         destination = target / rel
@@ -70,8 +71,11 @@ header = output / 'sections/header-two.liquid'
 text = header.read_text(encoding='utf-8')
 text, count = re.subn(r'{% if section.settings.use_quadratum_mark %}.*?{% else %}(.*?){% endif %}', r'\1', text, flags=re.S)
 assert count == 2, 'Header logo transform changed; review the source before staging.'
-text, count = re.subn(r'\s*\{"type":"checkbox","id":"use_quadratum_mark"[^\n]*\},', '', text)
-assert count == 1
+schema_match = re.search(r'{% schema %}(.*?){% endschema %}', text, re.S)
+header_schema = json.loads(schema_match[1])
+assert sum(item.get('id') == 'use_quadratum_mark' for item in header_schema['settings']) == 1
+header_schema['settings'] = [item for item in header_schema['settings'] if item.get('id') != 'use_quadratum_mark']
+text = text[:schema_match.start(1)] + '\n' + json.dumps(header_schema, indent=2) + '\n' + text[schema_match.end(1):]
 header.write_text(text, encoding='utf-8')
 
 # Fail on an orphaned showroom template or a missing section after overlay.
@@ -86,7 +90,8 @@ for template in (output / 'templates').glob('*.json'):
     for section in data.get('sections', {}).values():
         assert (output / 'sections' / (section['type'] + '.liquid')).is_file(), (template.name, section['type'])
 
-manifest = {'status': 'CANDIDATE — NOT CLEARED FOR SUBMISSION', 'preset': args.preset, 'source_head': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(), 'includes_working_tree': True, 'merchant_template_source': 'aa7a4e7e (configuration only; current runtime retained)', 'output': str(output), 'excluded': excluded, 'files': {str(path.relative_to(output)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(output.rglob('*')) if path.is_file()}}
+portability_changes = sanitize(output)
+manifest = {'status': 'CANDIDATE — NOT CLEARED FOR SUBMISSION', 'preset': args.preset, 'source_head': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(), 'includes_working_tree': True, 'merchant_template_source': 'aa7a4e7e (configuration only; current runtime retained)', 'output': str(output), 'excluded': excluded, 'portability_changes': portability_changes, 'files': {str(path.relative_to(output)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(output.rglob('*')) if path.is_file()}}
 report = ROOT / 'docs/ultima' / ('submission-stage-' + args.preset.lower() + '.json')
 report.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
 print(output)
