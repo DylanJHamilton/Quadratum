@@ -13,7 +13,7 @@
       const done=error=>{if(finished)return;finished=true;clearTimeout(timer);script.onerror=null;if(error){script.remove();window[callback]=()=>{};reject(error);}else{delete window[callback];resolve(window.google.maps);}};
       window[callback]=()=>done(window.google?.maps?.Map?null:new Error('Maps unavailable'));
       const timer=setTimeout(()=>done(new Error('Maps timed out')),15000);
-      script.async=true;script.src='https://maps.googleapis.com/maps/api/js?'+new URLSearchParams({key,loading:'async',callback});
+      script.async=true;script.src='//maps.googleapis.com/maps/api/js?'+new URLSearchParams({key,loading:'async',callback});
       script.onerror=()=>done(new Error('Maps unavailable'));document.head.append(script);
     }).catch(error=>{loader=null;throw error;});return loader;
   }

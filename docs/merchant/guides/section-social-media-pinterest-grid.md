@@ -13,7 +13,7 @@ Media and interaction.
 
 Up to 16 blocks can be added.
 
-Merchant-curated content and native links unless an explicit provider embed is configured. The theme does not fetch social posts, authorize accounts, verify claims or implement feed synchronization. Future feed/playlist choices are retained configuration placeholders, not connected integrations.
+Add and arrange your own content using the blocks below. Profile links open the original site. This section does not automatically import posts.
 
 ### Enable section
 
@@ -216,38 +216,6 @@ Default: `True`.
 <details><summary>Reference for connected builders</summary>
 
 Setting: `open_in_new_tab`. Type: `checkbox`.
-
-</details>
-
-## Data source (Quadratum link ready)
-
-### Data source
-
-Choose one of the supported options below for data source. Only the selected option applies; other settings can further customize its appearance.
-
-Manual blocks are implemented. Other choices require an external integration; without one, the section shows setup guidance only in the editor.
-
-Default: `manual`.
-
-Options: Manual pins (theme editor), Board feed (requires integration).
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `data_source_mode`. Type: `select`.
-
-`manual`, `board`
-
-</details>
-
-### Board handle (for Quadratum link)
-
-Enter the board handle (for quadratum link). Replace sample wording with your own content; leave optional fields empty when you do not need them.
-
-Default: `pinterest_board_default`.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `board_handle`. Type: `text`.
 
 </details>
 

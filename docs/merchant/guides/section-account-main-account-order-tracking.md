@@ -90,11 +90,11 @@ Setting: `show_timeline`. Type: `checkbox`.
 
 </details>
 
-## Support CTA
+## Support button
 
-### Show support CTA
+### Show support button
 
-Turn on “Show support CTA” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Show support button” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `True`.
 

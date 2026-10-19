@@ -50,11 +50,11 @@ Setting: `orders_page_url`. Type: `url`.
 
 </details>
 
-## Tracking CTA
+## Tracking button
 
-### Show tracking CTA
+### Show tracking button
 
-Turn on “Show tracking CTA” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Show tracking button” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `True`.
 

@@ -204,9 +204,9 @@ Setting: `variant`. Type: `select`.
 
 ## Call to action
 
-### Show CTA button
+### Show button button
 
-Turn on “Show CTA button” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Show button button” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `True`.
 
@@ -228,7 +228,7 @@ Setting: `cta_label`. Type: `text`.
 
 </details>
 
-### CTA URL
+### Button URL
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 

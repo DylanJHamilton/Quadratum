@@ -44,9 +44,9 @@ Setting: `text`. Type: `richtext`.
 
 </details>
 
-### Header CTA text
+### Header button text
 
-Enter the header cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the header button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `Explore collection`.
 

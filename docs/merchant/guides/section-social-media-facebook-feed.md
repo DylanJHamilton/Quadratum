@@ -10,7 +10,7 @@ Media and interaction.
 2. Connect your own content and media before adjusting layout, typography, color, and spacing. Section overrides take priority where the section offers them.
 3. Preview desktop and mobile, test any links or controls, and save. Publish only after reviewing the complete customer journey.
 
-Merchant-curated content and native links unless an explicit provider embed is configured. The theme does not fetch social posts, authorize accounts, verify claims or implement feed synchronization. Future feed/playlist choices are retained configuration placeholders, not connected integrations.
+Merchant-curated content and native links unless an explicit provider embed is configured. The theme does not fetch social posts, authorize accounts, verify claims or implement feed synchronization.
 
 ## Content
 

@@ -92,6 +92,7 @@
     on(document, 'visibilitychange', () => { if (document.hidden) items.forEach(item => stopMedia(item)); schedule(); });
     on(motion, 'change', schedule);
     on(root, 'play', event => { userAction(); items.forEach(item => stopMedia(item, event.target)); }, { capture: true });
+    if (root.tagName === 'DETAILS') on(root, 'toggle', () => { if (!root.open) items.forEach(item => stopMedia(item)); });
     on(root, 'click', event => {
       const link = event.target.closest?.('[data-gallery-embed-link]');
       if (!link || link.closest(selector) !== root) return;

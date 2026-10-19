@@ -217,9 +217,9 @@ Setting: `mobile_pricing_layout`. Type: `select`.
 
 </details>
 
-### Show plan CTA
+### Show plan button
 
-Turn on “Show plan CTA” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Show plan button” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `True`.
 
@@ -229,9 +229,9 @@ Setting: `show_cta`. Type: `checkbox`.
 
 </details>
 
-### Hide CTA if URL is blank (recommended)
+### Hide button if URL is blank (recommended)
 
-Turn on “Hide CTA if URL is blank (recommended)” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Hide button if URL is blank (recommended)” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `True`.
 
@@ -665,7 +665,7 @@ Setting: `cta_label`. Type: `text`.
 
 </details>
 
-#### CTA URL
+#### Button URL
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 

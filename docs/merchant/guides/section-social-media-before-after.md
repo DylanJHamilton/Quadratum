@@ -13,7 +13,7 @@ Media and interaction.
 
 Up to 12 blocks can be added.
 
-Merchant-curated content and native links unless an explicit provider embed is configured. The theme does not fetch social posts, authorize accounts, verify claims or implement feed synchronization. Future feed/playlist choices are retained configuration placeholders, not connected integrations.
+Add and arrange your own content using the blocks below. Profile links open the original site. This section does not automatically import posts.
 
 ### Enable section
 
@@ -205,38 +205,6 @@ Setting: `open_cta_in_new_tab`. Type: `checkbox`.
 
 </details>
 
-## Data source (Quadratum link ready)
-
-### Data source
-
-Choose one of the supported options below for data source. Only the selected option applies; other settings can further customize its appearance.
-
-Manual blocks are implemented. Other choices require an external integration; without one, the section shows setup guidance only in the editor.
-
-Default: `manual`.
-
-Options: Manual items (theme editor), Feed (requires integration).
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `data_source_mode`. Type: `select`.
-
-`manual`, `feed`
-
-</details>
-
-### Feed handle (for Quadratum link)
-
-Enter the feed handle (for quadratum link). Replace sample wording with your own content; leave optional fields empty when you do not need them.
-
-Default: `before_after_default`.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `feed_handle`. Type: `text`.
-
-</details>
-
 ### ARIA label for section
 
 Enter the aria label for section. Replace sample wording with your own content; leave optional fields empty when you do not need them.
@@ -385,7 +353,7 @@ Setting: `after_aria_label`. Type: `text`.
 
 </details>
 
-### CTA
+### Button
 
 #### Button label
 
@@ -397,7 +365,7 @@ Setting: `cta_label`. Type: `text`.
 
 </details>
 
-#### CTA URL
+#### Button URL
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 

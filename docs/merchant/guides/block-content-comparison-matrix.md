@@ -144,9 +144,9 @@ Setting: `column_1_price`. Type: `text`.
 
 </details>
 
-### Column 1 CTA text
+### Column 1 button text
 
-Enter the column 1 cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the column 1 button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `Choose Starter`.
 
@@ -236,9 +236,9 @@ Setting: `column_2_price`. Type: `text`.
 
 </details>
 
-### Column 2 CTA text
+### Column 2 button text
 
-Enter the column 2 cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the column 2 button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `Choose Plus`.
 
@@ -328,9 +328,9 @@ Setting: `column_3_price`. Type: `text`.
 
 </details>
 
-### Column 3 CTA text
+### Column 3 button text
 
-Enter the column 3 cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the column 3 button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `Choose Premium`.
 
@@ -420,9 +420,9 @@ Setting: `column_4_price`. Type: `text`.
 
 </details>
 
-### Column 4 CTA text
+### Column 4 button text
 
-Enter the column 4 cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the column 4 button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `Contact us`.
 
@@ -1634,11 +1634,11 @@ Setting: `row_8_column_4_note`. Type: `text`.
 
 </details>
 
-## CTA row
+## Button row
 
-### Show CTA row
+### Show button row
 
-Turn on “Show CTA row” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Show button row” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `True`.
 

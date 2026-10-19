@@ -21,7 +21,7 @@ Choose one of the supported options below for header layout. Only the selected o
 
 Default: `campaign`.
 
-Options: Campaign, Countdown, CTA focus, Minimal.
+Options: Campaign, Countdown, Button focus, Minimal.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -63,9 +63,9 @@ Setting: `sticky_mode`. Type: `select`.
 
 </details>
 
-### Show sticky mobile CTA
+### Show sticky mobile button
 
-Turn on “Show sticky mobile CTA” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Show sticky mobile button” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `True`.
 
@@ -295,11 +295,11 @@ Setting: `progress_complete_message`. Type: `text`.
 
 </details>
 
-## Primary CTA
+## Primary button
 
-### Show primary CTA
+### Show primary button
 
-Turn on “Show primary CTA” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Show primary button” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `True`.
 
@@ -321,7 +321,7 @@ Setting: `cta_label`. Type: `text`.
 
 </details>
 
-### CTA URL
+### Button URL
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 
@@ -331,9 +331,9 @@ Setting: `cta_url`. Type: `url`.
 
 </details>
 
-### CTA style
+### Button style
 
-Choose one of the supported options below for cta style. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for button style. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `solid`.
 
@@ -531,9 +531,9 @@ Setting: `announcement_text_color`. Type: `color`.
 
 </details>
 
-### CTA background
+### Button background
 
-Choose a color for cta background. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
+Choose a color for button background. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#111111`.
 
@@ -543,9 +543,9 @@ Setting: `cta_bg`. Type: `color`.
 
 </details>
 
-### CTA text
+### Button text
 
-Choose a color for cta text. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
+Choose a color for button text. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#ffffff`.
 
@@ -647,9 +647,9 @@ Setting: `countdown_font_size`. Type: `range`.
 
 </details>
 
-### CTA font size
+### Button font size
 
-Drag the control to adjust cta font size. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
+Drag the control to adjust button font size. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
 
 Default: `14`.
 
@@ -705,9 +705,9 @@ Setting: `menu_gap`. Type: `range`.
 
 </details>
 
-### CTA spacing
+### Button spacing
 
-Drag the control to adjust cta spacing. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
+Drag the control to adjust button spacing. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
 
 Default: `14`.
 

@@ -695,9 +695,9 @@ Setting: `product`. Type: `product`.
 
 ### Call to action
 
-#### Primary CTA text
+#### Primary button text
 
-Enter the primary cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the primary button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `Shop Now`.
 
@@ -727,9 +727,9 @@ Setting: `cta_aria_label`. Type: `text`.
 
 </details>
 
-#### Secondary CTA text
+#### Secondary button text
 
-Enter the secondary cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the secondary button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 <details><summary>Reference for connected builders</summary>
 

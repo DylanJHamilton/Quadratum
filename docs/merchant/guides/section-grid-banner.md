@@ -797,9 +797,9 @@ Setting: `hide_on_desktop`. Type: `checkbox`.
 
 </details>
 
-### Send analytics events on CTA clicks
+### Send analytics events on button clicks
 
-Turn on “Send analytics events on CTA clicks” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Send analytics events on button clicks” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `False`.
 

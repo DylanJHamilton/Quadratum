@@ -11,7 +11,7 @@ Media and interaction.
 3. Connect your own content and media before adjusting layout, typography, color, and spacing. Section overrides take priority where the section offers them.
 4. Preview desktop and mobile, test any links or controls, and save. Publish only after reviewing the complete customer journey.
 
-Merchant-curated content and native links unless an explicit provider embed is configured. The theme does not fetch social posts, authorize accounts, verify claims or implement feed synchronization. Future feed/playlist choices are retained configuration placeholders, not connected integrations.
+Merchant-curated content and native links unless an explicit provider embed is configured. The theme does not fetch social posts, authorize accounts, verify claims or implement feed synchronization.
 
 ## Visibility
 
@@ -341,9 +341,9 @@ Setting: `cta_label`. Type: `text`.
 
 </details>
 
-#### Open CTA in new tab
+#### Open button in new tab
 
-Turn on “Open CTA in new tab” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Open button in new tab” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `True`.
 

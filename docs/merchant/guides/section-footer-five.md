@@ -1013,7 +1013,7 @@ Setting: `block_padding`. Type: `range`.
 
 </details>
 
-### Tracking CTA
+### Tracking button
 
 #### Heading
 

@@ -451,7 +451,7 @@ Setting: `body_color`. Type: `color`.
 
 </details>
 
-## CTA defaults
+## Button defaults
 
 ### Link color
 
@@ -819,9 +819,9 @@ Setting: `body_color`. Type: `color`.
 
 </details>
 
-#### CTA style
+#### Button style
 
-Choose one of the supported options below for cta style. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for button style. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `link`.
 
@@ -863,7 +863,7 @@ Setting: `cta_label`. Type: `text`.
 
 </details>
 
-#### CTA URL
+#### Button URL
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 

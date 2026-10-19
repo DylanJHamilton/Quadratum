@@ -1,4 +1,4 @@
-# CTA — current sale
+# Button — current sale
 
 [All documentation](../README.md) · [Support](../SUPPORT.md)
 
@@ -6,7 +6,7 @@ Content and merchandising.
 
 ## Add and configure
 
-1. Open Online Store > Themes > Customize for an unpublished copy. Choose the page template, select Add section, and choose CTA — current sale.
+1. Open Online Store > Themes > Customize for an unpublished copy. Choose the page template, select Add section, and choose Button — current sale.
 2. Select Add block inside this section. Use the supported block types listed below, then drag them into the desired reading order.
 3. Connect your own content and media before adjusting layout, typography, color, and spacing. Section overrides take priority where the section offers them.
 4. Preview desktop and mobile, test any links or controls, and save. Publish only after reviewing the complete customer journey.
@@ -665,7 +665,7 @@ Setting: `cta_label`. Type: `text`.
 
 </details>
 
-#### CTA URL
+#### Button URL
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 

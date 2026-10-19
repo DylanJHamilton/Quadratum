@@ -13,8 +13,8 @@
     if (apiFor(mode)) return Promise.resolve(apiFor(mode));
     let entry = sdkLoads.get(mode);
     if (!entry || !entry.script.isConnected) {
-      const prefix = mode === 'turnstile' ? 'https://challenges.cloudflare.com/turnstile/v0/api.js' : 'https://www.google.com/recaptcha/api.js';
-      let script = Array.from(document.scripts).find(el => el.src.split('?')[0] === prefix);
+      const prefix = mode === 'turnstile' ? '//challenges.cloudflare.com/turnstile/v0/api.js' : '//www.google.com/recaptcha/api.js';
+      let script = Array.from(document.scripts).find(el => el.src.split('?')[0] === new URL(prefix, document.baseURI).href);
       const owned = !script;
       if (!script) {
         script = document.createElement('script'); script.async = true; script.defer = true;

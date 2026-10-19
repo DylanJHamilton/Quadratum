@@ -1,4 +1,4 @@
-# CTA — featured product
+# Button — featured product
 
 [All documentation](../README.md) · [Support](../SUPPORT.md)
 
@@ -6,9 +6,10 @@ Content and merchandising.
 
 ## Add and configure
 
-1. Open Online Store > Themes > Customize for an unpublished copy. Choose the page template, select Add section, and choose CTA — featured product.
-2. Connect your own content and media before adjusting layout, typography, color, and spacing. Section overrides take priority where the section offers them.
-3. Preview desktop and mobile, test any links or controls, and save. Publish only after reviewing the complete customer journey.
+1. Open Online Store > Themes > Customize for an unpublished copy. Choose the page template, select Add section, and choose Button — featured product.
+2. Select Add block inside this section. Use the supported block types listed below, then drag them into the desired reading order.
+3. Connect your own content and media before adjusting layout, typography, color, and spacing. Section overrides take priority where the section offers them.
+4. Preview desktop and mobile, test any links or controls, and save. Publish only after reviewing the complete customer journey.
 
 ### ARIA label
 
@@ -488,9 +489,9 @@ Setting: `show_sku`. Type: `checkbox`.
 
 ## Primary action
 
-### Primary CTA
+### Primary button
 
-Choose one of the supported options below for primary cta. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for primary button. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `add`.
 
@@ -536,9 +537,9 @@ Setting: `secondary_url`. Type: `url`.
 
 </details>
 
-### CTA alignment
+### Button alignment
 
-Choose one of the supported options below for cta alignment. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for button alignment. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `start`.
 
@@ -552,11 +553,11 @@ Setting: `cta_align`. Type: `select`.
 
 </details>
 
-## Sticky CTA (mobile)
+## Sticky button (mobile)
 
-### Enable sticky CTA bar on mobile (≤ 749px)
+### Enable sticky button bar on mobile (≤ 749px)
 
-Turn on “Enable sticky CTA bar on mobile (≤ 749px)” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Enable sticky button bar on mobile (≤ 749px)” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `True`.
 
@@ -607,6 +608,24 @@ Range: 0 to 40 ; step 1.
 <details><summary>Reference for connected builders</summary>
 
 Setting: `card_radius`. Type: `range`.
+
+</details>
+
+## Blocks you can add
+
+### @app
+
+Select a compatible installed app. The app provides its settings and service.
+
+### Custom Liquid
+
+#### Liquid code
+
+Advanced: add trusted Liquid or HTML only when native settings cannot meet the need. Work in a duplicated unpublished theme. Do not paste credentials, untrusted scripts, or a second product form inside purchase controls.
+
+<details><summary>Reference for connected builders</summary>
+
+Setting: `liquid`. Type: `liquid`.
 
 </details>
 

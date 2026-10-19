@@ -653,7 +653,7 @@ Setting: `text_alignment`. Type: `select`.
 
 </details>
 
-### CTAs
+### Buttons
 
 #### Primary button text
 

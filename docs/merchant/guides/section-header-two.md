@@ -989,10 +989,7 @@ Write the column 1 links. Keep paragraphs short and preview long text on mobile.
 
 One per line: Label \| URL \| Optional badge
 
-Default: `Protein | /collections/protein
-Pre-workout | /collections/pre-workout
-Vitamins | /collections/vitamins
-Creatine | /collections/creatine`.
+Default: `Shop all products | /collections/all`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1030,10 +1027,7 @@ Write the column 2 links. Keep paragraphs short and preview long text on mobile.
 
 One per line: Label \| URL \| Optional badge
 
-Default: `Best sellers | /collections/best-sellers | Hot
-New arrivals | /collections/new-arrivals
-Bundles | /collections/bundles
-Sale | /collections/sale`.
+Default: `Browse collections | /collections`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1071,10 +1065,7 @@ Write the column 3 links. Keep paragraphs short and preview long text on mobile.
 
 One per line: Label \| URL \| Optional badge
 
-Default: `Build muscle | /collections/build-muscle
-Energy | /collections/energy
-Recovery | /collections/recovery
-Weight management | /collections/weight-management`.
+Default: `Search the store | /search`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1112,10 +1103,7 @@ Write the column 4 links. Keep paragraphs short and preview long text on mobile.
 
 One per line: Label \| URL \| Optional badge
 
-Default: `All brands | /collections/vendors
-Featured brand | /collections/featured-brand
-Premium picks | /collections/premium-picks
-Staff favorites | /collections/staff-favorites`.
+Default: `View your cart | /cart`.
 
 <details><summary>Reference for connected builders</summary>
 

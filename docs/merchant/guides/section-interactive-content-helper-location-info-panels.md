@@ -145,9 +145,9 @@ Setting: `row_gap`. Type: `range`.
 
 </details>
 
-### CTA style hook
+### Button style hook
 
-Choose one of the supported options below for cta style hook. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for button style hook. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `primary`.
 
@@ -369,7 +369,7 @@ Setting: `cta_label`. Type: `text`.
 
 </details>
 
-#### CTA URL
+#### Button URL
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 

@@ -311,11 +311,11 @@ Setting: `featured_product`. Type: `product`.
 
 </details>
 
-## CTA
+## Button
 
-### Show CTA
+### Show button
 
-Turn on “Show CTA” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Show button” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `False`.
 
@@ -325,9 +325,9 @@ Setting: `show_cta`. Type: `checkbox`.
 
 </details>
 
-### CTA style
+### Button style
 
-Choose one of the supported options below for cta style. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for button style. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `button`.
 
@@ -751,11 +751,11 @@ Setting: `star_gap`. Type: `range`.
 
 </details>
 
-## CTA styling
+## Button styling
 
-### CTA size
+### Button size
 
-Drag the control to adjust cta size. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
+Drag the control to adjust button size. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
 
 Default: `14`.
 
@@ -767,9 +767,9 @@ Setting: `cta_fs`. Type: `range`.
 
 </details>
 
-### CTA radius
+### Button radius
 
-Drag the control to adjust cta radius. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
+Drag the control to adjust button radius. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
 
 Default: `12`.
 
@@ -781,9 +781,9 @@ Setting: `cta_radius`. Type: `range`.
 
 </details>
 
-### CTA padding Y
+### Button padding Y
 
-Drag the control to adjust cta padding y. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
+Drag the control to adjust button padding y. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
 
 Default: `10`.
 
@@ -795,9 +795,9 @@ Setting: `cta_pad_y`. Type: `range`.
 
 </details>
 
-### CTA padding X
+### Button padding X
 
-Drag the control to adjust cta padding x. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
+Drag the control to adjust button padding x. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
 
 Default: `14`.
 
@@ -809,9 +809,9 @@ Setting: `cta_pad_x`. Type: `range`.
 
 </details>
 
-### CTA border width
+### Button border width
 
-Drag the control to adjust cta border width. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
+Drag the control to adjust button border width. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
 
 Default: `1`.
 
@@ -987,11 +987,11 @@ Setting: `avatar_border_color`. Type: `color`.
 
 </details>
 
-## CTA colors
+## Button colors
 
-### CTA background
+### Button background
 
-Choose a color for cta background. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
+Choose a color for button background. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `rgba(0,0,0,0)`.
 
@@ -1001,9 +1001,9 @@ Setting: `cta_bg`. Type: `color`.
 
 </details>
 
-### CTA text
+### Button text
 
-Choose a color for cta text. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
+Choose a color for button text. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#111111`.
 
@@ -1013,9 +1013,9 @@ Setting: `cta_text`. Type: `color`.
 
 </details>
 
-### CTA border
+### Button border
 
-Choose a color for cta border. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
+Choose a color for button border. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#111111`.
 

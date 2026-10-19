@@ -21,7 +21,7 @@ Choose one of the supported options below for footer layout. Only the selected o
 
 Default: `cta_centered`.
 
-Options: CTA centered, CTA split, Trust first, Minimal campaign.
+Options: Button centered, Button split, Trust first, Minimal campaign.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -135,11 +135,11 @@ Setting: `progress_message`. Type: `text`.
 
 </details>
 
-## CTA sizing
+## Button sizing
 
-### CTA max width
+### Button max width
 
-Drag the control to adjust cta max width. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
+Drag the control to adjust button max width. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
 
 Default: `820`.
 
@@ -151,9 +151,9 @@ Setting: `cta_max_width`. Type: `range`.
 
 </details>
 
-### CTA heading minimum size
+### Button heading minimum size
 
-Drag the control to adjust cta heading minimum size. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
+Drag the control to adjust button heading minimum size. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
 
 Default: `1.8`.
 
@@ -165,9 +165,9 @@ Setting: `cta_heading_min`. Type: `range`.
 
 </details>
 
-### CTA heading maximum size
+### Button heading maximum size
 
-Drag the control to adjust cta heading maximum size. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
+Drag the control to adjust button heading maximum size. Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
 
 Default: `4`.
 
@@ -327,9 +327,9 @@ Setting: `border_color`. Type: `color`.
 
 </details>
 
-### CTA background
+### Button background
 
-Choose a color for cta background. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
+Choose a color for button background. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#1d4ed8`.
 
@@ -339,9 +339,9 @@ Setting: `cta_bg`. Type: `color`.
 
 </details>
 
-### CTA text
+### Button text
 
-Choose a color for cta text. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
+Choose a color for button text. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#ffffff`.
 
@@ -667,7 +667,7 @@ Setting: `x_url`. Type: `url`.
 
 </details>
 
-### CTA
+### Button
 
 #### Heading
 

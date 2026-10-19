@@ -72,9 +72,9 @@ Setting: `embed_code`. Type: `textarea`.
 
 </details>
 
-### Show "having trouble?" link
+### Show help link
 
-Turn on “Show "having trouble?" link” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Show help link” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `False`.
 

@@ -691,7 +691,7 @@ Setting: `text_alignment`. Type: `select`.
 
 </details>
 
-### CTAs (max 2)
+### Buttons (max 2)
 
 #### Primary button text
 

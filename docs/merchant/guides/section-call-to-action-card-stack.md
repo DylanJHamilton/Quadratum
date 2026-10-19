@@ -1,4 +1,4 @@
-# CTA – card stack
+# Button – card stack
 
 [All documentation](../README.md) · [Support](../SUPPORT.md)
 
@@ -6,7 +6,7 @@ Content and merchandising.
 
 ## Add and configure
 
-1. Open Online Store > Themes > Customize for an unpublished copy. Choose the page template, select Add section, and choose CTA – card stack.
+1. Open Online Store > Themes > Customize for an unpublished copy. Choose the page template, select Add section, and choose Button – card stack.
 2. Select Add block inside this section. Use the supported block types listed below, then drag them into the desired reading order.
 3. Connect your own content and media before adjusting layout, typography, color, and spacing. Section overrides take priority where the section offers them.
 4. Preview desktop and mobile, test any links or controls, and save. Publish only after reviewing the complete customer journey.
@@ -437,11 +437,11 @@ Setting: `button_padding_horizontal`. Type: `range`.
 
 </details>
 
-## Global CTA
+## Global button
 
-### Global CTA text
+### Global button text
 
-Enter the global cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the global button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `See All Benefits`.
 
@@ -461,9 +461,9 @@ Setting: `cta_global_link`. Type: `url`.
 
 </details>
 
-### Global CTA alignment
+### Global button alignment
 
-Choose one of the supported options below for global cta alignment. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for global button alignment. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `center`.
 

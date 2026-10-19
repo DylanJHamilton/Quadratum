@@ -459,11 +459,11 @@ Setting: `image_fit`. Type: `select`.
 
 </details>
 
-## CTA button — style + hover
+## Button button — style + hover
 
-### CTA style
+### Button style
 
-Choose one of the supported options below for cta style. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for button style. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `filled`.
 
@@ -645,7 +645,7 @@ Setting: `btn_sheen_opacity`. Type: `range`.
 
 </details>
 
-## CTA colors — filled
+## Button colors — filled
 
 ### Filled background
 
@@ -719,7 +719,7 @@ Setting: `btn_border_filled_hover`. Type: `color`.
 
 </details>
 
-## CTA colors — outline
+## Button colors — outline
 
 ### Outline background
 
@@ -1101,7 +1101,7 @@ Setting: `body`. Type: `richtext`.
 
 </details>
 
-### CTA
+### Button
 
 #### Button label (set to — to hide)
 
@@ -1115,7 +1115,7 @@ Setting: `cta_label`. Type: `text`.
 
 </details>
 
-#### CTA URL
+#### Button URL
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 

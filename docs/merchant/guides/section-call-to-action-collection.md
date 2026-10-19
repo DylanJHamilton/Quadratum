@@ -1,4 +1,4 @@
-# CTA collections
+# Button collections
 
 [All documentation](../README.md) · [Support](../SUPPORT.md)
 
@@ -6,7 +6,7 @@ Collections.
 
 ## Add and configure
 
-1. Open Online Store > Themes > Customize for an unpublished copy. Choose the page template, select Add section, and choose CTA collections.
+1. Open Online Store > Themes > Customize for an unpublished copy. Choose the page template, select Add section, and choose Button collections.
 2. Select Add block inside this section. Use the supported block types listed below, then drag them into the desired reading order.
 3. Connect your own content and media before adjusting layout, typography, color, and spacing. Section overrides take priority where the section offers them.
 4. Preview desktop and mobile, test any links or controls, and save. Publish only after reviewing the complete customer journey.
@@ -297,9 +297,9 @@ Setting: `content_align`. Type: `select`.
 
 </details>
 
-### CTA style
+### Button style
 
-Choose one of the supported options below for cta style. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for button style. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `button`.
 

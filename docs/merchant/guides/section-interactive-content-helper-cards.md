@@ -213,7 +213,7 @@ Choose one of the supported options below for card click behavior. Only the sele
 
 Default: `cta_only`.
 
-Options: CTA only, Whole card if button link exists (no nested links).
+Options: Button only, Whole card if button link exists (no nested links).
 
 <details><summary>Reference for connected builders</summary>
 
@@ -491,9 +491,9 @@ Setting: `badge_fs`. Type: `range`.
 
 </details>
 
-### CTA size (px)
+### Button size (px)
 
-Drag the control to adjust cta size (px). Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
+Drag the control to adjust button size (px). Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
 
 Default: `14`.
 
@@ -505,9 +505,9 @@ Setting: `cta_fs`. Type: `range`.
 
 </details>
 
-### CTA weight
+### Button weight
 
-Choose one of the supported options below for cta weight. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for button weight. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `600`.
 
@@ -693,7 +693,7 @@ Setting: `cta_label`. Type: `text`.
 
 </details>
 
-#### CTA URL
+#### Button URL
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 
@@ -741,7 +741,7 @@ Setting: `back_cta_label`. Type: `text`.
 
 </details>
 
-#### Back CTA URL
+#### Back button URL
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 

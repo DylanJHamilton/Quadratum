@@ -286,9 +286,9 @@ Setting: `drawback_6`. Type: `text`.
 
 ## Footer
 
-### CTA text
+### Button text
 
-Enter the cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `Explore the difference`.
 

@@ -72,7 +72,7 @@ Setting: `body`. Type: `richtext`.
 
 </details>
 
-## CTA buttons
+## Button buttons
 
 ### Primary button label
 

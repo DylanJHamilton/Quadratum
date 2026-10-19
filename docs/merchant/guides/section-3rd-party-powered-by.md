@@ -153,7 +153,7 @@ Setting: `show_border`. Type: `checkbox`.
 
 </details>
 
-## CTA (learn more)
+## Button (learn more)
 
 ### Button label
 
@@ -167,9 +167,9 @@ Setting: `cta_label`. Type: `text`.
 
 </details>
 
-### CTA style
+### Button style
 
-Choose one of the supported options below for cta style. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for button style. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `link`.
 

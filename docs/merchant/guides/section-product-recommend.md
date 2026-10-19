@@ -239,9 +239,9 @@ Setting: `show_action_row`. Type: `checkbox`.
 
 </details>
 
-### Show secondary row CTA
+### Show secondary row button
 
-Turn on “Show secondary row CTA” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Show secondary row button” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `True`.
 

@@ -212,9 +212,9 @@ Setting: `hotspot_1_custom_url`. Type: `url`.
 
 </details>
 
-### CTA text
+### Button text
 
-Enter the cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `Explore`.
 
@@ -328,9 +328,9 @@ Setting: `hotspot_2_custom_url`. Type: `url`.
 
 </details>
 
-### CTA text
+### Button text
 
-Enter the cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `View detail`.
 
@@ -444,9 +444,9 @@ Setting: `hotspot_3_custom_url`. Type: `url`.
 
 </details>
 
-### CTA text
+### Button text
 
-Enter the cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `Shop now`.
 
@@ -560,9 +560,9 @@ Setting: `hotspot_4_custom_url`. Type: `url`.
 
 </details>
 
-### CTA text
+### Button text
 
-Enter the cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -674,9 +674,9 @@ Setting: `hotspot_5_custom_url`. Type: `url`.
 
 </details>
 
-### CTA text
+### Button text
 
-Enter the cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -788,9 +788,9 @@ Setting: `hotspot_6_custom_url`. Type: `url`.
 
 </details>
 
-### CTA text
+### Button text
 
-Enter the cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 <details><summary>Reference for connected builders</summary>
 

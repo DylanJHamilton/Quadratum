@@ -561,9 +561,9 @@ Setting: `heading_alignment`. Type: `select`.
 
 </details>
 
-### CTA alignment (optional)
+### Button alignment (optional)
 
-Choose one of the supported options below for cta alignment (optional). Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for button alignment (optional). Only the selected option applies; other settings can further customize its appearance.
 
 Default: `center`.
 
@@ -717,7 +717,7 @@ Setting: `button_padding_horizontal`. Type: `range`.
 
 </details>
 
-## CTAs
+## Buttons
 
 ### Primary button text
 

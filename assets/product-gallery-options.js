@@ -16,13 +16,15 @@
     if (fallback) fallback.hidden = groups.length > 0 || variants.length === 1;
     groups.forEach(group => { group.hidden = false; });
     const buttons = [...root.querySelectorAll('[data-qtm-image]')];
-    const photos = buttons.map(button => ({ id: button.dataset.mediaId, src: button.dataset.qtmImage, alt: button.dataset.imageAlt, width: button.dataset.imageWidth, height: button.dataset.imageHeight }));
+    const photos = buttons.map(button => ({ id: button.dataset.mediaId, src: button.dataset.qtmImage, srcset: button.dataset.imageSrcset, alt: button.dataset.imageAlt, width: button.dataset.imageWidth, height: button.dataset.imageHeight }));
     const main = root.querySelector('[id^="QtmMainImage-"]'), modal = root.querySelector('dialog'), modalImage = modal?.querySelector('img');
     let active = photos.find(photo => photo.id === root.dataset.featuredMedia) || photos[0], opener;
     let variantPhoto;
     function image(node, photo) {
       if (!node || !photo) return;
-      node.src = photo.src; node.removeAttribute('srcset'); node.alt = photo.alt || '';
+      node.src = photo.src;
+      if (photo.srcset) node.srcset = photo.srcset; else node.removeAttribute('srcset');
+      node.alt = photo.alt || '';
       node.width = Number(photo.width) || 800; node.height = Number(photo.height) || 800;
     }
     function display(photo) {

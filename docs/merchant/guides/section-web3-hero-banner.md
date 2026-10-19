@@ -435,9 +435,9 @@ Setting: `cta2_article`. Type: `article`.
 
 </details>
 
-### CTA alignment
+### Button alignment
 
-Choose one of the supported options below for cta alignment. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for button alignment. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `left`.
 

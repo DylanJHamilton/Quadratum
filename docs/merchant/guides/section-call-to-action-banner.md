@@ -1,4 +1,4 @@
-# CTA banner
+# Button banner
 
 [All documentation](../README.md) · [Support](../SUPPORT.md)
 
@@ -6,7 +6,7 @@ Banners and imagery.
 
 ## Add and configure
 
-1. Open Online Store > Themes > Customize for an unpublished copy. Choose the page template, select Add section, and choose CTA banner.
+1. Open Online Store > Themes > Customize for an unpublished copy. Choose the page template, select Add section, and choose Button banner.
 2. Select Add block inside this section. Use the supported block types listed below, then drag them into the desired reading order.
 3. Connect your own content and media before adjusting layout, typography, color, and spacing. Section overrides take priority where the section offers them.
 4. Preview desktop and mobile, test any links or controls, and save. Publish only after reviewing the complete customer journey.
@@ -541,9 +541,9 @@ Setting: `kicker`. Type: `text`.
 
 ## Buttons
 
-### CTA button background
+### Button button background
 
-Choose a color for cta button background. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
+Choose a color for button button background. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#D97745`.
 
@@ -553,9 +553,9 @@ Setting: `cta_btn_bg`. Type: `color`.
 
 </details>
 
-### CTA button text
+### Button button text
 
-Choose a color for cta button text. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
+Choose a color for button button text. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#1F130D`.
 
@@ -565,9 +565,9 @@ Setting: `cta_btn_text`. Type: `color`.
 
 </details>
 
-### CTA button border
+### Button button border
 
-Choose a color for cta button border. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
+Choose a color for button button border. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#D97745`.
 
@@ -577,9 +577,9 @@ Setting: `cta_btn_border`. Type: `color`.
 
 </details>
 
-### CTA button radius (px)
+### Button button radius (px)
 
-Drag the control to adjust cta button radius (px). Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
+Drag the control to adjust button button radius (px). Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
 
 Default: `14`.
 
@@ -591,9 +591,9 @@ Setting: `cta_btn_radius`. Type: `range`.
 
 </details>
 
-### CTA hover opacity (%)
+### Button hover opacity (%)
 
-Drag the control to adjust cta hover opacity (%). Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
+Drag the control to adjust button hover opacity (%). Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
 
 Default: `92`.
 
@@ -605,9 +605,9 @@ Setting: `cta_btn_hover_opacity`. Type: `range`.
 
 </details>
 
-### CTA hover background
+### Button hover background
 
-Choose a color for cta hover background. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
+Choose a color for button hover background. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#1E40AF`.
 
@@ -617,9 +617,9 @@ Setting: `cta_btn_hover_bg`. Type: `color`.
 
 </details>
 
-### CTA hover text
+### Button hover text
 
-Choose a color for cta hover text. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
+Choose a color for button hover text. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#FFFFFF`.
 
@@ -629,9 +629,9 @@ Setting: `cta_btn_hover_text`. Type: `color`.
 
 </details>
 
-### CTA hover border
+### Button hover border
 
-Choose a color for cta hover border. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
+Choose a color for button hover border. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#1E40AF`.
 
@@ -641,9 +641,9 @@ Setting: `cta_btn_hover_border`. Type: `color`.
 
 </details>
 
-### CTA active scale (%)
+### Button active scale (%)
 
-Drag the control to adjust cta active scale (%). Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
+Drag the control to adjust button active scale (%). Use only the range and increments shown below. Preview at mobile and desktop widths after changing spacing or dimensions.
 
 Default: `98`.
 

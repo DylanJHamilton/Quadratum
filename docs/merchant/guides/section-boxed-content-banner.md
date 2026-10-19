@@ -106,7 +106,7 @@ Setting: `sub_size`. Type: `text`.
 
 </details>
 
-## CTAs
+## Buttons
 
 ### Primary label
 
@@ -456,11 +456,11 @@ Setting: `mobile_v_align`. Type: `select`.
 
 </details>
 
-## CTA alignment
+## Button alignment
 
-### CTA alignment (desktop)
+### Button alignment (desktop)
 
-Choose one of the supported options below for cta alignment (desktop). Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for button alignment (desktop). Only the selected option applies; other settings can further customize its appearance.
 
 Default: `inherit`.
 
@@ -474,13 +474,13 @@ Setting: `cta_alignment_desktop`. Type: `select`.
 
 </details>
 
-### CTA alignment (mobile)
+### Button alignment (mobile)
 
-Choose one of the supported options below for cta alignment (mobile). Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for button alignment (mobile). Only the selected option applies; other settings can further customize its appearance.
 
 Default: `inherit`.
 
-Options: Inherit from desktop CTA alignment, Left, Center, Right.
+Options: Inherit from desktop button alignment, Left, Center, Right.
 
 <details><summary>Reference for connected builders</summary>
 

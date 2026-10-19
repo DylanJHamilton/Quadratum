@@ -85,9 +85,9 @@ Setting: `show_price_column`. Type: `checkbox`.
 
 </details>
 
-### Show CTA per service
+### Show button per service
 
-Turn on “Show CTA per service” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Show button per service” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `True`.
 
@@ -121,7 +121,7 @@ Setting: `subtitle`. Type: `richtext`.
 
 </details>
 
-## Global CTA (optional)
+## Global button (optional)
 
 ### Global button label
 
@@ -133,7 +133,7 @@ Setting: `global_cta_label`. Type: `text`.
 
 </details>
 
-### Global CTA URL
+### Global button URL
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 
@@ -615,7 +615,7 @@ Setting: `price_label`. Type: `text`.
 
 </details>
 
-### Service CTA (optional)
+### Service button (optional)
 
 #### Button label
 
@@ -627,7 +627,7 @@ Setting: `service_cta_label`. Type: `text`.
 
 </details>
 
-#### CTA URL
+#### Button URL
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 

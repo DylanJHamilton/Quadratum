@@ -1,4 +1,4 @@
-# CTA - reviews
+# Button - reviews
 
 [All documentation](../README.md) · [Support](../SUPPORT.md)
 
@@ -6,7 +6,7 @@ Content and merchandising.
 
 ## Add and configure
 
-1. Open Online Store > Themes > Customize for an unpublished copy. Choose the page template, select Add section, and choose CTA - reviews.
+1. Open Online Store > Themes > Customize for an unpublished copy. Choose the page template, select Add section, and choose Button - reviews.
 2. Select Add block inside this section. Use the supported block types listed below, then drag them into the desired reading order.
 3. Connect your own content and media before adjusting layout, typography, color, and spacing. Section overrides take priority where the section offers them.
 4. Preview desktop and mobile, test any links or controls, and save. Publish only after reviewing the complete customer journey.
@@ -821,9 +821,9 @@ Setting: `button_padding_horizontal`. Type: `range`.
 
 ## Call to action
 
-### Primary CTA text
+### Primary button text
 
-Enter the primary cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the primary button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `View All Reviews`.
 
@@ -853,9 +853,9 @@ Setting: `cta_aria_label`. Type: `text`.
 
 </details>
 
-### Secondary CTA text
+### Secondary button text
 
-Enter the secondary cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+Enter the secondary button text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 <details><summary>Reference for connected builders</summary>
 

@@ -85,7 +85,7 @@ Setting: `subheading`. Type: `textarea`.
 
 </details>
 
-## CTAs
+## Buttons
 
 ### Primary label
 

@@ -211,9 +211,9 @@ Setting: `cta_1_link`. Type: `url`.
 
 </details>
 
-### Primary CTA style
+### Primary button style
 
-Choose one of the supported options below for primary cta style. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for primary button style. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `solid`.
 
@@ -247,9 +247,9 @@ Setting: `cta_2_link`. Type: `url`.
 
 </details>
 
-### Secondary CTA style
+### Secondary button style
 
-Choose one of the supported options below for secondary cta style. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for secondary button style. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `outline`.
 
@@ -513,9 +513,9 @@ Setting: `cta_1_link`. Type: `url`.
 
 </details>
 
-#### Primary CTA style
+#### Primary button style
 
-Choose one of the supported options below for primary cta style. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for primary button style. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `solid`.
 
@@ -549,9 +549,9 @@ Setting: `cta_2_link`. Type: `url`.
 
 </details>
 
-#### Secondary CTA style
+#### Secondary button style
 
-Choose one of the supported options below for secondary cta style. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for secondary button style. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `outline`.
 

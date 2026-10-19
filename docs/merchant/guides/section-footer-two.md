@@ -1045,7 +1045,7 @@ Setting: `heading`. Type: `text`.
 
 </details>
 
-### Support CTA
+### Support button
 
 #### Heading
 

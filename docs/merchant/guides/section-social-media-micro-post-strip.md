@@ -13,7 +13,7 @@ Media and interaction.
 
 Up to 8 blocks can be added.
 
-Manual highlights only; names, handles and timestamps are merchant text, not live or verified posts. Timeline mode requires a separately implemented provider/app integration.
+Add and arrange your own content using the blocks below. Profile links open the original site. This section does not automatically import posts.
 
 ### Enable section
 
@@ -156,34 +156,6 @@ Default: `True`.
 <details><summary>Reference for connected builders</summary>
 
 Setting: `open_links_in_new_tab`. Type: `checkbox`.
-
-</details>
-
-## Data source
-
-### Data source mode
-
-Choose one of the supported options below for data source mode. Only the selected option applies; other settings can further customize its appearance.
-
-Default: `manual`.
-
-Options: Manual micro-posts (theme editor), External timeline (integration required).
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `data_source_mode`. Type: `select`.
-
-`manual`, `timeline`
-
-</details>
-
-### Timeline ID (metadata only)
-
-Enter the timeline id (metadata only). Replace sample wording with your own content; leave optional fields empty when you do not need them.
-
-<details><summary>Reference for connected builders</summary>
-
-Setting: `timeline_id`. Type: `text`.
 
 </details>
 

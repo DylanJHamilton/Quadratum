@@ -91,11 +91,11 @@ Setting: `description`. Type: `richtext`.
 
 </details>
 
-## Global CTA
+## Global button
 
-### Show global CTA
+### Show global button
 
-Turn on “Show global CTA” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+Turn on “Show global button” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `False`.
 
@@ -127,9 +127,9 @@ Setting: `global_cta_link`. Type: `url`.
 
 </details>
 
-### Global CTA style
+### Global button style
 
-Choose one of the supported options below for global cta style. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for global button style. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `primary`.
 
@@ -481,9 +481,9 @@ Setting: `cta_label`. Type: `text`.
 
 </details>
 
-#### CTA style
+#### Button style
 
-Choose one of the supported options below for cta style. Only the selected option applies; other settings can further customize its appearance.
+Choose one of the supported options below for button style. Only the selected option applies; other settings can further customize its appearance.
 
 Default: `primary`.
 
