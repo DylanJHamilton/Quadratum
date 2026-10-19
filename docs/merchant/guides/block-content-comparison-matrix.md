@@ -78,6 +78,8 @@ Setting: `highlighted_column`. Type: `select`.
 
 </details>
 
+## Column 1
+
 ### Enable column 1
 
 Turn on “Enable column 1” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
@@ -96,6 +98,8 @@ Enter the column 1 title. Replace sample wording with your own content; leave op
 
 Default: `Starter`.
 
+Availability condition: `{{ block.settings.column_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_1_title`. Type: `text`.
@@ -106,6 +110,8 @@ Setting: `column_1_title`. Type: `text`.
 
 Enter the column 1 subtitle. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.column_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_1_subtitle`. Type: `text`.
@@ -115,6 +121,8 @@ Setting: `column_1_subtitle`. Type: `text`.
 ### Column 1 badge
 
 Enter the column 1 badge. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.column_1_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -128,6 +136,8 @@ Enter the column 1 price. Replace sample wording with your own content; leave op
 
 Manual display text only; does not change product or checkout prices.
 
+Availability condition: `{{ block.settings.column_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_1_price`. Type: `text`.
@@ -140,6 +150,8 @@ Enter the column 1 cta text. Replace sample wording with your own content; leave
 
 Default: `Choose Starter`.
 
+Availability condition: `{{ block.settings.column_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_1_cta_text`. Type: `text`.
@@ -150,11 +162,15 @@ Setting: `column_1_cta_text`. Type: `text`.
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 
+Availability condition: `{{ block.settings.column_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_1_cta_url`. Type: `url`.
 
 </details>
+
+## Column 2
 
 ### Enable column 2
 
@@ -174,6 +190,8 @@ Enter the column 2 title. Replace sample wording with your own content; leave op
 
 Default: `Plus`.
 
+Availability condition: `{{ block.settings.column_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_2_title`. Type: `text`.
@@ -184,6 +202,8 @@ Setting: `column_2_title`. Type: `text`.
 
 Enter the column 2 subtitle. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.column_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_2_subtitle`. Type: `text`.
@@ -193,6 +213,8 @@ Setting: `column_2_subtitle`. Type: `text`.
 ### Column 2 badge
 
 Enter the column 2 badge. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.column_2_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -206,6 +228,8 @@ Enter the column 2 price. Replace sample wording with your own content; leave op
 
 Manual display text only; does not change product or checkout prices.
 
+Availability condition: `{{ block.settings.column_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_2_price`. Type: `text`.
@@ -218,6 +242,8 @@ Enter the column 2 cta text. Replace sample wording with your own content; leave
 
 Default: `Choose Plus`.
 
+Availability condition: `{{ block.settings.column_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_2_cta_text`. Type: `text`.
@@ -228,11 +254,15 @@ Setting: `column_2_cta_text`. Type: `text`.
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 
+Availability condition: `{{ block.settings.column_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_2_cta_url`. Type: `url`.
 
 </details>
+
+## Column 3
 
 ### Enable column 3
 
@@ -252,6 +282,8 @@ Enter the column 3 title. Replace sample wording with your own content; leave op
 
 Default: `Premium`.
 
+Availability condition: `{{ block.settings.column_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_3_title`. Type: `text`.
@@ -262,6 +294,8 @@ Setting: `column_3_title`. Type: `text`.
 
 Enter the column 3 subtitle. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.column_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_3_subtitle`. Type: `text`.
@@ -271,6 +305,8 @@ Setting: `column_3_subtitle`. Type: `text`.
 ### Column 3 badge
 
 Enter the column 3 badge. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.column_3_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -284,6 +320,8 @@ Enter the column 3 price. Replace sample wording with your own content; leave op
 
 Manual display text only; does not change product or checkout prices.
 
+Availability condition: `{{ block.settings.column_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_3_price`. Type: `text`.
@@ -296,6 +334,8 @@ Enter the column 3 cta text. Replace sample wording with your own content; leave
 
 Default: `Choose Premium`.
 
+Availability condition: `{{ block.settings.column_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_3_cta_text`. Type: `text`.
@@ -306,11 +346,15 @@ Setting: `column_3_cta_text`. Type: `text`.
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 
+Availability condition: `{{ block.settings.column_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_3_cta_url`. Type: `url`.
 
 </details>
+
+## Column 4
 
 ### Enable column 4
 
@@ -330,6 +374,8 @@ Enter the column 4 title. Replace sample wording with your own content; leave op
 
 Default: `Enterprise`.
 
+Availability condition: `{{ block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_4_title`. Type: `text`.
@@ -340,6 +386,8 @@ Setting: `column_4_title`. Type: `text`.
 
 Enter the column 4 subtitle. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_4_subtitle`. Type: `text`.
@@ -349,6 +397,8 @@ Setting: `column_4_subtitle`. Type: `text`.
 ### Column 4 badge
 
 Enter the column 4 badge. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.column_4_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -362,6 +412,8 @@ Enter the column 4 price. Replace sample wording with your own content; leave op
 
 Manual display text only; does not change product or checkout prices.
 
+Availability condition: `{{ block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_4_price`. Type: `text`.
@@ -374,6 +426,8 @@ Enter the column 4 cta text. Replace sample wording with your own content; leave
 
 Default: `Contact us`.
 
+Availability condition: `{{ block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_4_cta_text`. Type: `text`.
@@ -384,6 +438,8 @@ Setting: `column_4_cta_text`. Type: `text`.
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 
+Availability condition: `{{ block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_4_cta_url`. Type: `url`.
@@ -393,6 +449,8 @@ Setting: `column_4_cta_url`. Type: `url`.
 ## Rows
 
 Use yes, no, partial, or custom text values for each comparison cell.
+
+## Row 1
 
 ### Enable row 1
 
@@ -412,6 +470,8 @@ Enter the row 1 label. Replace sample wording with your own content; leave optio
 
 Default: `Core feature`.
 
+Availability condition: `{{ block.settings.row_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_1_label`. Type: `text`.
@@ -426,6 +486,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_1_enabled and block.settings.column_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_1_column_1_value`. Type: `select`.
@@ -437,6 +499,8 @@ Setting: `row_1_column_1_value`. Type: `select`.
 ### Row 1 column 1 note
 
 Enter the row 1 column 1 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_1_enabled and block.settings.column_1_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -452,6 +516,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_1_enabled and block.settings.column_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_1_column_2_value`. Type: `select`.
@@ -463,6 +529,8 @@ Setting: `row_1_column_2_value`. Type: `select`.
 ### Row 1 column 2 note
 
 Enter the row 1 column 2 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_1_enabled and block.settings.column_2_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -478,6 +546,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_1_enabled and block.settings.column_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_1_column_3_value`. Type: `select`.
@@ -489,6 +559,8 @@ Setting: `row_1_column_3_value`. Type: `select`.
 ### Row 1 column 3 note
 
 Enter the row 1 column 3 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_1_enabled and block.settings.column_3_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -504,6 +576,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_1_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_1_column_4_value`. Type: `select`.
@@ -516,11 +590,15 @@ Setting: `row_1_column_4_value`. Type: `select`.
 
 Enter the row 1 column 4 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_1_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_1_column_4_note`. Type: `text`.
 
 </details>
+
+## Row 2
 
 ### Enable row 2
 
@@ -540,6 +618,8 @@ Enter the row 2 label. Replace sample wording with your own content; leave optio
 
 Default: `Premium support`.
 
+Availability condition: `{{ block.settings.row_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_2_label`. Type: `text`.
@@ -554,6 +634,8 @@ Default: `partial`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_2_enabled and block.settings.column_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_2_column_1_value`. Type: `select`.
@@ -565,6 +647,8 @@ Setting: `row_2_column_1_value`. Type: `select`.
 ### Row 2 column 1 note
 
 Enter the row 2 column 1 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_2_enabled and block.settings.column_1_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -580,6 +664,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_2_enabled and block.settings.column_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_2_column_2_value`. Type: `select`.
@@ -591,6 +677,8 @@ Setting: `row_2_column_2_value`. Type: `select`.
 ### Row 2 column 2 note
 
 Enter the row 2 column 2 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_2_enabled and block.settings.column_2_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -606,6 +694,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_2_enabled and block.settings.column_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_2_column_3_value`. Type: `select`.
@@ -617,6 +707,8 @@ Setting: `row_2_column_3_value`. Type: `select`.
 ### Row 2 column 3 note
 
 Enter the row 2 column 3 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_2_enabled and block.settings.column_3_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -632,6 +724,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_2_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_2_column_4_value`. Type: `select`.
@@ -644,11 +738,15 @@ Setting: `row_2_column_4_value`. Type: `select`.
 
 Enter the row 2 column 4 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_2_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_2_column_4_note`. Type: `text`.
 
 </details>
+
+## Row 3
 
 ### Enable row 3
 
@@ -668,6 +766,8 @@ Enter the row 3 label. Replace sample wording with your own content; leave optio
 
 Default: `Advanced options`.
 
+Availability condition: `{{ block.settings.row_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_3_label`. Type: `text`.
@@ -682,6 +782,8 @@ Default: `no`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_3_enabled and block.settings.column_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_3_column_1_value`. Type: `select`.
@@ -693,6 +795,8 @@ Setting: `row_3_column_1_value`. Type: `select`.
 ### Row 3 column 1 note
 
 Enter the row 3 column 1 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_3_enabled and block.settings.column_1_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -708,6 +812,8 @@ Default: `partial`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_3_enabled and block.settings.column_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_3_column_2_value`. Type: `select`.
@@ -719,6 +825,8 @@ Setting: `row_3_column_2_value`. Type: `select`.
 ### Row 3 column 2 note
 
 Enter the row 3 column 2 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_3_enabled and block.settings.column_2_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -734,6 +842,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_3_enabled and block.settings.column_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_3_column_3_value`. Type: `select`.
@@ -745,6 +855,8 @@ Setting: `row_3_column_3_value`. Type: `select`.
 ### Row 3 column 3 note
 
 Enter the row 3 column 3 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_3_enabled and block.settings.column_3_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -760,6 +872,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_3_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_3_column_4_value`. Type: `select`.
@@ -772,11 +886,15 @@ Setting: `row_3_column_4_value`. Type: `select`.
 
 Enter the row 3 column 4 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_3_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_3_column_4_note`. Type: `text`.
 
 </details>
+
+## Row 4
 
 ### Enable row 4
 
@@ -796,6 +914,8 @@ Enter the row 4 label. Replace sample wording with your own content; leave optio
 
 Default: `Customization`.
 
+Availability condition: `{{ block.settings.row_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_4_label`. Type: `text`.
@@ -810,6 +930,8 @@ Default: `no`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_4_enabled and block.settings.column_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_4_column_1_value`. Type: `select`.
@@ -821,6 +943,8 @@ Setting: `row_4_column_1_value`. Type: `select`.
 ### Row 4 column 1 note
 
 Enter the row 4 column 1 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_4_enabled and block.settings.column_1_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -836,6 +960,8 @@ Default: `partial`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_4_enabled and block.settings.column_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_4_column_2_value`. Type: `select`.
@@ -847,6 +973,8 @@ Setting: `row_4_column_2_value`. Type: `select`.
 ### Row 4 column 2 note
 
 Enter the row 4 column 2 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_4_enabled and block.settings.column_2_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -862,6 +990,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_4_enabled and block.settings.column_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_4_column_3_value`. Type: `select`.
@@ -873,6 +1003,8 @@ Setting: `row_4_column_3_value`. Type: `select`.
 ### Row 4 column 3 note
 
 Enter the row 4 column 3 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_4_enabled and block.settings.column_3_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -888,6 +1020,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_4_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_4_column_4_value`. Type: `select`.
@@ -900,11 +1034,15 @@ Setting: `row_4_column_4_value`. Type: `select`.
 
 Enter the row 4 column 4 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_4_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_4_column_4_note`. Type: `text`.
 
 </details>
+
+## Row 5
 
 ### Enable row 5
 
@@ -924,6 +1062,8 @@ Enter the row 5 label. Replace sample wording with your own content; leave optio
 
 Default: `Best for`.
 
+Availability condition: `{{ block.settings.row_5_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_5_label`. Type: `text`.
@@ -938,6 +1078,8 @@ Default: `Limited`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_5_enabled and block.settings.column_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_5_column_1_value`. Type: `select`.
@@ -949,6 +1091,8 @@ Setting: `row_5_column_1_value`. Type: `select`.
 ### Row 5 column 1 note
 
 Enter the row 5 column 1 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_5_enabled and block.settings.column_1_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -964,6 +1108,8 @@ Default: `Included`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_5_enabled and block.settings.column_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_5_column_2_value`. Type: `select`.
@@ -975,6 +1121,8 @@ Setting: `row_5_column_2_value`. Type: `select`.
 ### Row 5 column 2 note
 
 Enter the row 5 column 2 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_5_enabled and block.settings.column_2_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -990,6 +1138,8 @@ Default: `Advanced`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_5_enabled and block.settings.column_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_5_column_3_value`. Type: `select`.
@@ -1001,6 +1151,8 @@ Setting: `row_5_column_3_value`. Type: `select`.
 ### Row 5 column 3 note
 
 Enter the row 5 column 3 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_5_enabled and block.settings.column_3_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1016,6 +1168,8 @@ Default: `Advanced`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_5_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_5_column_4_value`. Type: `select`.
@@ -1028,11 +1182,15 @@ Setting: `row_5_column_4_value`. Type: `select`.
 
 Enter the row 5 column 4 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_5_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_5_column_4_note`. Type: `text`.
 
 </details>
+
+## Row 6
 
 ### Enable row 6
 
@@ -1052,6 +1210,8 @@ Enter the row 6 label. Replace sample wording with your own content; leave optio
 
 Default: `Extra feature`.
 
+Availability condition: `{{ block.settings.row_6_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_6_label`. Type: `text`.
@@ -1066,6 +1226,8 @@ Default: `no`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_6_enabled and block.settings.column_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_6_column_1_value`. Type: `select`.
@@ -1077,6 +1239,8 @@ Setting: `row_6_column_1_value`. Type: `select`.
 ### Row 6 column 1 note
 
 Enter the row 6 column 1 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_6_enabled and block.settings.column_1_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1092,6 +1256,8 @@ Default: `partial`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_6_enabled and block.settings.column_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_6_column_2_value`. Type: `select`.
@@ -1103,6 +1269,8 @@ Setting: `row_6_column_2_value`. Type: `select`.
 ### Row 6 column 2 note
 
 Enter the row 6 column 2 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_6_enabled and block.settings.column_2_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1118,6 +1286,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_6_enabled and block.settings.column_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_6_column_3_value`. Type: `select`.
@@ -1129,6 +1299,8 @@ Setting: `row_6_column_3_value`. Type: `select`.
 ### Row 6 column 3 note
 
 Enter the row 6 column 3 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_6_enabled and block.settings.column_3_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1144,6 +1316,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_6_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_6_column_4_value`. Type: `select`.
@@ -1156,11 +1330,15 @@ Setting: `row_6_column_4_value`. Type: `select`.
 
 Enter the row 6 column 4 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_6_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_6_column_4_note`. Type: `text`.
 
 </details>
+
+## Row 7
 
 ### Enable row 7
 
@@ -1180,6 +1358,8 @@ Enter the row 7 label. Replace sample wording with your own content; leave optio
 
 Default: `Additional detail`.
 
+Availability condition: `{{ block.settings.row_7_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_7_label`. Type: `text`.
@@ -1194,6 +1374,8 @@ Default: `no`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_7_enabled and block.settings.column_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_7_column_1_value`. Type: `select`.
@@ -1205,6 +1387,8 @@ Setting: `row_7_column_1_value`. Type: `select`.
 ### Row 7 column 1 note
 
 Enter the row 7 column 1 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_7_enabled and block.settings.column_1_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1220,6 +1404,8 @@ Default: `partial`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_7_enabled and block.settings.column_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_7_column_2_value`. Type: `select`.
@@ -1231,6 +1417,8 @@ Setting: `row_7_column_2_value`. Type: `select`.
 ### Row 7 column 2 note
 
 Enter the row 7 column 2 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_7_enabled and block.settings.column_2_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1246,6 +1434,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_7_enabled and block.settings.column_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_7_column_3_value`. Type: `select`.
@@ -1257,6 +1447,8 @@ Setting: `row_7_column_3_value`. Type: `select`.
 ### Row 7 column 3 note
 
 Enter the row 7 column 3 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_7_enabled and block.settings.column_3_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1272,6 +1464,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_7_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_7_column_4_value`. Type: `select`.
@@ -1284,11 +1478,15 @@ Setting: `row_7_column_4_value`. Type: `select`.
 
 Enter the row 7 column 4 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_7_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_7_column_4_note`. Type: `text`.
 
 </details>
+
+## Row 8
 
 ### Enable row 8
 
@@ -1308,6 +1506,8 @@ Enter the row 8 label. Replace sample wording with your own content; leave optio
 
 Default: `Final feature`.
 
+Availability condition: `{{ block.settings.row_8_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_8_label`. Type: `text`.
@@ -1322,6 +1522,8 @@ Default: `no`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_8_enabled and block.settings.column_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_8_column_1_value`. Type: `select`.
@@ -1333,6 +1535,8 @@ Setting: `row_8_column_1_value`. Type: `select`.
 ### Row 8 column 1 note
 
 Enter the row 8 column 1 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_8_enabled and block.settings.column_1_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1348,6 +1552,8 @@ Default: `partial`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_8_enabled and block.settings.column_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_8_column_2_value`. Type: `select`.
@@ -1359,6 +1565,8 @@ Setting: `row_8_column_2_value`. Type: `select`.
 ### Row 8 column 2 note
 
 Enter the row 8 column 2 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_8_enabled and block.settings.column_2_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1374,6 +1582,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_8_enabled and block.settings.column_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_8_column_3_value`. Type: `select`.
@@ -1385,6 +1595,8 @@ Setting: `row_8_column_3_value`. Type: `select`.
 ### Row 8 column 3 note
 
 Enter the row 8 column 3 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_8_enabled and block.settings.column_3_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1400,6 +1612,8 @@ Default: `yes`.
 
 Options: Yes, No, Partial, Text: included, Text: limited, Text: advanced.
 
+Availability condition: `{{ block.settings.row_8_enabled and block.settings.column_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_8_column_4_value`. Type: `select`.
@@ -1411,6 +1625,8 @@ Setting: `row_8_column_4_value`. Type: `select`.
 ### Row 8 column 4 note
 
 Enter the row 8 column 4 note. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_8_enabled and block.settings.column_4_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1437,6 +1653,8 @@ Setting: `show_cta_row`. Type: `checkbox`.
 Enter the button row label. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `Get started`.
+
+Availability condition: `{{ block.settings.show_cta_row }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -1755,6 +1973,8 @@ Setting: `animation`. Type: `select`.
 `none`, `fade`, `fade-up`, `fade-down`, `fade-left`, `fade-right`, `zoom`
 
 </details>
+
+## Accessible value labels
 
 ### Included value label
 

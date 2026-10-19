@@ -94,11 +94,15 @@ Setting: `highlight_column`. Type: `select`.
 
 ## Columns
 
+## Column 1
+
 ### Column 1 title
 
 Enter the column 1 title. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `Basic`.
+
+Availability condition: `{{ block.settings.column_count >= 1 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -110,17 +114,23 @@ Setting: `column_1_title`. Type: `text`.
 
 Enter the column 1 badge. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.column_count >= 1 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_1_badge`. Type: `text`.
 
 </details>
 
+## Column 2
+
 ### Column 2 title
 
 Enter the column 2 title. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `Plus`.
+
+Availability condition: `{{ block.settings.column_count >= 2 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -132,17 +142,23 @@ Setting: `column_2_title`. Type: `text`.
 
 Enter the column 2 badge. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.column_count >= 2 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_2_badge`. Type: `text`.
 
 </details>
 
+## Column 3
+
 ### Column 3 title
 
 Enter the column 3 title. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `Premium`.
+
+Availability condition: `{{ block.settings.column_count >= 3 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -154,17 +170,23 @@ Setting: `column_3_title`. Type: `text`.
 
 Enter the column 3 badge. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.column_count >= 3 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_3_badge`. Type: `text`.
 
 </details>
 
+## Column 4
+
 ### Column 4 title
 
 Enter the column 4 title. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
 Default: `Pro`.
+
+Availability condition: `{{ block.settings.column_count >= 4 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -176,6 +198,8 @@ Setting: `column_4_title`. Type: `text`.
 
 Enter the column 4 badge. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.column_count >= 4 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `column_4_badge`. Type: `text`.
@@ -184,9 +208,13 @@ Setting: `column_4_badge`. Type: `text`.
 
 ## Rows
 
+## Row 1
+
 ### Row 1 label
 
 Enter the row 1 label. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 1 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -198,6 +226,8 @@ Setting: `row_1_label`. Type: `text`.
 
 Enter the row 1 column 1. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 1 and block.settings.column_count >= 1 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_1_column_1`. Type: `text`.
@@ -207,6 +237,8 @@ Setting: `row_1_column_1`. Type: `text`.
 ### Row 1 column 2
 
 Enter the row 1 column 2. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 1 and block.settings.column_count >= 2 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -218,6 +250,8 @@ Setting: `row_1_column_2`. Type: `text`.
 
 Enter the row 1 column 3. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 1 and block.settings.column_count >= 3 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_1_column_3`. Type: `text`.
@@ -228,15 +262,21 @@ Setting: `row_1_column_3`. Type: `text`.
 
 Enter the row 1 column 4. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 1 and block.settings.column_count >= 4 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_1_column_4`. Type: `text`.
 
 </details>
 
+## Row 2
+
 ### Row 2 label
 
 Enter the row 2 label. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 2 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -248,6 +288,8 @@ Setting: `row_2_label`. Type: `text`.
 
 Enter the row 2 column 1. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 2 and block.settings.column_count >= 1 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_2_column_1`. Type: `text`.
@@ -257,6 +299,8 @@ Setting: `row_2_column_1`. Type: `text`.
 ### Row 2 column 2
 
 Enter the row 2 column 2. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 2 and block.settings.column_count >= 2 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -268,6 +312,8 @@ Setting: `row_2_column_2`. Type: `text`.
 
 Enter the row 2 column 3. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 2 and block.settings.column_count >= 3 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_2_column_3`. Type: `text`.
@@ -278,15 +324,21 @@ Setting: `row_2_column_3`. Type: `text`.
 
 Enter the row 2 column 4. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 2 and block.settings.column_count >= 4 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_2_column_4`. Type: `text`.
 
 </details>
 
+## Row 3
+
 ### Row 3 label
 
 Enter the row 3 label. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 3 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -298,6 +350,8 @@ Setting: `row_3_label`. Type: `text`.
 
 Enter the row 3 column 1. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 3 and block.settings.column_count >= 1 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_3_column_1`. Type: `text`.
@@ -307,6 +361,8 @@ Setting: `row_3_column_1`. Type: `text`.
 ### Row 3 column 2
 
 Enter the row 3 column 2. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 3 and block.settings.column_count >= 2 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -318,6 +374,8 @@ Setting: `row_3_column_2`. Type: `text`.
 
 Enter the row 3 column 3. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 3 and block.settings.column_count >= 3 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_3_column_3`. Type: `text`.
@@ -328,15 +386,21 @@ Setting: `row_3_column_3`. Type: `text`.
 
 Enter the row 3 column 4. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 3 and block.settings.column_count >= 4 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_3_column_4`. Type: `text`.
 
 </details>
 
+## Row 4
+
 ### Row 4 label
 
 Enter the row 4 label. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 4 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -348,6 +412,8 @@ Setting: `row_4_label`. Type: `text`.
 
 Enter the row 4 column 1. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 4 and block.settings.column_count >= 1 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_4_column_1`. Type: `text`.
@@ -357,6 +423,8 @@ Setting: `row_4_column_1`. Type: `text`.
 ### Row 4 column 2
 
 Enter the row 4 column 2. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 4 and block.settings.column_count >= 2 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -368,6 +436,8 @@ Setting: `row_4_column_2`. Type: `text`.
 
 Enter the row 4 column 3. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 4 and block.settings.column_count >= 3 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_4_column_3`. Type: `text`.
@@ -378,15 +448,21 @@ Setting: `row_4_column_3`. Type: `text`.
 
 Enter the row 4 column 4. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 4 and block.settings.column_count >= 4 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_4_column_4`. Type: `text`.
 
 </details>
 
+## Row 5
+
 ### Row 5 label
 
 Enter the row 5 label. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 5 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -398,6 +474,8 @@ Setting: `row_5_label`. Type: `text`.
 
 Enter the row 5 column 1. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 5 and block.settings.column_count >= 1 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_5_column_1`. Type: `text`.
@@ -407,6 +485,8 @@ Setting: `row_5_column_1`. Type: `text`.
 ### Row 5 column 2
 
 Enter the row 5 column 2. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 5 and block.settings.column_count >= 2 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -418,6 +498,8 @@ Setting: `row_5_column_2`. Type: `text`.
 
 Enter the row 5 column 3. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 5 and block.settings.column_count >= 3 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_5_column_3`. Type: `text`.
@@ -428,15 +510,21 @@ Setting: `row_5_column_3`. Type: `text`.
 
 Enter the row 5 column 4. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 5 and block.settings.column_count >= 4 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_5_column_4`. Type: `text`.
 
 </details>
 
+## Row 6
+
 ### Row 6 label
 
 Enter the row 6 label. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 6 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -448,6 +536,8 @@ Setting: `row_6_label`. Type: `text`.
 
 Enter the row 6 column 1. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 6 and block.settings.column_count >= 1 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_6_column_1`. Type: `text`.
@@ -457,6 +547,8 @@ Setting: `row_6_column_1`. Type: `text`.
 ### Row 6 column 2
 
 Enter the row 6 column 2. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 6 and block.settings.column_count >= 2 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -468,6 +560,8 @@ Setting: `row_6_column_2`. Type: `text`.
 
 Enter the row 6 column 3. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 6 and block.settings.column_count >= 3 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_6_column_3`. Type: `text`.
@@ -478,15 +572,21 @@ Setting: `row_6_column_3`. Type: `text`.
 
 Enter the row 6 column 4. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 6 and block.settings.column_count >= 4 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_6_column_4`. Type: `text`.
 
 </details>
 
+## Row 7
+
 ### Row 7 label
 
 Enter the row 7 label. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 7 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -498,6 +598,8 @@ Setting: `row_7_label`. Type: `text`.
 
 Enter the row 7 column 1. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 7 and block.settings.column_count >= 1 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_7_column_1`. Type: `text`.
@@ -507,6 +609,8 @@ Setting: `row_7_column_1`. Type: `text`.
 ### Row 7 column 2
 
 Enter the row 7 column 2. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 7 and block.settings.column_count >= 2 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -518,6 +622,8 @@ Setting: `row_7_column_2`. Type: `text`.
 
 Enter the row 7 column 3. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 7 and block.settings.column_count >= 3 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_7_column_3`. Type: `text`.
@@ -528,15 +634,21 @@ Setting: `row_7_column_3`. Type: `text`.
 
 Enter the row 7 column 4. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 7 and block.settings.column_count >= 4 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_7_column_4`. Type: `text`.
 
 </details>
 
+## Row 8
+
 ### Row 8 label
 
 Enter the row 8 label. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 8 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -548,6 +660,8 @@ Setting: `row_8_label`. Type: `text`.
 
 Enter the row 8 column 1. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 8 and block.settings.column_count >= 1 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_8_column_1`. Type: `text`.
@@ -557,6 +671,8 @@ Setting: `row_8_column_1`. Type: `text`.
 ### Row 8 column 2
 
 Enter the row 8 column 2. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 8 and block.settings.column_count >= 2 }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -568,6 +684,8 @@ Setting: `row_8_column_2`. Type: `text`.
 
 Enter the row 8 column 3. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.row_count >= 8 and block.settings.column_count >= 3 }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_8_column_3`. Type: `text`.
@@ -577,6 +695,8 @@ Setting: `row_8_column_3`. Type: `text`.
 ### Row 8 column 4
 
 Enter the row 8 column 4. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.row_count >= 8 and block.settings.column_count >= 4 }}`.
 
 <details><summary>Reference for connected builders</summary>
 

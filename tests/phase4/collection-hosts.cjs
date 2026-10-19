@@ -27,6 +27,15 @@ const drain=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
    assert.equal(new d.defaultView.FormData(min.form).get('filter.v.price.gte'),'12.5');
    assert(!min.form.querySelector('form'));assert(!min.form.querySelector('.q-product-card'));
    assert.equal(d.querySelectorAll('[aria-current=page]').length,1,'Ellipsis is not a current page');
+   if(!simple){
+    assert(d.querySelector('h2.q-product-card__title'),'Collection product headings follow the page h1');
+    assert(!d.querySelector('a[role="listitem"]'),'Pagination and filter links retain native link semantics');
+    assert(!d.querySelector('.main-collection-classic__pager[role="list"]'),'Pagination does not declare an invalid ARIA list');
+    for(const chip of d.querySelectorAll('.main-collection-classic__chip')){
+      assert(!chip.hasAttribute('aria-label'),'Filter names must include their visible label and value');
+      assert(chip.textContent.includes('Remove filter'));
+    }
+   }
    const ids=[...d.querySelectorAll('[id]')].map(x=>x.id);assert.equal(new Set(ids).size,ids.length,'Unique IDs per host');d.defaultView.close();
   }
   // Full schema choice/boolean/range endpoint rendering plus presets through the actual section.

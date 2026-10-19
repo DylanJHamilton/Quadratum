@@ -98,6 +98,8 @@ Setting: `image`. Type: `image_picker`.
 
 Select a video uploaded to Shopify Files. Supply a clear poster image where offered. Leave autoplay off for content that needs sound.
 
+Availability condition: `{{ block.settings.media_type == 'video' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `video`. Type: `video`.
@@ -107,6 +109,8 @@ Setting: `video`. Type: `video`.
 ### External video link
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
+
+Availability condition: `{{ block.settings.media_type == 'external_video' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -120,6 +124,8 @@ Turn on “Autoplay uploaded video” to apply that behavior. Turn it off to rem
 
 Default: `False`.
 
+Availability condition: `{{ block.settings.media_type == 'video' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `autoplay_video`. Type: `checkbox`.
@@ -131,6 +137,8 @@ Setting: `autoplay_video`. Type: `checkbox`.
 Turn on “Show video controls” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `True`.
+
+Availability condition: `{{ block.settings.media_type == 'video' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -200,6 +208,8 @@ Setting: `show_feature_numbers`. Type: `checkbox`.
 
 </details>
 
+## Feature 1
+
 ### Enable feature 1
 
 Turn on “Enable feature 1” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
@@ -216,6 +226,8 @@ Setting: `feature_1_enabled`. Type: `checkbox`.
 
 Enter the feature 1 icon or symbol. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.feature_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_1_icon`. Type: `text`.
@@ -225,6 +237,8 @@ Setting: `feature_1_icon`. Type: `text`.
 ### Feature 1 heading
 
 Enter the feature 1 heading. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.feature_1_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -236,6 +250,8 @@ Setting: `feature_1_heading`. Type: `text`.
 
 Use the rich text editor for paragraphs, lists, emphasis, and links. Use descriptive link text and headings in a logical order.
 
+Availability condition: `{{ block.settings.feature_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_1_text`. Type: `richtext`.
@@ -245,6 +261,8 @@ Setting: `feature_1_text`. Type: `richtext`.
 ### Feature 1 link
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
+
+Availability condition: `{{ block.settings.feature_1_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -258,11 +276,15 @@ Enter the feature 1 link text. Replace sample wording with your own content; lea
 
 Default: `Learn more`.
 
+Availability condition: `{{ block.settings.feature_1_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_1_link_text`. Type: `text`.
 
 </details>
+
+## Feature 2
 
 ### Enable feature 2
 
@@ -280,6 +302,8 @@ Setting: `feature_2_enabled`. Type: `checkbox`.
 
 Enter the feature 2 icon or symbol. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.feature_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_2_icon`. Type: `text`.
@@ -289,6 +313,8 @@ Setting: `feature_2_icon`. Type: `text`.
 ### Feature 2 heading
 
 Enter the feature 2 heading. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.feature_2_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -300,6 +326,8 @@ Setting: `feature_2_heading`. Type: `text`.
 
 Use the rich text editor for paragraphs, lists, emphasis, and links. Use descriptive link text and headings in a logical order.
 
+Availability condition: `{{ block.settings.feature_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_2_text`. Type: `richtext`.
@@ -309,6 +337,8 @@ Setting: `feature_2_text`. Type: `richtext`.
 ### Feature 2 link
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
+
+Availability condition: `{{ block.settings.feature_2_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -322,11 +352,15 @@ Enter the feature 2 link text. Replace sample wording with your own content; lea
 
 Default: `View detail`.
 
+Availability condition: `{{ block.settings.feature_2_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_2_link_text`. Type: `text`.
 
 </details>
+
+## Feature 3
 
 ### Enable feature 3
 
@@ -344,6 +378,8 @@ Setting: `feature_3_enabled`. Type: `checkbox`.
 
 Enter the feature 3 icon or symbol. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.feature_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_3_icon`. Type: `text`.
@@ -353,6 +389,8 @@ Setting: `feature_3_icon`. Type: `text`.
 ### Feature 3 heading
 
 Enter the feature 3 heading. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.feature_3_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -364,6 +402,8 @@ Setting: `feature_3_heading`. Type: `text`.
 
 Use the rich text editor for paragraphs, lists, emphasis, and links. Use descriptive link text and headings in a logical order.
 
+Availability condition: `{{ block.settings.feature_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_3_text`. Type: `richtext`.
@@ -373,6 +413,8 @@ Setting: `feature_3_text`. Type: `richtext`.
 ### Feature 3 link
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
+
+Availability condition: `{{ block.settings.feature_3_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -386,11 +428,15 @@ Enter the feature 3 link text. Replace sample wording with your own content; lea
 
 Default: `Explore`.
 
+Availability condition: `{{ block.settings.feature_3_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_3_link_text`. Type: `text`.
 
 </details>
+
+## Feature 4
 
 ### Enable feature 4
 
@@ -408,6 +454,8 @@ Setting: `feature_4_enabled`. Type: `checkbox`.
 
 Enter the feature 4 icon or symbol. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.feature_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_4_icon`. Type: `text`.
@@ -417,6 +465,8 @@ Setting: `feature_4_icon`. Type: `text`.
 ### Feature 4 heading
 
 Enter the feature 4 heading. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.feature_4_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -428,6 +478,8 @@ Setting: `feature_4_heading`. Type: `text`.
 
 Use the rich text editor for paragraphs, lists, emphasis, and links. Use descriptive link text and headings in a logical order.
 
+Availability condition: `{{ block.settings.feature_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_4_text`. Type: `richtext`.
@@ -437,6 +489,8 @@ Setting: `feature_4_text`. Type: `richtext`.
 ### Feature 4 link
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
+
+Availability condition: `{{ block.settings.feature_4_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -448,11 +502,15 @@ Setting: `feature_4_link`. Type: `url`.
 
 Enter the feature 4 link text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.feature_4_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_4_link_text`. Type: `text`.
 
 </details>
+
+## Feature 5
 
 ### Enable feature 5
 
@@ -470,6 +528,8 @@ Setting: `feature_5_enabled`. Type: `checkbox`.
 
 Enter the feature 5 icon or symbol. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.feature_5_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_5_icon`. Type: `text`.
@@ -479,6 +539,8 @@ Setting: `feature_5_icon`. Type: `text`.
 ### Feature 5 heading
 
 Enter the feature 5 heading. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.feature_5_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -490,6 +552,8 @@ Setting: `feature_5_heading`. Type: `text`.
 
 Use the rich text editor for paragraphs, lists, emphasis, and links. Use descriptive link text and headings in a logical order.
 
+Availability condition: `{{ block.settings.feature_5_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_5_text`. Type: `richtext`.
@@ -499,6 +563,8 @@ Setting: `feature_5_text`. Type: `richtext`.
 ### Feature 5 link
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
+
+Availability condition: `{{ block.settings.feature_5_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -510,11 +576,15 @@ Setting: `feature_5_link`. Type: `url`.
 
 Enter the feature 5 link text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.feature_5_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_5_link_text`. Type: `text`.
 
 </details>
+
+## Feature 6
 
 ### Enable feature 6
 
@@ -532,6 +602,8 @@ Setting: `feature_6_enabled`. Type: `checkbox`.
 
 Enter the feature 6 icon or symbol. Replace sample wording with your own content; leave optional fields empty when you do not need them.
 
+Availability condition: `{{ block.settings.feature_6_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_6_icon`. Type: `text`.
@@ -541,6 +613,8 @@ Setting: `feature_6_icon`. Type: `text`.
 ### Feature 6 heading
 
 Enter the feature 6 heading. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.feature_6_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -552,6 +626,8 @@ Setting: `feature_6_heading`. Type: `text`.
 
 Use the rich text editor for paragraphs, lists, emphasis, and links. Use descriptive link text and headings in a logical order.
 
+Availability condition: `{{ block.settings.feature_6_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_6_text`. Type: `richtext`.
@@ -562,6 +638,8 @@ Setting: `feature_6_text`. Type: `richtext`.
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 
+Availability condition: `{{ block.settings.feature_6_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `feature_6_link`. Type: `url`.
@@ -571,6 +649,8 @@ Setting: `feature_6_link`. Type: `url`.
 ### Feature 6 link text
 
 Enter the feature 6 link text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
+
+Availability condition: `{{ block.settings.feature_6_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 

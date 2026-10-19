@@ -84,7 +84,10 @@ def sanitize(root):
         children = n.get('blocks', {})
         for key, b in (enumerate(children) if isinstance(children, list) else children.items()):
             own = next((x for x in definition.get('blocks', []) if x.get('type') == b.get('type')), None)
-            node(b, own or blocks.get(b.get('type'), {}), where+'/blocks/'+str(key))
+            # Theme-block allowlists contain only a type reference. The settings
+            # live in blocks/<type>.liquid, unlike section-local inline blocks.
+            definition_child = own if own and 'settings' in own else blocks.get(b.get('type'), own or {})
+            node(b, definition_child, where+'/blocks/'+str(key))
 
     def template(data, where):
         for key, n in data.get('sections', {}).items():

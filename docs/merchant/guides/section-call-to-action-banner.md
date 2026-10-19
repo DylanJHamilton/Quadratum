@@ -11,6 +11,8 @@ Banners and imagery.
 3. Connect your own content and media before adjusting layout, typography, color, and spacing. Section overrides take priority where the section offers them.
 4. Preview desktop and mobile, test any links or controls, and save. Publish only after reviewing the complete customer journey.
 
+## Section behavior
+
 ### Anchor ID
 
 Enter the anchor id. Replace sample wording with your own content; leave optional fields empty when you do not need them.
@@ -58,6 +60,8 @@ Default: `False`.
 Setting: `hide_on_desktop`. Type: `checkbox`.
 
 </details>
+
+## Layout
 
 ### Banner corner radius (px)
 
@@ -185,11 +189,15 @@ Default: `0`.
 
 Range: 0 to 200 ; step 2.
 
+Availability condition: `{{ section.settings.enable_header_overlap }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `safe_offset_px`. Type: `range`.
 
 </details>
+
+## Colors
 
 ### Heading color
 
@@ -241,9 +249,13 @@ Setting: `section_bg_opacity`. Type: `range`.
 
 </details>
 
+## Background media
+
 ### Background image
 
 Select or upload an image. Add descriptive alt text and set its focal point in Shopify Files. Check the crop on both desktop and mobile; the image does not change the original file.
+
+Availability condition: `{{ section.settings.mode == 'media' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -257,6 +269,8 @@ Enter the image alt text. Replace sample wording with your own content; leave op
 
 Default: `CTA image`.
 
+Availability condition: `{{ section.settings.mode == 'media' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `image_alt`. Type: `text`.
@@ -266,6 +280,8 @@ Setting: `image_alt`. Type: `text`.
 ### Background video URL
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
+
+Availability condition: `{{ section.settings.mode == 'media' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -279,6 +295,8 @@ Turn on “Autoplay video” to apply that behavior. Turn it off to remove that 
 
 Default: `True`.
 
+Availability condition: `{{ section.settings.mode == 'media' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `video_autoplay`. Type: `checkbox`.
@@ -290,6 +308,8 @@ Setting: `video_autoplay`. Type: `checkbox`.
 Turn on “Loop video” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
 
 Default: `True`.
+
+Availability condition: `{{ section.settings.mode == 'media' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -303,6 +323,8 @@ Turn on “Mute video” to apply that behavior. Turn it off to remove that beha
 
 Default: `True`.
 
+Availability condition: `{{ section.settings.mode == 'media' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `video_muted`. Type: `checkbox`.
@@ -315,11 +337,15 @@ Turn on “Show video controls” to apply that behavior. Turn it off to remove 
 
 Default: `False`.
 
+Availability condition: `{{ section.settings.mode == 'media' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `video_controls`. Type: `checkbox`.
 
 </details>
+
+## Background overlay
 
 ### Overlay type
 
@@ -343,6 +369,8 @@ Choose a color for solid overlay color. Check the paired background or text colo
 
 Default: `#000000`.
 
+Availability condition: `{{ section.settings.overlay_type == 'solid' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `overlay_color`. Type: `color`.
@@ -357,6 +385,8 @@ Default: `36`.
 
 Range: 0 to 100 ; step 1.
 
+Availability condition: `{{ section.settings.overlay_type == 'solid' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `overlay_opacity`. Type: `range`.
@@ -368,6 +398,8 @@ Setting: `overlay_opacity`. Type: `range`.
 Choose a color for gradient start. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#000000`.
+
+Availability condition: `{{ section.settings.overlay_type == 'gradient' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -383,6 +415,8 @@ Default: `36`.
 
 Range: 0 to 100 ; step 1.
 
+Availability condition: `{{ section.settings.overlay_type == 'gradient' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `grad_start_opacity`. Type: `range`.
@@ -394,6 +428,8 @@ Setting: `grad_start_opacity`. Type: `range`.
 Choose a color for gradient end. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#000000`.
+
+Availability condition: `{{ section.settings.overlay_type == 'gradient' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -409,6 +445,8 @@ Default: `0`.
 
 Range: 0 to 100 ; step 1.
 
+Availability condition: `{{ section.settings.overlay_type == 'gradient' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `grad_end_opacity`. Type: `range`.
@@ -423,11 +461,15 @@ Default: `135`.
 
 Range: 0 to 360 ; step 5.
 
+Availability condition: `{{ section.settings.overlay_type == 'gradient' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `grad_angle`. Type: `range`.
 
 </details>
+
+## Content
 
 ### Heading
 
@@ -497,6 +539,8 @@ Setting: `kicker`. Type: `text`.
 
 </details>
 
+## Buttons
+
 ### CTA button background
 
 Choose a color for cta button background. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
@@ -513,7 +557,7 @@ Setting: `cta_btn_bg`. Type: `color`.
 
 Choose a color for cta button text. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
-Default: `#FFFFFF`.
+Default: `#1F130D`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -611,6 +655,8 @@ Setting: `cta_btn_active_scale`. Type: `range`.
 
 </details>
 
+## Product layout
+
 ### Product split direction
 
 Choose one of the supported options below for product split direction. Only the selected option applies; other settings can further customize its appearance.
@@ -618,6 +664,8 @@ Choose one of the supported options below for product split direction. Only the 
 Default: `media-left`.
 
 Options: Media left, Media right.
+
+Availability condition: `{{ section.settings.layout_variant == 'product' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -635,6 +683,8 @@ Default: `contain`.
 
 Options: Contain (no crop), Cover (fill box).
 
+Availability condition: `{{ section.settings.layout_variant == 'product' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `prod_media_mode`. Type: `select`.
@@ -650,6 +700,8 @@ Choose one of the supported options below for product media aspect. Only the sel
 Default: `natural`.
 
 Options: Natural, 1:1 (square), 4:5 (portrait), 16:9 (landscape).
+
+Availability condition: `{{ section.settings.layout_variant == 'product' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -667,6 +719,8 @@ Default: `520`.
 
 Range: 240 to 800 ; step 10.
 
+Availability condition: `{{ section.settings.layout_variant == 'product' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `prod_media_max_h_desktop`. Type: `range`.
@@ -681,6 +735,8 @@ Default: `340`.
 
 Range: 160 to 600 ; step 10.
 
+Availability condition: `{{ section.settings.layout_variant == 'product' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `prod_media_max_h_mobile`. Type: `range`.
@@ -693,15 +749,21 @@ Turn on “Hard crop to aspect (use Shopify crop)” to apply that behavior. Tur
 
 Default: `False`.
 
+Availability condition: `{{ section.settings.layout_variant == 'product' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `prod_media_hard_crop`. Type: `checkbox`.
 
 </details>
 
+## Newsletter integration
+
 ### Newsletter form action (API/app proxy URL)
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
+
+Availability condition: `{{ section.settings.layout_variant == 'newsletter' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -717,6 +779,8 @@ Default: `post`.
 
 Options: POST, GET.
 
+Availability condition: `{{ section.settings.layout_variant == 'newsletter' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `newsletter_method`. Type: `select`.
@@ -729,17 +793,23 @@ Setting: `newsletter_method`. Type: `select`.
 
 Select a Shopify destination or paste a valid URL. Use a descriptive button or link label. Empty destinations usually hide the associated action.
 
+Availability condition: `{{ section.settings.layout_variant == 'newsletter' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `newsletter_success_redirect`. Type: `url`.
 
 </details>
 
+## Newsletter button
+
 ### Newsletter button background
 
 Choose a color for newsletter button background. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#D97745`.
+
+Availability condition: `{{ section.settings.layout_variant == 'newsletter' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -751,7 +821,9 @@ Setting: `newsletter_btn_bg`. Type: `color`.
 
 Choose a color for newsletter button text. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
-Default: `#FFFFFF`.
+Default: `#1F130D`.
+
+Availability condition: `{{ section.settings.layout_variant == 'newsletter' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -764,6 +836,8 @@ Setting: `newsletter_btn_text`. Type: `color`.
 Choose a color for newsletter button border. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#D97745`.
+
+Availability condition: `{{ section.settings.layout_variant == 'newsletter' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -779,6 +853,8 @@ Default: `14`.
 
 Range: 0 to 32 ; step 1.
 
+Availability condition: `{{ section.settings.layout_variant == 'newsletter' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `newsletter_btn_radius`. Type: `range`.
@@ -790,6 +866,8 @@ Setting: `newsletter_btn_radius`. Type: `range`.
 Choose a color for newsletter hover background. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#C2410C`.
+
+Availability condition: `{{ section.settings.layout_variant == 'newsletter' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -803,6 +881,8 @@ Choose a color for newsletter hover text. Check the paired background or text co
 
 Default: `#FFFFFF`.
 
+Availability condition: `{{ section.settings.layout_variant == 'newsletter' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `newsletter_btn_hover_text`. Type: `color`.
@@ -815,11 +895,15 @@ Choose a color for newsletter hover border. Check the paired background or text 
 
 Default: `#C2410C`.
 
+Availability condition: `{{ section.settings.layout_variant == 'newsletter' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `newsletter_btn_hover_border`. Type: `color`.
 
 </details>
+
+## Content backdrop
 
 ### Enable content overlay panel
 
@@ -839,6 +923,8 @@ Choose a color for content overlay color. Check the paired background or text co
 
 Default: `#000000`.
 
+Availability condition: `{{ section.settings.content_overlay_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `content_overlay_color`. Type: `color`.
@@ -852,6 +938,8 @@ Drag the control to adjust content overlay opacity (%). Use only the range and i
 Default: `0`.
 
 Range: 0 to 100 ; step 1.
+
+Availability condition: `{{ section.settings.content_overlay_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -867,6 +955,8 @@ Default: `0`.
 
 Range: 0 to 20 ; step 1.
 
+Availability condition: `{{ section.settings.content_overlay_enabled }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `content_overlay_blur`. Type: `range`.
@@ -880,6 +970,8 @@ Drag the control to adjust content overlay radius (px). Use only the range and i
 Default: `12`.
 
 Range: 0 to 32 ; step 1.
+
+Availability condition: `{{ section.settings.content_overlay_enabled }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -895,6 +987,8 @@ Choose a color for outline text. Check the paired background or text color: body
 
 Use a color that contrasts with the banner background.
 
+Default: `#2B2117`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `cta_outline_text`. Type: `color`.
@@ -904,6 +998,8 @@ Setting: `cta_outline_text`. Type: `color`.
 ### Outline border
 
 Choose a color for outline border. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
+
+Default: `#2B2117`.
 
 <details><summary>Reference for connected builders</summary>
 

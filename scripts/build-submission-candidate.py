@@ -17,6 +17,9 @@ ROOT = Path(__file__).resolve().parents[1]
 PRESETS = ['Quadratum', 'Morrow', 'Northstar', 'Kinvar', 'Vantier']
 SHOWROOM_SECTIONS = {'showroom-campaign.liquid', 'editorial-story.liquid', 'commerce-showcase.liquid', 'builder-reference.liquid', 'documentation-hub.liquid', 'theme-support.liquid'}
 DEVELOPMENT_SECTIONS = {'main-product-master.liquid'}  # Legacy laboratory host; no merchant template uses it.
+# Historical alternatives have no callers in the merchant runtime. Keep their
+# source history, but do not ship unused implementations to merchants.
+UNUSED_SNIPPETS = set('boxed-content-media cart-progress-bar collection-modern-empty-state collection-modern-pagination collection-modern-product-card collection-modern-quick-filters collection-modern-sort collection-modern-toolbar collection-simple-grid fp-hero-content-proxy fp-hero-media-proxy header-two-account header-two-actions header-two-cart header-two-logo header-two-mega-menu header-two-mobile-menu header-two-search icon-sprite pb-bundle-card q-banner-base q-disclosure q-nav q-social-pinterest-thumb q-spacing qtm-content-block-wrapper-end search-controller section-collection-modern-facets section-collection-modern-sort utility-404'.split())
 SHOWROOM_ASSETS = {'documentation-hub.css', 'documentation-hub.js', 'showroom-preview.js', 'quadratum-builder-index.json', 'showroom-campaign.css', 'showroom-motion.js', 'editorial-story.css', 'commerce-showcase.css', 'quadratum-builder-manifest.json', 'quadratum-obsidian.png', 'quadratum-porcelain.png', 'quadratum-logo-ink.png', 'quadratum-logo-white.png'}
 EXCLUDED_TEMPLATES = {'page.features.json', 'page.brands.json', 'page.explore.json', 'page.section-library.json', 'page.block-library.json', 'page.dynamic-section-test.json', 'page.playground.liquid', 'product.product-section-test.json', 'page.agencies.json', 'page.ecosystem.json', 'page.products.json', 'page.collections.json', 'page.editorial.json', 'page.documentation.json', 'page.release-status.json', 'page.builder-reference.json', 'page.lookbook.json', 'page.journal.json', 'page.proportion.json', 'page.finishing-details.json'}
 
@@ -28,11 +31,23 @@ output = ROOT / '.cache' / 'ultima-submission' / (args.preset.lower() + '-' + st
 output.mkdir(parents=True, exist_ok=False)
 excluded = []
 
+# Fail closed if a later change starts using one of these legacy snippets.
+for folder in ['assets', 'blocks', 'sections', 'snippets', 'layout', 'templates', 'config', 'listings']:
+    for file in (ROOT / folder).rglob('*'):
+        if not file.is_file() or file.suffix not in {'.liquid', '.json', '.js'} or (folder == 'snippets' and file.stem in UNUSED_SNIPPETS):
+            continue
+        content = file.read_text(encoding='utf-8-sig')
+        for used in re.findall(r"(?:render|include)\s+['\"]([^'\"]+)['\"]", content):
+            assert used not in UNUSED_SNIPPETS, ('Legacy snippet now has a caller; review the exclusion', str(file), used)
+
 def copy_folder(folder, target):
     for path in (ROOT / folder).rglob('*'):
         if not path.is_file():
             continue
         rel = path.relative_to(ROOT / folder)
+        if folder == 'snippets' and path.stem in UNUSED_SNIPPETS:
+            excluded.append(str(path.relative_to(ROOT)))
+            continue
         if path.name == '.gitkeep' or (folder == 'snippets' and path.name == 'documentation-index.liquid') or (folder == 'assets' and (path.name in SHOWROOM_ASSETS or path.name.startswith('q-doc-') or path.name == 'icons.svg' or 'icons' in rel.parts)) or (folder == 'sections' and path.name in SHOWROOM_SECTIONS | DEVELOPMENT_SECTIONS) or (folder == 'templates' and (path.name in EXCLUDED_TEMPLATES or path.name.startswith('collection.quadratum-'))) or (folder == 'config' and path.name == 'markets.json'):
             excluded.append(str(path.relative_to(ROOT)))
             continue

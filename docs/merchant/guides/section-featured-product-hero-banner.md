@@ -13,6 +13,8 @@ Products.
 
 Up to 4 blocks can be added.
 
+## Layout
+
 ### Layout
 
 Choose one of the supported options below for layout. Only the selected option applies; other settings can further customize its appearance.
@@ -71,6 +73,8 @@ Setting: `pad_bottom`. Type: `range`.
 
 </details>
 
+## Background media
+
 ### Background image
 
 Select or upload an image. Add descriptive alt text and set its focal point in Shopify Files. Check the crop on both desktop and mobile; the image does not change the original file.
@@ -103,6 +107,8 @@ Setting: `bg_alt`. Type: `text`.
 
 </details>
 
+## Background overlay
+
 ### Overlay color
 
 Choose a color for overlay color. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
@@ -129,6 +135,8 @@ Setting: `overlay_opacity`. Type: `range`.
 
 </details>
 
+## Content backdrop
+
 ### Content backdrop style
 
 Choose one of the supported options below for content backdrop style. Only the selected option applies; other settings can further customize its appearance.
@@ -151,11 +159,15 @@ Choose a color for panel background (for 'panel'). Check the paired background o
 
 Default: `#ffffff`.
 
+Availability condition: `{{ section.settings.card_style == 'panel' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `card_bg`. Type: `color`.
 
 </details>
+
+## Content
 
 ### Badge
 
@@ -311,6 +323,8 @@ Setting: `copy_color`. Type: `color`.
 
 </details>
 
+## Button appearance
+
 ### Button background
 
 Choose a color for button background. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
@@ -375,6 +389,8 @@ Setting: `btn_radius`. Type: `range`.
 
 </details>
 
+## Primary button
+
 ### Primary CTA text
 
 Enter the primary cta text. Replace sample wording with your own content; leave optional fields empty when you do not need them.
@@ -408,6 +424,8 @@ Default: `Shop now`.
 Setting: `cta1_aria`. Type: `text`.
 
 </details>
+
+## Secondary button
 
 ### Secondary CTA text
 
@@ -443,6 +461,8 @@ Setting: `cta2_aria`. Type: `text`.
 
 </details>
 
+## Product content
+
 ### Product content
 
 Choose one of the supported options below for product content. Only the selected option applies; other settings can further customize its appearance.
@@ -475,11 +495,15 @@ Turn on “Show add to cart (for 'single')” to apply that behavior. Turn it of
 
 Default: `True`.
 
+Availability condition: `{{ section.settings.product_block_mode == 'single' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `show_atc`. Type: `checkbox`.
 
 </details>
+
+## Collection content
 
 ### Collection (for 'collection')
 
@@ -497,6 +521,8 @@ Enter the row heading. Replace sample wording with your own content; leave optio
 
 Default: `Trending now`.
 
+Availability condition: `{{ section.settings.product_block_mode == 'collection' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_heading`. Type: `text`.
@@ -510,6 +536,8 @@ Drag the control to adjust max items. Use only the range and increments shown be
 Default: `8`.
 
 Range: 2 to 12 ; step 1.
+
+Availability condition: `{{ section.settings.product_block_mode == 'collection' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -525,6 +553,8 @@ Default: `4`.
 
 Range: 2 to 5 ; step 1.
 
+Availability condition: `{{ section.settings.product_block_mode == 'collection' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_cols_desktop`. Type: `range`.
@@ -539,6 +569,8 @@ Default: `3`.
 
 Range: 2 to 4 ; step 1.
 
+Availability condition: `{{ section.settings.product_block_mode == 'collection' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_cols_tablet`. Type: `range`.
@@ -552,6 +584,8 @@ Choose one of the supported options below for columns (mobile). Only the selecte
 Default: `2`.
 
 Options: 1, 2.
+
+Availability condition: `{{ section.settings.product_block_mode == 'collection' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -569,6 +603,8 @@ Default: `4:5`.
 
 Options: Square (1:1), Portrait (4:5), Landscape (3:2), Widescreen (16:9).
 
+Availability condition: `{{ section.settings.product_block_mode == 'collection' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_card_ratio`. Type: `select`.
@@ -585,6 +621,8 @@ Default: `16`.
 
 Range: 8 to 32 ; step 2.
 
+Availability condition: `{{ section.settings.product_block_mode == 'collection' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_gap`. Type: `range`.
@@ -597,6 +635,8 @@ Turn on “Row background” to apply that behavior. Turn it off to remove that 
 
 Default: `False`.
 
+Availability condition: `{{ section.settings.product_block_mode == 'collection' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_bg_enable`. Type: `checkbox`.
@@ -608,6 +648,8 @@ Setting: `row_bg_enable`. Type: `checkbox`.
 Choose a color for row background color. Check the paired background or text color: body text needs readable contrast, including hover and focus states.
 
 Default: `#ffffff`.
+
+Availability condition: `{{ section.settings.product_block_mode == 'collection' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -623,6 +665,8 @@ Default: `24`.
 
 Range: 0 to 120 ; step 4.
 
+Availability condition: `{{ section.settings.product_block_mode == 'collection' }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `row_pad_top`. Type: `range`.
@@ -636,6 +680,8 @@ Drag the control to adjust row padding bottom (px). Use only the range and incre
 Default: `24`.
 
 Range: 0 to 120 ; step 4.
+
+Availability condition: `{{ section.settings.product_block_mode == 'collection' }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -665,6 +711,8 @@ Default: `up`.
 
 Options: Up, Left, Right, Fade only.
 
+Availability condition: `{{ section.settings.reveal_enable }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `reveal_style`. Type: `select`.
@@ -679,6 +727,8 @@ Enter the reveal easing. Replace sample wording with your own content; leave opt
 
 Default: `cubic-bezier(.2,.8,.2,1)`.
 
+Availability condition: `{{ section.settings.reveal_enable }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `reveal_ease`. Type: `text`.
@@ -692,6 +742,8 @@ Drag the control to adjust reveal duration (ms). Use only the range and incremen
 Default: `700`.
 
 Range: 300 to 1200 ; step 50.
+
+Availability condition: `{{ section.settings.reveal_enable }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -718,6 +770,8 @@ Drag the control to adjust parallax strength. Use only the range and increments 
 Default: `12`.
 
 Range: 0 to 30 ; step 1.
+
+Availability condition: `{{ section.settings.parallax_enable }}`.
 
 <details><summary>Reference for connected builders</summary>
 
@@ -747,6 +801,8 @@ Default: `92`.
 
 Range: 60 to 100 ; step 1.
 
+Availability condition: `{{ section.settings.use_section_button_motion }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `btn_hover_opacity_local`. Type: `range`.
@@ -761,11 +817,15 @@ Default: `98`.
 
 Range: 95 to 100 ; step 1.
 
+Availability condition: `{{ section.settings.use_section_button_motion }}`.
+
 <details><summary>Reference for connected builders</summary>
 
 Setting: `btn_active_scale_local`. Type: `range`.
 
 </details>
+
+## Accessibility
 
 ### ARIA region label
 
