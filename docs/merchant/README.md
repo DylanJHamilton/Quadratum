@@ -25,7 +25,6 @@ Learn how to configure your theme, choose templates, and use every section, bloc
         <details><summary>Cart, promotions, and saved products</summary><p>Choose cart behavior in Theme Settings → Commerce defaults. Test quantity changes, unavailable products, selling plans, and line item information. Free-shipping progress and reward labels must correspond to real rules configured in Shopify.</p><p>Saved products use this browser’s local storage. They are not a customer-account service and do not sync between devices. Clearing browser data removes the saved list.</p></details>
         <details><summary>Popup, search, and customer accounts</summary><p>Configure newsletter popup content and frequency in Theme Settings, and confirm mobile behavior before enabling it. Search can display products, articles, pages, and predictive collection suggestions. Customer account behavior is provided by Shopify when accounts are enabled.</p><p>Preview newsletter and contact messages using your actual store configuration. A successful visual preview does not prove email delivery.</p></details>
         <details><summary>Build with ChatGPT or Claude</summary><p>Give your assistant your business, catalog, brand direction, and required pages. Ask it to read only the relevant section and block schemas, use existing controls, and work in an unpublished copy. Theme-file access must be explicitly supported by your connector; catalog access alone does not provide it.</p><p>Use the <a href="#working-with-connected-builders">builder reference</a> for exact file and setting names. Review generated content, links, and purchases yourself before publishing. No token-saving benchmark or platform endorsement is claimed.</p></details>
-        
         <details><summary>Update safely and ask for help</summary><p>Duplicate the theme before updating or editing code. Record the theme version, template, section, and steps that reproduce an issue. Theme support can address setup questions and reproducible theme bugs. Custom code, third-party apps, and store operations may need separate assistance.</p><p>Use the <a href="SUPPORT.md">support form</a> and include the affected page and screenshots. Do not send passwords, access tokens, payment data, or customer details.</p></details>
 
 ## Working with connected builders
@@ -52,7 +51,7 @@ Start with the relevant component guide below. Its setting reference lists the e
 
 ## Sections
 
-147 guides.
+158 guides.
 
 - [3D tour - media showcase](guides/section-interactive-content-helper-3d-tour-media-showcase.md)
 - [3P - affiliate program](guides/section-3rd-party-affiliate-program-cta.md)
@@ -74,10 +73,13 @@ Start with the relevant component guide below. Its setting reference lists the e
 - [Account main register](guides/section-account-main-account-register.md)
 - [Account order tracking](guides/section-account-main-account-order-tracking.md)
 - [Account reset password](guides/section-account-main-account-reset-password.md)
+- [Appointment request](guides/section-3rd-party-scheduling-booking-embed.md)
 - [Basic split content](guides/section-split-content-dynamic.md)
 - [Basic text content](guides/section-basic-content-helper-text-centered-full-width.md)
 - [Block section](guides/section-block-section.md)
 - [Boxed • hero](guides/section-boxed-content-banner.md)
+- [Builder reference](guides/section-builder-reference.md)
+- [Bulk order request](guides/section-3rd-party-bulk-ordering.md)
 - [Button - icon list](guides/section-call-to-action-icon-list.md)
 - [Button - reviews](guides/section-call-to-action-reviews.md)
 - [Button banner](guides/section-call-to-action-banner.md)
@@ -99,14 +101,18 @@ Start with the relevant component guide below. Its setting reference lists the e
 - [Collection quick view](guides/section-collection-modern-quick-view.md)
 - [Column builder](guides/section-basic-content-helper-column-builder.md)
 - [Commerce footer](guides/section-footer-two.md)
+- [Commerce showcase](guides/section-commerce-showcase.md)
 - [Compact header](guides/section-header-one.md)
 - [Content - tab/accordion](guides/section-interactive-content-helper-tabs-accordion.md)
 - [Content - TOC/nav](guides/section-interactive-content-helper-toc-page-nav.md)
 - [Content embed](guides/section-basic-content-helper-code-embed.md)
+- [Customer care](guides/section-theme-support.md)
 - [Department footer](guides/section-footer-five.md)
 - [Department header](guides/section-header-five.md)
+- [Documentation hub](guides/section-documentation-hub.md)
 - [Editorial footer](guides/section-footer-three.md)
 - [Editorial header](guides/section-header-three.md)
+- [Editorial story](guides/section-editorial-story.md)
 - [Featured - prod spotlight](guides/section-featured-content-product-spotlight-row.md)
 - [Featured blog](guides/section-featured-content-blog-spotlight.md)
 - [Featured collection](guides/section-featured-content-collection-spotlight.md)
@@ -125,6 +131,7 @@ Start with the relevant component guide below. Its setting reference lists the e
 - [Forms – quote (full)](guides/section-form-quote-full.md)
 - [Hero banner - classic](guides/section-hero-banner.md)
 - [Hero banner - grid based](guides/section-grid-banner.md)
+- [Inquiry with benefits](guides/section-3rd-party-crm-form-funnel-embed.md)
 - [Interactive cards engine](guides/section-interactive-content-helper-cards.md)
 - [Interactive countdown](guides/section-interactive-content-helper-countdown-and-progress.md)
 - [Interactive media slides](guides/section-interactive-content-helper-carousel-media-logos.md)
@@ -133,6 +140,7 @@ Start with the relevant component guide below. Its setting reference lists the e
 - [Interactive testimonials](guides/section-interactive-content-helper-carousel-testimonials.md)
 - [Interactive · gallery](guides/section-interactive-content-helper-media-gallery.md)
 - [Layout grid builder](guides/section-basic-content-helper-grid-builder.md)
+- [Lead inquiry](guides/section-3rd-party-crm-lead-capture-form.md)
 - [Location info panels](guides/section-interactive-content-helper-location-info-panels.md)
 - [Main 404](guides/section-main-404.md)
 - [Main blog collection](guides/section-main-blog-collection.md)
@@ -142,6 +150,7 @@ Start with the relevant component guide below. Its setting reference lists the e
 - [Main collection simple](guides/section-main-collection-simple.md)
 - [Main product - compact](guides/section-main-product-compact.md)
 - [Main product classic](guides/section-main-product-classic.md)
+- [Main product master](guides/section-main-product-master.md)
 - [Main product — modern](guides/section-main-product-modern-variant.md)
 - [Main product — simple](guides/section-main-product-simple.md)
 - [Main search](guides/section-main-search.md)
@@ -170,6 +179,7 @@ Start with the relevant component guide below. Its setting reference lists the e
 - [Section divider](guides/section-basic-content-helper-section-divider.md)
 - [Service process - list](guides/section-interactive-content-helper-service-process-steps.md)
 - [Services list](guides/section-interactive-content-helper-services-list-grid.md)
+- [Showroom campaign](guides/section-showroom-campaign.md)
 - [Simple footer](guides/section-footer-one.md)
 - [Slideshow banner](guides/section-slideshow-banner.md)
 - [Social - LI highlight](guides/section-social-media-linkedin-company-highlight.md)

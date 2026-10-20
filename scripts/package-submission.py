@@ -24,6 +24,7 @@ source = Path(tempfile.mkdtemp(prefix='qtm-'+commit[:8]+'-'))
 archive = git('archive', '--format=zip', commit, *FOLDERS, 'scripts')
 with zipfile.ZipFile(io.BytesIO(archive)) as zipped:
     assert all(not Path(n).is_absolute() and '..' not in Path(n).parts for n in zipped.namelist())
+    committed_files = {n:zipped.read(n) for n in zipped.namelist() if not n.endswith('/')}
     zipped.extractall(source)
 (source / 'docs/ultima').mkdir(parents=True)
 build = subprocess.run([sys.executable, str(source/'scripts/build-submission-candidate.py'), '--source-commit', commit], cwd=source, capture_output=True, text=True)
@@ -53,6 +54,7 @@ with zipfile.ZipFile(destination, 'x', zipfile.ZIP_DEFLATED, compresslevel=9) as
         relative = path.relative_to(stage).as_posix()
         assert relative.split('/')[0] in FOLDERS, relative
         contents = path.read_bytes()
+        assert contents == committed_files[relative], ('Package differs from committed Main', relative)
         info = zipfile.ZipInfo(relative, date_time=(2026, 1, 1, 0, 0, 0))
         info.compress_type = zipfile.ZIP_DEFLATED
         info.external_attr = 0o100644 << 16
@@ -62,6 +64,10 @@ with zipfile.ZipFile(destination) as zipped:
     assert zipped.testzip() is None
     assert {n: hashlib.sha256(zipped.read(n)).hexdigest() for n in zipped.namelist()} == files
 manifest = {'created_utc': datetime.now(timezone.utc).isoformat(), 'source_branch': 'main', 'source_commit': commit, 'source_method': 'git archive of committed Main; working files excluded', 'version': version, 'presets': list(data['presets']), 'zip': destination.name, 'sha256': hashlib.sha256(destination.read_bytes()).hexdigest(), 'bytes': destination.stat().st_size, 'file_count': len(files), 'theme_check_errors': 0, 'theme_check_warnings': sum(o['severity']=='warning' for o in offenses), 'settings_validation': 'PASS', 'zip_integrity': 'PASS', 'shopify_approval': 'Not submitted or approved; packaging and automated checks do not certify acceptance.', 'files': files}
+(release/'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n', encoding='utf-8')
+stage_manifest = json.loads((source/'docs/ultima/submission-stage-quadratum.json').read_text())
+assert stage_manifest['source_parity']
+manifest.update(main_byte_parity='PASS', build_rewrites=False, excluded_source_inputs=stage_manifest['excluded'])
 (release/'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n', encoding='utf-8')
 (release/'theme-check.json').write_text(json.dumps(diagnostics, indent=2)+'\n', encoding='utf-8')
 (release/'settings-validation.json').write_text(settings.stdout, encoding='utf-8')

@@ -13,6 +13,18 @@ Navigation.
 
 Template availability: `{"enabled_on": {"groups": ["header"]}, "disabled_on": null}`.
 
+### Use Quadratum showroom logo
+
+Turn on “Use Quadratum showroom logo” to apply that behavior. Turn it off to remove that behavior. Other settings can affect whether the result is visible; check the section preview after changing it.
+
+Default: `False`.
+
+<details><summary>Reference for connected builders</summary>
+
+Setting: `use_quadratum_mark`. Type: `checkbox`.
+
+</details>
+
 ## Layout
 
 ### Header placement

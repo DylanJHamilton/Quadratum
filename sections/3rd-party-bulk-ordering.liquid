@@ -1,17 +1,4 @@
-{% comment %}
-  Quadratum — Form: Bulk order / PO request (Section)
-  File: sections/form-bulk-order-request.liquid
-
-  - Uses Quadratum frontend-form-logic.js contract:
-      .q-form, [data-q-field], .q-error, .q-live, wrapper [data-q-form-wrap="1" data-q-form-host]
-  - Submission modes:
-      shopify_contact  (Shopify built-in contact form)
-      external_post    (POST to external endpoint)
-      global_default   (decide from theme settings.forms_backend)
-  - Captcha:
-      settings.forms_captcha_provider
-      settings.captcha_turnstile_site_key / settings.captcha_recaptcha_site_key
-{% endcomment %}
+{% comment %}Native Shopify bulk-order inquiry. No external receiver or order creation.{% endcomment %}
 
 {{ 'forms-sections.css' | asset_url | stylesheet_tag }}
 <script src="{{ 'frontend-form-logic.js' | asset_url }}" defer></script>
@@ -20,10 +7,6 @@
 {%- assign g = settings -%}
 
 {%- if s.enable_section -%}
-
-  {%- comment -%} Captcha (provider-aware; safe defaults) {%- endcomment -%}
-  {%- assign eff_captcha_mode = g.forms_captcha_provider | default: 'none' -%}
-  {%- capture eff_captcha_key -%}{%- render 'form-captcha-key', mode: eff_captcha_mode, local_key: s.captcha_site_key -%}{%- endcapture -%}
 
   {%- comment -%} Button variant: global default -> q-btn class {%- endcomment -%}
   {%- assign btn_variant = g.button_variant_default | default: 'solid' -%}
@@ -42,53 +25,7 @@
     {%- assign tags_value = tags_value | append: ', ' | append: tags_section -%}
   {%- endif -%}
 
-  {%- comment -%} Mode resolution {%- endcomment -%}
-  {%- assign mode = s.form_mode | default: 'shopify_contact' -%}
-  {%- assign use_shopify = false -%}
-
-  {%- if mode == 'shopify_contact' -%}
-    {%- assign use_shopify = true -%}
-  {%- elsif mode == 'global_default' -%}
-    {%- if g.forms_backend == 'shopify' -%}
-      {%- assign use_shopify = true -%}
-    {%- endif -%}
-  {%- endif -%}
-
-  {%- assign external_action = '' -%}
-  {%- if use_shopify == false -%}
-    {%- if mode == 'external_post' -%}
-      {%- assign external_action = s.external_action_url | default: '' -%}
-    {%- else -%}
-      {%- assign external_action = g.forms_global_endpoint | default: '' -%}
-      {%- if external_action == blank or external_action == 'none' -%}
-        {%- assign external_action = g.proxy_forms_endpoint | default: '' -%}
-      {%- endif -%}
-    {%- endif -%}
-
-
-  {%- endif -%}
-
-  {%- assign external_action = external_action | strip -%}
-  {%- assign form_id = 'BulkOrderForm-' | append: section.id -%}
-{%- liquid
-  assign endpoint_valid = false
-  assign endpoint_start = external_action | slice: 0, 8 | downcase
-  assign endpoint_first = external_action | slice: 0, 1
-  assign endpoint_pair = external_action | slice: 0, 2
-  assign endpoint_host = external_action | slice: 8, 2048 | split: '/' | first | split: '?' | first | split: '#' | first
-  assign endpoint_encoded = external_action | url_encode
-  if endpoint_start == 'https://' and endpoint_host != blank
-    assign endpoint_valid = true
-  elsif endpoint_first == '/' and endpoint_pair != '//'
-    assign endpoint_valid = true
-  endif
-  if external_action contains ' ' or endpoint_encoded contains '%5C' or endpoint_encoded contains '%0A' or endpoint_encoded contains '%0D' or endpoint_encoded contains '%09' or endpoint_encoded contains '%00' or endpoint_host contains '@'
-    assign endpoint_valid = false
-  endif
--%}
-
-{%- if external_action contains '://example.com' -%}{%- assign endpoint_valid = false -%}{%- endif -%}
-
+  {% assign form_id = 'BulkOrderForm-' | append: section.id %}
 <section id="q-bulk-{{ section.id }}"
   class="q-section q-section--bg-{{ s.background_style }} q-form-section q-form-section--bulk-order"
   aria-label="{{ s.aria_label | escape }}"
@@ -113,15 +50,13 @@
       class="q-form-section__form"
       data-q-form-wrap="1" data-q-form-host
       data-q-attrib-create="1"
-      data-captcha="{{ eff_captcha_mode | escape }}"
-      data-captcha-key="{{ eff_captcha_key | escape }}"
       data-msg-error="Please fix the highlighted fields and try again."
     >
       <div class="q-live" aria-live="polite"></div>
 
       <div class="q-card q-card--form q-bulk-order-card">
 
-        {%- if use_shopify -%}
+
           {%- comment -%}
             IMPORTANT: first arg MUST be a valid Shopify form type (e.g. 'contact').
             Never pass section.id as the first arg.
@@ -255,123 +190,6 @@
 
           {% endform %}
 
-        {%- elsif endpoint_valid -%}
-          <form id="{{ form_id }}" class="q-form q-form--bulk-order" method="post" data-q-destination="custom_endpoint" action="{{ external_action | escape }}">
-            <input type="hidden" name="tags" value="{{ tags_value | escape }}">
-            <input type="hidden" name="source" value="{{ s.hidden_source | escape }}">
-            <input type="hidden" name="form_kind" value="bulk_order_request">
-
-            <input type="hidden" name="contact[tags]" value="{{ tags_value | escape }}">
-            <input type="hidden" name="contact[source]" value="{{ s.hidden_source | escape }}">
-            <input type="hidden" name="contact[form_kind]" value="bulk_order_request">
-
-            {%- if s.target_email != blank -%}
-              <input type="hidden" name="target_email" value="{{ s.target_email | escape }}">
-              <input type="hidden" name="contact[target_email]" value="{{ s.target_email | escape }}">
-            {%- endif -%}
-
-            <div class="q-bulk-order__grid" data-q-grid="1">
-              <div class="q-input" data-q-field data-required="true">
-                <label class="q-input__label" for="bo-{{ section.id }}-company">{{ s.company_label | default: 'Company name' | escape }}</label>
-                <input id="bo-{{ section.id }}-company" class="q-input__control" aria-describedby="bo-{{ section.id }}-company-err" type="text" name="contact[company]" placeholder="{{ s.company_placeholder | escape }}" required>
-                <div id="bo-{{ section.id }}-company-err" class="q-error" aria-live="polite"></div>
-              </div>
-
-              <div class="q-input" data-q-field data-required="true">
-                <label class="q-input__label" for="bo-{{ section.id }}-name">{{ s.contact_name_label | default: 'Contact name' | escape }}</label>
-                <input id="bo-{{ section.id }}-name" class="q-input__control" aria-describedby="bo-{{ section.id }}-name-err" type="text" name="contact[name]" placeholder="{{ s.contact_name_placeholder | escape }}" required>
-                <div id="bo-{{ section.id }}-name-err" class="q-error" aria-live="polite"></div>
-              </div>
-
-              <div class="q-input" data-q-field data-required="true">
-                <label class="q-input__label" for="bo-{{ section.id }}-email">{{ s.email_label | default: 'Email' | escape }}</label>
-                <input id="bo-{{ section.id }}-email" class="q-input__control" aria-describedby="bo-{{ section.id }}-email-err" type="email" name="contact[email]" placeholder="{{ s.email_placeholder | escape }}" required>
-                <div id="bo-{{ section.id }}-email-err" class="q-error" aria-live="polite"></div>
-              </div>
-
-              <div class="q-input" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-phone">{{ s.phone_label | default: 'Phone (optional)' | escape }}</label>
-                <input id="bo-{{ section.id }}-phone" class="q-input__control" aria-describedby="bo-{{ section.id }}-phone-err" type="tel" name="contact[phone]" placeholder="{{ s.phone_placeholder | escape }}">
-                <div id="bo-{{ section.id }}-phone-err" class="q-error" aria-live="polite"></div>
-              </div>
-
-              <div class="q-input q-bulk-order__span2" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-products">{{ s.products_label | default: 'Products of interest' | escape }}</label>
-                <textarea id="bo-{{ section.id }}-products" class="q-input__control" aria-describedby="bo-{{ section.id }}-products-err" name="contact[products]" rows="4" placeholder="{{ s.products_placeholder | escape }}"></textarea>
-                <div class="q-input__hint">{{ s.products_hint | escape }}</div>
-                <div id="bo-{{ section.id }}-products-err" class="q-error" aria-live="polite"></div>
-              </div>
-
-              <div class="q-input" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-qty">{{ s.quantity_label | default: 'Estimated quantity' | escape }}</label>
-                <input id="bo-{{ section.id }}-qty" class="q-input__control" aria-describedby="bo-{{ section.id }}-qty-err" type="text" name="contact[quantity]" inputmode="numeric" placeholder="{{ s.quantity_placeholder | escape }}">
-                <div class="q-input__hint">{{ s.quantity_hint | escape }} {{ s.min_quantity_hint | escape }}</div>
-                <div id="bo-{{ section.id }}-qty-err" class="q-error" aria-live="polite"></div>
-              </div>
-
-              <div class="q-input" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-date">{{ s.delivery_date_label | default: 'Desired delivery date' | escape }}</label>
-                <input id="bo-{{ section.id }}-date" class="q-input__control" aria-describedby="bo-{{ section.id }}-date-err" type="date" name="contact[delivery_date]">
-                <div class="q-input__hint">{{ s.delivery_date_hint | escape }}</div>
-                <div id="bo-{{ section.id }}-date-err" class="q-error" aria-live="polite"></div>
-              </div>
-
-              {%- if s.show_po_toggle -%}
-                <div class="q-input q-bulk-order__span2" data-q-field>
-                  <label class="q-check">
-                    <input id="bo-{{ section.id }}-haspo" type="checkbox" name="contact[has_po]">
-                    <span class="q-check__label">{{ s.po_toggle_label | default: 'I have a purchase order number' | escape }}</span>
-                  </label>
-                </div>
-
-                <div class="q-input q-bulk-order__span2" data-q-field data-cond="1" data-cond-field="contact[has_po]" data-cond-operator="checked" data-cond-value="on">
-                  <label class="q-input__label" for="bo-{{ section.id }}-ponum">{{ s.po_number_label | default: 'Purchase order number' | escape }}</label>
-                  <input id="bo-{{ section.id }}-ponum" class="q-input__control" aria-describedby="bo-{{ section.id }}-ponum-err" type="text" name="contact[po_number]" placeholder="{{ s.po_number_placeholder | escape }}">
-                  <div id="bo-{{ section.id }}-ponum-err" class="q-error" aria-live="polite"></div>
-                </div>
-              {%- endif -%}
-
-              <div class="q-input q-bulk-order__span2" data-q-field>
-                <label class="q-input__label" for="bo-{{ section.id }}-body">{{ s.notes_label | default: 'Additional notes' | escape }}</label>
-                <textarea id="bo-{{ section.id }}-body" class="q-input__control" aria-describedby="bo-{{ section.id }}-body-err" name="contact[body]" rows="4" placeholder="{{ s.notes_placeholder | escape }}"></textarea>
-                <div id="bo-{{ section.id }}-body-err" class="q-error" aria-live="polite"></div>
-              </div>
-
-              {%- assign field_keys = '|company|name|email|phone|products|quantity|delivery-date|body|po-number|has-po|tags|source|form-kind|target-email|' -%}
-              {%- for block in section.blocks -%}
-                {%- if block.type == 'custom_field' -%}
-                  {%- assign b = block.settings -%}
-                  {%- assign col_class = 'q-bulk-order__span2' -%}
-                  {%- if b.width == 'half' -%}{%- assign col_class = '' -%}{%- endif -%}
-                  {%- assign field_key = b.name | default: 'custom_field' | strip | handleize -%}
-                  {%- assign key_token = field_key | prepend: '|' | append: '|' -%}
-                  {%- if field_key == blank or field_keys contains key_token -%}{%- assign field_key = 'custom-' | append: block.id -%}{%- endif -%}
-                  {%- assign field_keys = field_keys | append: field_key | append: '|' -%}
-
-                  <div class="q-input {{ col_class }}" data-q-field {% if b.required %}data-required="true"{% endif %} {{ block.shopify_attributes }}>
-                    <label class="q-input__label" for="bo-{{ section.id }}-cf-{{ block.id }}">{{ b.label | default: 'Additional field' | escape }}</label>
-
-                    {%- if b.field_type == 'textarea' -%}
-                      <textarea id="bo-{{ section.id }}-cf-{{ block.id }}" class="q-input__control" aria-describedby="bo-{{ section.id }}-cf-{{ block.id }}-err" name="contact[{{ field_key }}]" rows="3" placeholder="{{ b.placeholder | escape }}" {% if b.required %}required{% endif %}></textarea>
-                    {%- else -%}
-                      <input id="bo-{{ section.id }}-cf-{{ block.id }}" class="q-input__control" aria-describedby="bo-{{ section.id }}-cf-{{ block.id }}-err" type="text" name="contact[{{ field_key }}]" placeholder="{{ b.placeholder | escape }}" {% if b.required %}required{% endif %}>
-                    {%- endif -%}
-
-                    <div id="bo-{{ section.id }}-cf-{{ block.id }}-err" class="q-error" aria-live="polite"></div>
-                  </div>
-                {%- endif -%}
-              {%- endfor -%}
-            </div>
-
-            <div class="q-form__actions">
-              <button type="submit" class="q-btn {{ btn_class }}">
-                {{ s.submit_label | default: 'Submit request' | escape }}
-              </button>
-            </div>
-          </form>
-        {%- else -%}
-          <p role="status">{% if request.design_mode %}Configure an HTTPS or store-relative form endpoint, or select Shopify contact mode.{% else %}This form is currently unavailable.{% endif %}</p>
-        {%- endif -%}
 
       </div>
     </div>
@@ -509,129 +327,376 @@
 
 {%- elsif request.design_mode -%}<p role="status">Enable Bulk Ordering to display this section.</p>{%- endif -%}
 
+
 {% schema %}
 {
-  "name": "3P - bulk order",
+  "name": "Bulk order request",
   "class": "q-section-wrap q-section-wrap--bulk-order",
   "settings": [
-    {"type": "paragraph", "content": "Sends a quote request, not a purchase order or checkout. External endpoints must accept the documented fields and validate captcha tokens server-side. No CRM or fulfillment connection is installed."},
-    { "type": "checkbox", "id": "enable_section", "label": "Enable section", "default": true },
-    { "type": "text", "id": "aria_label", "label": "Section aria-label", "default": "Bulk order and purchase order request form" },
-
-    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Bulk & wholesale" },
-    { "type": "text", "id": "heading", "label": "Heading", "default": "Request a bulk order quote" },
+    {
+      "type": "paragraph",
+      "content": "Uses Shopify’s native contact form. This requests a quote; it does not create an order or reserve inventory."
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_section",
+      "label": "Enable section",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "aria_label",
+      "label": "Section aria-label",
+      "default": "Bulk order and purchase order request form"
+    },
+    {
+      "type": "text",
+      "id": "kicker",
+      "label": "Kicker",
+      "default": "Bulk & wholesale"
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Request a bulk order quote"
+    },
     {
       "type": "richtext",
       "id": "body",
       "label": "Description",
       "default": "<p>Tell us what you need and our team will prepare a custom quote for your bulk or purchase order request, including lead times and shipping options.</p>"
     },
-
-    { "type": "select", "id": "layout_variant", "label": "Layout", "default": "split",
+    {
+      "type": "select",
+      "id": "layout_variant",
+      "label": "Layout",
+      "default": "split",
       "options": [
-        { "value": "stack", "label": "Stack" },
-        { "value": "split", "label": "Split" },
-        { "value": "wide", "label": "Wide" }
+        {
+          "value": "stack",
+          "label": "Stack"
+        },
+        {
+          "value": "split",
+          "label": "Split"
+        },
+        {
+          "value": "wide",
+          "label": "Wide"
+        }
       ]
     },
-    { "type": "select", "id": "background_style", "label": "Background style", "default": "surface",
+    {
+      "type": "select",
+      "id": "background_style",
+      "label": "Background style",
+      "default": "surface",
       "options": [
-        { "value": "surface", "label": "Surface" },
-        { "value": "contrast", "label": "Contrast" },
-        { "value": "brand", "label": "Brand" }
+        {
+          "value": "surface",
+          "label": "Surface"
+        },
+        {
+          "value": "contrast",
+          "label": "Contrast"
+        },
+        {
+          "value": "brand",
+          "label": "Brand"
+        }
       ]
     },
-    { "type": "select", "id": "max_width", "label": "Max content width", "default": "lg",
+    {
+      "type": "select",
+      "id": "max_width",
+      "label": "Max content width",
+      "default": "lg",
       "options": [
-        { "value": "sm", "label": "sm" },
-        { "value": "md", "label": "md" },
-        { "value": "lg", "label": "lg" }
+        {
+          "value": "sm",
+          "label": "sm"
+        },
+        {
+          "value": "md",
+          "label": "md"
+        },
+        {
+          "value": "lg",
+          "label": "lg"
+        }
       ]
     },
-    { "type": "checkbox", "id": "show_divider", "label": "Show top divider", "default": false },
-
-    { "type": "select", "id": "form_mode", "label": "Submission mode", "default": "shopify_contact",
-      "options": [
-        { "value": "shopify_contact", "label": "Shopify contact form" },
-        { "value": "external_post", "label": "POST to external endpoint" },
-        { "value": "global_default", "label": "Use global forms endpoint from theme settings" }
-      ]
+    {
+      "type": "checkbox",
+      "id": "show_divider",
+      "label": "Show top divider",
+      "default": false
     },
-    {"type": "text", "id": "external_action_url", "label": "External form action URL"},
-    {"type": "text", "id": "target_email", "label": "Recipient metadata (custom endpoint only)", "info": "Does not route Shopify contact notifications. Configure the Shopify recipient in store settings; custom servers must implement their own routing."},
-    { "type": "text", "id": "hidden_source", "label": "Hidden source tag", "default": "bulk_order_request" },
-    { "type": "text", "id": "hidden_tags", "label": "Additional tags (comma-separated)", "default": "b2b,bulk,quote" },
-
-    {"type": "select", "id": "success_mode", "label": "On successful submission", "default": "inline_message", "options": [{"value": "inline_message", "label": "Inline message"}, {"value": "redirect", "label": "Redirect"}], "info": "Shopify mode: store-relative redirects use the native return path; external URLs appear as a success link. External endpoint responses and redirects are owned by that provider."},
-    { "type": "text", "id": "success_heading", "label": "Success heading", "default": "Request received" },
-    {"type": "richtext", "id": "success_body", "label": "Success message", "default": "<p>Thank you. Your request has been received.</p>"},
-    { "type": "url", "id": "success_redirect_url", "label": "Redirect URL (if chosen above)" },
-
-    { "type": "text", "id": "submit_label", "label": "Submit button label", "default": "Submit bulk order request" },
-
-    { "type": "checkbox", "id": "show_po_toggle", "label": "Show “I already have a PO #” toggle", "default": true },
-    { "type": "text", "id": "po_toggle_label", "label": "PO toggle label", "default": "I already have a purchase order number" },
-    { "type": "text", "id": "po_number_label", "label": "PO number label", "default": "Purchase order number" },
-    { "type": "text", "id": "po_number_placeholder", "label": "PO number placeholder", "default": "e.g., PO-10294" },
-
-    { "type": "text", "id": "min_quantity_hint", "label": "Minimum quantity hint", "default": "Minimum order quantities may apply depending on product and region." },
-
-    { "type": "header", "content": "Field labels and placeholders" },
-    { "type": "text", "id": "company_label", "label": "Company label", "default": "Company name" },
-    { "type": "text", "id": "company_placeholder", "label": "Company placeholder", "default": "Your company" },
-
-    { "type": "text", "id": "contact_name_label", "label": "Contact name label", "default": "Contact name" },
-    { "type": "text", "id": "contact_name_placeholder", "label": "Contact name placeholder", "default": "Your name" },
-
-    { "type": "text", "id": "email_label", "label": "Email label", "default": "Email" },
-    { "type": "text", "id": "email_placeholder", "label": "Email placeholder", "default": "you@company.com" },
-
-    {"type": "text", "id": "phone_label", "label": "Phone (optional)", "default": "Phone (optional)"},
-    { "type": "text", "id": "phone_placeholder", "label": "(555) 555-5555" },
-
-    {"type": "text", "id": "products_label", "label": "Products of interest", "default": "Products of interest"},
-    { "type": "text", "id": "products_placeholder", "label": "Paste links, skus, or describe what you need…" },
-    { "type": "text", "id": "products_hint", "label": "Link to product pages, collections, or describe skus here." },
-
-    {"type": "text", "id": "quantity_label", "label": "Estimated quantity", "default": "Estimated quantity"},
-    { "type": "text", "id": "quantity_placeholder", "label": "e.g., 50–100 units" },
-    { "type": "text", "id": "quantity_hint", "label": "Approximate units or ranges are fine." },
-
-    {"type": "text", "id": "delivery_date_label", "label": "Desired delivery date / deadline", "default": "Desired delivery date"},
-    { "type": "text", "id": "delivery_date_hint", "label": "If you don’t have a firm date, give your best estimate." },
-
-    {"type": "text", "id": "notes_label", "label": "Additional notes", "default": "Additional notes"},
-    { "type": "text", "id": "notes_placeholder", "label": "Delivery instructions, special requirements, questions…" }
+    {
+      "type": "text",
+      "id": "target_email",
+      "label": "Recipient metadata (custom endpoint only)",
+      "info": "Does not route Shopify contact notifications. Configure the Shopify recipient in store settings; custom servers must implement their own routing."
+    },
+    {
+      "type": "text",
+      "id": "hidden_source",
+      "label": "Hidden source tag",
+      "default": "bulk_order_request"
+    },
+    {
+      "type": "text",
+      "id": "hidden_tags",
+      "label": "Additional tags (comma-separated)",
+      "default": "b2b,bulk,quote"
+    },
+    {
+      "type": "select",
+      "id": "success_mode",
+      "label": "On successful submission",
+      "default": "inline_message",
+      "options": [
+        {
+          "value": "inline_message",
+          "label": "Inline message"
+        },
+        {
+          "value": "redirect",
+          "label": "Redirect"
+        }
+      ],
+      "info": "Shopify mode: store-relative redirects use the native return path; external URLs appear as a success link. External endpoint responses and redirects are owned by that provider."
+    },
+    {
+      "type": "text",
+      "id": "success_heading",
+      "label": "Success heading",
+      "default": "Request received"
+    },
+    {
+      "type": "richtext",
+      "id": "success_body",
+      "label": "Success message",
+      "default": "<p>Thank you. Your request has been received.</p>"
+    },
+    {
+      "type": "url",
+      "id": "success_redirect_url",
+      "label": "Redirect URL (if chosen above)"
+    },
+    {
+      "type": "text",
+      "id": "submit_label",
+      "label": "Submit button label",
+      "default": "Submit bulk order request"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_po_toggle",
+      "label": "Show “I already have a PO #” toggle",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "po_toggle_label",
+      "label": "PO toggle label",
+      "default": "I already have a purchase order number"
+    },
+    {
+      "type": "text",
+      "id": "po_number_label",
+      "label": "PO number label",
+      "default": "Purchase order number"
+    },
+    {
+      "type": "text",
+      "id": "po_number_placeholder",
+      "label": "PO number placeholder",
+      "default": "e.g., PO-10294"
+    },
+    {
+      "type": "text",
+      "id": "min_quantity_hint",
+      "label": "Minimum quantity hint",
+      "default": "Minimum order quantities may apply depending on product and region."
+    },
+    {
+      "type": "header",
+      "content": "Field labels and placeholders"
+    },
+    {
+      "type": "text",
+      "id": "company_label",
+      "label": "Company label",
+      "default": "Company name"
+    },
+    {
+      "type": "text",
+      "id": "company_placeholder",
+      "label": "Company placeholder",
+      "default": "Your company"
+    },
+    {
+      "type": "text",
+      "id": "contact_name_label",
+      "label": "Contact name label",
+      "default": "Contact name"
+    },
+    {
+      "type": "text",
+      "id": "contact_name_placeholder",
+      "label": "Contact name placeholder",
+      "default": "Your name"
+    },
+    {
+      "type": "text",
+      "id": "email_label",
+      "label": "Email label",
+      "default": "Email"
+    },
+    {
+      "type": "text",
+      "id": "email_placeholder",
+      "label": "Email placeholder",
+      "default": "you@company.com"
+    },
+    {
+      "type": "text",
+      "id": "phone_label",
+      "label": "Phone (optional)",
+      "default": "Phone (optional)"
+    },
+    {
+      "type": "text",
+      "id": "phone_placeholder",
+      "label": "(555) 555-5555"
+    },
+    {
+      "type": "text",
+      "id": "products_label",
+      "label": "Products of interest",
+      "default": "Products of interest"
+    },
+    {
+      "type": "text",
+      "id": "products_placeholder",
+      "label": "Paste links, skus, or describe what you need…"
+    },
+    {
+      "type": "text",
+      "id": "products_hint",
+      "label": "Link to product pages, collections, or describe skus here."
+    },
+    {
+      "type": "text",
+      "id": "quantity_label",
+      "label": "Estimated quantity",
+      "default": "Estimated quantity"
+    },
+    {
+      "type": "text",
+      "id": "quantity_placeholder",
+      "label": "e.g., 50–100 units"
+    },
+    {
+      "type": "text",
+      "id": "quantity_hint",
+      "label": "Approximate units or ranges are fine."
+    },
+    {
+      "type": "text",
+      "id": "delivery_date_label",
+      "label": "Desired delivery date / deadline",
+      "default": "Desired delivery date"
+    },
+    {
+      "type": "text",
+      "id": "delivery_date_hint",
+      "label": "If you don’t have a firm date, give your best estimate."
+    },
+    {
+      "type": "text",
+      "id": "notes_label",
+      "label": "Additional notes",
+      "default": "Additional notes"
+    },
+    {
+      "type": "text",
+      "id": "notes_placeholder",
+      "label": "Delivery instructions, special requirements, questions…"
+    }
   ],
   "blocks": [
     {
       "type": "custom_field",
       "name": "Custom field",
       "settings": [
-        { "type": "text", "id": "label", "label": "Label", "default": "Additional field" },
-        { "type": "text", "id": "name", "label": "Field key (used in name=contact[...])", "default": "custom_field" },
-        { "type": "text", "id": "placeholder", "label": "Placeholder", "default": "Enter value" },
-        { "type": "select", "id": "field_type", "label": "Type", "default": "text",
+        {
+          "type": "text",
+          "id": "label",
+          "label": "Label",
+          "default": "Additional field"
+        },
+        {
+          "type": "text",
+          "id": "name",
+          "label": "Field key (used in name=contact[...])",
+          "default": "custom_field"
+        },
+        {
+          "type": "text",
+          "id": "placeholder",
+          "label": "Placeholder",
+          "default": "Enter value"
+        },
+        {
+          "type": "select",
+          "id": "field_type",
+          "label": "Type",
+          "default": "text",
           "options": [
-            { "value": "text", "label": "Text" },
-            { "value": "textarea", "label": "Textarea" }
+            {
+              "value": "text",
+              "label": "Text"
+            },
+            {
+              "value": "textarea",
+              "label": "Textarea"
+            }
           ]
         },
-        { "type": "select", "id": "width", "label": "Width", "default": "full",
+        {
+          "type": "select",
+          "id": "width",
+          "label": "Width",
+          "default": "full",
           "options": [
-            { "value": "full", "label": "Full" },
-            { "value": "half", "label": "Half" }
+            {
+              "value": "full",
+              "label": "Full"
+            },
+            {
+              "value": "half",
+              "label": "Half"
+            }
           ]
         },
-        { "type": "checkbox", "id": "required", "label": "Required", "default": false }
+        {
+          "type": "checkbox",
+          "id": "required",
+          "label": "Required",
+          "default": false
+        }
       ]
     }
   ],
   "presets": [
     {
-      "name": "3rd party - bulk order form",
+      "name": "Bulk order request",
       "category": "3rd party integrations",
-      "blocks": []
+      "blocks": [],
+      "settings": {}
     }
   ]
 }

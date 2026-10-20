@@ -19,6 +19,16 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),f=require('../p
     }
   }
   for(const file of ['frontend-form-logic.js','frontend-form-logic-form-sections.js','maps-locator.js'])assert(!/challenges\.cloudflare|recaptcha\/api|maps\.googleapis/.test(fs.readFileSync('assets/'+file,'utf8')));
-  for(const file of ['3rd-party-crm-form-funnel-embed','3rd-party-crm-lead-capture-form','3rd-party-scheduling-booking-embed','3rd-party-bulk-ordering'])assert(!fs.existsSync('sections/'+file+'.liquid'));
-  console.log('PASS compiled native services: seven forms, native destinations/email/validation, editor lifecycle, no external CAPTCHA/Maps SDKs or provider-only sections.');
+  for(const file of ['3rd-party-crm-form-funnel-embed','3rd-party-crm-lead-capture-form','3rd-party-scheduling-booking-embed','3rd-party-bulk-ordering']){
+    const text=fs.readFileSync('sections/'+file+'.liquid','utf8');
+    assert(!/s\.embed_code|action="{{ (?:eff_endpoint|external_action)|endpoint_valid/.test(text),file);
+    const d=f.dom(await f.host(file)),doc=d.window.document,form=doc.querySelector('form');
+    assert(form,file+' retained layout renders a native contact form');
+    assert.equal(form.dataset.platformForm,'contact',file);
+    assert(form.querySelector('[name="contact[email]"]')?.required,file+' native email is required');
+    assert(form.querySelector('[name="contact[body]"]'),file+' native message field exists');
+    assert(!doc.querySelector('iframe,script[src*="calendly"],script[src*="leadconnector"]'),file);
+    d.window.close();
+  }
+  console.log('PASS Main native services: eleven retained form layouts, native destinations/email/validation, editor lifecycle, no provider transport or external CAPTCHA/Maps SDKs.');
 })().catch(e=>{console.error(e);process.exitCode=1});

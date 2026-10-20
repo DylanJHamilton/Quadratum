@@ -1,57 +1,9 @@
-{% comment %}
-  Quadratum — 3rd Party · CRM Lead Capture Form (Direct POST)
-  File: sections/3rd-party-crm-lead-capture-form.liquid
-  Category: 3rd Party Integrations
-  Dependencies:
-    - Reuse existing Quadratum forms CSS: forms-sections.css
-  Notes:
-    - Direct POST to external endpoint (CRM). No snippets. No extra assets.
-    - Adheres to frontend-form-logic.js:
-        • wrapper [data-q-form-wrap="1" data-q-form-host]
-        • field wrappers [data-q-field]
-        • error elements .q-error
-        • live region .q-live
-        • captcha attrs data-captcha + data-captcha-key
-        • optional attribution: data-q-attrib-create="1" and/or hidden inputs
-        • optional tag packing: data-q-pack-tags="0" to disable
-{% endcomment %}
+{% comment %}Native Shopify contact form. Legacy file name preserves existing templates.{% endcomment %}
 
 {{ 'forms-sections.css' | asset_url | stylesheet_tag }}
 <script src="{{ 'frontend-form-logic.js' | asset_url }}" defer></script>
 
-{% liquid
-  assign s = section.settings
-  assign g = settings
-
-  assign eff_captcha_mode = s.captcha_mode | default: 'inherit'
-  if eff_captcha_mode == 'inherit'
-    assign eff_captcha_mode = g.forms_captcha_provider | default: 'none'
-  endif
-
-
-
-%}
-{%- capture eff_captcha_key -%}{%- render 'form-captcha-key', mode: eff_captcha_mode, local_key: s.captcha_site_key -%}{%- endcapture -%}
-
-{%- assign eff_endpoint = s.action_url | strip -%}
-{%- liquid
-  assign endpoint_valid = false
-  assign endpoint_start = eff_endpoint | slice: 0, 8 | downcase
-  assign endpoint_first = eff_endpoint | slice: 0, 1
-  assign endpoint_pair = eff_endpoint | slice: 0, 2
-  assign endpoint_host = eff_endpoint | slice: 8, 2048 | split: '/' | first | split: '?' | first | split: '#' | first
-  assign endpoint_encoded = eff_endpoint | url_encode
-  if endpoint_start == 'https://' and endpoint_host != blank
-    assign endpoint_valid = true
-  elsif endpoint_first == '/' and endpoint_pair != '//'
-    assign endpoint_valid = true
-  endif
-  if eff_endpoint contains ' ' or endpoint_encoded contains '%5C' or endpoint_encoded contains '%0A' or endpoint_encoded contains '%0D' or endpoint_encoded contains '%09' or endpoint_encoded contains '%00' or endpoint_host contains '@'
-    assign endpoint_valid = false
-  endif
--%}
-
-{%- if eff_endpoint contains '://example.com' -%}{%- assign endpoint_valid = false -%}{%- endif -%}
+{% assign s = section.settings %}
 {% if s.enable_section %}
 <section
   id="q-crm-lead-{{ section.id }}"
@@ -197,33 +149,28 @@
       data-btn-variant="q-btn--solid"
       {% if s.enable_attribution and s.attrib_create %}data-q-attrib-create="1"{% endif %}
       {% if s.enable_pack_tags == false %}data-q-pack-tags="0"{% endif %}
-      {% if eff_captcha_mode != blank %}data-captcha="{{ eff_captcha_mode | escape }}"{% endif %}
-      {% if eff_captcha_key != blank %}data-captcha-key="{{ eff_captcha_key | escape }}"{% endif %}
       {% if s.msg_error != blank %}data-msg-error="{{ s.msg_error | escape }}"{% endif %}
     >
       <div class="q-live" role="status" aria-live="polite"></div>
 
-      {% if endpoint_valid %}
-      <form
-        id="CrmLeadForm-{{ section.id }}" data-q-destination="custom_endpoint"
-        action="{{ eff_endpoint | escape }}"
-        method="{{ s.method | default: 'post' }}"
-        class="q-form q-form--crm-lead q-form--layout-{{ s.form_layout }}"
-
-      >
-        {% if s.include_default_tags and s.tags_field_name != blank and s.tags_value != blank %}
-          <input type="hidden" name="{{ s.tags_field_name | escape }}" value="{{ s.tags_value | escape }}">
+      {% assign lead_id = 'CrmLeadForm-' | append: section.id %}
+      {% assign lead_class = 'q-form q-form--crm-lead q-form--layout-' | append: s.form_layout %}
+      {% form 'contact', id: lead_id, class: lead_class, data-shopify-captcha: 'true' %}
+      {% if form.posted_successfully? %}<p role="status" tabindex="-1">Your request has been sent.</p>{% endif %}
+      {% if form.errors %}<div role="alert">{{ form.errors | default_errors }}</div>{% endif %}
+        {% if s.include_default_tags and s.tags_value != blank %}
+          <input type="hidden" name="contact[tags]" value="{{ s.tags_value | escape }}">
         {% endif %}
 
         {% if s.enable_attribution and s.include_attribution_fields %}
-          <input type="hidden" name="utm_source" value="">
-          <input type="hidden" name="utm_medium" value="">
-          <input type="hidden" name="utm_campaign" value="">
-          <input type="hidden" name="utm_content" value="">
-          <input type="hidden" name="utm_term" value="">
-          <input type="hidden" name="referrer" value="">
-          <input type="hidden" name="page_url" value="">
-          <input type="hidden" name="timestamp" value="">
+          <input type="hidden" name="contact[utm_source]" value="">
+          <input type="hidden" name="contact[utm_medium]" value="">
+          <input type="hidden" name="contact[utm_campaign]" value="">
+          <input type="hidden" name="contact[utm_content]" value="">
+          <input type="hidden" name="contact[utm_term]" value="">
+          <input type="hidden" name="contact[referrer]" value="">
+          <input type="hidden" name="contact[page_url]" value="">
+          <input type="hidden" name="contact[timestamp]" value="">
         {% endif %}
 
         <div class="q-form__grid q-form__grid--{{ s.form_columns }}">
@@ -233,7 +180,7 @@
               <input
                 id="crm-name-{{ section.id }}"
                 type="text"
-                name="{{ s.name_field_name | default: 'name' | escape }}"
+                name="contact[name]"
                 class="q-input"
                 autocomplete="name"
                 {% if s.name_placeholder != blank %}placeholder="{{ s.name_placeholder | escape }}"{% endif %}
@@ -244,18 +191,18 @@
             </div>
           {% endif %}
 
-          {% if s.show_email %}
+          {% if true %}
             <div class="q-form__field q-form__field--email{% if s.email_required %} q-form__field--required{% endif %}" data-q-field {% if s.email_required %}data-required="true"{% endif %}>
               <label for="crm-email-{{ section.id }}" class="q-label">{{ s.label_email | default: 'Email' | escape }}</label>
               <input
                 id="crm-email-{{ section.id }}"
                 type="email"
-                name="{{ s.email_field_name | default: 'email' | escape }}"
+                name="contact[email]"
                 class="q-input"
                 autocomplete="email"
                 inputmode="email"
                 {% if s.email_placeholder != blank %}placeholder="{{ s.email_placeholder | escape }}"{% endif %}
-                {% if s.email_required %}required{% endif %}
+                required
                 aria-describedby="crm-email-{{ section.id }}-err"
               >
               <p id="crm-email-{{ section.id }}-err" class="q-error" aria-live="polite"></p>
@@ -268,7 +215,7 @@
               <input
                 id="crm-phone-{{ section.id }}"
                 type="tel"
-                name="{{ s.phone_field_name | default: 'phone' | escape }}"
+                name="contact[phone]"
                 class="q-input"
                 autocomplete="tel"
                 inputmode="tel"
@@ -286,7 +233,7 @@
             <label for="crm-message-{{ section.id }}" class="q-label">{{ s.label_message | default: 'Message' | escape }}</label>
             <textarea
               id="crm-message-{{ section.id }}"
-              name="{{ s.message_field_name | default: 'message' | escape }}"
+              name="contact[body]"
               class="q-textarea"
               rows="5"
               {% if s.message_placeholder != blank %}placeholder="{{ s.message_placeholder | escape }}"{% endif %}
@@ -317,7 +264,7 @@
                   <input
                     id="crm-{{ block.id }}-{{ section.id }}"
                     type="text"
-                    name="{{ b.name | escape }}"
+                    name="contact[{{ b.name | handleize | prepend: 'custom-' }}]"
                     class="q-input"
                     {% if b.placeholder != blank %}placeholder="{{ b.placeholder | escape }}"{% endif %}
                     {% if b.required %}required{% endif %}
@@ -331,7 +278,7 @@
                   <label for="crm-{{ block.id }}-{{ section.id }}" class="q-label">{{ b.label | default: b.name | escape }}</label>
                   <select
                     id="crm-{{ block.id }}-{{ section.id }}"
-                    name="{{ b.name | escape }}"
+                    name="contact[{{ b.name | handleize | prepend: 'custom-' }}]"
                     class="q-input q-input--select"
                     {% if b.required %}required{% endif %}
                     aria-describedby="crm-{{ block.id }}-{{ section.id }}-err"
@@ -353,7 +300,7 @@
                   <label class="q-checkbox" style="display:flex; gap:10px; align-items:flex-start; padding:10px 0;">
                     <input
                       type="checkbox"
-                      name="{{ b.name | escape }}"
+                      name="contact[{{ b.name | handleize | prepend: 'custom-' }}]"
                       class="q-checkbox__input"
                       {% if b.checked_by_default %}checked{% endif %}
                       style="margin-top:3px;"
@@ -372,7 +319,7 @@
           {% if block.type == 'hidden_field' %}
             <input
               type="hidden"
-              name="{{ b.name | escape }}"
+              name="contact[{{ b.name | handleize | prepend: 'custom-' }}]"
               value="{{ b.value | escape }}"
               {{ block.shopify_attributes }}
             >
@@ -394,89 +341,193 @@
             {{ s.subtext | escape }}
           </p>
         {% endif %}
-      </form>
-      {% else %}<p role="status">{% if request.design_mode %}Configure a valid HTTPS or store-relative endpoint from your CRM provider to enable this form.{% else %}This form is currently unavailable.{% endif %}</p>{% endif %}
+      {% endform %}
     </div>
   </div>
 </section>
 {% elsif request.design_mode %}<p role="status">Enable CRM Lead Capture to display this section.</p>{% endif %}
 
+
 {% schema %}
 {
-  "name": "3rd party - CRM lead form",
+  "name": "Lead inquiry",
   "tag": "div",
   "class": "q-crm-lead-wrap",
   "settings": [
-    {"type": "paragraph", "content": "This form sends a native browser request to your configured endpoint. Your CRM/provider must accept these field names, process consent and validate captcha server-side. The theme does not install a CRM integration or confirm lead delivery."},
-    { "type": "checkbox", "id": "enable_section", "label": "Enable section", "default": true },
-
-    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Start your quote" },
-    { "type": "text", "id": "heading", "label": "Heading", "default": "Tell us about your project" },
-    { "type": "textarea", "id": "body", "label": "Intro text", "default": "Answer a few quick questions and we’ll connect you with the best option for your needs." },
-
-    {"type": "text", "id": "action_url", "label": "Form action URL (CRM endpoint)"},
-    {"type": "select", "id": "method", "label": "HTTP method", "default": "post", "options": [{"value": "post", "label": "POST"}, {"value": "get", "label": "GET"}], "info": "Use the method specified by your provider. GET places submitted values in the destination URL."},
-
-    { "type": "header", "content": "Core fields" },
-
-    { "type": "checkbox", "id": "show_name", "label": "Show name field", "default": true },
-    { "type": "checkbox", "id": "name_required", "label": "Name required", "default": true },
-    { "type": "text", "id": "label_name", "label": "Name label", "default": "Full name" },
-    { "type": "text", "id": "name_placeholder", "label": "Name placeholder", "default": "Jane Doe" },
-    { "type": "text", "id": "name_field_name", "label": "Name field name (CRM param)", "default": "name" },
-
-    { "type": "checkbox", "id": "show_email", "label": "Show email field", "default": true },
-    { "type": "checkbox", "id": "email_required", "label": "Email required", "default": true },
-    { "type": "text", "id": "label_email", "label": "Email label", "default": "Email address" },
-    { "type": "text", "id": "email_placeholder", "label": "Email placeholder", "default": "you@example.com" },
-    { "type": "text", "id": "email_field_name", "label": "Email field name (CRM param)", "default": "email" },
-
-    { "type": "checkbox", "id": "show_phone", "label": "Show phone field", "default": true },
-    { "type": "checkbox", "id": "phone_required", "label": "Phone required", "default": false },
-    { "type": "text", "id": "label_phone", "label": "Phone label", "default": "Phone number" },
-    { "type": "text", "id": "phone_placeholder", "label": "Phone placeholder", "default": "(555) 555-5555" },
-    { "type": "text", "id": "phone_field_name", "label": "Phone field name (CRM param)", "default": "phone" },
-
-    { "type": "checkbox", "id": "show_message", "label": "Show message field", "default": true },
-    { "type": "checkbox", "id": "message_required", "label": "Message required", "default": false },
-    { "type": "text", "id": "label_message", "label": "Message label", "default": "How can we help?" },
-    { "type": "text", "id": "message_placeholder", "label": "Message placeholder", "default": "Tell us what you’re looking for…" },
-    { "type": "text", "id": "message_field_name", "label": "Message field name (CRM param)", "default": "message" },
-
-    { "type": "header", "content": "Theme settings integration" },
     {
-      "type": "select",
-      "id": "captcha_mode",
-      "label": "Captcha mode",
-      "default": "inherit",
-      "options": [
-        { "value": "inherit", "label": "Inherit global (theme settings)" },
-        { "value": "none", "label": "None" },
-        { "value": "turnstile", "label": "Cloudflare turnstile" },
-        { "value": "recaptcha_v3", "label": "reCAPTCHA v3" }
-      ]
+      "type": "paragraph",
+      "content": "Uses Shopify’s native contact form and spam protection. Requests go to the store’s configured contact email. Custom fields are included in the inquiry; no CRM connection is required."
     },
-    { "type": "text", "id": "captcha_site_key", "label": "Captcha site key (override optional)" },
-
-    { "type": "checkbox", "id": "enable_attribution", "label": "Enable attribution capture (utms/referrer/page)", "default": true },
-    { "type": "checkbox", "id": "include_attribution_fields", "label": "Render attribution hidden inputs (recommended)", "default": true },
-    { "type": "checkbox", "id": "attrib_create", "label": "Allow JS to create missing attribution inputs", "default": true },
-
-    { "type": "checkbox", "id": "include_default_tags", "label": "Include default tags hidden field", "default": false },
-    { "type": "text", "id": "tags_field_name", "label": "Tags field name (CRM param)", "default": "tags" },
-    { "type": "text", "id": "tags_value", "label": "Tags value", "default": "form, web" },
-
-    { "type": "checkbox", "id": "enable_pack_tags", "label": "Enable JS tag packing (only affects contact[tags] if present)", "default": true },
-
-    { "type": "header", "content": "Layout and styling" },
+    {
+      "type": "checkbox",
+      "id": "enable_section",
+      "label": "Enable section",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "kicker",
+      "label": "Kicker",
+      "default": "Start your quote"
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Tell us about your project"
+    },
+    {
+      "type": "textarea",
+      "id": "body",
+      "label": "Intro text",
+      "default": "Answer a few quick questions and we’ll connect you with the best option for your needs."
+    },
+    {
+      "type": "header",
+      "content": "Core fields"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_name",
+      "label": "Show name field",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "name_required",
+      "label": "Name required",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "label_name",
+      "label": "Name label",
+      "default": "Full name"
+    },
+    {
+      "type": "text",
+      "id": "name_placeholder",
+      "label": "Name placeholder",
+      "default": "Jane Doe"
+    },
+    {
+      "type": "text",
+      "id": "label_email",
+      "label": "Email label",
+      "default": "Email address"
+    },
+    {
+      "type": "text",
+      "id": "email_placeholder",
+      "label": "Email placeholder",
+      "default": "you@example.com"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_phone",
+      "label": "Show phone field",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "phone_required",
+      "label": "Phone required",
+      "default": false
+    },
+    {
+      "type": "text",
+      "id": "label_phone",
+      "label": "Phone label",
+      "default": "Phone number"
+    },
+    {
+      "type": "text",
+      "id": "phone_placeholder",
+      "label": "Phone placeholder",
+      "default": "(555) 555-5555"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_message",
+      "label": "Show message field",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "message_required",
+      "label": "Message required",
+      "default": false
+    },
+    {
+      "type": "text",
+      "id": "label_message",
+      "label": "Message label",
+      "default": "How can we help?"
+    },
+    {
+      "type": "text",
+      "id": "message_placeholder",
+      "label": "Message placeholder",
+      "default": "Tell us what you’re looking for…"
+    },
+    {
+      "type": "header",
+      "content": "Theme settings integration"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_attribution",
+      "label": "Enable attribution capture (utms/referrer/page)",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "include_attribution_fields",
+      "label": "Render attribution hidden inputs (recommended)",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "attrib_create",
+      "label": "Allow JS to create missing attribution inputs",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "include_default_tags",
+      "label": "Include default tags hidden field",
+      "default": false
+    },
+    {
+      "type": "text",
+      "id": "tags_value",
+      "label": "Tags value",
+      "default": "form, web"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_pack_tags",
+      "label": "Enable JS tag packing (only affects contact[tags] if present)",
+      "default": true
+    },
+    {
+      "type": "header",
+      "content": "Layout and styling"
+    },
     {
       "type": "select",
       "id": "content_align",
       "label": "Content alignment",
       "default": "left",
       "options": [
-        { "value": "left", "label": "Left" },
-        { "value": "center", "label": "Center" }
+        {
+          "value": "left",
+          "label": "Left"
+        },
+        {
+          "value": "center",
+          "label": "Center"
+        }
       ]
     },
     {
@@ -485,8 +536,14 @@
       "label": "Form layout style",
       "default": "card",
       "options": [
-        { "value": "stacked", "label": "Stacked" },
-        { "value": "card", "label": "Card" }
+        {
+          "value": "stacked",
+          "label": "Stacked"
+        },
+        {
+          "value": "card",
+          "label": "Card"
+        }
       ]
     },
     {
@@ -495,8 +552,14 @@
       "label": "Core fields columns",
       "default": "2",
       "options": [
-        { "value": "1", "label": "Single column" },
-        { "value": "2", "label": "Two columns (desktop)" }
+        {
+          "value": "1",
+          "label": "Single column"
+        },
+        {
+          "value": "2",
+          "label": "Two columns (desktop)"
+        }
       ]
     },
     {
@@ -505,8 +568,14 @@
       "label": "Custom fields columns",
       "default": "2",
       "options": [
-        { "value": "1", "label": "Single column" },
-        { "value": "2", "label": "Two columns (desktop)" }
+        {
+          "value": "1",
+          "label": "Single column"
+        },
+        {
+          "value": "2",
+          "label": "Two columns (desktop)"
+        }
       ]
     },
     {
@@ -515,9 +584,18 @@
       "label": "Background style",
       "default": "surface",
       "options": [
-        { "value": "surface", "label": "Surface" },
-        { "value": "contrast", "label": "Contrast" },
-        { "value": "brand", "label": "Brand color" }
+        {
+          "value": "surface",
+          "label": "Surface"
+        },
+        {
+          "value": "contrast",
+          "label": "Contrast"
+        },
+        {
+          "value": "brand",
+          "label": "Brand color"
+        }
       ]
     },
     {
@@ -526,75 +604,189 @@
       "label": "Content width",
       "default": "md",
       "options": [
-        { "value": "sm", "label": "Narrow" },
-        { "value": "md", "label": "Medium" },
-        { "value": "lg", "label": "Wide" }
+        {
+          "value": "sm",
+          "label": "Narrow"
+        },
+        {
+          "value": "md",
+          "label": "Medium"
+        },
+        {
+          "value": "lg",
+          "label": "Wide"
+        }
       ]
     },
-
-    { "type": "header", "content": "Submit and legal" },
-    { "type": "text", "id": "submit_label", "label": "Submit button label", "default": "Submit" },
-    {"type": "textarea", "id": "legal_text", "label": "Legal / consent text", "default": "Submit your details to ask about your request."},
-    {"type": "textarea", "id": "subtext", "label": "Post-form helper text"},
+    {
+      "type": "header",
+      "content": "Submit and legal"
+    },
+    {
+      "type": "text",
+      "id": "submit_label",
+      "label": "Submit button label",
+      "default": "Submit"
+    },
+    {
+      "type": "textarea",
+      "id": "legal_text",
+      "label": "Legal / consent text",
+      "default": "Submit your details to ask about your request."
+    },
+    {
+      "type": "textarea",
+      "id": "subtext",
+      "label": "Post-form helper text"
+    },
     {
       "type": "select",
       "id": "actions_align",
       "label": "Button alignment",
       "default": "left",
       "options": [
-        { "value": "left", "label": "Left" },
-        { "value": "center", "label": "Center" },
-        { "value": "right", "label": "Right" }
+        {
+          "value": "left",
+          "label": "Left"
+        },
+        {
+          "value": "center",
+          "label": "Center"
+        },
+        {
+          "value": "right",
+          "label": "Right"
+        }
       ]
     },
-
-    { "type": "text", "id": "msg_error", "label": "Validation message (inline)", "default": "Please fix the highlighted fields and try again." },
-    { "type": "text", "id": "aria_label", "label": "Section aria label", "default": "CRM lead capture form" }
+    {
+      "type": "text",
+      "id": "msg_error",
+      "label": "Validation message (inline)",
+      "default": "Please fix the highlighted fields and try again."
+    },
+    {
+      "type": "text",
+      "id": "aria_label",
+      "label": "Section aria label",
+      "default": "Lead inquiry"
+    }
   ],
   "blocks": [
     {
       "type": "text_field",
       "name": "Custom text field",
       "settings": [
-        { "type": "text", "id": "label", "label": "Field label", "default": "Custom text field" },
-        { "type": "text", "id": "name", "label": "Field name (CRM param)", "default": "custom_text_field" },
-        { "type": "text", "id": "placeholder", "label": "Placeholder", "default": "Contact Us Today For Inquiries" },
-        { "type": "checkbox", "id": "required", "label": "Required", "default": false }
+        {
+          "type": "text",
+          "id": "label",
+          "label": "Field label",
+          "default": "Custom text field"
+        },
+        {
+          "type": "text",
+          "id": "name",
+          "label": "Field name (CRM param)",
+          "default": "custom_text_field"
+        },
+        {
+          "type": "text",
+          "id": "placeholder",
+          "label": "Placeholder",
+          "default": "Contact Us Today For Inquiries"
+        },
+        {
+          "type": "checkbox",
+          "id": "required",
+          "label": "Required",
+          "default": false
+        }
       ]
     },
     {
       "type": "select_field",
       "name": "Custom select field",
       "settings": [
-        { "type": "text", "id": "label", "label": "Field label", "default": "Select an option" },
-        { "type": "text", "id": "name", "label": "Field name (CRM param)", "default": "custom_select_field" },
-        { "type": "text", "id": "placeholder", "label": "Placeholder (blank option)", "default": "Select an option" },
-        { "type": "textarea", "id": "options", "label": "Options (one per line)", "default": "Option A\nOption B\nOption C" },
-        { "type": "checkbox", "id": "required", "label": "Required", "default": false }
+        {
+          "type": "text",
+          "id": "label",
+          "label": "Field label",
+          "default": "Select an option"
+        },
+        {
+          "type": "text",
+          "id": "name",
+          "label": "Field name (CRM param)",
+          "default": "custom_select_field"
+        },
+        {
+          "type": "text",
+          "id": "placeholder",
+          "label": "Placeholder (blank option)",
+          "default": "Select an option"
+        },
+        {
+          "type": "textarea",
+          "id": "options",
+          "label": "Options (one per line)",
+          "default": "Option A\nOption B\nOption C"
+        },
+        {
+          "type": "checkbox",
+          "id": "required",
+          "label": "Required",
+          "default": false
+        }
       ]
     },
     {
       "type": "checkbox_field",
       "name": "Custom checkbox field",
       "settings": [
-        { "type": "text", "id": "label", "label": "Field label", "default": "I agree to receive updates" },
-        { "type": "text", "id": "name", "label": "Field name (CRM param)", "default": "custom_checkbox_field" },
-        { "type": "checkbox", "id": "checked_by_default", "label": "Checked by default", "default": false }
+        {
+          "type": "text",
+          "id": "label",
+          "label": "Field label",
+          "default": "I agree to receive updates"
+        },
+        {
+          "type": "text",
+          "id": "name",
+          "label": "Field name (CRM param)",
+          "default": "custom_checkbox_field"
+        },
+        {
+          "type": "checkbox",
+          "id": "checked_by_default",
+          "label": "Checked by default",
+          "default": false
+        }
       ]
     },
     {
       "type": "hidden_field",
       "name": "Hidden metadata field",
       "settings": [
-        { "type": "text", "id": "name", "label": "Field name (CRM param)", "default": "source" },
-        { "type": "text", "id": "value", "label": "Hidden value", "default": "quadratum_crm_lead_form" }
+        {
+          "type": "text",
+          "id": "name",
+          "label": "Field name (CRM param)",
+          "default": "source"
+        },
+        {
+          "type": "text",
+          "id": "value",
+          "label": "Hidden value",
+          "default": "quadratum_crm_lead_form"
+        }
       ]
     }
   ],
   "presets": [
     {
-      "name": "3rd party - CRM lead capture form",
-      "category": "3rd party integrations"
+      "name": "Lead inquiry",
+      "category": "3rd party integrations",
+      "settings": {}
     }
   ]
 }

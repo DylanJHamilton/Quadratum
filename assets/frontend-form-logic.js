@@ -3,48 +3,9 @@
 (() => {
   'use strict';
   if (window.QuadratumForms) { window.QuadratumForms.init(document); return; }
-  const hosts = '[data-q-form-host]', instances = new Map(), sdkLoads = new Map();
+  const hosts = '[data-q-form-host]', instances = new Map();
   const controls = form => Array.from(form.elements).filter(el => /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName));
   const named = (form, name) => controls(form).filter(el => el.name === name);
-  const apiFor = mode => mode === 'turnstile' ? window.turnstile : window.grecaptcha;
-
-  function loadSDK(mode, key, signal) {
-    if (signal.aborted) return Promise.reject(new Error('Cancelled'));
-    if (apiFor(mode)) return Promise.resolve(apiFor(mode));
-    let entry = sdkLoads.get(mode);
-    if (!entry || !entry.script.isConnected) {
-      const prefix = mode === 'turnstile' ? '//challenges.cloudflare.com/turnstile/v0/api.js' : '//www.google.com/recaptcha/api.js';
-      let script = Array.from(document.scripts).find(el => el.src.split('?')[0] === new URL(prefix, document.baseURI).href);
-      const owned = !script;
-      if (!script) {
-        script = document.createElement('script'); script.async = true; script.defer = true;
-        script.src = prefix + (mode === 'turnstile' ? '?render=explicit' : '?render=' + encodeURIComponent(key));
-      }
-      entry = { script, owned, waiters: 0 }; sdkLoads.set(mode, entry);
-    }
-    entry.waiters++;
-    return new Promise((resolve, reject) => {
-      let done = false;
-      const finish = error => {
-        if (done) return; done = true; clearTimeout(timer);
-        entry.script.removeEventListener('load', loaded); entry.script.removeEventListener('error', failed);
-        signal.removeEventListener('abort', cancelled); entry.waiters--;
-        if (!entry.waiters && !apiFor(mode)) {
-          if (entry.owned) entry.script.remove();
-          sdkLoads.delete(mode);
-        }
-        if (error) reject(error); else resolve(apiFor(mode));
-      };
-      const loaded = () => finish(apiFor(mode) ? null : new Error('Unavailable'));
-      const failed = () => finish(new Error('Unavailable'));
-      const cancelled = () => finish(new Error('Cancelled'));
-      const timer = setTimeout(failed, 12000);
-      entry.script.addEventListener('load', loaded); entry.script.addEventListener('error', failed);
-      signal.addEventListener('abort', cancelled, { once: true });
-      if (!entry.script.isConnected) document.head.appendChild(entry.script);
-    });
-  }
-
   function initForm(form, host, dynamic) {
     if (instances.has(form)) return;
     const listeners = new AbortController(), signal = listeners.signal;
@@ -153,58 +114,8 @@
       if (document.referrer) { try { add('ref', new URL(document.referrer).hostname); } catch (_) {} }
       add('page', location.pathname); tags.value = list.join(', ');
     }
-    function clearWidget() {
-      if (widget !== null) { try { window.turnstile?.remove(widget); } catch (_) {} widget = null; }
-      if (mount) { mount.remove(); mount = null; }
-    }
-    function stopOperation() {
-      const op = operation; operation = null;
-      if (op) {
-        clearTimeout(op.timer); op.abort.abort();
-        for (const [button, disabled] of op.buttons) { button.disabled = disabled; button.removeAttribute('aria-busy'); }
-      }
-      clearWidget();
-    }
-    function clearTokens() { for (const name of ['cf-turnstile-response', 'g-recaptcha-response']) for (const el of named(form, name)) el.value = ''; }
-    function fail(op, message = 'Verification failed. Please try again.') {
-      if (!current(op)) return; stopOperation(); clearTokens(); showMessage(message, true); live.focus();
-    }
-    function verified(op, token, field) {
-      if (!current(op)) return;
-      if (typeof token !== 'string' || !token.trim()) { fail(op); return; }
-      setHidden(field, token, true); stopOperation(); armed = true;
-      try {
-        // Preserve native submit events, constraint handling and submitter data.
-        HTMLFormElement.prototype.requestSubmit.call(form, op.submitter?.form === form ? op.submitter : undefined);
-      } catch (_) { showMessage('This form could not be submitted. Please try again.', true); }
-      finally { armed = false; }
-    }
-    function verify(submitter) {
-      const mode = host.dataset.captcha, key = host.dataset.captchaKey;
-      if (!key || !['turnstile', 'recaptcha_v3'].includes(mode)) { showMessage('Verification is unavailable. Please try again later.', true); return; }
-      clearTokens(); clearWidget();
-      const op = { abort: new AbortController(), submitter, buttons: new Map(Array.from(form.querySelectorAll('button[type=submit], input[type=submit]')).map(el => [el, el.disabled])) };
-      operation = op;
-      for (const button of op.buttons.keys()) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
-      showMessage('Please complete verification.');
-      op.timer = setTimeout(() => fail(op), mode === 'turnstile' ? 120000 : 30000);
-      loadSDK(mode, key, op.abort.signal).then(api => {
-        if (!current(op)) return;
-        if (mode === 'turnstile') {
-          mount = document.createElement('div'); mount.dataset.qTurnstileMount = '1'; form.appendChild(mount);
-          const rendered = api.render(mount, { sitekey: key, size: 'flexible', 'response-field': false,
-            callback: token => verified(op, token, 'cf-turnstile-response'),
-            'error-callback': () => { fail(op); return true; }, 'expired-callback': () => fail(op) });
-          if (current(op)) widget = rendered; else { try { api.remove(rendered); } catch (_) {} }
-        } else {
-          api.ready(() => {
-            if (!current(op)) return;
-            try { Promise.resolve(api.execute(key, { action: 'submit' })).then(token => verified(op, token, 'g-recaptcha-response'), () => fail(op)); }
-            catch (_) { fail(op); }
-          });
-        }
-      }).catch(() => fail(op));
-    }
+    function stopOperation() { operation = null; }
+    function clearTokens() {}
     if (steps.length > 1) {
       if (legacyNav) legacyNav.hidden = true;
       nav = document.createElement('div'); nav.className = 'q-steps-actions'; nav.dataset.qStepControls = '1';
@@ -228,8 +139,7 @@
       const trap = named(form, native ? 'contact[hp_field]' : 'hp_field')[0];
       if (trap?.value) { event.preventDefault(); showMessage('This form could not be submitted.', true); return; }
       capture();
-      if (native || armed || !host.dataset.captcha || host.dataset.captcha === 'none') return;
-      event.preventDefault(); verify(event.submitter);
+      // Shopify owns the native form submission and captcha lifecycle.
     });
     on(window, 'pageshow', () => { stopOperation(); clearTokens(); });
     evaluateConditions(); capture();

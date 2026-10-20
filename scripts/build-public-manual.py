@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'docs/merchant'
 (OUT / 'guides').mkdir(parents=True, exist_ok=True)
-stage = Path(json.loads((ROOT / 'docs/ultima/submission-stage-quadratum.json').read_text())['output'])
+stage = ROOT  # Main is the shipping source; documentation must describe Main.
 guides = []
 
 def clean(value):

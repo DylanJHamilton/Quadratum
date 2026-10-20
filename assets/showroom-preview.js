@@ -1,5 +1,7 @@
-/* Preview-only navigation for the shared demo store. Excluded from merchant packages. */
+/* Keep an active theme preview consistent across local navigation. */
 (() => {
+  // Published storefront URLs must remain clean for navigation and indexing.
+  if (!new URL(location.href).searchParams.has('preview_theme_id')) return;
   const themeId = document.currentScript?.dataset.showroomTheme;
   if (!/^\d+$/.test(themeId || '') || window.quadratumShowroomPreview) return;
   window.quadratumShowroomPreview = true;

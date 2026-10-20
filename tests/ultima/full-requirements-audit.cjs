@@ -43,6 +43,7 @@ async function fragment(name,data){return f.dom(await f.engine.parseAndRender(f.
  d=await fragment('product-services',{product:{...f.product,media:[{media_type:'model'}]},form:{},id:'model'});assert(d.window.document.querySelector('script[type=module][src*="q-model-viewer"]'));d.window.close();
  for(const name of ['frontend-form-logic.js','frontend-form-logic-form-sections.js','maps-locator.js'])assert(!/https:\/\/(challenges.cloudflare.com|www.google.com|maps.googleapis.com)/.test(f.read('assets/'+name)));
  assert.match(f.read('sections/hero-banner.liquid'),/b.image.presentation.focal_point/);assert.match(f.read('sections/sub-banner-classic.liquid'),/b.mobile_image.presentation.focal_point/);
- assert.match(f.read('scripts/build-submission-candidate.py'),/EXCLUDED_TEMPLATES = \{'page.northstar-theme.json', 'page.morrow-theme.json'/);
+ assert.match(f.read('scripts/build-submission-candidate.py'),/assert files==source_files/);
+ assert(!f.read('scripts/build-submission-candidate.py').includes('SHOWROOM_SECTIONS'));
  console.log('PASS full-audit repairs: article native form structure/feedback/escaping/pagination; app schemas; mixed media and empty states; collection price variation and units; directory fallback; schema terminology; responsive candidates; package exclusions. Shopify service playback, comment submission, device layout and final package verification remain separate.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

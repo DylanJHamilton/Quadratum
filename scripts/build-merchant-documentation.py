@@ -89,6 +89,10 @@ def category(slug):
     return 'Content and merchandising'
 
 SPECIAL = {
+ '3rd-party-crm-form-funnel-embed':['Choose a split or stacked inquiry layout, then add benefits and trust badges beside the native contact form.', 'Requests are handled by Shopify. No CRM endpoint, external script or booking provider is required.'],
+ '3rd-party-scheduling-booking-embed':['Set the heading and explanatory text. The native contact form can collect a preferred date.', 'This sends an appointment request; it does not reserve a time or manage availability. Confirm appointments separately.'],
+ '3rd-party-crm-lead-capture-form':['Choose the card or stacked form layout and configure the visible fields. An email address is required for Shopify delivery.', 'Requests and custom fields are sent through Shopify contact forms. This section does not connect to a CRM.'],
+ '3rd-party-bulk-ordering':['Configure company, product, quantity and purchase-order inquiry fields. Use the same layout controls as other forms.', 'This sends a quote request through Shopify. It does not create orders, apply wholesale prices or reserve inventory.'],
  'product-bundles':['Select manual products or a collection first. Choose an optional product metafield reference only when you already have a suitable definition.', 'The section adds selected products as separate cart lines. It does not create a bundle SKU or apply a discount. Configure real automatic discounts separately in Shopify.'],
  'product-story':['Start with Manual blocks and add story text, images, or timeline items. Use Split for a lead image beside the story; additional media remains in the content.', 'For advanced data, select a product metafield. A reference entry may supply heading, content, media_image, media_video, media_caption, and timeline_items. A timeline list uses title, date, text, and image fields.'],
  'product-meta-panels':['Add one panel block per subject, then choose tabs, cards, or a table. Use Manual content for a quick start.', 'For a referenced entry, configure its product metafield namespace and key, then list the entry field keys to display in the Field key control.'],
@@ -120,9 +124,9 @@ for kind, inventory in [('section',sections),('block',blocks)]:
             steps.append('Configure the block’s content first, then its presentation. Drag the block in its parent to change its position.')
         steps.append('Preview desktop and mobile, test any links or controls, and save. Publish only after reviewing the complete customer journey.')
         if kind == 'section' and slug in {'showroom-campaign','editorial-story','commerce-showcase','builder-reference','documentation-hub','theme-support'}:
-            steps.insert(0, 'Showcase component: this page belongs to the Quadratum demonstration and support website. It is excluded from the merchant submission package.')
+            steps.insert(0, 'This component is included in Main and the theme package. Configure its content for your store and review all destinations before publishing.')
         elif kind == 'section' and slug == 'main-product-master':
-            steps.insert(0, 'Development component: this legacy laboratory layout is excluded from the merchant submission package. Use a supported product template for a customer store.')
+            steps.insert(0, 'Legacy product composition layout. Use the current product templates for new product pages.')
         presets = [{'name':p.get('name'),'settings':p.get('settings',{}),'blocks':p.get('blocks',[])} for p in schema.get('presets',[])]
         module = {'slug':kind+'-'+slug,'name':title,'kind':kind,'category':category(slug),'file':kind+'s/'+slug+'.liquid','steps':steps,'settings':controls(schema.get('settings',[])), 'blocks':[dict(b,settings=controls(b.get('settings',[]))) for b in schema.get('blocks',[])], 'presets':presets,'enabled_on':schema.get('enabled_on'),'disabled_on':schema.get('disabled_on'),'limit':schema.get('limit'),'max_blocks':schema.get('max_blocks')}
         modules.append(module)
@@ -137,7 +141,7 @@ GROUP_HELP = {
  'Search settings':['Choose result types and the main form style. Full results support products, pages, and articles; collections are predictive suggestions.', 'Enable predictive search, set its minimum characters, delay, and per-type limits, then style the result panel. Use actual catalog terms to review loading, no-results, and keyboard behavior.', 'The popup has its own heading, placeholder, size, and form style. Product filters require Shopify filter configuration.'],
  '404 Settings':['Use a clear error message, a Home or collection destination, and a search form. Add optional imagery after the navigation is useful.', 'Preview a nonexistent storefront path. The page must remain helpful even if the optional image is absent.'],
  'Media settings':['These settings affect shared components that use the global media defaults. Individual sections can expose separate ratios, autoplay, and loop controls.', 'Keep lazy loading on for images below the first screen. Check video posters, playback controls, and reduced-motion behavior on the actual page.'],
- 'Integrations':['Native storefront and Shopify forms do not require an external endpoint. Only configure optional third-party destinations when you have a working service and understand which data it receives.', 'Leave unused social URLs empty. A social link does not embed a feed or connect an account.', 'Do not paste private keys into theme settings. Public map or CAPTCHA keys require appropriate service and domain restrictions.'],
+ 'Integrations':['Forms use native Shopify submission and spam protection. Location cards provide search, contact links and directions without an external map API.', 'Leave unused social URLs empty. A social link does not embed a feed or connect an account.', 'Do not paste private keys into theme settings. Configure installed apps through their own settings.'],
  'Popups':['Write the offer, choose imagery, and select the signup form or link destination before enabling the popup. A newsletter form collects an opt-in; it does not create or send a discount code.', 'Choose a trigger and frequency, then preview desktop and mobile. Use the editor preview option to inspect it when stored frequency rules would hide it.', 'Check Escape, the close button, focus return, and readability. Keep the underlying page usable when the popup is dismissed.'],
  'Performance settings':['Keep the default font-loading strategy unless you have measured an improvement. Compare multiple page types after any performance-related change.', 'Preconnect hints should match origins used by your real storefront. They cannot compensate for oversized imagery, heavy app scripts, or too much content above the fold.'],
  'Localization settings':['Set up Shopify Markets and publish translated languages before enabling selectors. Review country and language changes using the actual storefront.', 'RTL changes direction and needs translated content as well as a visual review. Theme settings do not translate product descriptions or create exchange rates.'],
@@ -175,3 +179,14 @@ summary = {'sections':len(sections),'blocks':len(blocks),'theme_setting_groups':
 for name, section in [('documentation','documentation-hub'),('customer-care','theme-support')]:
     (ROOT/'templates'/('page.'+name+'.json')).write_text(json.dumps({'sections':{'main':{'type':section,'settings':{}}},'order':['main']},indent=2)+'\n',encoding='utf-8')
 print(json.dumps({k:v for k,v in summary.items() if k!='module_files'}))
+
+# Keep the downloadable assistant reference aligned with the actual shipped schemas.
+manifest_path = ROOT/'assets/quadratum-builder-manifest.json'
+manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+manifest['scope'] = 'Theme schema reference generated from the shipped source. Connector access is supplied separately.'
+manifest['sections'] = {slug:{key:schema[key] for key in ('name','settings','blocks','max_blocks','enabled_on','disabled_on','presets') if key in schema} for slug,schema in sections.items()}
+manifest_path.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+index_path = ROOT/'assets/quadratum-builder-index.json'
+compact = json.loads(index_path.read_text(encoding='utf-8'))
+compact['sections'] = {slug:{'name':schema['name'],'file':'sections/'+slug+'.liquid','settings_count':len(schema.get('settings',[])),'block_types':[b['type'] for b in schema.get('blocks',[])]} for slug,schema in sections.items()}
+index_path.write_text(json.dumps(compact,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')

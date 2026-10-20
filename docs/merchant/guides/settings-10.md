@@ -7,9 +7,9 @@ Theme Settings.
 ## Add and configure
 
 1. Open Online Store > Themes > Customize, then select Theme Settings and Integrations.
-2. Native storefront and Shopify forms do not require an external endpoint. Only configure optional third-party destinations when you have a working service and understand which data it receives.
+2. Forms use native Shopify submission and spam protection. Location cards provide search, contact links and directions without an external map API.
 3. Leave unused social URLs empty. A social link does not embed a feed or connect an account.
-4. Do not paste private keys into theme settings. Public map or CAPTCHA keys require appropriate service and domain restrictions.
+4. Do not paste private keys into theme settings. Configure installed apps through their own settings.
 5. Set shared defaults here. A section with its own override may retain that override; select the section to adjust it.
 6. Preview a home, product, collection, and cart page before saving shared changes.
 
