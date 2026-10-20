@@ -47,22 +47,24 @@ release = ROOT / 'release' / (version+'-'+commit[:12])
 release.mkdir(parents=True, exist_ok=False)
 destination = release / ('Quadratum-'+version+'.zip')
 files = {}
-with zipfile.ZipFile(destination, 'x', zipfile.ZIP_DEFLATED, compresslevel=9) as zipped:
-    for path in sorted(stage.rglob('*')):
-        if not path.is_file():
-            continue
-        relative = path.relative_to(stage).as_posix()
-        assert relative.split('/')[0] in FOLDERS, relative
-        contents = path.read_bytes()
-        assert contents == committed_files[relative], ('Package differs from committed Main', relative)
-        info = zipfile.ZipInfo(relative, date_time=(2026, 1, 1, 0, 0, 0))
-        info.compress_type = zipfile.ZIP_DEFLATED
-        info.external_attr = 0o100644 << 16
-        zipped.writestr(info, contents)
-        files[relative] = hashlib.sha256(contents).hexdigest()
+for path in sorted(stage.rglob('*')):
+    if not path.is_file():
+        continue
+    relative = path.relative_to(stage).as_posix()
+    assert relative.split('/')[0] in FOLDERS, relative
+    contents = path.read_bytes()
+    assert contents == committed_files[relative], ('Package differs from committed Main', relative)
+    files[relative] = hashlib.sha256(contents).hexdigest()
+# Shopify's submission validator needs explicit listing directory records.
+# Use its official packager, then prove that no theme file was changed or lost.
+packaged = subprocess.run([cli, 'theme', 'package', '--path', str(stage)], capture_output=True, text=True, encoding='utf-8', errors='replace')
+assert packaged.returncode == 0, packaged.stdout + packaged.stderr
+shutil.move(str(stage / destination.name), str(destination))
 with zipfile.ZipFile(destination) as zipped:
     assert zipped.testzip() is None
-    assert {n: hashlib.sha256(zipped.read(n)).hexdigest() for n in zipped.namelist()} == files
+    assert {i.filename: hashlib.sha256(zipped.read(i)).hexdigest() for i in zipped.infolist() if not i.is_dir()} == files
+    directory_entries = {i.filename for i in zipped.infolist() if i.is_dir()}
+    assert {'listings/'}.union('listings/' + name.lower() + '/' for name in data['presets']) <= directory_entries, 'Missing explicit preset directory entries'
 manifest = {'created_utc': datetime.now(timezone.utc).isoformat(), 'source_branch': 'main', 'source_commit': commit, 'source_method': 'git archive of committed Main; working files excluded', 'version': version, 'presets': list(data['presets']), 'zip': destination.name, 'sha256': hashlib.sha256(destination.read_bytes()).hexdigest(), 'bytes': destination.stat().st_size, 'file_count': len(files), 'theme_check_errors': 0, 'theme_check_warnings': sum(o['severity']=='warning' for o in offenses), 'settings_validation': 'PASS', 'zip_integrity': 'PASS', 'shopify_approval': 'Not submitted or approved; packaging and automated checks do not certify acceptance.', 'files': files}
 (release/'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n', encoding='utf-8')
 stage_manifest = json.loads((source/'docs/ultima/submission-stage-quadratum.json').read_text())
